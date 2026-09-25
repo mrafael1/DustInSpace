@@ -23,7 +23,7 @@ The game's emotional core is the slot machine's: **anticipation, then reveal, th
 | Tremble | Shake, grow and brighten | ~280 ms |
 | Burst | Ring, spark pixels, stars scatter with an ease-out-back | ~650 ms |
 | Valid link | Line and stars flare white, hold, then dissolve | ~380 ms + particles |
-| Invalid link | Red line shakes and fades; nothing is used up | ~450 ms |
+| Invalid link | Ember (S4) line shakes and fades; nothing is used up | ~450 ms |
 | Particles to counter or Sun | Bézier path, staggered by ~28 ms each | 750–1100 ms |
 | Sun gains light | Pulse, fill level rises, next ray lights | on arrival |
 
