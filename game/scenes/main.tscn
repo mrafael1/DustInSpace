@@ -1,10 +1,17 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://game/scenes/event_sequencer.gd" id="2_sequencer"]
+[ext_resource type="PackedScene" path="res://game/scenes/sky.tscn" id="3_sky"]
+[ext_resource type="Script" path="res://game/scenes/debug_keys.gd" id="4_debug_keys"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
+
+[node name="Sky" parent="." instance=ExtResource("3_sky")]
+
+[node name="DebugKeys" type="Node" parent="."]
+script = ExtResource("4_debug_keys")
 
 [node name="DebugLayer" type="CanvasLayer" parent="."]
 layer = 100

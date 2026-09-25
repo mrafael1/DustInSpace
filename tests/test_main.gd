@@ -88,6 +88,28 @@ func test_a_valid_restart_hides_old_errors() -> void:
 	assert_false((main.get_node("DebugLayer/BalanceErrors") as Label).visible)
 
 
+func test_the_sky_shows_the_run_in_play() -> void:
+	var sky: SkyView = main.get_node("Sky")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	main.run.launch(Vector2i(90, 160))
+	sequencer.advance(0.0)
+	assert_eq(sky.star_count(), main.run.stars.size())
+	main.start_run(Fixtures.balance())
+	assert_eq(sky.star_count(), 0, "a restart empties the sky")
+
+
+func test_debug_launch_waits_for_the_sequence_and_stays_in_the_sky() -> void:
+	var keys: DebugKeys = main.get_node("DebugKeys")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	assert_true(keys.launch_at_random())
+	assert_false(keys.launch_at_random(), "no launch while the burst still plays")
+	sequencer.advance(0.0)
+	sequencer.advance(SkyView.BURST_STAGGER * 4 + StarView.SETTLE_TIME)
+	assert_true(keys.launch_at_random(), "input is back once the stars settle")
+	for star: Star in main.run.stars:
+		assert_true(StarScatter.inner_rect(ScreenZones.SKY).has_point(star.position))
+
+
 func _invalid_balance() -> Balance:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["sun_target"] = 0
