@@ -92,7 +92,7 @@ func test_the_sky_shows_the_run_in_play() -> void:
 	var sky: SkyView = main.get_node("Sky")
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
 	main.run.launch(Vector2i(90, 160))
-	sequencer.advance(0.0)
+	_play_until_idle(sequencer)
 	assert_eq(sky.star_count(), main.run.stars.size())
 	main.start_run(Fixtures.balance())
 	assert_eq(sky.star_count(), 0, "a restart empties the sky")
