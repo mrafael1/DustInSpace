@@ -53,25 +53,45 @@ func test_sequencer_is_the_last_child_so_it_sees_input_first() -> void:
 	assert_eq(main.get_child(main.get_child_count() - 1), main.get_node("EventSequencer"))
 
 
-func test_invalid_balance_shows_errors_and_starts_no_run() -> void:
-	var data: Dictionary = Fixtures.balance_dict()
-	data["sun_target"] = 0
-	var started: bool = main.start_run(Balance.from_dict(data))
-	assert_false(started)
-	assert_null(main.run)
-	var label: Label = main.get_node("DebugLayer/BalanceErrors")
+func test_invalid_balance_file_shows_errors_and_starts_no_run() -> void:
+	var broken: Main = MainScene.instantiate()
+	broken.balance_path = "res://tests/missing_balance.json"
+	add_child_autofree(broken)
+	assert_null(broken.run)
+	var label: Label = broken.get_node("DebugLayer/BalanceErrors")
 	assert_true(label.visible, "debug builds show the errors")
-	assert_string_contains(label.text, "sun_target")
+	assert_string_contains(label.text, "not found")
 	assert_push_error("balance.json")
+
+
+func test_invalid_restart_keeps_the_current_run_and_views_in_step() -> void:
+	var view := ViewStub.new()
+	main.add_child(view)
+	main.move_child(view, 0)
+	main.start_run(Fixtures.balance({"start_dust": 20}))
+	var current: RunState = main.run
+	var started: bool = main.start_run(_invalid_balance())
+	assert_false(started)
+	assert_push_error("balance.json")
+	assert_eq(main.run, current, "the run in play survives a rejected restart")
+	assert_eq(view.run, current, "views still hold the run Main holds")
+	assert_true((main.get_node("DebugLayer/BalanceErrors") as Label).visible)
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	current.buy("red")
+	assert_true(sequencer.is_busy(), "the kept run's events are still presented")
 
 
 func test_a_valid_restart_hides_old_errors() -> void:
-	var data: Dictionary = Fixtures.balance_dict()
-	data["sun_target"] = 0
-	main.start_run(Balance.from_dict(data))
+	main.start_run(_invalid_balance())
 	assert_push_error("balance.json")
 	assert_true(main.start_run(Fixtures.balance()))
 	assert_false((main.get_node("DebugLayer/BalanceErrors") as Label).visible)
+
+
+func _invalid_balance() -> Balance:
+	var data: Dictionary = Fixtures.balance_dict()
+	data["sun_target"] = 0
+	return Balance.from_dict(data)
 
 
 func _burst_sizes() -> Array[int]:
