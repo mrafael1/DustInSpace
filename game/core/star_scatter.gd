@@ -4,13 +4,15 @@ extends RefCounted
 ## pack contents. Every returned position is inside `sky` shrunk by EDGE_MARGIN.
 ## These are layout constants, not balance, so they live here rather than in balance.json.
 
-## Keeps a star's sprite fully inside the sky (half the big star's footprint, rounded up).
-const EDGE_MARGIN: int = 6
-const RING_MIN: int = 14
-const RING_MAX: int = 26
+## Keeps a star's sprite inside the sky: the big star is 15x15, so 7 px each side of its centre, +1.
+## Halos (up to r11) may bleed past the edge; they are decoration.
+const EDGE_MARGIN: int = 8
+const RING_MIN: int = 18
+const RING_MAX: int = 30
 ## Vertical squash of the scatter ring, as in the prototype.
 const RING_SQUASH: float = 0.85
-const MIN_SPACING: int = 12
+## Big star width + 1, so sprites never overlap in an open sky.
+const MIN_SPACING: int = 16
 const RELAX_STEPS: int = 24
 
 

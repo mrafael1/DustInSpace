@@ -16,7 +16,7 @@ func test_bursts_near_edges_keep_every_star_inside_the_sky() -> void:
 	var sky: Rect2i = Fixtures.SKY
 	var targets: Array[Vector2i] = [
 		sky.position, Vector2i(sky.end.x - 1, sky.position.y), sky.end - Vector2i.ONE,
-		Vector2i(sky.position.x, sky.end.y - 1), Vector2i(0, 130), Vector2i(179, 130),
+		Vector2i(sky.position.x, sky.end.y - 1), Vector2i(0, 160), Vector2i(179, 160),
 		Vector2i(90, sky.position.y), Vector2i(90, sky.end.y - 1),
 		Vector2i(-50, -50), Vector2i(500, 900), Vector2i(90, 319),
 	]
@@ -37,17 +37,17 @@ func test_crowded_sky_still_keeps_stars_inside() -> void:
 
 
 func test_returns_one_position_per_star() -> void:
-	assert_eq(StarScatter.place(3, Vector2i(90, 120), Fixtures.SKY, [], Fixtures.rng()).size(), 3)
+	assert_eq(StarScatter.place(3, Vector2i(90, 160), Fixtures.SKY, [], Fixtures.rng()).size(), 3)
 
 
 func test_burst_point_is_clamped_into_sky() -> void:
 	var inner: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
 	assert_true(inner.has_point(StarScatter.clamp_to_sky(Vector2i(-10, 999), Fixtures.SKY)))
-	assert_eq(StarScatter.clamp_to_sky(Vector2i(90, 120), Fixtures.SKY), Vector2i(90, 120), "inside points unchanged")
+	assert_eq(StarScatter.clamp_to_sky(Vector2i(90, 160), Fixtures.SKY), Vector2i(90, 160), "inside points unchanged")
 
 
 func test_open_sky_spreads_stars_apart() -> void:
-	var points: Array[Vector2i] = StarScatter.place(3, Vector2i(90, 130), Fixtures.SKY, [], Fixtures.rng(2))
+	var points: Array[Vector2i] = StarScatter.place(3, Vector2i(90, 160), Fixtures.SKY, [], Fixtures.rng(2))
 	for i: int in points.size():
 		for j: int in range(i + 1, points.size()):
 			assert_gt(Vector2(points[i]).distance_to(Vector2(points[j])), float(StarScatter.MIN_SPACING) - 2.0)

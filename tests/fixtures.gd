@@ -1,7 +1,8 @@
 extends RefCounted
 ## Shared test data. Preload it: `const Fixtures := preload("res://tests/fixtures.gd")`.
 
-const SKY := Rect2i(0, 24, 180, 216)
+## Play sky from docs/art-direction.md: y 78-250.
+const SKY := Rect2i(0, 78, 180, 172)
 
 
 ## A copy of the shipped balance values as a dictionary, so tests can tweak one field.

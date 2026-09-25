@@ -4,7 +4,7 @@ const Fixtures := preload("res://tests/fixtures.gd")
 const S := Star.Size.SMALL
 const M := Star.Size.MEDIUM
 const B := Star.Size.BIG
-const MID := Vector2i(90, 130)
+const MID := Vector2i(90, 160)
 
 var run: RunState
 
@@ -148,7 +148,7 @@ func test_launch_near_edges_keeps_stars_inside_sky() -> void:
 func test_launch_position_never_changes_pack_contents() -> void:
 	var a: RunState = Fixtures.run({"start_packs": {"blue": 5, "red": 0}}, 99)
 	var b: RunState = Fixtures.run({"start_packs": {"blue": 5, "red": 0}}, 99)
-	var targets: Array[Vector2i] = [Vector2i(0, 0), Vector2i(170, 200), Vector2i(90, 60), Vector2i(10, 230), MID]
+	var targets: Array[Vector2i] = [Vector2i(0, 0), Vector2i(170, 200), Vector2i(90, 90), Vector2i(10, 240), MID]
 	for i: int in 5:
 		a.launch(MID)
 		b.launch(targets[i])
