@@ -51,3 +51,27 @@ func test_open_sky_spreads_stars_apart() -> void:
 	for i: int in points.size():
 		for j: int in range(i + 1, points.size()):
 			assert_gt(Vector2(points[i]).distance_to(Vector2(points[j])), float(StarScatter.MIN_SPACING) - 2.0)
+
+
+func test_edge_and_corner_bursts_in_open_sky_keep_stars_apart() -> void:
+	var sky: Rect2i = Fixtures.SKY
+	var targets: Array[Vector2i] = [
+		Vector2i(179, 249), sky.position, Vector2i(sky.end.x - 1, sky.position.y), sky.end - Vector2i.ONE,
+		Vector2i(sky.position.x, sky.end.y - 1), Vector2i(0, 160), Vector2i(179, 160),
+		Vector2i(90, sky.position.y), Vector2i(90, sky.end.y - 1),
+	]
+	for target: Vector2i in targets:
+		for count: int in [3, 4]:
+			for seed_value: int in 50:
+				var points: Array[Vector2i] = StarScatter.place(count, target, sky, [], Fixtures.rng(seed_value))
+				_assert_spaced(points, "burst at %s count %d seed %d" % [target, count, seed_value])
+
+
+func _assert_spaced(points: Array[Vector2i], context: String) -> void:
+	for i: int in points.size():
+		for j: int in range(i + 1, points.size()):
+			var d: float = Vector2(points[i]).distance_to(Vector2(points[j]))
+			if d < float(StarScatter.MIN_SPACING) - 2.0:
+				fail_test("%s: %s and %s only %.1f apart" % [context, points[i], points[j], d])
+				return
+	pass_test(context)

@@ -57,21 +57,29 @@ static func place(
 ## Pushes new stars apart from each other and from stars already in the sky.
 ## Best effort only: a crowded sky can still overlap; clamping always wins.
 static func _relax(points: Array[Vector2], occupied: Array[Vector2i], lo: Vector2, hi: Vector2) -> void:
+	var center: Vector2 = (lo + hi) / 2.0
 	for step: int in RELAX_STEPS:
 		for i: int in points.size():
 			var p: Vector2 = points[i]
 			for o: Vector2i in occupied:
-				p += _push(p, Vector2(o), 1.0)
+				p += _push(p, Vector2(o), 1.0, center)
 			for j: int in points.size():
 				if j != i:
-					p += _push(p, points[j], 0.5)
+					p += _push(p, points[j], 0.5, center)
 			points[i] = p.clamp(lo, hi)
 
 
-static func _push(p: Vector2, other: Vector2, share: float) -> Vector2:
+static func _push(p: Vector2, other: Vector2, share: float, center: Vector2) -> Vector2:
 	var delta: Vector2 = p - other
 	var d: float = delta.length()
 	if d >= MIN_SPACING:
 		return Vector2.ZERO
-	var dir: Vector2 = delta / d if d > 0.01 else Vector2.RIGHT
+	var dir: Vector2 = delta / d if d > 0.01 else _separation_dir(p, center)
 	return dir * (MIN_SPACING - d) * share
+
+
+## Direction for coincident stars: toward the sky centre, so clamping at an edge can't cancel it.
+## Points are relaxed one at a time, so the first mover breaks the tie for the next.
+static func _separation_dir(p: Vector2, center: Vector2) -> Vector2:
+	var inward: Vector2 = center - p
+	return inward.normalized() if inward.length() > 0.01 else Vector2.RIGHT
