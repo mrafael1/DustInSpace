@@ -1,0 +1,116 @@
+extends GutTest
+
+const Fixtures := preload("res://tests/fixtures.gd")
+const StarViewScene := preload("res://game/scenes/star_view.tscn")
+const PALETTE_PATH := "res://assets/palettes/stellar_sun.gpl"
+const STEP: float = 1.0 / 60.0
+
+var inner: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
+
+
+func test_flight_starts_at_the_burst_and_ends_on_the_target() -> void:
+	var from := Vector2i(90, 150)
+	var to := Vector2i(110, 170)
+	assert_eq(StarView.flight_point(from, to, 0.0, inner), from)
+	assert_eq(StarView.flight_point(from, to, 1.0, inner), to)
+
+
+func test_flight_overshoots_the_target_in_open_sky() -> void:
+	var from := Vector2i(60, 150)
+	var to := Vector2i(100, 150)
+	var furthest: int = 0
+	for i: int in 101:
+		furthest = maxi(furthest, StarView.flight_point(from, to, i / 100.0, inner).x)
+	assert_gt(furthest, to.x, "ease-out-back carries the star past its spot before it settles")
+
+
+func test_flight_overshoot_never_leaves_the_sky_at_any_edge() -> void:
+	var corners: Array[Vector2i] = [inner.position, inner.end - Vector2i.ONE,
+		Vector2i(inner.position.x, inner.end.y - 1), Vector2i(inner.end.x - 1, inner.position.y)]
+	var center: Vector2i = inner.get_center()
+	for corner: Vector2i in corners:
+		for i: int in 101:
+			var point: Vector2i = StarView.flight_point(center, corner, i / 100.0, inner)
+			assert_true(inner.has_point(point), "%s inside the sky on the way to %s" % [point, corner])
+
+
+func test_setup_shows_the_star_settled_at_its_position() -> void:
+	var view: StarView = _view(Star.new(4, Star.Size.BIG, Vector2i(100, 120)))
+	assert_eq(view.star_id, 4)
+	assert_eq(view.size, Star.Size.BIG)
+	assert_eq(view.state, StarView.State.IDLE)
+	assert_eq(view.position, Vector2(100, 120))
+
+
+func test_fly_from_waits_its_delay_then_settles_on_whole_pixels() -> void:
+	var view: StarView = _view(Star.new(1, Star.Size.MEDIUM, Vector2i(120, 200)))
+	watch_signals(view)
+	view.fly_from(Vector2i(90, 160), 0.1)
+	assert_false(view.visible, "hidden until its turn in the stagger")
+	var elapsed: float = 0.0
+	while view.state == StarView.State.SETTLING:
+		view.advance(STEP)
+		elapsed += STEP
+		assert_eq(view.position, view.position.round(), "integer position while flying")
+		assert_true(inner.has_point(Vector2i(view.position)), "inside the sky while flying")
+		assert_lt(elapsed, 2.0, "the flight ends")
+	assert_true(view.visible)
+	assert_almost_eq(elapsed, 0.1 + StarView.SETTLE_TIME, STEP * 2)
+	assert_eq(view.position, Vector2(120, 200))
+	assert_signal_emitted_with_parameters(view, "settled", [view])
+
+
+func test_selected_is_a_view_flag_only() -> void:
+	var view: StarView = _view(Star.new(1, Star.Size.SMALL, Vector2i(50, 150)))
+	view.selected = true
+	assert_true(view.selected)
+	assert_eq(view.state, StarView.State.IDLE)
+
+
+func test_dissolve_frees_the_view_after_its_time() -> void:
+	var view: StarView = _view(Star.new(1, Star.Size.SMALL, Vector2i(50, 150)))
+	view.selected = true
+	watch_signals(view)
+	view.dissolve()
+	assert_false(view.selected, "a dissolving star drops its selection ring")
+	view.advance(StarView.DISSOLVE_TIME * 0.5)
+	assert_signal_not_emitted(view, "dissolved")
+	view.advance(StarView.DISSOLVE_TIME * 0.5)
+	assert_signal_emitted_with_parameters(view, "dissolved", [view])
+	assert_true(view.is_queued_for_deletion())
+
+
+func test_shapes_match_the_art_direction_sizes() -> void:
+	var sizes: Array[int] = [5, 11, 15]
+	for size: int in Star.Size.values():
+		var rows: Array = StarView.SHAPES[size]
+		assert_eq(rows.size(), sizes[size], "height of %s" % Star.size_key(size))
+		for row: String in rows:
+			assert_eq(row.length(), sizes[size], "square pixel map for %s" % Star.size_key(size))
+
+
+func test_palette_colours_come_from_the_gpl_file() -> void:
+	var gpl: Array[Color] = _gpl_colours()
+	assert_eq(gpl.size(), 40, "the full Stellar Sun palette")
+	var constants: Dictionary = (Palette as Script).get_script_constant_map()
+	assert_false(constants.is_empty())
+	for name: String in constants:
+		var colour: Color = constants[name]
+		assert_true(gpl.any(func(c: Color) -> bool: return c.to_html(false) == colour.to_html(false)),
+			"Palette.%s is in stellar_sun.gpl" % name)
+
+
+func _view(star: Star) -> StarView:
+	var view: StarView = StarViewScene.instantiate()
+	view.setup(star, Fixtures.SKY)
+	add_child_autofree(view)
+	return view
+
+
+func _gpl_colours() -> Array[Color]:
+	var colours: Array[Color] = []
+	for line: String in FileAccess.get_file_as_string(PALETTE_PATH).split("\n"):
+		var fields: PackedStringArray = line.strip_edges().replace("\t", " ").split(" ", false)
+		if fields.size() >= 3 and fields[0].is_valid_int():
+			colours.append(Color8(fields[0].to_int(), fields[1].to_int(), fields[2].to_int()))
+	return colours
