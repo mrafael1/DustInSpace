@@ -21,3 +21,13 @@ const S4 := Color("#D0542E")
 
 ## Dust ramp: dust icon, numbers, particles.
 const D0 := Color("#D9CCFF")
+
+## Land ramp: the slingshot's fork, handle and bands.
+const M1 := Color("#121638")
+const M3 := Color("#2B3470")
+const M4 := Color("#4A5AA8")
+const M5 := Color("#9FB0EE")
+
+## Pack ramps, dark to light. Blue and red appear only on packs.
+const BLUE_PACK: Array[Color] = [Color("#12245A"), Color("#1D4696"), Color("#2F78D0"), Color("#62B4F0"), Color("#B8E6FF")]
+const RED_PACK: Array[Color] = [Color("#4A1226"), Color("#862032"), Color("#C8413A"), Color("#F07A4E"), Color("#FFC09A")]
