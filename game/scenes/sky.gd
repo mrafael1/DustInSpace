@@ -2,7 +2,9 @@ class_name SkyView
 extends Node2D
 ## Shows the run's stars: one StarView per star id on the StarLayer.
 ## Spawns views when a pack_burst event plays and removes them when a combo or Big Bang
-## takes their stars. Owns no rules; it only follows the events the sequencer plays.
+## takes their stars. Owns no rules; it only follows the events the sequencer plays, so a
+## star added to the run without an event (RunState.add_star) gets no view until the next setup.
+## Halos are painted on the HaloLayer, under every star, so no halo covers another star.
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -13,7 +15,12 @@ var _run: RunState
 var _sequencer: EventSequencer
 var _views: Dictionary[int, StarView] = {}
 
+@onready var _halo_layer: Node2D = $HaloLayer
 @onready var _star_layer: Node2D = $StarLayer
+
+
+func _ready() -> void:
+	_halo_layer.draw.connect(_draw_halos)
 
 
 func setup(run: RunState, sequencer: EventSequencer) -> void:
@@ -67,6 +74,7 @@ func _dissolve(stars: Array[Star]) -> void:
 func _spawn(star: Star) -> StarView:
 	var view: StarView = StarViewScene.instantiate()
 	view.setup(star, _run.sky_rect)
+	view.halo_changed.connect(_on_halo_changed)
 	_star_layer.add_child(view)
 	_views[star.id] = view
 	return view
@@ -77,3 +85,18 @@ func _clear() -> void:
 	for view: Node in _star_layer.get_children():
 		view.queue_free()
 	_views.clear()
+	_halo_layer.queue_redraw()
+
+
+func _on_halo_changed(_view: StarView) -> void:
+	_halo_layer.queue_redraw()
+
+
+## Every star's halo, including stars still dissolving, before any star is drawn.
+func _draw_halos() -> void:
+	for view: Node in _star_layer.get_children():
+		if view.is_queued_for_deletion():
+			continue
+		var dots: Dictionary[Vector2i, Color] = (view as StarView).halo_dots()
+		for dot: Vector2i in dots:
+			_halo_layer.draw_rect(Rect2(Vector2(dot), Vector2.ONE), dots[dot])

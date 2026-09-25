@@ -80,6 +80,23 @@ func test_dissolve_frees_the_view_after_its_time() -> void:
 	assert_true(view.is_queued_for_deletion())
 
 
+func test_halo_shows_when_settled_and_on_the_dissolve_flare_only() -> void:
+	var view: StarView = _view(Star.new(1, Star.Size.BIG, Vector2i(100, 150)))
+	var dots: Dictionary[Vector2i, Color] = view.halo_dots()
+	assert_false(dots.is_empty())
+	for dot: Vector2i in dots:
+		assert_lte(Vector2(dot).distance_to(Vector2(100, 150)), float(StarView.HALO_RADIUS[Star.Size.BIG]),
+			"halo dots are in sky coordinates around the star")
+		assert_true(dots[dot] == Palette.C4 or dots[dot] == Palette.C5, "halos use C4-C5 only")
+	view.fly_from(Vector2i(90, 160))
+	assert_true(view.halo_dots().is_empty(), "no halo while flying")
+	view.advance(StarView.SETTLE_TIME)
+	view.dissolve()
+	assert_false(view.halo_dots().is_empty(), "the flare keeps the halo")
+	view.advance(StarView.DISSOLVE_TIME / StarView.DISSOLVE_FRAMES + 0.01)
+	assert_true(view.halo_dots().is_empty(), "then it goes")
+
+
 func test_shapes_match_the_art_direction_sizes() -> void:
 	var sizes: Array[int] = [5, 11, 15]
 	for size: int in Star.Size.values():

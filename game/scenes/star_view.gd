@@ -3,10 +3,14 @@ extends Node2D
 ## One star in the sky, drawn from placeholder pixel maps until the star art lands (#12).
 ## Flies from its pack's burst point to the position the core gave it, then twinkles.
 ## Owns no rules: Sky tells it when to fly, dissolve or show as selected.
+## The halo isn't drawn here: Sky paints every halo on a layer under all stars, so a newer
+## star's halo can never cover an older star's rays. See `halo_dots()`.
 ## Every drawn pixel is a palette colour at an integer offset; the node sits on whole pixels.
 
 signal settled(view: StarView)
 signal dissolved(view: StarView)
+## The halo appeared, changed or disappeared; whoever paints halos should redraw.
+signal halo_changed(view: StarView)
 
 enum State { SETTLING, IDLE, DISSOLVING }
 
@@ -142,6 +146,30 @@ func advance(delta: float) -> void:
 	_redraw_on_new_frame()
 
 
+## Halo pixels in sky coordinates (the view's parent space), or none while the star flies.
+## Glow without blur: C4 at 50% dither near the star, C5 at about 20% further out.
+func halo_dots() -> Dictionary[Vector2i, Color]:
+	var dots: Dictionary[Vector2i, Color] = {}
+	var shows_halo: bool = state == State.IDLE or (state == State.DISSOLVING and _dissolve_frame() == 0)
+	if not shows_halo:
+		return dots
+	var center := Vector2i(position)
+	var radius: int = HALO_RADIUS[size]
+	for dy: int in range(-radius, radius + 1):
+		for dx: int in range(-radius, radius + 1):
+			var offset := Vector2i(dx, dy)
+			var dist_sq: int = dx * dx + dy * dy
+			if dist_sq > radius * radius or _is_shape_pixel(offset):
+				continue
+			var threshold: int = BAYER[posmod(dy, 4) * 4 + posmod(dx, 4)]
+			if dist_sq * 4 <= radius * radius:
+				if threshold < 8:
+					dots[center + offset] = Palette.C4
+			elif threshold < 3:
+				dots[center + offset] = Palette.C5
+	return dots
+
+
 ## Where a flying star is at progress `k` (0-1): eased out-back, rounded to a whole pixel,
 ## and clamped to `bounds` so the overshoot never carries a star out of the sky.
 static func flight_point(from: Vector2i, to: Vector2i, k: float, bounds: Rect2i) -> Vector2i:
@@ -162,7 +190,7 @@ func _enter(next: State) -> void:
 	state = next
 	_time = 0.0
 	_frame_key = -1
-	queue_redraw()
+	_refresh()
 
 
 func _advance_flight() -> void:
@@ -181,7 +209,7 @@ func _redraw_on_new_frame() -> void:
 	var key: int = _current_frame_key()
 	if key != _frame_key:
 		_frame_key = key
-		queue_redraw()
+		_refresh()
 
 
 func _current_frame_key() -> int:
@@ -217,18 +245,16 @@ func _draw_settling() -> void:
 
 
 func _draw_idle() -> void:
-	_draw_halo()
 	# A glint lifts every step one notch brighter for a moment.
 	_draw_shape(STAR_STEPS.size() - 1, -1 if _is_glinting() else 0)
 	if selected:
 		_draw_ring()
 
 
-## Flare white with the halo, shrink to the bright core, then to one pixel.
+## Flare white (the halo stays for this frame), shrink to the bright core, then to one pixel.
 func _draw_dissolve() -> void:
 	match _dissolve_frame():
 		0:
-			_draw_halo()
 			_draw_shape(STAR_STEPS.size() - 1, -STAR_STEPS.size())
 		1:
 			_draw_shape(1, -STAR_STEPS.size())
@@ -252,23 +278,6 @@ func _draw_shape(max_step: int, shift: int) -> void:
 				_dot(Vector2i(x - half, y - half), STAR_STEPS[clampi(step + shift, 0, STAR_STEPS.size() - 1)])
 
 
-## Glow without blur: C4 at 50% dither near the star, C5 at about 20% further out.
-func _draw_halo() -> void:
-	var radius: int = HALO_RADIUS[size]
-	for dy: int in range(-radius, radius + 1):
-		for dx: int in range(-radius, radius + 1):
-			var offset := Vector2i(dx, dy)
-			var dist_sq: int = dx * dx + dy * dy
-			if dist_sq > radius * radius or _is_shape_pixel(offset):
-				continue
-			var threshold: int = BAYER[posmod(dy, 4) * 4 + posmod(dx, 4)]
-			if dist_sq * 4 <= radius * radius:
-				if threshold < 8:
-					_dot(offset, Palette.C4)
-			elif threshold < 3:
-				_dot(offset, Palette.C5)
-
-
 ## Dashed C1 circle at the star's radius + RING_GAP; the dashes swap every RING_FRAME_TIME.
 func _draw_ring() -> void:
 	var radius: int = _half_extent() + RING_GAP
@@ -289,6 +298,11 @@ func _is_shape_pixel(offset: Vector2i) -> bool:
 	if cell.x < 0 or cell.y < 0 or cell.y >= rows.size() or cell.x >= (rows[cell.y] as String).length():
 		return false
 	return (rows[cell.y] as String)[cell.x] != "."
+
+
+func _refresh() -> void:
+	queue_redraw()
+	halo_changed.emit(self)
 
 
 func _half_extent() -> int:

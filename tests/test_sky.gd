@@ -55,6 +55,31 @@ func test_the_sequence_holds_while_stars_settle() -> void:
 	assert_false(sequencer.is_busy(), "input returns once every star has settled")
 
 
+func test_every_halo_is_painted_under_every_star() -> void:
+	var halo_layer: Node2D = sky.get_node("HaloLayer")
+	var star_layer: Node2D = sky.get_node("StarLayer")
+	assert_lt(halo_layer.get_index(), star_layer.get_index(), "halos draw first")
+	assert_eq(halo_layer.z_index, star_layer.z_index, "tree order decides, not z")
+	var ids: Array[int] = _seed_sky([Star.Size.BIG, Star.Size.BIG])
+	for id: int in ids:
+		for child: Node in sky.star_view(id).get_children():
+			assert_false(child is CanvasItem, "a star view draws only its own shape")
+	assert_false(sky.star_view(ids[0]).halo_dots().is_empty(), "settled stars have a halo for the layer to paint")
+
+
+func test_a_changing_halo_redraws_the_halo_layer() -> void:
+	var ids: Array[int] = _seed_sky([Star.Size.SMALL])
+	var halo_layer: Node2D = sky.get_node("HaloLayer")
+	var redraws: Array[int] = [0]
+	halo_layer.draw.connect(func() -> void: redraws[0] += 1)
+	var view: StarView = sky.star_view(ids[0])
+	watch_signals(view)
+	view.dissolve()
+	assert_signal_emitted(view, "halo_changed")
+	await wait_physics_frames(2)
+	assert_gt(redraws[0], 0, "the halo layer repainted")
+
+
 func test_no_star_leaves_the_sky_from_a_burst_at_any_edge() -> void:
 	var targets: Array[Vector2i] = [Vector2i(0, 0), Vector2i(179, 319), Vector2i(0, 249), Vector2i(179, 78),
 		Vector2i(90, 78), Vector2i(90, 249)]

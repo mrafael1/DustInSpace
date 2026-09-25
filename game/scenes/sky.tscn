@@ -5,4 +5,6 @@
 [node name="Sky" type="Node2D"]
 script = ExtResource("1_sky")
 
+[node name="HaloLayer" type="Node2D" parent="."]
+
 [node name="StarLayer" type="Node2D" parent="."]
