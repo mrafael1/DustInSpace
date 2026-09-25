@@ -103,11 +103,19 @@ func test_debug_launch_waits_for_the_sequence_and_stays_in_the_sky() -> void:
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
 	assert_true(keys.launch_at_random())
 	assert_false(keys.launch_at_random(), "no launch while the burst still plays")
-	sequencer.advance(0.0)
-	sequencer.advance(SkyView.BURST_STAGGER * 4 + StarView.SETTLE_TIME)
+	_play_until_idle(sequencer)
 	assert_true(keys.launch_at_random(), "input is back once the stars settle")
 	for star: Star in main.run.stars:
 		assert_true(StarScatter.inner_rect(ScreenZones.SKY).has_point(star.position))
+
+
+func _play_until_idle(sequencer: EventSequencer) -> void:
+	var elapsed: float = 0.0
+	sequencer.advance(0.0)
+	while sequencer.is_busy() and elapsed < 10.0:
+		sequencer.advance(1.0 / 60.0)
+		elapsed += 1.0 / 60.0
+	assert_false(sequencer.is_busy(), "the sequence ends")
 
 
 func _invalid_balance() -> Balance:
