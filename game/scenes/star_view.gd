@@ -184,6 +184,11 @@ static func flight_point(from: Vector2i, to: Vector2i, k: float, bounds: Rect2i)
 	)
 
 
+## How far a star's sprite reaches from its centre pixel, e.g. 7 for the 15x15 big star.
+static func half_extent(star_size: Star.Size) -> int:
+	return (SHAPES[star_size] as Array).size() >> 1
+
+
 static func _ease_out_back(k: float) -> float:
 	var t: float = k - 1.0
 	return 1.0 + (EASE_BACK + 1.0) * t * t * t + EASE_BACK * t * t
@@ -309,7 +314,7 @@ func _refresh() -> void:
 
 
 func _half_extent() -> int:
-	return (SHAPES[size] as Array).size() >> 1
+	return half_extent(size)
 
 
 func _dot(offset: Vector2i, color: Color) -> void:
