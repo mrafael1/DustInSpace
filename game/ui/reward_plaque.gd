@@ -16,6 +16,10 @@ const GAP: int = 2
 func _ready() -> void:
 	size = Vector2(PLAQUE_SIZE)
 	visible = false
+	# Set here, not in the scene, so every colour comes from Palette (tested against the .gpl).
+	_dust.add_theme_color_override("font_color", Palette.D0)
+	_light.add_theme_color_override("font_color", Palette.C1)
+	_no_combo.add_theme_color_override("font_color", Palette.N7)
 
 
 func _draw() -> void:

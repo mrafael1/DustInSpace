@@ -21,6 +21,14 @@ func test_plaque_stays_on_screen_at_the_sides() -> void:
 		assert_true(Fixtures.SKY.encloses(Rect2i(at, RewardPlaque.PLAQUE_SIZE)), "x %d" % x)
 
 
+func test_plaque_labels_take_their_colours_from_the_palette() -> void:
+	var plaque: RewardPlaque = PlaqueScene.instantiate()
+	add_child_autofree(plaque)
+	assert_eq((plaque.get_node("Dust") as Label).get_theme_color("font_color"), Palette.D0, "dust")
+	assert_eq((plaque.get_node("Light") as Label).get_theme_color("font_color"), Palette.C1, "light")
+	assert_eq((plaque.get_node("NoCombo") as Label).get_theme_color("font_color"), Palette.N7, "no value")
+
+
 func test_plaque_shows_numbers_as_labels() -> void:
 	var plaque: RewardPlaque = PlaqueScene.instantiate()
 	add_child_autofree(plaque)
