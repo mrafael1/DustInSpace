@@ -4,7 +4,8 @@ extends RefCounted
 ## Pure input handling on the 180x320 grid: no nodes, and no combo rules. Whether a link is
 ## valid is up to RunState.link(); this only decides which stars the player meant.
 ##
-## - Press a star to select it (up to 3). Drag from a star to add every star the pointer crosses.
+## - Press a star to select it (up to 3). Drag from a star to add every star the pointer crosses,
+##   including ones between two drag samples.
 ## - Releasing with 3 selected requests the link, whichever way they were picked.
 ## - Releasing a drag that added stars but has fewer than 3 still requests it, so the run
 ##   rejects it and the player sees why. Nothing is used up.
@@ -23,6 +24,8 @@ var _star_at: Callable
 var _down: bool = false
 var _moved: bool = false
 var _press_point: Vector2i = Vector2i.ZERO
+## The previous drag sample. Drags arrive once per frame, so a fast swipe jumps between samples.
+var _last_point: Vector2i = Vector2i.ZERO
 ## Star under the press, or 0.
 var _press_star: int = 0
 var _press_was_selected: bool = false
@@ -48,6 +51,7 @@ func press(point: Vector2i) -> bool:
 	_moved = false
 	_added_by_drag = false
 	_press_point = point
+	_last_point = point
 	_press_star = _star_at.call(point)
 	_press_was_selected = selected.has(_press_star)
 	if _press_star != 0 and not _press_was_selected:
@@ -55,16 +59,20 @@ func press(point: Vector2i) -> bool:
 	return _press_star != 0
 
 
+## Picks up every star along the path from the previous sample, in the order it's crossed.
 func drag(point: Vector2i) -> void:
 	if not _down:
 		return
 	if not _moved and Vector2(point - _press_point).length() > DRAG_THRESHOLD:
 		_moved = true
+	var from: Vector2i = _last_point
+	_last_point = point
 	if not is_dragging():
 		return
-	var id: int = _star_at.call(point)
-	if id != 0 and not selected.has(id) and _select(id):
-		_added_by_drag = true
+	for p: Vector2i in LinkLayer.line_pixels(from, point):
+		var id: int = _star_at.call(p)
+		if id != 0 and not selected.has(id) and _select(id):
+			_added_by_drag = true
 
 
 ## Returns true if the release was used: it changed the selection or requested a link.

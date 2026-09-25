@@ -44,6 +44,25 @@ func test_dragging_through_three_stars_requests_them() -> void:
 	assert_eq(requests, [[2, 4, 1]] as Array[Array])
 
 
+func test_a_fast_swipe_picks_every_star_it_crosses() -> void:
+	# Drag events arrive once per frame, so a quick swipe jumps 15 px between samples. Passing
+	# 9 px below the stars, the swipe crosses each 11 px hit circle along a chord of about 12 px,
+	# so no sample lands inside the other two.
+	var row: Dictionary[int, Vector2i] = {1: Vector2i(40, 150), 2: Vector2i(70, 150), 3: Vector2i(100, 150)}
+	gesture = LinkGesture.new(func(point: Vector2i) -> int:
+		for id: int in row:
+			if (row[id] - point).length_squared() <= SkyView.HIT_RADIUS * SkyView.HIT_RADIUS:
+				return id
+		return 0)
+	gesture.link_requested.connect(func(ids: Array[int]) -> void: requests.append(ids))
+	gesture.press(Vector2i(40, 150))
+	for x: int in range(47, 108, 15):
+		gesture.drag(Vector2i(x, 159))
+	assert_eq(gesture.selected, [1, 2, 3] as Array[int], "the stars are on the path between samples")
+	gesture.release(Vector2i(107, 159))
+	assert_eq(requests, [[1, 2, 3]] as Array[Array])
+
+
 func test_a_drag_never_picks_a_fourth_star() -> void:
 	gesture.press(STARS[1])
 	_drag_to(STARS[2])
