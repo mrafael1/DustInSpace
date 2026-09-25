@@ -19,6 +19,8 @@ enum Outcome { PLAYING, WON, LOST }
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
 
 var balance: Balance
+## The seed of the RNG the run started with. Anything replayable derives its randomness from it.
+var run_seed: int = 0
 var sky_rect: Rect2i
 var dust: int = 0
 var light: int = 0
@@ -41,6 +43,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i)
 	balance = p_balance
 	sky_rect = p_sky_rect
 	_rng = p_rng
+	run_seed = p_rng.seed
 	_layout_rng.seed = p_rng.seed ^ LAYOUT_SEED_SALT
 	dust = balance.start_dust
 	for kind: String in balance.pack_kinds():
