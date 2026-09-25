@@ -90,10 +90,18 @@ func advance(delta: float) -> void:
 
 func _on_run_signal(...args: Array) -> void:
 	var signal_name: StringName = args.pop_back()
-	_queue.append(RunEvent.new(signal_name, args))
+	_queue.append(RunEvent.new(signal_name, _snapshot(args)))
 	if not _busy:
 		_busy = true
 		sequence_started.emit()
+
+
+## Copies array arguments so callers can reuse theirs (e.g. clear a selection) before the event plays.
+func _snapshot(args: Array) -> Array:
+	var copy: Array = []
+	for arg: Variant in args:
+		copy.append(arg.duplicate() if arg is Array else arg)
+	return copy
 
 
 func _is_pointer(event: InputEvent) -> bool:

@@ -118,3 +118,13 @@ func test_pointer_input_is_swallowed_only_while_busy() -> void:
 	assert_false(get_viewport().is_input_handled(), "keys (debug B) always pass")
 	sequencer._input(touch)
 	assert_true(get_viewport().is_input_handled(), "busy: touches are swallowed")
+
+
+func test_queued_events_keep_a_snapshot_of_array_arguments() -> void:
+	var events: Array[EventSequencer.RunEvent] = []
+	sequencer.event_played.connect(func(event: EventSequencer.RunEvent) -> void: events.append(event))
+	var selection: Array[int] = [1, 2, 3]
+	run.link(selection)
+	selection.clear()
+	sequencer.advance(0.0)
+	assert_eq(events[0].args[0], [1, 2, 3] as Array[int], "clearing the selection after link() doesn't empty the event")
