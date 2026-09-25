@@ -1,0 +1,17 @@
+{
+  "_note": "Single source of truth for tuning. Read by the game (game/core) and by tools/balance/sim.py. Change values here only.",
+  "sun_target": 100,
+  "start_dust": 0,
+  "start_packs": { "blue": 2, "red": 1 },
+  "packs": {
+    "blue": { "cost": 4, "stars": 3, "weights": { "small": 60, "medium": 30, "big": 10 }, "big_bang_chance": 0.02 },
+    "red":  { "cost": 7, "stars": 4, "weights": { "small": 20, "medium": 40, "big": 40 }, "big_bang_chance": 0.04 }
+  },
+  "combos": {
+    "small_triple":  { "dust": 3, "light": 5 },
+    "medium_triple": { "dust": 5, "light": 10 },
+    "big_triple":    { "dust": 6, "light": 15 },
+    "sequence":      { "dust": 3, "light": 25 }
+  },
+  "big_bang": { "base_dust": 8, "dust_per_cleared_star": 2 }
+}

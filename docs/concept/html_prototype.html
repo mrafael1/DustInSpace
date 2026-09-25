@@ -1,0 +1,600 @@
+<title>Restore the Sun</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+:root{
+  --void:#0A0D1C; --deep:#10142B; --panel:#141936; --ink:#EDE6D3; --muted:#9294B3;
+  --line:rgba(237,230,211,.14); --gold:#FFD36B; --ember:#FF8A3D;
+  --blue:#62A9F7; --red:#EA624F; --dust:#C4B5FF; --bad:#FF6B6B;
+  --ui:'Bricolage Grotesque',ui-sans-serif,system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--ui);overflow:hidden;-webkit-user-select:none;user-select:none}
+#game{position:fixed;inset:0}
+#sky{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.legend{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:16px;font-size:11px;color:var(--muted);display:grid;grid-template-columns:auto auto auto;gap:3px 10px;pointer-events:none}
+.legend b{font-family:var(--mono);font-weight:700;color:var(--ink);letter-spacing:.04em}
+.legend .h{text-transform:uppercase;letter-spacing:.1em;font-size:9.5px}
+.legend .d{color:var(--dust);font-family:var(--mono);text-align:right}
+.legend .l{color:var(--gold);font-family:var(--mono);text-align:right}
+
+.devbtn{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:16px;background:rgba(20,25,54,.7);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--muted)}
+.devbtn:hover{color:var(--ink)}
+
+.tray{position:absolute;left:0;right:0;bottom:0;padding:10px 16px calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 18px;background:linear-gradient(to top,rgba(10,13,28,.97) 60%,rgba(10,13,28,0));}
+.hint{flex-basis:100%;text-align:center;font-size:13px;color:var(--muted);min-height:1.3em;text-wrap:balance}
+.hint em{font-style:normal;color:var(--ink)}
+.group{display:flex;flex-direction:column;gap:6px}
+.label{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.dust{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:26px;font-weight:700;color:var(--dust);font-variant-numeric:tabular-nums;transition:transform .15s}
+.dust.pulse{transform:scale(1.12)}
+.dust i{width:12px;height:12px;background:var(--dust);transform:rotate(45deg);box-shadow:0 0 12px var(--dust);border-radius:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.pack{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 8px;border-radius:999px;background:rgba(237,230,211,.04);border:1px solid var(--line);font-size:14px}
+.pack .orb{width:18px;height:18px;border-radius:50%;box-shadow:0 0 10px currentColor}
+.pack[data-kind=blue] .orb{background:radial-gradient(circle at 35% 35%,#CFE6FF,var(--blue) 60%,#1E4E8C);color:var(--blue)}
+.pack[data-kind=red] .orb{background:radial-gradient(circle at 35% 35%,#FFD7CF,var(--red) 60%,#7A2418);color:var(--red)}
+.pack .n{font-family:var(--mono);font-weight:700}
+.pack[aria-pressed=true]{border-color:var(--gold);background:rgba(255,211,107,.1)}
+.pack:disabled{opacity:.35;cursor:default}
+.buy{padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:13px;display:flex;align-items:center;gap:6px}
+.buy .c{font-family:var(--mono);color:var(--dust);font-weight:700}
+.buy[data-kind=blue]{box-shadow:inset 3px 0 0 var(--blue)}
+.buy[data-kind=red]{box-shadow:inset 3px 0 0 var(--red)}
+.buy:not(:disabled):hover{border-color:var(--ink)}
+.buy:disabled{opacity:.35;cursor:default}
+
+.overlay{position:absolute;inset:0;display:grid;place-items:center;padding:16px;background:rgba(10,13,28,.45)}
+.card{background:rgba(20,25,54,.92);border:1px solid var(--line);border-radius:16px;padding:24px 26px;max-width:360px;width:100%;text-align:center;display:grid;gap:12px;backdrop-filter:blur(6px)}
+.card h2{margin:0;font-size:30px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.card p{margin:0;color:var(--muted);line-height:1.45}
+.card .stats{font-family:var(--mono);font-size:13px;color:var(--ink)}
+.primary{justify-self:center;padding:10px 18px;border-radius:10px;border:0;background:var(--gold);color:#221A08;font-weight:700}
+
+.dev{position:absolute;top:0;right:0;bottom:0;width:min(340px,100%);background:rgba(16,20,43,.97);border-left:1px solid var(--line);padding:calc(16px + env(safe-area-inset-top,0px)) 16px 24px;overflow-y:auto;font-size:13px;display:grid;align-content:start;gap:16px;user-select:text}
+.dev h3{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.dev .top{display:flex;justify-content:space-between;align-items:center}
+.dev .top strong{font-size:16px}
+.dev table{border-collapse:collapse;width:100%;table-layout:fixed}
+.dev th:first-child{width:38%}
+.dev th{font-weight:400;color:var(--muted);text-align:left;font-size:11px;padding:2px 4px}
+.dev td{padding:2px 4px}
+.dev input{width:100%;min-width:0;background:var(--void);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-family:var(--mono);font-size:12px;padding:5px 6px}
+.dev .btns{display:flex;flex-wrap:wrap;gap:8px}
+.dev .btns button{padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:12px}
+.dev .btns button[aria-pressed=true]{border-color:var(--gold);color:var(--gold)}
+.dev .note{color:var(--muted);font-size:12px;line-height:1.4;margin:0}
+.dev .stat{font-family:var(--mono);font-size:12px}
+@media (max-width:520px){.legend{display:none}.dust{font-size:22px}}
+</style>
+
+<div id="game">
+  <canvas id="sky" aria-label="The sky. Tap to burst a pack, then link three stars."></canvas>
+
+  <div class="legend" aria-label="Combinations">
+    <span class="h">Link</span><span class="h" style="text-align:right">Dust</span><span class="h" style="text-align:right">Light</span>
+    <b>1·1·1</b><span class="d" data-r="111d"></span><span class="l" data-r="111l"></span>
+    <b>2·2·2</b><span class="d" data-r="222d"></span><span class="l" data-r="222l"></span>
+    <b>3·3·3</b><span class="d" data-r="333d"></span><span class="l" data-r="333l"></span>
+    <b>1·2·3</b><span class="d" data-r="seqd"></span><span class="l" data-r="seql"></span>
+  </div>
+
+  <button class="devbtn" id="devOpen" type="button">Tune</button>
+
+  <div class="tray" id="tray">
+    <div class="hint" id="hint" aria-live="polite"></div>
+    <div class="group">
+      <span class="label">Dust</span>
+      <div class="dust" id="dust"><i></i><span id="dustN">0</span></div>
+    </div>
+    <div class="group">
+      <span class="label">Your packs · tap one to load it</span>
+      <div class="row">
+        <button class="pack" id="chipBlue" data-kind="blue" type="button" aria-pressed="false"><span class="orb"></span>Blue <span class="n">×0</span></button>
+        <button class="pack" id="chipRed" data-kind="red" type="button" aria-pressed="false"><span class="orb"></span>Red <span class="n">×0</span></button>
+      </div>
+    </div>
+    <div class="group">
+      <span class="label">Buy with dust</span>
+      <div class="row">
+        <button class="buy" id="buyBlue" data-kind="blue" type="button">Blue · 3★ <span class="c">4</span></button>
+        <button class="buy" id="buyRed" data-kind="red" type="button">Red · 4★ <span class="c">7</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="end" hidden>
+    <div class="card">
+      <h2 id="endTitle">The Sun is restored</h2>
+      <p id="endText"></p>
+      <div class="stats" id="endStats"></div>
+      <button class="primary" id="again" type="button">Play again</button>
+    </div>
+  </div>
+
+  <aside class="dev" id="dev" hidden aria-label="Tuning panel">
+    <div class="top"><strong>Tuning</strong><button class="devbtn" style="position:static" id="devClose" type="button">Close</button></div>
+    <div class="btns">
+      <button id="forceBB" type="button" aria-pressed="false">Force Big Bang on next pack</button>
+      <button id="restart" type="button">Restart run</button>
+      <button id="resetCfg" type="button">Reset values</button>
+    </div>
+    <div class="stat" id="devStats"></div>
+    <div id="devFields"></div>
+    <p class="note">Changes to costs, odds and rewards apply immediately. Starting packs apply on the next restart. Odds are weights, so they don't need to add up to 100.</p>
+  </aside>
+</div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const cv=$('#sky'),ctx=cv.getContext('2d');
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DEF={
+  packs:{
+    blue:{name:'Blue',cost:4,stars:3,odds:[60,30,10],bb:2},
+    red:{name:'Red',cost:7,stars:4,odds:[20,40,40],bb:4}
+  },
+  rewards:{'111':{dust:3,light:5},'222':{dust:5,light:10},'333':{dust:6,light:15},seq:{dust:3,light:25}},
+  bigBang:{base:8,per:2},
+  target:100,
+  start:{blue:2,red:1}
+};
+let cfg=JSON.parse(JSON.stringify(DEF));
+const RAD={1:10,2:14,3:19};
+const SCOL={1:[200,224,255],2:[255,244,214],3:[255,210,122]};
+const PCOL={blue:[98,169,247],red:[234,98,79]};
+const DUSTC=[196,181,255],GOLD=[255,211,107];
+
+let W=0,H=0,DPR=1,G={};
+let S,forceBB=false,idc=0;
+const bgStars=Array.from({length:170},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.1+.2,p:Math.random()*6.28,a:Math.random()*.5+.15}));
+let fx=[],homes=[],floats=[],banners=[],rings=[];
+let flash=0,dim=0;
+
+const rgb=(c,a=1)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const ease={out:t=>1-Math.pow(1-t,3),in:t=>t*t*t,back:t=>{const c=1.4;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2)},io:t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2};
+const now=()=>performance.now();
+const later=(ms,fn)=>setTimeout(fn,reduced?ms*.5:ms);
+
+/* ---------- layout ---------- */
+function resize(){
+  const oW=W,oH=H,oG={...G};
+  DPR=Math.min(2,devicePixelRatio||1);
+  W=innerWidth;H=innerHeight;
+  cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
+  const sunR=clamp(Math.min(W,H)*.07,30,58);
+  const safeTop=parseFloat(getComputedStyle(document.documentElement).paddingTop)||0;
+  G.sunX=W/2;G.sunR=sunR;G.sunY=safeTop+sunR+30;
+  G.trayTop=$('#tray').getBoundingClientRect().top+22;
+  G.top=G.sunY+sunR+50;G.bottom=G.trayTop-14;G.left=26;G.right=W-26;
+  if(S&&oW){ // rescale stars into new sky
+    for(const s of S.stars){
+      const fx_=(s.tx-oG.left)/(oG.right-oG.left),fy=(s.ty-oG.top)/(oG.bottom-oG.top);
+      s.tx=s.x=G.left+fx_*(G.right-G.left);s.ty=s.y=G.top+fy*(G.bottom-G.top);s.state='idle';
+    }
+  }
+}
+addEventListener('resize',resize);
+
+/* ---------- run state ---------- */
+function newRun(){
+  S={dust:0,light:0,shownDust:0,shownLight:0,packs:{blue:+cfg.start.blue||0,red:+cfg.start.red||0},armed:null,
+     stars:[],sel:[],busy:false,over:null,opened:0,links:0,bbs:0,proj:null,sunPulse:0,ignite:0,bad:null,glowLine:null,point:null,msg:null};
+  fx=[];homes=[];floats=[];banners=[];rings=[];flash=0;dim=0;
+  $('#end').hidden=true;
+  autoArm();ui();
+}
+const packTotal=()=>S.packs.blue+S.packs.red;
+function autoArm(){
+  if(S.armed&&S.packs[S.armed]>0)return;
+  S.armed=S.packs.blue>0?'blue':S.packs.red>0?'red':null;
+}
+function draw(kind){
+  const o=cfg.packs[kind].odds.map(v=>Math.max(0,+v||0)),tot=o[0]+o[1]+o[2]||1;
+  let r=Math.random()*tot;
+  for(let i=0;i<3;i++){if(r<o[i])return i+1;r-=o[i]}
+  return 3;
+}
+function comboKey(ts){
+  const s=[...ts].sort().join('');
+  if(s==='111'||s==='222'||s==='333')return s;
+  if(s==='123')return 'seq';
+  return null;
+}
+function anyCombo(){
+  const c=[0,0,0,0];for(const s of S.stars)if(!s.decoy&&s.state!=='dying')c[s.t]++;
+  return c[1]>=3||c[2]>=3||c[3]>=3||(c[1]&&c[2]&&c[3]);
+}
+
+/* ---------- launching a pack ---------- */
+function inSky(p){return p.y>G.top-30&&p.y<G.bottom+10&&p.x>0&&p.x<W}
+function launch(p){
+  const kind=S.armed;if(!kind||S.packs[kind]<=0)return;
+  S.packs[kind]--;S.opened++;S.busy=true;S.sel=[];
+  const bb=forceBB||Math.random()*100<(+cfg.packs[kind].bb||0);
+  forceBB=false;$('#forceBB').setAttribute('aria-pressed','false');
+  const bx=clamp(p.x,G.left+50,G.right-50),by=clamp(p.y,G.top+40,G.bottom-40);
+  S.proj={kind,x0:W/2,y0:G.trayTop+10,x1:bx,y1:by,t0:now(),fly:reduced?200:430,tremble:reduced?120:280,bb};
+  autoArm();ui();
+  later(S.proj.fly+S.proj.tremble,()=>burst(S.proj));
+}
+function burst(pr){
+  const {kind,x1:x,y1:y,bb}=pr;S.proj=null;
+  const col=PCOL[kind];
+  rings.push({x,y,t0:now(),dur:500,max:90,col,w:3});
+  flash=Math.max(flash,.18);
+  for(let i=0;i<40;i++){const a=Math.random()*6.28,v=1+Math.random()*4;fx.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,decay:.02+Math.random()*.02,col:Math.random()<.5?col:[255,240,220],r:1+Math.random()*2})}
+  const n=+cfg.packs[kind].stars||3;
+  const types=Array.from({length:n},()=>draw(kind));
+  const spots=placeStars(n,x,y);
+  const born=spots.map((sp,i)=>({id:++idc,t:types[i],x,y,sx:x,sy:y,tx:sp.x,ty:sp.y,t0:now()+i*40,dur:650,state:'settle',ph:Math.random()*6.28,scale:1,decoy:bb}));
+  S.stars.push(...born);
+  if(bb){later(260,()=>bigBang(x,y))}
+  else later(700,()=>{S.busy=false;S.needCheck=true;ui()});
+}
+function placeStars(n,bx,by){
+  const pts=[],base=Math.random()*6.28,others=S.stars.filter(s=>s.state!=='dying');
+  for(let i=0;i<n;i++){
+    const a=base+i*6.283/n+(Math.random()-.5)*.7,d=62+Math.random()*48;
+    pts.push({x:bx+Math.cos(a)*d,y:by+Math.sin(a)*d*.85});
+  }
+  const minD=50;
+  for(let it=0;it<60;it++){
+    for(const p of pts){
+      for(const o of [...others.map(s=>({x:s.tx,y:s.ty,fixed:1})),...pts]){
+        if(o===p)continue;
+        const dx=p.x-o.x,dy=p.y-o.y,d=Math.hypot(dx,dy)||.01;
+        if(d<minD){const push=(minD-d)/(o.fixed?1:2);p.x+=dx/d*push;p.y+=dy/d*push}
+      }
+      p.x=clamp(p.x,G.left+12,G.right-12);p.y=clamp(p.y,G.top+8,G.bottom-12);
+    }
+  }
+  return pts;
+}
+
+/* ---------- Big Bang ---------- */
+function bigBang(x,y){
+  S.bbs++;
+  const real=S.stars.filter(s=>!s.decoy&&s.state!=='dying');
+  const cleared=real.length;
+  const t=now();
+  S.point={x,y,t0:t};
+  for(const s of S.stars){s.state='collapse';s.cx=s.x;s.cy=s.y;s.t0=t;s.dur=reduced?350:750}
+  S.freezeT0=t;
+  later(800,()=>{S.stars=[];S.point.tiny=now()});
+  later(1450,()=>{
+    S.point=null;flash=1;
+    for(let i=0;i<3;i++)rings.push({x,y,t0:now()+i*110,dur:1100,max:Math.max(W,H)*.9,col:i?[255,211,107]:[255,255,255],w:6-i*1.5});
+    for(let i=0;i<220;i++){const a=Math.random()*6.28,v=2+Math.random()*9;const c=[SCOL[1],SCOL[3],DUSTC,PCOL.red,PCOL.blue][i%5];fx.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,decay:.008+Math.random()*.012,col:c,r:1+Math.random()*2.6})}
+    const gain=(+cfg.bigBang.base||0)+(+cfg.bigBang.per||0)*cleared;
+    S.dust+=gain;
+    sendHomes(x,y,'dust',gain,Math.min(40,6+gain*2),250);
+    banners.push({text:'BIG BANG',sub:`+${gain} dust · ${cleared} star${cleared===1?'':'s'} cleared`,t0:now()+200,dur:2600});
+    later(1100,()=>{S.busy=false;S.needCheck=true;ui()});
+  });
+}
+
+/* ---------- linking ---------- */
+const ptr={down:false,moved:false,x:0,y:0,dx:0,dy:0,start:null,was:false};
+function pos(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+function hit(p){
+  let best=null,bd=1e9;
+  for(const s of S.stars){if(s.decoy||s.state==='dying'||s.state==='linked')continue;const d=Math.hypot(s.x-p.x,s.y-p.y);if(d<RAD[s.t]+14&&d<bd){bd=d;best=s}}
+  return best;
+}
+cv.addEventListener('pointerdown',e=>{
+  if(S.over||S.busy)return;
+  const p=pos(e);Object.assign(ptr,{down:true,moved:false,x:p.x,y:p.y,dx:p.x,dy:p.y});
+  try{cv.setPointerCapture(e.pointerId)}catch(_){}
+  const s=hit(p);ptr.start=s;ptr.was=!!(s&&S.sel.includes(s));
+  if(s&&!ptr.was&&S.sel.length<3)S.sel.push(s);
+  ui();
+});
+cv.addEventListener('pointermove',e=>{
+  if(!ptr.down)return;const p=pos(e);ptr.x=p.x;ptr.y=p.y;
+  if(Math.hypot(p.x-ptr.dx,p.y-ptr.dy)>8)ptr.moved=true;
+  if(ptr.moved&&ptr.start&&S.sel.length<3){const s=hit(p);if(s&&!S.sel.includes(s)){S.sel.push(s);ui()}}
+});
+function up(e){
+  if(!ptr.down)return;ptr.down=false;
+  if(S.over||S.busy)return;
+  const p=pos(e),s=ptr.start;
+  if(!ptr.moved){
+    if(!s){ if(S.sel.length){S.sel=[]}else if(S.armed&&inSky(p))launch(p); ui();return }
+    if(ptr.was){S.sel=S.sel.filter(x=>x!==s);ui();return}
+    if(S.sel.length===3)submit();
+    ui();return;
+  }
+  if(!s){ui();return}
+  if(S.sel.length===3)submit();
+  else if(S.sel.length>1)reject();
+  ui();
+}
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',()=>{ptr.down=false});
+
+function reject(){
+  S.bad={pts:S.sel.map(s=>({x:s.x,y:s.y})),t0:now()};S.sel=[];
+  S.msg={text:'Not a combination. Nothing was used.',t:now()};
+}
+function submit(){
+  const stars=S.sel;S.sel=[];
+  const key=comboKey(stars.map(s=>s.t));
+  if(!key){S.bad={pts:stars.map(s=>({x:s.x,y:s.y})),t0:now()};S.msg={text:'Not a combination. Nothing was used.',t:now()};return}
+  const rw=cfg.rewards[key],d=+rw.dust||0,l=+rw.light||0;
+  S.dust+=d;S.light+=l;S.links++;S.busy=true;
+  const t=now();for(const s of stars){s.state='linked';s.t0=t}
+  S.glowLine={pts:stars.map(s=>({x:s.x,y:s.y})),t0:t,col:key==='seq'?GOLD:SCOL[+key[0]]};
+  later(380,()=>{
+    const cx=stars.reduce((a,s)=>a+s.x,0)/3,cy=stars.reduce((a,s)=>a+s.y,0)/3;
+    for(const s of stars){
+      s.state='dying';s.t0=now();
+      for(let i=0;i<14;i++){const a=Math.random()*6.28,v=.8+Math.random()*2.6;fx.push({x:s.x,y:s.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,decay:.025+Math.random()*.02,col:SCOL[s.t],r:1+Math.random()*1.8})}
+      sendHomes(s.x,s.y,'dust',d/3,Math.max(2,Math.round(d*3/3)),0);
+      sendHomes(s.x,s.y,'sun',l/3,Math.max(2,Math.round(l/4)),120);
+    }
+    floats.push({x:cx,y:cy,t0:now(),dur:1300,parts:[[`+${d} dust`,DUSTC],[`+${l} light`,GOLD]],big:key==='seq'});
+    later(260,()=>{S.stars=S.stars.filter(x=>!stars.includes(x));S.busy=false;ui()});
+    S.needCheck=true;
+  });
+}
+function targetOf(kind){
+  if(kind==='sun')return{x:G.sunX,y:G.sunY};
+  const r=$('#dust').getBoundingClientRect(),c=cv.getBoundingClientRect();
+  return{x:r.left-c.left+14,y:r.top-c.top+r.height/2};
+}
+function sendHomes(x,y,kind,value,count,delay){
+  if(value<=0)return;
+  const t=now();
+  for(let i=0;i<count;i++){
+    const tg=targetOf(kind);
+    homes.push({kind,x0:x+(Math.random()-.5)*16,y0:y+(Math.random()-.5)*16,cx:(x+tg.x)/2+(Math.random()-.5)*260,cy:Math.min(y,tg.y)-40-Math.random()*120*(kind==='sun'?0:1)+(kind==='sun'?80:0),
+      t0:t+delay+i*(reduced?10:28),dur:(reduced?450:750)+Math.random()*350,value:value/count,col:kind==='sun'?GOLD:DUSTC,r:kind==='sun'?2.2:1.8});
+  }
+}
+
+/* ---------- end of run ---------- */
+function checkEnd(){
+  if(S.over||S.busy||homes.length||S.proj)return;
+  S.needCheck=false;
+  S.shownDust=S.dust;S.shownLight=S.light;
+  if(S.light>=cfg.target){win();return}
+  const minCost=Math.min(+cfg.packs.blue.cost,+cfg.packs.red.cost);
+  if(packTotal()===0&&S.dust<minCost&&!anyCombo())lose();
+  ui();
+}
+function win(){
+  S.over='won';S.sel=[];const t0=now();
+  const step=()=>{S.ignite=Math.min(1,(now()-t0)/(reduced?600:1800));if(S.ignite<1)requestAnimationFrame(step);else showEnd()};
+  step();
+  for(let i=0;i<3;i++)rings.push({x:G.sunX,y:G.sunY,t0:now()+i*200,dur:1500,max:Math.max(W,H),col:GOLD,w:5});
+  ui();
+}
+function lose(){S.over='lost';S.sel=[];later(500,showEnd);ui()}
+function showEnd(){
+  const won=S.over==='won';
+  $('#endTitle').textContent=won?'The Sun is restored':'The Sun stays dark';
+  $('#endText').textContent=won?'You gave the Sun its full light back.':`No packs left, not enough dust for another, and no combination in the sky. The Sun reached ${S.light} of ${cfg.target} light.`;
+  $('#endStats').textContent=`${S.opened} packs opened · ${S.links} links · ${S.bbs} Big Bang${S.bbs===1?'':'s'}`;
+  $('#end').hidden=false;$('#again').focus();
+}
+
+/* ---------- UI ---------- */
+function ui(){
+  for(const k of ['blue','red']){
+    const chip=$(k==='blue'?'#chipBlue':'#chipRed');
+    chip.querySelector('.n').textContent='×'+S.packs[k];
+    chip.disabled=S.packs[k]<=0||!!S.over;
+    chip.setAttribute('aria-pressed',String(S.armed===k));
+    const b=$(k==='blue'?'#buyBlue':'#buyRed'),c=cfg.packs[k];
+    b.innerHTML=`${c.name} · ${c.stars}★ <span class="c">${c.cost}</span>`;
+    b.disabled=S.dust<+c.cost||!!S.over;
+  }
+  for(const el of document.querySelectorAll('[data-r]')){const k=el.dataset.r;el.textContent=cfg.rewards[k.slice(0,-1)][k.endsWith('d')?'dust':'light']}
+  let h='';
+  const minCost=Math.min(+cfg.packs.blue.cost,+cfg.packs.red.cost);
+  if(S.over==='won')h='The Sun is burning again.';
+  else if(S.over)h='';
+  else if(S.msg&&now()-S.msg.t<1800)h=S.msg.text;
+  else if(S.sel.length)h=`Link <em>${3-S.sel.length} more</em> star${S.sel.length===2?'':'s'}. Tap a selected star to drop it, or empty sky to cancel.`;
+  else if(S.armed)h=`Tap the sky to burst your <em>${cfg.packs[S.armed].name}</em> pack${anyCombo()?', or link three stars first':''}.`;
+  else if(anyCombo())h='Link three stars: three of a size, or one of each size in any order.';
+  else if(S.dust>=minCost)h='Spend dust on a new pack.';
+  else h='';
+  $('#hint').innerHTML=h;
+  devStats();
+}
+$('#chipBlue').onclick=()=>{if(S.packs.blue>0){S.armed='blue';ui()}};
+$('#chipRed').onclick=()=>{if(S.packs.red>0){S.armed='red';ui()}};
+function buy(k){const c=+cfg.packs[k].cost;if(S.over||S.dust<c)return;S.dust-=c;S.shownDust-=c;S.packs[k]++;S.armed=k;ui()}
+$('#buyBlue').onclick=()=>buy('blue');$('#buyRed').onclick=()=>buy('red');
+$('#again').onclick=newRun;
+
+/* ---------- tuning panel ---------- */
+$('#devOpen').onclick=()=>{$('#dev').hidden=false};
+$('#devClose').onclick=()=>{$('#dev').hidden=true};
+$('#restart').onclick=()=>{newRun()};
+$('#resetCfg').onclick=()=>{cfg=JSON.parse(JSON.stringify(DEF));buildDev();ui()};
+$('#forceBB').onclick=e=>{forceBB=!forceBB;e.currentTarget.setAttribute('aria-pressed',String(forceBB))};
+addEventListener('keydown',e=>{if(e.key==='b'&&!e.target.closest('input')){forceBB=!forceBB;$('#forceBB').setAttribute('aria-pressed',String(forceBB))}});
+function inp(id,val,set){return `<input id="${id}" type="number" step="any" value="${val}" data-set="${set}">`}
+function buildDev(){
+  const P=cfg.packs,R=cfg.rewards;
+  let h=`<h3>Packs</h3><table><tr><th></th><th>Blue</th><th>Red</th></tr>`;
+  const rows=[['Cost','cost'],['Stars','stars'],['Small 1 %','odds.0'],['Medium 2 %','odds.1'],['Big 3 %','odds.2'],['Big Bang %','bb']];
+  for(const [lab,path] of rows){h+=`<tr><th>${lab}</th>`;for(const k of ['blue','red']){const v=path.startsWith('odds')?P[k].odds[+path.slice(5)]:P[k][path];h+=`<td>${inp(`f-${k}-${path}`,v,`packs.${k}.${path}`)}</td>`}h+='</tr>'}
+  h+=`</table><h3>Combinations</h3><table><tr><th></th><th>Dust</th><th>Light</th></tr>`;
+  for(const [k,lab] of [['111','1·1·1'],['222','2·2·2'],['333','3·3·3'],['seq','1·2·3 any order']])h+=`<tr><th>${lab}</th><td>${inp(`f-${k}-d`,R[k].dust,`rewards.${k}.dust`)}</td><td>${inp(`f-${k}-l`,R[k].light,`rewards.${k}.light`)}</td></tr>`;
+  h+=`</table><h3>Big Bang dust</h3><table><tr><th>Base</th><td>${inp('f-bb-base',cfg.bigBang.base,'bigBang.base')}</td><th>Per star</th><td>${inp('f-bb-per',cfg.bigBang.per,'bigBang.per')}</td></tr></table>`;
+  h+=`<h3>Run</h3><table><tr><th>Sun light target</th><td>${inp('f-target',cfg.target,'target')}</td></tr><tr><th>Start blue packs</th><td>${inp('f-sb',cfg.start.blue,'start.blue')}</td></tr><tr><th>Start red packs</th><td>${inp('f-sr',cfg.start.red,'start.red')}</td></tr></table>`;
+  $('#devFields').innerHTML=h;
+}
+$('#devFields').addEventListener('input',e=>{
+  const el=e.target;if(!el.dataset.set)return;const v=parseFloat(el.value);if(!isFinite(v))return;
+  const parts=el.dataset.set.split('.');let o=cfg;for(let i=0;i<parts.length-1;i++)o=o[parts[i]];o[parts[parts.length-1]]=v;
+  ui();
+});
+function devStats(){$('#devStats').textContent=`Run: ${S.opened} packs opened · ${S.links} links · ${S.bbs} Big Bangs · ${S.light}/${cfg.target} light`}
+
+/* ---------- rendering ---------- */
+function drawBg(t){
+  const p=Math.min(1,S.shownLight/cfg.target),ig=S.ignite;
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,rgb(mix([10,13,28],[40,26,30],p*.5+ig*.5)));
+  g.addColorStop(1,rgb(mix([16,20,43],[26,24,52],p*.4+ig*.4)));
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  const warm=ctx.createRadialGradient(G.sunX,G.sunY,0,G.sunX,G.sunY,Math.max(W,H)*(.5+ig*.6));
+  warm.addColorStop(0,`rgba(255,160,80,${.05+p*.16+ig*.3})`);warm.addColorStop(1,'rgba(255,160,80,0)');
+  ctx.fillStyle=warm;ctx.fillRect(0,0,W,H);
+  for(const s of bgStars){ctx.fillStyle=`rgba(237,230,211,${s.a*(.6+.4*Math.sin(t*.0013+s.p))})`;ctx.fillRect(s.x*W,s.y*H,s.r,s.r)}
+}
+function drawSun(t){
+  const {sunX:x,sunY:y,sunR:R}=G;
+  const p=Math.min(1,Math.max(0,S.shownLight/cfg.target)),ig=S.ignite;
+  S.sunPulse*=.92;
+  const gr=R*(1.4+2.6*p+ig*6+S.sunPulse*.5);
+  let g=ctx.createRadialGradient(x,y,R*.5,x,y,gr);
+  g.addColorStop(0,`rgba(255,190,95,${.06+.5*p+ig*.3+S.sunPulse*.15})`);g.addColorStop(1,'rgba(255,140,60,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,gr,0,6.284);ctx.fill();
+  const core=mix(mix([46,32,42],[255,222,140],p),[255,250,235],ig),edge=mix(mix([30,20,32],[255,130,55],p),[255,200,110],ig);
+  g=ctx.createRadialGradient(x-R*.3,y-R*.35,R*.1,x,y,R);
+  g.addColorStop(0,rgb(core));g.addColorStop(1,rgb(edge));
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,R,0,6.284);ctx.fill();
+  // embers on the dark surface
+  if(p<1){ctx.save();ctx.beginPath();ctx.arc(x,y,R,0,6.284);ctx.clip();
+    for(let i=0;i<9;i++){const a=i*2.1+t*.0002,rr=R*(.2+((i*37)%70)/100);ctx.fillStyle=`rgba(255,120,50,${(.22+.18*Math.sin(t*.003+i))*(1-p)})`;ctx.beginPath();ctx.arc(x+Math.cos(a)*rr,y+Math.sin(a)*rr,R*.12,0,6.284);ctx.fill()}
+    ctx.restore()}
+  // progress ring
+  const rr=R+11;
+  ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.strokeStyle='rgba(237,230,211,.12)';ctx.beginPath();ctx.arc(x,y,rr,0,6.284);ctx.stroke();
+  ctx.strokeStyle=rgb(GOLD,.95);ctx.beginPath();ctx.arc(x,y,rr,-Math.PI/2,-Math.PI/2+6.2832*p);ctx.stroke();
+  ctx.font='600 12px "JetBrains Mono",monospace';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillStyle=rgb(GOLD,.95);ctx.fillText(`${Math.round(S.shownLight)} / ${cfg.target} light`,x,y+rr+8);
+}
+function starPos(s,t){
+  if(s.state==='settle'){
+    const k=clamp((t-s.t0)/s.dur,0,1);const e=ease.back(k);
+    s.x=s.sx+(s.tx-s.sx)*e;s.y=s.sy+(s.ty-s.sy)*e;s.scale=.3+.7*ease.out(k);
+    if(k>=1){s.state='idle';s.scale=1}
+  }else if(s.state==='collapse'&&S.point){
+    const k=clamp((t-s.t0)/s.dur,0,1),e=ease.in(k);
+    s.x=s.cx+(S.point.x-s.cx)*e;s.y=s.cy+(S.point.y-s.cy)*e;s.scale=1-.85*e;
+  }else if(s.state==='dying'){
+    s.scale=Math.max(0,1-(t-s.t0)/240);
+  }
+}
+function drawStar(s,t){
+  const r=RAD[s.t]*s.scale;if(r<=.3)return;
+  const sel=S.sel.includes(s),lk=s.state==='linked';
+  const c=SCOL[s.t],tw=1+Math.sin(t*.003+s.ph)*.07;
+  const gr=r*(sel||lk?3.4:2.6)*tw;
+  const g=ctx.createRadialGradient(s.x,s.y,r*.3,s.x,s.y,gr);
+  g.addColorStop(0,rgb(c,lk?.8:sel?.55:.32));g.addColorStop(1,rgb(c,0));
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(s.x,s.y,gr,0,6.284);ctx.fill();
+  if(s.t===3){ctx.strokeStyle=rgb(c,.55);ctx.lineWidth=1.2;const L=r*2.3*tw;ctx.beginPath();ctx.moveTo(s.x-L,s.y);ctx.lineTo(s.x+L,s.y);ctx.moveTo(s.x,s.y-L);ctx.lineTo(s.x,s.y+L);ctx.stroke()}
+  ctx.fillStyle=rgb(lk?[255,255,245]:c);ctx.beginPath();ctx.arc(s.x,s.y,r,0,6.284);ctx.fill();
+  if(s.scale>.6){ctx.fillStyle='#1B1733';ctx.font=`700 ${Math.round(r*1.05)}px "JetBrains Mono",monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(s.t,s.x,s.y+1)}
+  if(sel){ctx.strokeStyle=rgb(GOLD);ctx.lineWidth=2;ctx.beginPath();ctx.arc(s.x,s.y,r+5,0,6.284);ctx.stroke()}
+}
+function drawLinks(t){
+  const pts=S.sel.map(s=>({x:s.x,y:s.y}));
+  if(ptr.down&&ptr.moved&&ptr.start&&pts.length&&pts.length<3)pts.push({x:ptr.x,y:ptr.y});
+  if(pts.length>1){
+    ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.strokeStyle=rgb(GOLD,.25);ctx.lineWidth=9;path(pts);ctx.stroke();
+    ctx.strokeStyle=rgb(GOLD,.9);ctx.lineWidth=2.5;path(pts);ctx.stroke();
+  }
+  if(S.sel.length===3){ // reward preview
+    const key=comboKey(S.sel.map(s=>s.t)),last=S.sel[2];
+    const txt=key?`+${cfg.rewards[key].dust} dust · +${cfg.rewards[key].light} light`:'No combination';
+    ctx.font='600 12px "JetBrains Mono",monospace';const w=ctx.measureText(txt).width+18;
+    let bx=clamp(last.x-w/2,8,W-w-8),by=last.y-RAD[last.t]-34;if(by<G.top-40)by=last.y+RAD[last.t]+12;
+    ctx.fillStyle='rgba(20,25,54,.92)';rr(bx,by,w,24,12);ctx.fill();
+    ctx.strokeStyle=key?rgb(GOLD,.6):rgb([255,107,107],.7);ctx.lineWidth=1;rr(bx,by,w,24,12);ctx.stroke();
+    ctx.fillStyle=key?rgb(GOLD):rgb([255,107,107]);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,bx+w/2,by+12.5);
+  }
+  if(S.bad){const k=(t-S.bad.t0)/450;if(k>=1)S.bad=null;else{ctx.strokeStyle=`rgba(255,107,107,${1-k})`;ctx.lineWidth=2.5;ctx.save();ctx.translate(Math.sin(k*40)*4*(1-k),0);path(S.bad.pts);ctx.stroke();ctx.restore()}}
+  if(S.glowLine){const k=(t-S.glowLine.t0)/520;if(k>=1)S.glowLine=null;else{const c=S.glowLine.col;ctx.strokeStyle=rgb(c,.35*(1-k));ctx.lineWidth=16;path(S.glowLine.pts,true);ctx.stroke();ctx.strokeStyle=rgb([255,255,240],1-k);ctx.lineWidth=3;path(S.glowLine.pts,true);ctx.stroke()}}
+}
+function path(pts,close){ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);if(close)ctx.closePath()}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function drawProj(t){
+  const pr=S.proj;if(!pr)return;
+  const k=clamp((t-pr.t0)/pr.fly,0,1),e=ease.out(k);
+  let x=pr.x0+(pr.x1-pr.x0)*e,y=pr.y0+(pr.y1-pr.y0)*e-Math.sin(k*Math.PI)*60;
+  let r=13,glow=.3;
+  if(k>=1){const q=clamp((t-pr.t0-pr.fly)/pr.tremble,0,1);x+=(Math.random()-.5)*6*q;y+=(Math.random()-.5)*6*q;r=13+5*q;glow=.3+.6*q}
+  const c=PCOL[pr.kind];
+  const g=ctx.createRadialGradient(x,y,r*.4,x,y,r*3.2);g.addColorStop(0,rgb(c,glow));g.addColorStop(1,rgb(c,0));
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r*3.2,0,6.284);ctx.fill();
+  const b=ctx.createRadialGradient(x-r*.35,y-r*.35,r*.1,x,y,r);b.addColorStop(0,rgb(mix(c,[255,255,255],.7)));b.addColorStop(1,rgb(mix(c,[0,0,0],.35)));
+  ctx.fillStyle=b;ctx.beginPath();ctx.arc(x,y,r,0,6.284);ctx.fill();
+  ctx.strokeStyle=rgb(mix(c,[255,255,255],.5),.8);ctx.lineWidth=1.6;ctx.beginPath();ctx.ellipse(x,y,r*1.7,r*.45,-.35,0,6.284);ctx.stroke();
+}
+function drawFx(t){
+  for(const p of fx){p.x+=p.vx;p.y+=p.vy;p.vx*=.96;p.vy*=.96;p.life-=p.decay;ctx.fillStyle=rgb(p.col,Math.max(0,p.life));ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.284);ctx.fill()}
+  fx=fx.filter(p=>p.life>0);
+  const done=[];
+  for(const h of homes){
+    if(t<h.t0){continue}
+    const k=clamp((t-h.t0)/h.dur,0,1),e=ease.io(k),tg=targetOf(h.kind);
+    const x=(1-e)*(1-e)*h.x0+2*(1-e)*e*h.cx+e*e*tg.x,y=(1-e)*(1-e)*h.y0+2*(1-e)*e*h.cy+e*e*tg.y;
+    const g=ctx.createRadialGradient(x,y,0,x,y,h.r*4);g.addColorStop(0,rgb(h.col,.9));g.addColorStop(1,rgb(h.col,0));
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,h.r*4,0,6.284);ctx.fill();
+    ctx.fillStyle=rgb([255,255,245]);ctx.beginPath();ctx.arc(x,y,h.r*.7,0,6.284);ctx.fill();
+    if(k>=1){done.push(h);
+      if(h.kind==='sun'){S.shownLight=Math.min(S.light,S.shownLight+h.value);S.sunPulse=1}
+      else{S.shownDust=Math.min(S.dust,S.shownDust+h.value);const d=$('#dust');d.classList.add('pulse');clearTimeout(d._t);d._t=setTimeout(()=>d.classList.remove('pulse'),120)}}
+  }
+  if(done.length)homes=homes.filter(h=>!done.includes(h));
+  for(const r of rings){const k=(t-r.t0)/r.dur;if(k<0||k>1)continue;const e=ease.out(k);ctx.strokeStyle=rgb(r.col,(1-k)*.8);ctx.lineWidth=r.w*(1-k)+.5;ctx.beginPath();ctx.arc(r.x,r.y,r.max*e,0,6.284);ctx.stroke()}
+  rings=rings.filter(r=>t-r.t0<r.dur);
+  for(const f of floats){const k=(t-f.t0)/f.dur;if(k>1)continue;const a=k<.15?k/.15:1-Math.max(0,(k-.6)/.4);
+    ctx.font=`700 ${f.big?17:14}px "JetBrains Mono",monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
+    f.parts.forEach(([s,c],i)=>{ctx.fillStyle=rgb(c,a);ctx.fillText(s,f.x,f.y-24*ease.out(k)+i*(f.big?20:17)-8)})}
+  floats=floats.filter(f=>t-f.t0<f.dur);
+}
+function drawBigBang(t){
+  if(S.point){ // freeze: sky darkens, everything pulled into a point
+    dim=Math.min(.82,dim+.04);
+    ctx.fillStyle=`rgba(4,5,12,${dim})`;ctx.fillRect(0,0,W,H);
+    for(const s of S.stars)drawStar(s,t);
+    const {x,y}=S.point,tiny=S.point.tiny;
+    const r=tiny?1.5+Math.sin(t*.03)*.8:4+6*clamp((t-S.point.t0)/800,0,1);
+    const g=ctx.createRadialGradient(x,y,0,x,y,r*6);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r*6,0,6.284);ctx.fill();
+  }else if(dim>0){dim=Math.max(0,dim-.03);ctx.fillStyle=`rgba(4,5,12,${dim})`;ctx.fillRect(0,0,W,H)}
+  if(flash>0){ctx.fillStyle=`rgba(255,250,235,${flash})`;ctx.fillRect(0,0,W,H);flash=Math.max(0,flash-(flash>.5?.035:.02))}
+  for(const b of banners){const k=(t-b.t0)/b.dur;if(k<0||k>1)continue;const a=k<.1?k/.1:1-Math.max(0,(k-.7)/.3);
+    const cy=(G.top+G.bottom)/2;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font=`800 ${clamp(W*.11,34,72)}px "Bricolage Grotesque",sans-serif`;ctx.fillStyle=rgb([255,244,214],a);ctx.fillText(b.text,W/2,cy-10-8*ease.out(Math.min(1,k*3)));
+    ctx.font='600 14px "JetBrains Mono",monospace';ctx.fillStyle=rgb(DUSTC,a);ctx.fillText(b.sub,W/2,cy+32)}
+  banners=banners.filter(b=>t-b.t0<b.dur);
+}
+function frame(){
+  const t=now();
+  if(S.msg&&t-S.msg.t>1800){S.msg=null;ui()}
+  drawBg(t);drawSun(t);
+  if(!S.point)for(const s of S.stars){starPos(s,t);drawStar(s,t)}
+  else for(const s of S.stars)starPos(s,t);
+  drawLinks(t);drawProj(t);drawFx(t);drawBigBang(t);
+  // numbers
+  if(!homes.length&&!S.busy){S.shownDust=S.dust;if(!S.over)S.shownLight=S.light}
+  $('#dustN').textContent=Math.round(S.shownDust);
+  if(S.needCheck)checkEnd();
+  requestAnimationFrame(frame);
+}
+resize();newRun();buildDev();requestAnimationFrame(frame);
+if(document.fonts)document.fonts.ready.then(()=>{resize()});
+})();
+</script>
