@@ -28,6 +28,9 @@ const RING_FRAME_TIME: float = 0.2
 const RING_GAP: int = 4
 const RING_DASHES: int = 16
 const EASE_BACK: float = 1.70158
+## Share of the flight at which the ease-out-back overshoot peaks (about 0.58). Past it a star
+## only drifts back by at most 10% of its flight, so linking it no longer feels wrong.
+const OVERSHOOT_PEAK: float = 1.0 - 2.0 * EASE_BACK / (3.0 * (EASE_BACK + 1.0))
 
 ## Pixel maps per Star.Size, centred. Digits are steps on STAR_STEPS (0 = C0 core), "." is empty.
 const SHAPES: Array = [

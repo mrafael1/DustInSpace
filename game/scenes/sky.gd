@@ -58,7 +58,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 func _burst(burst: Vector2i, stars: Array[Star]) -> void:
 	for i: int in stars.size():
 		_spawn(stars[i]).fly_from(burst, i * BURST_STAGGER)
-	_sequencer.hold(StarView.SETTLE_TIME + BURST_STAGGER * maxi(stars.size() - 1, 0))
+	# Input returns once the last star is past its overshoot; the settle keeps playing after.
+	_sequencer.hold(BURST_STAGGER * maxi(stars.size() - 1, 0) + StarView.SETTLE_TIME * StarView.OVERSHOOT_PEAK)
 
 
 func _dissolve(stars: Array[Star]) -> void:

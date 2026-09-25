@@ -43,16 +43,23 @@ func test_burst_stars_fly_from_the_burst_point_and_settle_on_their_positions() -
 		assert_eq(Vector2i(view.position), star.position, "settled where the core put it")
 
 
-func test_the_sequence_holds_while_stars_settle() -> void:
-	run.launch(Vector2i(90, 160))
+func test_input_returns_once_the_last_star_is_past_its_overshoot() -> void:
+	var burst := Vector2i(90, 160)
+	run.launch(burst)
 	var count: int = run.stars.size()
 	sequencer.advance(0.0)
-	assert_true(sequencer.is_busy(), "input stays locked while stars fly")
-	var settle: float = StarView.SETTLE_TIME + SkyView.BURST_STAGGER * (count - 1)
-	_play(settle - 0.05)
+	assert_true(sequencer.is_busy(), "input stays locked while stars fly out")
+	var hold: float = SkyView.BURST_STAGGER * (count - 1) + StarView.SETTLE_TIME * StarView.OVERSHOOT_PEAK
+	assert_lt(hold, 0.5, "a common burst blocks input for well under the full settle")
+	_play(hold - 0.05)
 	assert_true(sequencer.is_busy())
 	_play(0.1)
-	assert_false(sequencer.is_busy(), "input returns once every star has settled")
+	assert_false(sequencer.is_busy(), "input is back before the settle ends")
+	for star: Star in run.stars:
+		var view: StarView = sky.star_view(star.id)
+		var flight: float = Vector2(burst).distance_to(Vector2(star.position))
+		var off: float = view.position.distance_to(Vector2(star.position))
+		assert_lte(off, flight * 0.1 + 1.5, "star %d is within its overshoot of its spot" % star.id)
 
 
 func test_every_halo_is_painted_under_every_star() -> void:

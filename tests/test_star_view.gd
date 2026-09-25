@@ -97,6 +97,21 @@ func test_halo_shows_when_settled_and_on_the_dissolve_flare_only() -> void:
 	assert_true(view.halo_dots().is_empty(), "then it goes")
 
 
+func test_overshoot_peak_is_where_the_flight_turns_back() -> void:
+	var from := Vector2i(20, 150)
+	var to := Vector2i(120, 150)
+	var furthest: int = 0
+	for i: int in 1001:
+		furthest = maxi(furthest, StarView.flight_point(from, to, i / 1000.0, inner).x)
+	var peak: int = StarView.flight_point(from, to, StarView.OVERSHOOT_PEAK, inner).x
+	assert_eq(peak, furthest, "at its furthest pixel at the peak")
+	var previous: int = peak
+	for i: int in range(ceili(StarView.OVERSHOOT_PEAK * 1000.0), 1001):
+		var x: int = StarView.flight_point(from, to, i / 1000.0, inner).x
+		assert_lte(x, previous, "only drifts back after the peak")
+		previous = x
+
+
 func test_shapes_match_the_art_direction_sizes() -> void:
 	var sizes: Array[int] = [5, 11, 15]
 	for size: int in Star.Size.values():
