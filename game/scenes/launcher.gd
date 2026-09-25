@@ -80,7 +80,9 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer.sequence_started.connect(cancel_pull)
 	_loaded_kind = run.loaded_pack
 	_owned = run.owned_packs.duplicate()
-	_flight = Flight.NONE
+	# A restart rebinds the sequencer, which drops a pending pack_burst: nothing else would
+	# end a flight or burst ring from the old run.
+	_end_flight()
 	_burst_time = -1.0
 	cancel_pull()
 	_show_rest_pack()
@@ -237,11 +239,20 @@ func _launch_view(kind: String, burst: Vector2i) -> void:
 
 
 func _burst_view(burst: Vector2i) -> void:
-	_flight = Flight.NONE
-	_flying_pack.visible = false
+	_end_flight()
 	_burst_at = burst - origin()
 	_burst_time = 0.0
 	_show_rest_pack()
+	queue_redraw()
+
+
+func _end_flight() -> void:
+	_flight = Flight.NONE
+	_flight_time = 0.0
+	_flying_pack.visible = false
+	_flying_pack.grown = false
+	_flying_pack.bright = false
+	_flying_pack.position = Vector2.ZERO
 	queue_redraw()
 
 

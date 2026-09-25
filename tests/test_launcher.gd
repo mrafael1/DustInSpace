@@ -138,6 +138,29 @@ func test_the_pack_flies_trembles_then_bursts() -> void:
 	assert_eq(launcher.shown_pack(), "blue", "the next pack is in the fork")
 
 
+func test_a_restart_mid_flight_or_tremble_clears_the_flying_pack() -> void:
+	for into: float in [Launcher.FLIGHT_TIME * 0.5, Launcher.FLIGHT_TIME + Launcher.TREMBLE_TIME * 0.75]:
+		_pull_and_release(Vector2(0, 12))
+		sequencer.advance(0.0)
+		var elapsed: float = 0.0
+		while elapsed < into:
+			_step()
+			elapsed += STEP
+		var flying: PackView = launcher.get_node("FlyingPack")
+		assert_true(flying.visible, "in the air before the restart")
+		# A restart rebinds the sequencer, which drops the pending pack_burst.
+		run = Fixtures.run({"start_packs": {"blue": 12, "red": 0}, "sun_target": 100000}, 2)
+		sequencer.bind(run)
+		launcher.setup(run, sequencer)
+		assert_false(flying.visible, "no leftover pack %.2f s into the launch" % into)
+		assert_false(flying.grown or flying.bright, "tremble frames reset")
+		assert_eq(flying.position, Vector2.ZERO)
+		assert_eq(launcher.shown_pack(), "blue", "the new run's pack is in the fork")
+		for i: int in 300:
+			_step()
+		assert_false(flying.visible, "still gone after the old flight would have ended")
+
+
 func test_the_fork_updates_on_pack_loaded() -> void:
 	run.dust = 20
 	run.buy("red")

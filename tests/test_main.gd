@@ -125,6 +125,19 @@ func test_same_seed_and_same_debug_launches_replay_the_same_sky() -> void:
 	assert_eq(skies[0], skies[1])
 
 
+func test_a_restart_mid_launch_leaves_no_pack_in_the_air() -> void:
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var flying: PackView = main.get_node("Launcher/FlyingPack")
+	main.run.launch(Vector2i(90, 160))
+	sequencer.advance(0.0)
+	assert_true(flying.visible)
+	assert_true(main.start_run(Fixtures.balance()))
+	sequencer.advance(5.0)
+	(main.get_node("Launcher") as Launcher).advance(5.0)
+	assert_false(flying.visible, "the old run's pack is gone")
+	assert_eq((main.get_node("Launcher") as Launcher).shown_pack(), "blue", "only the new run's pack shows")
+
+
 func _play_until_idle(sequencer: EventSequencer) -> void:
 	var elapsed: float = 0.0
 	sequencer.advance(0.0)
