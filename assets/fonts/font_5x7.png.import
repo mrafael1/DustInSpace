@@ -1,0 +1,25 @@
+[remap]
+
+importer="font_data_image"
+type="FontFile"
+uid="uid://dre5s4erxlfu4"
+path="res://.godot/imported/font_5x7.png-780febcda3e9e29d9aabe877be6f2161.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/font_5x7.png"
+dest_files=["res://.godot/imported/font_5x7.png-780febcda3e9e29d9aabe877be6f2161.fontdata"]
+
+[params]
+
+character_ranges=PackedStringArray("32", "48-57", "43", "45", "47", "215")
+kerning_pairs=PackedStringArray()
+columns=15
+rows=1
+image_margin=Rect2i(0, 0, 0, 0)
+character_margin=Rect2i(0, 0, 0, 0)
+ascent=0
+descent=0
+fallbacks=[]
+compress=true
+scaling_mode=2
