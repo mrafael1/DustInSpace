@@ -127,9 +127,10 @@ func test_palette_colours_come_from_the_gpl_file() -> void:
 	var constants: Dictionary = (Palette as Script).get_script_constant_map()
 	assert_false(constants.is_empty())
 	for name: String in constants:
-		var colour: Color = constants[name]
-		assert_true(gpl.any(func(c: Color) -> bool: return c.to_html(false) == colour.to_html(false)),
-			"Palette.%s is in stellar_sun.gpl" % name)
+		var colours: Array = constants[name] if constants[name] is Array else [constants[name]]
+		for colour: Color in colours:
+			assert_true(gpl.any(func(c: Color) -> bool: return c.to_html(false) == colour.to_html(false)),
+				"Palette.%s (%s) is in stellar_sun.gpl" % [name, colour.to_html(false)])
 
 
 func _view(star: Star) -> StarView:
