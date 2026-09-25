@@ -31,6 +31,7 @@ The palette has 40 colours in 7 ramps (the dust ramp reuses N7 and N8). Files: `
 2. Background stars are cool, 1 px, and kept away from collectible stars. 3 px glints are allowed only in the empty top corners.
 3. Blue and red appear only on packs.
 4. The Sun moves from the S ramp to the C ramp as it heals. That change is the progress bar.
+5. A rejected link is drawn in S4 (ember), never red: red belongs to packs.
 
 ## Techniques
 

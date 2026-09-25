@@ -1,10 +1,20 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/sky.gd" id="1_sky"]
+[ext_resource type="Script" path="res://game/scenes/link_layer.gd" id="2_link_layer"]
+[ext_resource type="PackedScene" path="res://game/ui/reward_plaque.tscn" id="3_plaque"]
 
 [node name="Sky" type="Node2D"]
 script = ExtResource("1_sky")
 
 [node name="HaloLayer" type="Node2D" parent="."]
 
+[node name="LinkLayer" type="Node2D" parent="."]
+script = ExtResource("2_link_layer")
+
 [node name="StarLayer" type="Node2D" parent="."]
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="RewardPlaque" parent="UILayer" instance=ExtResource("3_plaque")]
