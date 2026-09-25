@@ -43,6 +43,7 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 - Each star is drawn independently from the pack's weights.
 - The slingshot controls **where** a pack bursts, never its contents.
 - Buying a pack loads it into the launcher. The player chooses which owned pack to load.
+- In the HUD, tapping a pack's icon **loads** it if the player owns one, or **buys** it if they own none and can afford it. Buying an extra pack while still owning some is a separate tap target: the pack's cost number.
 
 ### Legendary opening: Big Bang
 
