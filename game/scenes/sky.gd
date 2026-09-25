@@ -162,12 +162,17 @@ func _show_preview() -> void:
 		sizes.append(_run.find_star(id).size)
 	var last: Star = _run.find_star(ids[-1])
 	var half: int = StarView.half_extent(last.size)
+	# The plaque is on a CanvasLayer, which ignores this node's transform (e.g. screen shake),
+	# so hand it screen coordinates. Only whole-pixel translation is allowed on the grid.
+	var offset := Vector2i(get_global_transform_with_canvas().origin.round())
+	var anchor: Vector2i = last.position + offset
+	var bounds := Rect2i(_run.sky_rect.position + offset, _run.sky_rect.size)
 	var combo: String = Combos.evaluate(sizes)
 	if combo == Combos.INVALID:
-		_plaque.show_no_combo(last.position, half, _run.sky_rect)
+		_plaque.show_no_combo(anchor, half, bounds)
 	else:
 		var reward: Balance.ComboReward = _run.balance.combos[combo]
-		_plaque.show_reward(reward.dust, reward.light, last.position, half, _run.sky_rect)
+		_plaque.show_reward(reward.dust, reward.light, anchor, half, bounds)
 
 
 func _positions(stars: Array[Star]) -> Array[Vector2i]:

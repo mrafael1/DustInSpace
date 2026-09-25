@@ -146,6 +146,23 @@ func test_the_plaque_previews_the_reward_while_three_are_selected() -> void:
 	assert_false(plaque.visible, "gone once the link resolves")
 
 
+func test_the_plaque_follows_the_sky_when_it_moves() -> void:
+	var ids: Array[int] = _seed_sky([S, M, B])
+	var plaque: RewardPlaque = sky.get_node("UILayer/RewardPlaque")
+	var last: Vector2i = run.find_star(ids[2]).position
+	_tap(run.find_star(ids[0]).position)
+	_tap(run.find_star(ids[1]).position)
+	_touch(last, true)
+	var still: Vector2 = plaque.position
+	_touch(last, false)
+	ids = _seed_sky([S, M, B])
+	sky.position = Vector2(2, -1)  # e.g. a screen shake
+	_tap(run.find_star(ids[0]).position)
+	_tap(run.find_star(ids[1]).position)
+	_touch(last, true)
+	assert_eq(plaque.position, still + Vector2(2, -1), "the plaque stays by its star")
+
+
 func test_the_plaque_says_when_three_stars_are_no_combo() -> void:
 	var ids: Array[int] = _seed_sky([S, S, B])
 	var plaque: RewardPlaque = sky.get_node("UILayer/RewardPlaque")
