@@ -39,6 +39,10 @@ func test_run_starts_from_balance() -> void:
 	assert_eq(run.outcome, RunState.Outcome.PLAYING)
 
 
+func test_run_remembers_its_seed_for_replays() -> void:
+	assert_eq(Fixtures.run({}, 42).run_seed, 42)
+
+
 func test_first_owned_pack_is_loaded_at_start() -> void:
 	assert_eq(run.loaded_pack, "blue")
 

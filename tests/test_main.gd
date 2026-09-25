@@ -109,6 +109,22 @@ func test_debug_launch_waits_for_the_sequence_and_stays_in_the_sky() -> void:
 		assert_true(StarScatter.inner_rect(ScreenZones.SKY).has_point(star.position))
 
 
+func test_same_seed_and_same_debug_launches_replay_the_same_sky() -> void:
+	var keys: DebugKeys = main.get_node("DebugKeys")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var skies: Array[Array] = []
+	for attempt: int in 2:
+		main.start_run(Fixtures.balance())
+		var sky: Array[Vector2i] = []
+		for launch: int in 3:
+			assert_true(keys.launch_at_random())
+			_play_until_idle(sequencer)
+		for star: Star in main.run.stars:
+			sky.append(star.position)
+		skies.append(sky)
+	assert_eq(skies[0], skies[1])
+
+
 func _play_until_idle(sequencer: EventSequencer) -> void:
 	var elapsed: float = 0.0
 	sequencer.advance(0.0)
