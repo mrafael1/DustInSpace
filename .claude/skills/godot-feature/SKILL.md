@@ -37,6 +37,6 @@ Core responsibilities:
 - Add the feedback using the `game-feel` skill, and make the art with the `pixel-art` skill.
 
 ## 5. Finish
+- Work on a `feature/` or `fix/` branch, never on `main` (see Git workflow in AGENTS.md).
 - If any balance value was touched, run `python tools/balance/sim.py` and paste the table.
-- Commit in small steps with messages like `feat:` / `fix:` / `test:` / `art:` / `tune:`.
-- Summarise what the player can now do, what isn't done, and any design question you had to guess.
+- Commit in small steps (`feat:` / `fix:` / `test:` / `art:` / `tune:`), push the branch, and open a PR with a summary of what the player can now do, what isn't done, and any design question you had to guess.

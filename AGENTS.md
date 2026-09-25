@@ -2,6 +2,24 @@
 
 Instructions for any coding agent (Claude Code, Codex, Cursor…) working in this repo.
 
+## Git workflow
+
+- **Never commit directly to `main`.** `main` must always open and run.
+- **One branch per feature or bug**, created from an up-to-date `main`:
+  - Feature: `feature/<short-name>` (e.g. `feature/star-linking`)
+  - Bug: `fix/<short-name>` (e.g. `fix/stars-outside-sky`)
+  - Balance-only change: `tune/<short-name>`
+  - Art-only change: `art/<short-name>`
+  - Docs or tooling: `chore/<short-name>`
+- Before starting: `git switch main && git pull && git switch -c feature/<name>`.
+- Keep a branch to one topic. If you find an unrelated bug, note it and don't fix it on the same branch.
+- Commit in small steps with the matching prefix: `feat:`, `fix:`, `tune:`, `art:`, `test:`, `docs:`, `chore:`.
+- When done, push the branch and open a pull request into `main` with:
+  - what changed
+  - how it was tested (test output; simulator table if balance changed)
+  - anything not done or any design guess made
+- Never merge, force-push or delete branches unless the user asks.
+
 ## The game in one paragraph
 
 Dust In Space is a portrait pixel-art mobile game made in **Godot 4 (GDScript)**. The player slingshots planet-shaped star packs into a night sky. Each pack bursts into random small, medium and big stars. The player links 3 stars into combinations (three of a size, or one of each size in any order) to earn **dust**, which buys more packs, and **light**, which restores a dying Sun. A rare legendary opening, the **Big Bang**, collapses and clears the sky for a large dust payout. The game should feel like a slot machine (anticipation, randomness, satisfying payouts) delivered through tactile interaction instead of reels.
