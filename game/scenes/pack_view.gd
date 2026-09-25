@@ -22,21 +22,26 @@ var bright: bool = false:
 	set(value):
 		bright = value
 		queue_redraw()
+## Draws the planet at this radius instead of the kind's own (0 = the kind's). The HUD uses r6.
+var radius_override: int = 0:
+	set(value):
+		radius_override = value
+		queue_redraw()
 
 
 func _draw() -> void:
-	var dots: Dictionary[Vector2i, Color] = pixels(kind, grown, bright)
+	var dots: Dictionary[Vector2i, Color] = pixels(kind, grown, bright, radius_override)
 	for offset: Vector2i in dots:
 		draw_rect(Rect2(Vector2(offset), Vector2.ONE), dots[offset])
 
 
 ## The pack's pixels as offsets from its centre. Empty for an unknown kind.
-static func pixels(p_kind: String, p_grown: bool = false, p_bright: bool = false) -> Dictionary[Vector2i, Color]:
+static func pixels(p_kind: String, p_grown: bool = false, p_bright: bool = false, p_radius: int = 0) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	if not RADIUS.has(p_kind):
 		return dots
 	var ramp: Array[Color] = Palette.RED_PACK if p_kind == "red" else Palette.BLUE_PACK
-	var radius: int = RADIUS[p_kind] + (1 if p_grown else 0)
+	var radius: int = (p_radius if p_radius > 0 else RADIUS[p_kind]) + (1 if p_grown else 0)
 	var lift: int = 1 if p_bright else 0
 	if p_kind == "red":
 		_add_ring(dots, ramp, lift, radius, false)

@@ -15,6 +15,8 @@ const C5 := Color("#6A3F7A")
 const N0 := Color("#07091F")
 const N6 := Color("#5A51A6")
 const N7 := Color("#7E68C8")
+## N8 doubles as the dust ramp's middle step (dust icon facets).
+const N8 := Color("#A77FD8")
 
 ## Dim Sun ramp. S4 (ember) marks a rejected link: blue and red are reserved for packs.
 const S4 := Color("#D0542E")
@@ -27,6 +29,8 @@ const M1 := Color("#121638")
 const M3 := Color("#2B3470")
 const M4 := Color("#4A5AA8")
 const M5 := Color("#9FB0EE")
+## HUD counts.
+const M6 := Color("#D9E2FF")
 
 ## Pack ramps, dark to light. Blue and red appear only on packs.
 const BLUE_PACK: Array[Color] = [Color("#12245A"), Color("#1D4696"), Color("#2F78D0"), Color("#62B4F0"), Color("#B8E6FF")]
