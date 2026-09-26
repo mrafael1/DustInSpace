@@ -29,7 +29,7 @@ The game's emotional core is the slot machine's: **anticipation, then reveal, th
 
 ## Big Bang script
 1. Starts **exactly like a normal burst** to keep the surprise.
-2. **+260 ms:** freeze. The sky darkens to about 80% and a black hole opens at the burst point (N0 disc, C2 photon ring, the far side of its accretion disc lensed into an arc over the top, the near side crossing in front; never a ringed planet, which is the red pack). Every star (including this pack's decoy stars) spirals into it with an ease-in (~750 ms), with cool specks of sky dust.
+2. **+260 ms:** freeze. The sky darkens to about 80% and a black hole opens at the burst point (N0 disc, C2 photon ring, the far side of its accretion disc lensed into an arc over the top, the near side crossing in front; never a ringed planet, which is the red pack). Every star (including this pack's decoy stars) spirals into it (~750 ms), with cool specks of sky dust: fast at first, then slowing and dimming (redshift) as they near the hole, where they hang, orbiting, until it swallows them in the last ~15%.
 3. The hole implodes (~150 ms) into a 1–2 px white point that pulses. **Silence:** all audio ducks to zero for ~500 ms.
 4. **Bang:** a full-screen flash that fades over ~700 ms, 3 staggered shockwave rings, and about 200 multi-colour pixels from the palette.
 5. Dust streams to the counter, with a "BIG BANG +N dust" banner (large pixel type) for ~2.5 s.

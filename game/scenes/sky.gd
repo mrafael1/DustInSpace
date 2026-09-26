@@ -222,7 +222,7 @@ func _big_bang(burst: Vector2i, cleared: Array[Star]) -> void:
 		view.fly_from(burst, i * BURST_STAGGER)
 		collapsing.append(view)
 	for view: StarView in collapsing:
-		view.collapse_to(burst, BigBangSequence.FREEZE_AT, BigBangSequence.COLLAPSE_TIME, BigBangSequence.SWIRL)
+		view.collapse_to(burst, BigBangSequence.FREEZE_AT, BigBangSequence.COLLAPSE_TIME, BigBangSequence.SWIRL, BigBangSequence.HOVER)
 
 
 ## Stars the launched pack would have opened into, drawn and placed like real ones. Ids are

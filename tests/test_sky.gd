@@ -142,9 +142,13 @@ func test_a_big_bang_opens_into_decoys_then_collapses_every_star() -> void:
 	var start: Dictionary[StarView, float] = {}
 	for view: StarView in _views():
 		start[view] = Vector2(view.position).distance_to(Vector2(burst))
-	_play(STEP + BigBangSequence.COLLAPSE_TIME * 0.95)
+	_play(STEP + BigBangSequence.COLLAPSE_TIME * 0.8)
 	for view: StarView in _views():
-		assert_lte(Vector2(view.position).distance_to(Vector2(burst)), start[view] * 0.2 + 1.0, "pulled into the burst point")
+		assert_lte(Vector2(view.position).distance_to(Vector2(burst)), maxf(BigBangSequence.HOVER, start[view] * 0.2) + 2.0,
+			"hanging at the hole")
+	_play(BigBangSequence.COLLAPSE_TIME * 0.15)
+	for view: StarView in _views():
+		assert_lte(Vector2(view.position).distance_to(Vector2(burst)), float(BigBangSequence.HOVER), "being swallowed")
 	_play(BigBangSequence.COLLAPSE_TIME * 0.05 + STEP)
 	assert_eq(_views().size(), 0, "then gone")
 

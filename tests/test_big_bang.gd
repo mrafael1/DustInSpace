@@ -102,11 +102,17 @@ func test_the_hole_is_black_in_a_photon_ring_with_a_lensed_arc_and_a_front_band(
 
 func test_stars_and_specks_spiral_into_the_hole() -> void:
 	var from := Vector2i(60, 0)
-	var half: Vector2i = StarView.collapse_point(from, Vector2i.ZERO, 0.5, BigBangSequence.SWIRL)
-	assert_lt(Vector2(half).length(), 60.0, "closer")
+	var at: Callable = func(k: float) -> float:
+		return Vector2(StarView.collapse_point(from, Vector2i.ZERO, k, BigBangSequence.SWIRL, BigBangSequence.HOVER)).length()
+	assert_eq(StarView.collapse_point(from, Vector2i.ZERO, 0.0, BigBangSequence.SWIRL, BigBangSequence.HOVER), from)
+	assert_gt(at.call(0.0) - at.call(0.2), at.call(0.5) - at.call(0.7), "fast at first, slower near the hole")
+	assert_between(at.call(0.8), float(BigBangSequence.HOVER), BigBangSequence.HOVER + 3.0, "hanging just outside the hole")
+	var half: Vector2i = StarView.collapse_point(from, Vector2i.ZERO, 0.5, BigBangSequence.SWIRL, BigBangSequence.HOVER)
 	assert_ne(half.y, 0, "and turned: a spiral, not a straight line")
-	assert_eq(StarView.collapse_point(from, Vector2i.ZERO, 1.0, BigBangSequence.SWIRL), Vector2i.ZERO, "into the hole")
-	assert_eq(StarView.collapse_point(from, Vector2i.ZERO, 0.0, BigBangSequence.SWIRL), from)
+	assert_eq(at.call(1.0), 0.0, "swallowed at the end")
+	var near := Vector2i(5, 0)
+	assert_lte(Vector2(StarView.collapse_point(near, Vector2i.ZERO, 0.5, BigBangSequence.SWIRL, BigBangSequence.HOVER)).length(), 5.0 + sqrt(0.5),
+		"a star already inside the hover distance never moves outward (beyond whole-pixel rounding)")
 	for colour: Color in BigBangSequence.SPECK_COLOURS:
 		assert_true(colour in [Palette.N6, Palette.N7, Palette.N8], "cool: sky dust isn't worth anything")
 

@@ -28,6 +28,9 @@ const RING_FRAME_TIME: float = 0.2
 const RING_GAP: int = 4
 const RING_DASHES: int = 16
 const EASE_BACK: float = 1.70158
+## Collapse: stars dim from here, and are swallowed from here to the end.
+const REDSHIFT_AT: float = 0.5
+const SWALLOW_AT: float = 0.85
 ## Share of the flight at which the ease-out-back overshoot peaks (about 0.58). Past it a star
 ## only drifts back by at most 10% of its flight, so linking it no longer feels wrong.
 const OVERSHOOT_PEAK: float = 1.0 - 2.0 * EASE_BACK / (3.0 * (EASE_BACK + 1.0))
@@ -96,8 +99,9 @@ var _frame_key: int = -1
 var _collapse_point: Vector2i = Vector2i.ZERO
 var _collapse_duration: float = 0.0
 var _collapse_wait: float = -1.0
-## Turns the star swirls around the point while it falls in.
+## Turns the star swirls around the point while it falls in, and how far out it hangs.
 var _collapse_swirl: float = 0.0
+var _collapse_hover: int = 0
 
 
 func _process(delta: float) -> void:
@@ -144,13 +148,15 @@ func dissolve() -> void:
 
 
 ## After `delay` seconds (whatever it is doing then, even mid-flight), is pulled into `point`
-## with an ease-in over `duration`, spiralling `swirl` turns on the way, then frees itself.
-## The Big Bang's collapse.
-func collapse_to(point: Vector2i, delay: float, duration: float, swirl: float = 0.0) -> void:
+## over `duration`, spiralling `swirl` turns on the way, then frees itself. It slows as it
+## nears `hover` px from the point, hangs there dimming, and is swallowed at the very end
+## (see collapse_point). The Big Bang's collapse into its black hole.
+func collapse_to(point: Vector2i, delay: float, duration: float, swirl: float = 0.0, hover: int = 0) -> void:
 	selected = false
 	_collapse_point = point
 	_collapse_duration = duration
 	_collapse_swirl = swirl
+	_collapse_hover = hover
 	_collapse_wait = -1.0
 	if delay > 0.0:
 		_collapse_wait = delay
@@ -183,7 +189,7 @@ func advance(delta: float) -> void:
 				return
 		State.COLLAPSING:
 			var k: float = minf(_time / _collapse_duration, 1.0)
-			position = Vector2(collapse_point(_from, _collapse_point, k, _collapse_swirl))
+			position = Vector2(collapse_point(_from, _collapse_point, k, _collapse_swirl, _collapse_hover))
 			if k >= 1.0:
 				dissolved.emit(self)
 				queue_free()
@@ -231,12 +237,17 @@ static func half_extent(star_size: Star.Size) -> int:
 	return (SHAPES[star_size] as Array).size() >> 1
 
 
-## Where a collapsing star is at progress `k` (0-1): its distance to `point` shrinks with an
-## ease-in while it turns `swirl` turns around it, on whole pixels.
-static func collapse_point(from: Vector2i, point: Vector2i, k: float, swirl: float) -> Vector2i:
-	var eased: float = clampf(k, 0.0, 1.0)
-	eased *= eased
-	var offset := Vector2(from - point).rotated(TAU * swirl * eased) * (1.0 - eased)
+## Where a collapsing star is at progress `k` (0-1), on whole pixels. Like falling into a black
+## hole: fast at first, then slower and slower as it nears `hover` px from `point` (an ease-out),
+## orbiting `swirl` turns meanwhile; from SWALLOW_AT it drops through to `point`.
+static func collapse_point(from: Vector2i, point: Vector2i, k: float, swirl: float, hover: int = 0) -> Vector2i:
+	var t: float = clampf(k, 0.0, 1.0)
+	var start: float = Vector2(from - point).length()
+	if start == 0.0:
+		return point
+	var edge: float = minf(float(hover), start)
+	var dist: float = (edge + (start - edge) * (1.0 - t) * (1.0 - t)) * (1.0 - smoothstep(SWALLOW_AT, 1.0, t))
+	var offset := Vector2(from - point).normalized().rotated(TAU * swirl * t) * dist
 	return point + Vector2i(offset.round())
 
 
@@ -278,7 +289,7 @@ func _current_frame_key() -> int:
 		State.DISSOLVING:
 			return _dissolve_frame()
 		State.COLLAPSING:
-			return 1 if _is_crushed() else 2
+			return _redshift()
 	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0)
 
 
@@ -294,9 +305,13 @@ func _ring_frame() -> int:
 	return int(_time / RING_FRAME_TIME) % 2
 
 
-## Late in a collapse only the star's white core is left.
-func _is_crushed() -> bool:
-	return _time >= _collapse_duration * 0.7
+## How far a collapsing star has dimmed: 0 bright while it falls, 1 a step darker as it slows
+## near the hole, 2 only a dim C3 core while it is swallowed. Light losing energy on its way out.
+func _redshift() -> int:
+	var k: float = _time / _collapse_duration
+	if k >= SWALLOW_AT:
+		return 2
+	return 1 if k >= REDSHIFT_AT else 0
 
 
 func _start_collapse() -> void:
@@ -338,10 +353,13 @@ func _draw_dissolve() -> void:
 
 ## Pulled in bright; crushed down to the C0 core near the end.
 func _draw_collapse() -> void:
-	if _is_crushed():
-		_draw_shape(0, 0)
-	else:
-		_draw_shape(STAR_STEPS.size() - 1, -1)
+	match _redshift():
+		0:
+			_draw_shape(STAR_STEPS.size() - 1, -1)
+		1:
+			_draw_shape(STAR_STEPS.size() - 1, 1)
+		_:
+			_draw_shape(0, STAR_STEPS.size() - 1)
 
 
 ## Draws the pixels whose step is at most `max_step`, shifted by `shift` steps (negative = brighter).

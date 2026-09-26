@@ -6,8 +6,9 @@ extends Node2D
 ## 2. At FREEZE_AT the sky darkens and a black hole opens at the burst point: an N0 disc in a
 ##    bright photon ring, the far side of its accretion disc lensed into an arc over the top and
 ##    the near side crossing in front (never a ringed planet: that's the red pack). Every star
-##    spirals into it (the Sky collapses them, ease-in over COLLAPSE_TIME) and cool specks of
-##    sky dust spiral in too.
+##    spirals into it (the Sky collapses them over COLLAPSE_TIME) and cool specks of sky dust
+##    spiral in too: fast at first, then slowing and dimming as they near the hole, where they
+##    hang, orbiting, until it swallows them.
 ## 3. The hole implodes into a 1-2 px white point that pulses until the bang. (Silence: no
 ##    audio exists yet.)
 ## 4. The bang: a full-screen flash fading in dithered steps, 3 staggered shockwave rings and
@@ -23,9 +24,12 @@ const FREEZE_AT: float = 0.26
 const COLLAPSE_TIME: float = 0.75
 const PAUSE_TIME: float = 0.5
 ## How far stars and specks turn around the hole as they fall in.
-const SWIRL: float = 0.35
+const SWIRL: float = 0.6
 ## The black hole: grows to HOLE_RADIUS over the collapse, then implodes at the start of the pause.
 const HOLE_RADIUS: int = 9
+## Falling stars and specks slow down and hang this far from the centre, just outside the photon
+## ring and the lensed arc, before they are swallowed.
+const HOVER: int = HOLE_RADIUS + 3
 const HOLE_IMPLODE: float = 0.15
 ## The accretion disc's near side: a flat ellipse this far past the hole, dashed, crossing in
 ## front of it. Its dashes, and the photon ring's highlights, move one step per DISC_SPIN_STEP.
@@ -113,7 +117,7 @@ func _draw() -> void:
 	if since_freeze >= 0.0 and since_freeze < COLLAPSE_TIME:
 		var k: float = since_freeze / COLLAPSE_TIME
 		for i: int in _speck_from.size():
-			_dot(self, _burst + StarView.collapse_point(Vector2i(_speck_from[i]), Vector2i.ZERO, k, SWIRL), _speck_colour[i])
+			_dot(self, _burst + StarView.collapse_point(Vector2i(_speck_from[i]), Vector2i.ZERO, k, SWIRL, HOVER), _speck_colour[i])
 	var radius: int = hole_radius(since_freeze)
 	if radius > 0:
 		var dots: Dictionary[Vector2i, Color] = hole_pixels(radius, floori(since_freeze / DISC_SPIN_STEP))
