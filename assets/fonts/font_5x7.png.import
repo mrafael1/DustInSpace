@@ -12,9 +12,9 @@ dest_files=["res://.godot/imported/font_5x7.png-780febcda3e9e29d9aabe877be6f2161
 
 [params]
 
-character_ranges=PackedStringArray("32", "48-57", "43", "45", "47", "215")
+character_ranges=PackedStringArray("32", "48-57", "43", "45", "47", "215", "65", "66", "71", "73", "78")
 kerning_pairs=PackedStringArray()
-columns=15
+columns=20
 rows=1
 image_margin=Rect2i(0, 0, 0, 0)
 character_margin=Rect2i(0, 0, 0, 0)

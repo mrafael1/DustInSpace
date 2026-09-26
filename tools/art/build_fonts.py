@@ -3,7 +3,8 @@
 Two fonts (docs/art-direction.md): 5x7 for primary counters and 3x5 for secondary numbers.
 Each PNG is one row of cells, a glyph plus one blank spacing column, in GLYPHS order. Godot
 imports them as image fonts (see the .png.import files), so Labels render them pixel for pixel.
-Glyphs are white; Labels colour them. Only the characters the HUD needs so far are drawn.
+Glyphs are white; Labels colour them. Only the characters the game writes so far are drawn:
+digits and signs in both fonts, plus the letters of the Big Bang banner in the 5x7.
 
 Run: python tools/art/build_fonts.py   (needs Pillow)
 """
@@ -15,8 +16,9 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "assets" / "fonts"
 
-# Order matters: it must match character_ranges in the .png.import files.
+# Order matters: it must match character_ranges in each font's .png.import file.
 GLYPHS = " 0123456789+-/×"
+GLYPHS_5X7 = GLYPHS + "ABGIN"
 
 FONT_5X7 = {
     " ": ["....."] * 7,
@@ -34,6 +36,11 @@ FONT_5X7 = {
     "-": [".....", ".....", ".....", "#####", ".....", ".....", "....."],
     "/": ["....#", "....#", "...#.", "..#..", ".#...", "#....", "#...."],
     "×": [".....", ".....", "#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
+    "A": [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+    "B": ["####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."],
+    "G": [".###.", "#...#", "#....", "#.###", "#...#", "#...#", ".###."],
+    "I": [".###.", "..#..", "..#..", "..#..", "..#..", "..#..", ".###."],
+    "N": ["#...#", "##..#", "#.#.#", "#.#.#", "#..##", "#...#", "#...#"],
 }
 
 FONT_3X5 = {
@@ -55,12 +62,12 @@ FONT_3X5 = {
 }
 
 
-def build(font: dict[str, list[str]], name: str) -> None:
+def build(font: dict[str, list[str]], glyphs: str, name: str) -> None:
     width = len(font["0"][0])
     height = len(font["0"])
     cell = width + 1
-    image = Image.new("RGBA", (cell * len(GLYPHS), height), (0, 0, 0, 0))
-    for index, char in enumerate(GLYPHS):
+    image = Image.new("RGBA", (cell * len(glyphs), height), (0, 0, 0, 0))
+    for index, char in enumerate(glyphs):
         rows = font[char]
         assert len(rows) == height and all(len(r) == width for r in rows), char
         for y, row in enumerate(rows):
@@ -69,9 +76,9 @@ def build(font: dict[str, list[str]], name: str) -> None:
                     image.putpixel((index * cell + x, y), (255, 255, 255, 255))
     OUT.mkdir(parents=True, exist_ok=True)
     image.save(OUT / name)
-    print(f"wrote {OUT / name} ({image.width}x{image.height}, {len(GLYPHS)} glyphs)")
+    print(f"wrote {OUT / name} ({image.width}x{image.height}, {len(glyphs)} glyphs)")
 
 
 if __name__ == "__main__":
-    build(FONT_5X7, "font_5x7.png")
-    build(FONT_3X5, "font_3x5.png")
+    build(FONT_5X7, GLYPHS_5X7, "font_5x7.png")
+    build(FONT_3X5, GLYPHS, "font_3x5.png")
