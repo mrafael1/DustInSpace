@@ -96,6 +96,8 @@ var _frame_key: int = -1
 var _collapse_point: Vector2i = Vector2i.ZERO
 var _collapse_duration: float = 0.0
 var _collapse_wait: float = -1.0
+## Turns the star swirls around the point while it falls in.
+var _collapse_swirl: float = 0.0
 
 
 func _process(delta: float) -> void:
@@ -142,11 +144,13 @@ func dissolve() -> void:
 
 
 ## After `delay` seconds (whatever it is doing then, even mid-flight), is pulled into `point`
-## with an ease-in over `duration`, then frees itself. The Big Bang's collapse.
-func collapse_to(point: Vector2i, delay: float, duration: float) -> void:
+## with an ease-in over `duration`, spiralling `swirl` turns on the way, then frees itself.
+## The Big Bang's collapse.
+func collapse_to(point: Vector2i, delay: float, duration: float, swirl: float = 0.0) -> void:
 	selected = false
 	_collapse_point = point
 	_collapse_duration = duration
+	_collapse_swirl = swirl
 	_collapse_wait = -1.0
 	if delay > 0.0:
 		_collapse_wait = delay
@@ -179,7 +183,7 @@ func advance(delta: float) -> void:
 				return
 		State.COLLAPSING:
 			var k: float = minf(_time / _collapse_duration, 1.0)
-			position = Vector2(Vector2(_from).lerp(Vector2(_collapse_point), k * k).round())
+			position = Vector2(collapse_point(_from, _collapse_point, k, _collapse_swirl))
 			if k >= 1.0:
 				dissolved.emit(self)
 				queue_free()
@@ -225,6 +229,15 @@ static func flight_point(from: Vector2i, to: Vector2i, k: float, bounds: Rect2i)
 ## How far a star's sprite reaches from its centre pixel, e.g. 7 for the 15x15 big star.
 static func half_extent(star_size: Star.Size) -> int:
 	return (SHAPES[star_size] as Array).size() >> 1
+
+
+## Where a collapsing star is at progress `k` (0-1): its distance to `point` shrinks with an
+## ease-in while it turns `swirl` turns around it, on whole pixels.
+static func collapse_point(from: Vector2i, point: Vector2i, k: float, swirl: float) -> Vector2i:
+	var eased: float = clampf(k, 0.0, 1.0)
+	eased *= eased
+	var offset := Vector2(from - point).rotated(TAU * swirl * eased) * (1.0 - eased)
+	return point + Vector2i(offset.round())
 
 
 static func _ease_out_back(k: float) -> float:

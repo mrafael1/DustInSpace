@@ -3,9 +3,13 @@ extends Node2D
 ## The Big Bang, played when big_bang_started plays (game-feel skill, "Big Bang script"):
 ## 1. It opens exactly like a normal burst (the launcher's ring, sparks, and the Sky's decoy
 ##    stars flying out) to keep the surprise.
-## 2. At FREEZE_AT the sky darkens and every star is pulled into the burst point (the Sky
-##    collapses them, ease-in over COLLAPSE_TIME).
-## 3. Only a 1-2 px white point pulses for PAUSE_TIME. (Silence: no audio exists yet.)
+## 2. At FREEZE_AT the sky darkens and a black hole opens at the burst point: an N0 disc in a
+##    bright photon ring, the far side of its accretion disc lensed into an arc over the top and
+##    the near side crossing in front (never a ringed planet: that's the red pack). Every star
+##    spirals into it (the Sky collapses them, ease-in over COLLAPSE_TIME) and cool specks of
+##    sky dust spiral in too.
+## 3. The hole implodes into a 1-2 px white point that pulses until the bang. (Silence: no
+##    audio exists yet.)
 ## 4. The bang: a full-screen flash fading in dithered steps, 3 staggered shockwave rings and
 ##    about 200 multi-colour palette pixels; a "BIG BANG" banner with the dust for BANNER_TIME.
 ## 5. The dust streams to the counter (CollectParticles).
@@ -18,6 +22,26 @@ extends Node2D
 const FREEZE_AT: float = 0.26
 const COLLAPSE_TIME: float = 0.75
 const PAUSE_TIME: float = 0.5
+## How far stars and specks turn around the hole as they fall in.
+const SWIRL: float = 0.35
+## The black hole: grows to HOLE_RADIUS over the collapse, then implodes at the start of the pause.
+const HOLE_RADIUS: int = 9
+const HOLE_IMPLODE: float = 0.15
+## The accretion disc's near side: a flat ellipse this far past the hole, dashed, crossing in
+## front of it. Its dashes, and the photon ring's highlights, move one step per DISC_SPIN_STEP.
+const DISC_GAP: int = 5
+const DISC_TILT: float = 0.3
+const DISC_DASHES: int = 14
+const DISC_SPIN_STEP: float = 0.05
+## The photon ring's C0 highlights: one in this many steps of the ring.
+const PHOTON_HIGHLIGHT: int = 4
+## A faint C5 halo out to this far past the hole.
+const HOLE_HALO: int = 6
+## Sky dust drawn into the hole while it collapses. Cool colours: it isn't worth anything.
+const SPECKS: int = 60
+const SPECK_REACH_MIN: float = 40.0
+const SPECK_REACH_MAX: float = 140.0
+const SPECK_COLOURS: Array[Color] = [Palette.N6, Palette.N7, Palette.N8]
 const BANG_AT: float = FREEZE_AT + COLLAPSE_TIME + PAUSE_TIME
 const INPUT_BACK_AFTER: float = 1.1
 const BANNER_TIME: float = 2.5
@@ -49,6 +73,9 @@ var _burst: Vector2i = Vector2i.ZERO
 var _debris_reach: Array[Vector2] = []
 var _debris_life: Array[float] = []
 var _debris_colour: Array[Color] = []
+## One entry per speck: where it starts, as an offset from the burst point, and its colour.
+var _speck_from: Array[Vector2] = []
+var _speck_colour: Array[Color] = []
 var _rng := RandomNumberGenerator.new()
 var _darken: ImageTexture
 var _flashes: Array[ImageTexture] = []
@@ -82,8 +109,18 @@ func _draw() -> void:
 		return
 	if _time >= FREEZE_AT and _time < BANG_AT:
 		draw_texture_rect(_darken, Rect2(Vector2.ZERO, Vector2(SCREEN)), true)
-	if _time >= FREEZE_AT + COLLAPSE_TIME and _time < BANG_AT:
-		for offset: Vector2i in point_pixels(_time - FREEZE_AT - COLLAPSE_TIME):
+	var since_freeze: float = _time - FREEZE_AT
+	if since_freeze >= 0.0 and since_freeze < COLLAPSE_TIME:
+		var k: float = since_freeze / COLLAPSE_TIME
+		for i: int in _speck_from.size():
+			_dot(self, _burst + StarView.collapse_point(Vector2i(_speck_from[i]), Vector2i.ZERO, k, SWIRL), _speck_colour[i])
+	var radius: int = hole_radius(since_freeze)
+	if radius > 0:
+		var dots: Dictionary[Vector2i, Color] = hole_pixels(radius, floori(since_freeze / DISC_SPIN_STEP))
+		for offset: Vector2i in dots:
+			_dot(self, _burst + offset, dots[offset])
+	if since_freeze >= COLLAPSE_TIME + HOLE_IMPLODE and _time < BANG_AT:
+		for offset: Vector2i in point_pixels(since_freeze - COLLAPSE_TIME - HOLE_IMPLODE):
 			_dot(self, _burst + offset, Palette.C0)
 
 
@@ -128,6 +165,53 @@ func advance(delta: float) -> void:
 	_front.queue_redraw()
 
 
+## The black hole's radius `t` seconds after the freeze: easing out to HOLE_RADIUS over the
+## collapse, then imploding to nothing over HOLE_IMPLODE. 0 means no hole.
+static func hole_radius(t: float) -> int:
+	if t < 0.0 or t >= COLLAPSE_TIME + HOLE_IMPLODE:
+		return 0
+	if t < COLLAPSE_TIME:
+		var u: float = t / COLLAPSE_TIME
+		return maxi(roundi(HOLE_RADIUS * (1.0 - (1.0 - u) * (1.0 - u))), 1)
+	return maxi(roundi(HOLE_RADIUS * (1.0 - (t - COLLAPSE_TIME) / HOLE_IMPLODE)), 1)
+
+
+## The hole's pixels, back to front: a faint dithered C5 halo, the lensed far side of the
+## accretion disc as a C3 arc over the top, the N0 disc in a C2 photon ring with travelling C0
+## highlights, then the disc's near side crossing in front, dashed C1/C2. `spin` moves the
+## highlights and dashes one step, so it turns without rotating a sprite.
+static func hole_pixels(radius: int, spin: int) -> Dictionary[Vector2i, Color]:
+	var dots: Dictionary[Vector2i, Color] = {}
+	var reach: int = radius + HOLE_HALO
+	for dy: int in range(-reach, reach + 1):
+		for dx: int in range(-reach, reach + 1):
+			var d: float = Vector2(dx, dy).length()
+			if d > radius + 2.5 and d <= reach and StarView.BAYER[posmod(dy, 4) * 4 + posmod(dx, 4)] < 4:
+				dots[Vector2i(dx, dy)] = Palette.C5
+	var arc: int = radius + 2
+	for k: int in ceili(PI * arc) + 1:
+		var angle: float = PI + PI * k / ceili(PI * arc)
+		dots[Vector2i((Vector2.from_angle(angle) * arc).round())] = Palette.C3
+	var ring_steps: int = maxi(ceili(TAU * (radius + 1)), 8)
+	for dy: int in range(-radius - 1, radius + 2):
+		for dx: int in range(-radius - 1, radius + 2):
+			var d: float = Vector2(dx, dy).length()
+			if d <= radius:
+				dots[Vector2i(dx, dy)] = Palette.N0
+			elif d <= radius + 1.0:
+				var step: int = floori(fposmod(atan2(dy, dx), TAU) / TAU * ring_steps)
+				dots[Vector2i(dx, dy)] = Palette.C0 if posmod(step + spin, PHOTON_HIGHLIGHT) == 0 else Palette.C2
+	var band := Vector2(radius + DISC_GAP, (radius + DISC_GAP) * DISC_TILT)
+	var band_steps: int = maxi(ceili(TAU * band.x), 16)
+	for k: int in band_steps:
+		var angle: float = TAU * k / band_steps
+		if sin(angle) < 0.0:
+			continue
+		var dash: int = floori(float(k) / band_steps * DISC_DASHES)
+		dots[Vector2i((Vector2(cos(angle) * band.x, sin(angle) * band.y)).round())] = Palette.C1 if posmod(dash + spin, 2) == 0 else Palette.C2
+	return dots
+
+
 ## The white point `t` seconds into the pause: one pixel, then a small plus, and so on.
 static func point_pixels(t: float) -> Array[Vector2i]:
 	if floori(t / POINT_PULSE) % 2 == 0:
@@ -169,8 +253,17 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	_title.text = "BIG BANG"
 	_amount.text = "+%d" % event.args[2]
 	_scatter_debris()
+	_scatter_specks()
 	_sequencer.hold(BANG_AT + INPUT_BACK_AFTER)
 	queue_redraw()
+
+
+func _scatter_specks() -> void:
+	_speck_from.clear()
+	_speck_colour.clear()
+	for i: int in SPECKS:
+		_speck_from.append(Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(SPECK_REACH_MIN, SPECK_REACH_MAX))
+		_speck_colour.append(SPECK_COLOURS[_rng.randi() % SPECK_COLOURS.size()])
 
 
 func _scatter_debris() -> void:

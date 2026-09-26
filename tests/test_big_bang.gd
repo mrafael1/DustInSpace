@@ -74,6 +74,43 @@ func test_the_white_point_pulses_between_a_pixel_and_a_plus() -> void:
 	assert_eq(BigBangSequence.point_pixels(2 * BigBangSequence.POINT_PULSE).size(), 1)
 
 
+func test_a_black_hole_opens_during_the_collapse_then_implodes_into_the_point() -> void:
+	assert_eq(BigBangSequence.hole_radius(-0.01), 0, "no hole before the freeze")
+	assert_gt(BigBangSequence.hole_radius(0.0), 0, "it opens at the freeze")
+	assert_lt(BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME * 0.2), BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME * 0.9), "it grows")
+	assert_eq(BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME - 0.001), BigBangSequence.HOLE_RADIUS)
+	assert_lt(BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME + BigBangSequence.HOLE_IMPLODE * 0.7), BigBangSequence.HOLE_RADIUS, "then implodes")
+	assert_eq(BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME + BigBangSequence.HOLE_IMPLODE), 0, "leaving the white point")
+	assert_lt(BigBangSequence.COLLAPSE_TIME + BigBangSequence.HOLE_IMPLODE, BigBangSequence.COLLAPSE_TIME + BigBangSequence.PAUSE_TIME, "inside the pause")
+
+
+func test_the_hole_is_black_in_a_photon_ring_with_a_lensed_arc_and_a_front_band() -> void:
+	var r: int = BigBangSequence.HOLE_RADIUS
+	var a: Dictionary[Vector2i, Color] = BigBangSequence.hole_pixels(r, 0)
+	var b: Dictionary[Vector2i, Color] = BigBangSequence.hole_pixels(r, 1)
+	assert_eq(a[Vector2i(0, -r + 1)], Palette.N0, "a black disc")
+	assert_true(a[Vector2i(-(r + 1), 0)] in [Palette.C0, Palette.C2], "in a bright photon ring")
+	assert_eq(a[Vector2i(0, -(r + 2))], Palette.C3, "the far side lensed over the top: not a ringed planet")
+	var band_y: int = roundi((r + BigBangSequence.DISC_GAP) * BigBangSequence.DISC_TILT)
+	assert_true(a[Vector2i(0, band_y)] in [Palette.C1, Palette.C2], "the near side crosses in front of the hole")
+	assert_ne(a, b, "highlights and dashes move each spin step")
+	for colour: Color in a.values():
+		assert_true(colour in [Palette.N0, Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.C5], colour.to_html(false))
+	var reach: float = a.keys().map(func(o: Vector2i) -> float: return Vector2(o).length()).max()
+	assert_lte(reach, r + BigBangSequence.HOLE_HALO + 0.5)
+
+
+func test_stars_and_specks_spiral_into_the_hole() -> void:
+	var from := Vector2i(60, 0)
+	var half: Vector2i = StarView.collapse_point(from, Vector2i.ZERO, 0.5, BigBangSequence.SWIRL)
+	assert_lt(Vector2(half).length(), 60.0, "closer")
+	assert_ne(half.y, 0, "and turned: a spiral, not a straight line")
+	assert_eq(StarView.collapse_point(from, Vector2i.ZERO, 1.0, BigBangSequence.SWIRL), Vector2i.ZERO, "into the hole")
+	assert_eq(StarView.collapse_point(from, Vector2i.ZERO, 0.0, BigBangSequence.SWIRL), from)
+	for colour: Color in BigBangSequence.SPECK_COLOURS:
+		assert_true(colour in [Palette.N6, Palette.N7, Palette.N8], "cool: sky dust isn't worth anything")
+
+
 func test_a_shockwave_ring_grows_and_cools() -> void:
 	assert_true(BigBangSequence.ring_pixels(-0.1).is_empty(), "a staggered ring waits")
 	assert_true(BigBangSequence.ring_pixels(1.0).is_empty())
