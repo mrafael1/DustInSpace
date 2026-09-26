@@ -22,7 +22,7 @@ Instructions for any coding agent (Claude Code, Codex, Cursor…) working in thi
 
 ## The game in one paragraph
 
-Dust In Space is a portrait pixel-art mobile game made in **Godot 4 (GDScript)**. The player slingshots planet-shaped star packs into a night sky. Each pack bursts into random small, medium and big stars. The player links 3 stars into combinations (three of a size, or one of each size in any order) to earn **dust**, which buys more packs, and **light**, which restores a dying Sun. A rare legendary opening, the **Big Bang**, collapses and clears the sky for a large dust payout. The game should feel like a slot machine (anticipation, randomness, satisfying payouts) delivered through tactile interaction instead of reels.
+Dust In Space is a portrait pixel-art mobile game made in **Godot 4.7 (GDScript)**. The player slingshots planet-shaped star packs into a night sky. Each pack bursts into random small, medium and big stars. The player links 3 stars into combinations (three of a size, or one of each size in any order) to earn **dust**, which buys more packs, and **light**, which restores a dying Sun. A rare legendary opening, the **Big Bang**, collapses and clears the sky for a large dust payout. The game should feel like a slot machine (anticipation, randomness, satisfying payouts) delivered through tactile interaction instead of reels.
 
 Read before any gameplay work: `docs/design.md`. Read before any visual work: `docs/art-direction.md`.
 
@@ -87,7 +87,7 @@ docs/                    design.md, art-direction.md, concept/
 godot --headless --path . --import
 godot --headless --path . --quit
 
-# Unit tests (GUT addon in addons/gut, installed from the AssetLib)
+# Unit tests (GUT 9.7.1, committed in addons/gut from the bitwes/Gut release)
 godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit
 
 # Balance check (Python 3, no dependencies)
