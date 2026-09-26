@@ -4,6 +4,8 @@ extends Node2D
 ## light pools up the disc from the bottom and the rays light clockwise from 12 o'clock, taking
 ## it from the dim S ramp to the lit C ramp. That change is the run's progress bar.
 ## It pulses when a combo's light plays, and ignites and lights up the sky when run_won plays.
+## Once ignited it idles on the ripple's 2-frame tick: alternate rays shimmer, the core's glint
+## moves and the glow near the Sun breathes. Whole-frame swaps, never rotation or scaling.
 ## Owns no rules: like the HUD it keeps a shown copy of the light, moved only by played events.
 ## Every pixel is a palette colour at an integer offset from the centre; the node sits on whole pixels.
 
@@ -22,8 +24,12 @@ const IGNITE_TIME: float = 1.8
 const IGNITE_FRAMES: int = 6
 ## The glow's reach on its last frame: past the farthest corner of the sky from the Sun.
 const GLOW_REACH: int = 230
-## The light pool's surface ripples between two frames.
+## The light pool's surface ripples between two frames; the ignited idle uses the same tick.
 const RIPPLE_TIME: float = 0.5
+## Ignited idle: the glow breathes (its dither thins by one Bayer step) only this close to the
+## Sun, so the rest of the sky stays still. Thinning keeps every pixel on the one dither lattice;
+## shifting the dither instead doubled pixels up along the band's edge.
+const GLOW_BREATH_REACH: int = 60
 ## Craters on the unlit disc, as (x, y, radius) from the centre.
 const CRATERS: Array[Vector3i] = [Vector3i(-6, -7, 3), Vector3i(5, -3, 2), Vector3i(-1, 3, 2), Vector3i(8, -10, 2), Vector3i(-9, 1, 2)]
 ## Ramps dark to light. A pulse lifts every pixel one step up its own ramp.
@@ -39,8 +45,8 @@ var _pulse_left: float = 0.0
 var _ignite_time: float = -1.0
 var _ripple: int = 0
 var _ripple_time: float = 0.0
-var _glow_frame: int = -1
-var _glow_texture: ImageTexture
+## Sky glow textures by (ignition frame, breath phase): a handful per run, each built once.
+var _glow_textures: Dictionary[Vector2i, ImageTexture] = {}
 
 
 func _process(delta: float) -> void:
@@ -50,10 +56,10 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var frame: int = ignite_frame()
 	if frame > 0:
-		if frame != _glow_frame:
-			_glow_frame = frame
-			_glow_texture = ImageTexture.create_from_image(sky_glow(frame, Vector2i(global_position)))
-		draw_texture(_glow_texture, -global_position)
+		var key := Vector2i(frame, _ripple if is_ignited() else 0)
+		if not _glow_textures.has(key):
+			_glow_textures[key] = ImageTexture.create_from_image(sky_glow(key.x, Vector2i(global_position), key.y))
+		draw_texture(_glow_textures[key], -global_position)
 	var lit: bool = frame > 0
 	var dots: Dictionary[Vector2i, Color] = pixels(
 		DISC_ROWS if lit else fill_rows(), RAYS if lit else lit_rays(), lit, is_pulsing(), _ripple)
@@ -70,6 +76,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer.event_played.connect(_on_event_played)
 	_shown_light = run.light
 	_pulse_left = 0.0
+	_glow_textures.clear()
 	_ignite_time = IGNITE_TIME if run.outcome == RunState.Outcome.WON else -1.0
 	queue_redraw()
 
@@ -126,11 +133,12 @@ func advance(delta: float) -> void:
 
 
 ## The Sun's pixels as offsets from its centre: halo, rays, then the disc over them.
+## `p_ripple` is the 2-frame tick: the pool's ripple, or the ignited idle's shimmer and glint.
 static func pixels(p_fill_rows: int, p_lit_rays: int, p_ignited: bool, p_lifted: bool, p_ripple: int = 0) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	_add_halo(dots, float(p_fill_rows) / DISC_ROWS, p_ignited)
-	_add_rays(dots, p_lit_rays)
-	_add_disc(dots, p_fill_rows, p_ripple)
+	_add_rays(dots, p_lit_rays, p_ripple if p_ignited else -1)
+	_add_disc(dots, p_fill_rows, p_ripple, p_ignited)
 	if p_lifted:
 		for offset: Vector2i in dots:
 			dots[offset] = _lift(dots[offset])
@@ -139,7 +147,8 @@ static func pixels(p_fill_rows: int, p_lit_rays: int, p_ignited: bool, p_lifted:
 
 ## The warm glow over the sky while the Sun ignites, in screen pixels down to the sky's bottom
 ## edge: dithered C4 then C5 bands whose reach grows with the frame. Halo colours only.
-static func sky_glow(frame: int, centre: Vector2i) -> Image:
+## `breath` (0 or 1) thins the C4 band's dither by one step for the ignited idle.
+static func sky_glow(frame: int, centre: Vector2i, breath: int = 0) -> Image:
 	var size := Vector2i(ScreenZones.SKY.end.x, ScreenZones.SKY.end.y)
 	var image := Image.create_empty(size.x, size.y, false, Image.FORMAT_RGBA8)
 	var reach: float = lerpf(RADIUS + 13, GLOW_REACH, float(frame) / IGNITE_FRAMES)
@@ -148,8 +157,11 @@ static func sky_glow(frame: int, centre: Vector2i) -> Image:
 			var d: float = Vector2(x - centre.x, y - centre.y).length()
 			if d <= RADIUS + 13 or d >= reach:
 				continue
-			var colour: Color = Palette.C4 if d < 60 else Palette.C5
-			var density: float = 0.125 if d >= 120 else 0.25
+			var near: bool = d < GLOW_BREATH_REACH
+			var colour: Color = Palette.C4 if near else Palette.C5
+			var density: float = 0.125 if d >= 2 * GLOW_BREATH_REACH else 0.25
+			if near:
+				density -= breath / 16.0
 			if _bayer(x, y) < density:
 				image.set_pixel(x, y, colour)
 	return image
@@ -203,11 +215,15 @@ static func _add_halo(dots: Dictionary[Vector2i, Color], p_progress: float, p_ig
 
 
 ## Rays from 12 o'clock clockwise. Lit ones run C0 to C3, two pixels thick at the root.
-static func _add_rays(dots: Dictionary[Vector2i, Color], p_lit_rays: int) -> void:
+## `shimmer` (0 or 1, or -1 for none): every other ray loses its tip, alternating each tick.
+static func _add_rays(dots: Dictionary[Vector2i, Color], p_lit_rays: int, shimmer: int) -> void:
 	for k: int in RAYS:
 		var direction := Vector2.from_angle(-PI / 2 + k * TAU / RAYS)
 		var lit: bool = k < p_lit_rays
-		for s: int in (LIT_RAY_LENGTH if lit else DIM_RAY_LENGTH):
+		var length: int = LIT_RAY_LENGTH if lit else DIM_RAY_LENGTH
+		if lit and shimmer >= 0 and posmod(k + shimmer, 2) == 1:
+			length -= 1
+		for s: int in length:
 			var at := Vector2i((direction * (RADIUS + RAY_GAP + s)).round())
 			if not lit:
 				dots[at] = Palette.S2 if s < 2 else Palette.S1
@@ -220,9 +236,12 @@ static func _add_rays(dots: Dictionary[Vector2i, Color], p_lit_rays: int) -> voi
 
 
 ## The disc: dim and cratered above the light pool, C1-C3 below it with a C0 surface.
-static func _add_disc(dots: Dictionary[Vector2i, Color], p_fill_rows: int, p_ripple: int) -> void:
+## Ignited, the C0 glint in its core moves a pixel sideways on the ripple's tick. (A 2 px shift
+## would map the 4x4 dither onto itself and show no change.)
+static func _add_disc(dots: Dictionary[Vector2i, Color], p_fill_rows: int, p_ripple: int, p_ignited: bool) -> void:
 	var level: int = RADIUS + 1 - p_fill_rows
 	var rippling: bool = p_fill_rows > 0 and p_fill_rows < DISC_ROWS
+	var glint: int = p_ripple if p_ignited else 0
 	for dy: int in range(-RADIUS, RADIUS + 1):
 		for dx: int in range(-RADIUS, RADIUS + 1):
 			if dx * dx + dy * dy > RADIUS * RADIUS + RADIUS:
@@ -236,7 +255,7 @@ static func _add_disc(dots: Dictionary[Vector2i, Color], p_fill_rows: int, p_rip
 				colour = Palette.C3 if q > 0.9 else (Palette.C2 if q > 0.7 else Palette.C1)
 				if dy == surface:
 					colour = Palette.C0
-				elif q < 0.45 and _bayer(dx, dy) < 0.375:
+				elif q < 0.45 and _bayer(dx + glint, dy) < 0.375:
 					colour = Palette.C0
 			else:
 				colour = Palette.S1 if q > 0.88 else Palette.S2

@@ -152,6 +152,45 @@ func test_the_sky_glow_spreads_over_the_sky_in_halo_colours() -> void:
 	assert_gt(reach[1], ScreenZones.SKY.end.y - 5, "the last frame reaches the bottom of the sky")
 
 
+func test_an_ignited_sun_idles_with_shimmering_rays_and_a_moving_glint() -> void:
+	var a: Dictionary[Vector2i, Color] = SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, true, false, 0)
+	var b: Dictionary[Vector2i, Color] = SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, true, false, 1)
+	var tip := Vector2i(0, -(SunView.RADIUS + SunView.RAY_GAP + SunView.LIT_RAY_LENGTH - 1))
+	var next_tip := Vector2i((Vector2.from_angle(-PI / 2 + TAU / SunView.RAYS) * (SunView.RADIUS + SunView.RAY_GAP + SunView.LIT_RAY_LENGTH - 1)).round())
+	assert_eq(a.get(tip), Palette.C3, "12 o'clock at full length")
+	assert_ne(b.get(tip), Palette.C3, "then a pixel shorter")
+	assert_ne(a.get(next_tip), Palette.C3, "its neighbour does the opposite")
+	assert_eq(b.get(next_tip), Palette.C3)
+	var core_changes: int = 0
+	for dy: int in range(-5, 6):
+		for dx: int in range(-5, 6):
+			if a[Vector2i(dx, dy)] != b[Vector2i(dx, dy)]:
+				core_changes += 1
+	assert_gt(core_changes, 0, "the core's glint moves")
+
+
+func test_only_an_ignited_sun_idles() -> void:
+	assert_eq(SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, false, false, 0),
+		SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, false, false, 1), "a full Sun that hasn't ignited holds still")
+
+
+func test_the_glow_breathes_near_the_sun_and_holds_still_beyond() -> void:
+	var centre := Vector2i(sun.position)
+	var a: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, centre, 0)
+	var b: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, centre, 1)
+	var near: int = 0
+	var far: int = 0
+	for y: int in a.get_height():
+		for x: int in a.get_width():
+			if a.get_pixel(x, y) != b.get_pixel(x, y):
+				if Vector2(x - centre.x, y - centre.y).length() < SunView.GLOW_BREATH_REACH:
+					near += 1
+				else:
+					far += 1
+	assert_gt(near, 0, "the C4 band breathes")
+	assert_eq(far, 0, "the rest of the sky holds still")
+
+
 func test_a_new_run_brings_back_a_dark_sun() -> void:
 	run.light = 80
 	sun.setup(run, sequencer)
