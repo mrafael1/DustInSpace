@@ -1,0 +1,17 @@
+{
+  "frame_size": [
+    5,
+    5
+  ],
+  "frames": [
+    "idle",
+    "glint",
+    "spark",
+    "flare",
+    "flare_core",
+    "fade_core",
+    "fade_dot",
+    "dim",
+    "dim_core"
+  ]
+}
