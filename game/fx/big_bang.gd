@@ -12,7 +12,9 @@ extends Node2D
 ## 3. The hole implodes into a 1-2 px white point that pulses until the bang. (Silence: no
 ##    audio exists yet.)
 ## 4. The bang: a full-screen flash fading in dithered steps, 3 staggered shockwave rings and
-##    about 200 multi-colour palette pixels; a "BIG BANG" banner with the dust for BANNER_TIME.
+##    about 200 multi-colour palette pixels that streak and twinkle; the world shakes (a Camera2D,
+##    so the HUD and the banner stay still); newborn sparkles twinkle up across the sky; a
+##    "BIG BANG" banner pops in, shimmers and rolls its dust up from 0, for BANNER_TIME.
 ## 5. The dust streams to the counter (CollectParticles).
 ## 6. The sequence holds input until INPUT_BACK_AFTER past the bang.
 ## Owns no rules: the dust comes from the event. Rare means different: none of these effects are
@@ -68,6 +70,29 @@ const DEBRIS_LIFE_MIN: float = 0.6
 const DEBRIS_LIFE_MAX: float = 1.2
 const DEBRIS_COLOURS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.N8, Palette.N9, Palette.N10, Palette.D0]
 const SCREEN := Vector2i(180, 320)
+## The bang's shake: whole-pixel world offsets, one per SHAKE_STEP, decaying to rest. Only the
+## Big Bang shakes the screen (rare means different).
+const SHAKE: Array[Vector2i] = [Vector2i(3, 0), Vector2i(-3, 1), Vector2i(2, -2), Vector2i(-2, 2), Vector2i(2, 0), Vector2i(-1, -1), Vector2i(1, 1), Vector2i(-1, 0), Vector2i(0, 1)]
+const SHAKE_STEP: float = 0.04
+## Debris streaks while it's fast, and a third of it flashes C0 each twinkle step.
+const DEBRIS_STREAK: float = 0.5
+const DEBRIS_TWINKLE_STEP: float = 0.08
+## Newborn sparkles: they pop up across the sky, staggered over SPARKLE_SPREAD after the bang,
+## each growing from a dot to a plus and fading in SPARKLE_LIFE.
+const SPARKLES: int = 28
+const SPARKLE_SPREAD: float = 1.2
+const SPARKLE_LIFE: float = 0.6
+const SPARKLE_AREA := Rect2i(8, 16, 164, 232)
+const SPARKLE_RAMPS: Array = [
+	[Palette.C1, Palette.C0, Palette.C1, Palette.C2, Palette.C3],
+	[Palette.D0, Palette.C0, Palette.D0, Palette.N8, Palette.N7],
+]
+## Banner: one frame at 3x before it settles at 2x, its letters shimmering C0/C1, and the dust
+## rolling up from 0 like a slot machine's payout.
+const BANNER_POP: float = 0.1
+const SHIMMER_TIME: float = 0.6
+const SHIMMER_STEP: float = 0.08
+const COUNT_TIME: float = 0.6
 
 var _sequencer: EventSequencer
 ## Seconds since the event, or -1 when no Big Bang is playing.
@@ -81,6 +106,11 @@ var _debris_colour: Array[Color] = []
 var _speck_from: Array[Vector2] = []
 var _speck_colour: Array[Color] = []
 var _rng := RandomNumberGenerator.new()
+## One entry per sparkle: where, when (seconds after the bang) and which ramp.
+var _sparkle_at: Array[Vector2i] = []
+var _sparkle_delay: Array[float] = []
+var _sparkle_ramp: Array[int] = []
+var _dust: int = 0
 var _darken: ImageTexture
 var _flashes: Array[ImageTexture] = []
 
@@ -88,6 +118,7 @@ var _flashes: Array[ImageTexture] = []
 @onready var _banner: Node2D = $Front/Banner
 @onready var _title: Label = $Front/Banner/Title
 @onready var _amount: Label = $Front/Banner/Amount
+@onready var _shake: Camera2D = $Shake
 
 
 func _ready() -> void:
@@ -165,6 +196,8 @@ func advance(delta: float) -> void:
 		_stop()
 		return
 	_banner.visible = _time >= BANG_AT and _time < BANG_AT + BANNER_TIME
+	_shake.offset = Vector2(shake_offset(_time - BANG_AT))
+	_show_banner(_time - BANG_AT)
 	queue_redraw()
 	_front.queue_redraw()
 
@@ -216,6 +249,38 @@ static func hole_pixels(radius: int, spin: int) -> Dictionary[Vector2i, Color]:
 	return dots
 
 
+## The world's shake `t` seconds after the bang: whole pixels, decaying, then rest.
+static func shake_offset(t: float) -> Vector2i:
+	if t < 0.0:
+		return Vector2i.ZERO
+	var step: int = floori(t / SHAKE_STEP)
+	return SHAKE[step] if step < SHAKE.size() else Vector2i.ZERO
+
+
+## A newborn sparkle at `u` (0 to 1 of its life), on ramp 0 (starlight) or 1 (dust): a dot, a
+## small plus, a big plus with a C0 heart, then shrinking and cooling away. Empty outside 0-1.
+static func sparkle_pixels(u: float, ramp: int) -> Dictionary[Vector2i, Color]:
+	var dots: Dictionary[Vector2i, Color] = {}
+	if u < 0.0 or u >= 1.0:
+		return dots
+	var colours: Array = SPARKLE_RAMPS[ramp]
+	var arm: int = [0, 1, 2, 2, 1, 0][floori(u * 6)]
+	var tint: Color = colours[[0, 0, 2, 2, 3, 4][floori(u * 6)]]
+	dots[Vector2i.ZERO] = colours[1] if arm == 2 else tint
+	for r: int in range(1, arm + 1):
+		for dir: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			dots[dir * r] = tint
+	return dots
+
+
+## The dust the banner shows `t` seconds after the bang: rolling up from 0 over COUNT_TIME.
+static func banner_count(total: int, t: float) -> int:
+	if t <= 0.0:
+		return 0
+	var u: float = minf(t / COUNT_TIME, 1.0)
+	return roundi(total * (1.0 - (1.0 - u) * (1.0 - u)))
+
+
 ## The white point `t` seconds into the pause: one pixel, then a small plus, and so on.
 static func point_pixels(t: float) -> Array[Vector2i]:
 	if floori(t / POINT_PULSE) % 2 == 0:
@@ -255,9 +320,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	_burst = event.args[0]
 	_time = 0.0
 	_title.text = "BIG BANG"
-	_amount.text = "+%d" % event.args[2]
+	_dust = event.args[2]
+	_show_banner(-1.0)
 	_scatter_debris()
 	_scatter_specks()
+	_scatter_sparkles()
 	_sequencer.hold(BANG_AT + INPUT_BACK_AFTER)
 	queue_redraw()
 
@@ -268,6 +335,30 @@ func _scatter_specks() -> void:
 	for i: int in SPECKS:
 		_speck_from.append(Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(SPECK_REACH_MIN, SPECK_REACH_MAX))
 		_speck_colour.append(SPECK_COLOURS[_rng.randi() % SPECK_COLOURS.size()])
+
+
+func _scatter_sparkles() -> void:
+	_sparkle_at.clear()
+	_sparkle_delay.clear()
+	_sparkle_ramp.clear()
+	for i: int in SPARKLES:
+		_sparkle_at.append(Vector2i(
+			_rng.randi_range(SPARKLE_AREA.position.x, SPARKLE_AREA.end.x - 1),
+			_rng.randi_range(SPARKLE_AREA.position.y, SPARKLE_AREA.end.y - 1)))
+		_sparkle_delay.append(_rng.randf_range(0.1, SPARKLE_SPREAD))
+		_sparkle_ramp.append(i % 2)
+
+
+## The banner `t` seconds after the bang (negative: before it): the 3x pop, the shimmer and the
+## rolling dust. The title is centred on the banner at every scale, by its own box: a Label's
+## box can be wider than its text, which the centred alignment then pushes right.
+func _show_banner(t: float) -> void:
+	var scale_by: int = 3 if t >= 0.0 and t < BANNER_POP else 2
+	_title.scale = Vector2(scale_by, scale_by)
+	_title.position = Vector2(-floori(_title.size.x * scale_by / 2.0), -floori(_title.size.y * (scale_by - 2) / 2.0))
+	var shimmering: bool = t >= 0.0 and t < SHIMMER_TIME and posmod(floori(t / SHIMMER_STEP), 2) == 0
+	_title.label_settings.font_color = Palette.C0 if shimmering else Palette.C1
+	_amount.text = "+%d" % banner_count(_dust, t)
 
 
 func _scatter_debris() -> void:
@@ -285,6 +376,8 @@ func _scatter_debris() -> void:
 func _stop() -> void:
 	_time = -1.0
 	_banner.visible = false
+	if _shake != null:
+		_shake.offset = Vector2.ZERO
 	queue_redraw()
 	_front.queue_redraw()
 
@@ -301,10 +394,20 @@ func _draw_flash() -> void:
 		var dots: Dictionary[Vector2i, Color] = ring_pixels((since - i * RING_STAGGER) / RING_TIME)
 		for offset: Vector2i in dots:
 			_dot(_front, _burst + offset, dots[offset])
+	var twinkle: int = floori(since / DEBRIS_TWINKLE_STEP)
 	for i: int in _debris_reach.size():
 		var u: float = since / _debris_life[i]
-		if u < 1.0:
-			_dot(_front, _burst + Vector2i((_debris_reach[i] * (1.0 - (1.0 - u) * (1.0 - u))).round()), _debris_colour[i])
+		if u >= 1.0:
+			continue
+		var colour: Color = Palette.C0 if posmod(i + twinkle, 3) == 0 else _debris_colour[i]
+		if u < DEBRIS_STREAK:
+			var behind: float = maxf(u - 0.06, 0.0)
+			_dot(_front, _burst + Vector2i((_debris_reach[i] * (1.0 - (1.0 - behind) * (1.0 - behind))).round()), _debris_colour[i])
+		_dot(_front, _burst + Vector2i((_debris_reach[i] * (1.0 - (1.0 - u) * (1.0 - u))).round()), colour)
+	for i: int in _sparkle_at.size():
+		var dots: Dictionary[Vector2i, Color] = sparkle_pixels((since - _sparkle_delay[i]) / SPARKLE_LIFE, _sparkle_ramp[i])
+		for offset: Vector2i in dots:
+			_dot(_front, _sparkle_at[i] + offset, dots[offset])
 
 
 func _dot(canvas: CanvasItem, at: Vector2i, colour: Color) -> void:

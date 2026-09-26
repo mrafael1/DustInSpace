@@ -58,9 +58,61 @@ func test_the_banner_shows_the_dust_for_two_and_a_half_seconds() -> void:
 	assert_false(big_bang.is_banner_shown(), "no banner before the bang: the surprise")
 	big_bang.advance(BigBangSequence.BANG_AT + 0.01)
 	assert_true(big_bang.is_banner_shown())
+	assert_eq(big_bang.banner_text(), "BIG BANG +0", "the dust rolls up from 0")
+	big_bang.advance(BigBangSequence.COUNT_TIME)
 	assert_eq(big_bang.banner_text(), "BIG BANG +%d" % run.balance.big_bang_base_dust)
 	big_bang.advance(BigBangSequence.BANNER_TIME)
 	assert_false(big_bang.is_banner_shown())
+
+
+func test_the_banner_pops_in_and_shimmers() -> void:
+	_big_bang()
+	var title: Label = big_bang.get_node("Front/Banner/Title")
+	big_bang.advance(BigBangSequence.BANG_AT + 0.01)
+	assert_eq(title.scale, Vector2(3, 3), "pops in big")
+	assert_eq(title.position, title.position.round(), "whole pixels")
+	assert_eq(title.label_settings.font_color, Palette.C0, "shimmering")
+	big_bang.advance(BigBangSequence.BANNER_POP)
+	assert_eq(title.scale, Vector2(2, 2), "then settles, integer scale only")
+	assert_eq(title.position.x + title.size.x * title.scale.x / 2.0, 0.0, "centred on the banner")
+	assert_eq(title.label_settings.font_color, Palette.C1)
+	big_bang.advance(BigBangSequence.SHIMMER_TIME)
+	assert_eq(title.label_settings.font_color, Palette.C1, "the shimmer stops")
+
+
+func test_the_dust_rolls_up_like_a_payout() -> void:
+	assert_eq(BigBangSequence.banner_count(20, 0.0), 0)
+	assert_between(BigBangSequence.banner_count(20, BigBangSequence.COUNT_TIME / 2), 1, 19)
+	assert_eq(BigBangSequence.banner_count(20, BigBangSequence.COUNT_TIME), 20)
+	assert_eq(BigBangSequence.banner_count(20, 5.0), 20)
+
+
+func test_the_bang_shakes_the_world_whole_pixels_then_rests() -> void:
+	assert_eq(BigBangSequence.shake_offset(-0.1), Vector2i.ZERO, "still before the bang")
+	for i: int in BigBangSequence.SHAKE.size():
+		var at: Vector2i = BigBangSequence.shake_offset(i * BigBangSequence.SHAKE_STEP)
+		assert_lte(maxi(absi(at.x), absi(at.y)), 3, "1-3 px")
+	assert_eq(BigBangSequence.shake_offset(BigBangSequence.SHAKE.size() * BigBangSequence.SHAKE_STEP), Vector2i.ZERO, "then rest")
+	assert_true(big_bang.get_node("Shake") is Camera2D, "a camera: the HUD and banner layers stay still")
+	_big_bang()
+	big_bang.advance(BigBangSequence.BANG_AT + 0.01)
+	assert_ne((big_bang.get_node("Shake") as Camera2D).offset, Vector2.ZERO)
+	big_bang.advance(1.0)
+	assert_eq((big_bang.get_node("Shake") as Camera2D).offset, Vector2.ZERO)
+
+
+func test_newborn_sparkles_grow_then_fade_in_their_colours() -> void:
+	assert_true(BigBangSequence.sparkle_pixels(-0.1, 0).is_empty())
+	assert_true(BigBangSequence.sparkle_pixels(1.0, 0).is_empty())
+	assert_eq(BigBangSequence.sparkle_pixels(0.05, 0).size(), 1, "a dot")
+	var peak: Dictionary[Vector2i, Color] = BigBangSequence.sparkle_pixels(0.45, 0)
+	assert_eq(peak.size(), 9, "a big plus")
+	assert_eq(peak[Vector2i.ZERO], Palette.C0, "with a C0 heart")
+	assert_eq(BigBangSequence.sparkle_pixels(0.95, 1).values()[0], Palette.N7, "dust sparkles cool down the dust ramp")
+	for u: float in [0.05, 0.25, 0.45, 0.65, 0.85]:
+		for ramp: int in 2:
+			for colour: Color in BigBangSequence.sparkle_pixels(u, ramp).values():
+				assert_true(colour in [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.D0, Palette.N8, Palette.N7])
 
 
 func test_the_banner_font_has_its_letters() -> void:
