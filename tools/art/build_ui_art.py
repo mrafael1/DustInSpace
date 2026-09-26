@@ -1,8 +1,10 @@
 """Builds the launcher and UI sprites in assets/art/ (issue #13, docs/art-direction.md "Assets").
 
   pack_blue.png / pack_red.png  banded planet (blue r8) and ringed planet (red r6 + ring), lit from
-                                the top-left, no outline. Frames: idle, bright, grown, grown_bright
-                                (the tremble: a step up the ramp, then one radius bigger), hud (r6).
+                                the top-left, no outline. Frames: idle_0-idle_5 (the idle spin: the
+                                bands drift a pixel per frame, a full turn in 6), bright, grown,
+                                grown_bright (the tremble: a step up the ramp, then one radius
+                                bigger), hud (r6).
   pack_burst.png                the opening's ring: 3 frames growing 5 -> 9 -> 13 px, dithered 50%.
   slingshot.png                 the fork (handle, crescent arms, star gems): 4 pull frames, the
                                 gems warming C3 -> C0 as the pull grows. The bands are drawn in code.
@@ -45,11 +47,15 @@ RED = [hex_rgb(h) for h in ["4A1226", "862032", "C8413A", "F07A4E", "FFC09A"]]
 PACK_RADIUS = {"blue": 8, "red": 6}
 RING_RADII = (10.5, 3.5)
 HUD_RADIUS = 6
-PACK_FRAMES = [("idle", False, False, 0), ("bright", False, True, 0), ("grown", True, False, 0),
-               ("grown_bright", True, True, 0), ("hud", False, False, HUD_RADIUS)]
+# The idle spin: the wavy bands repeat every SPIN_FRAMES px across, so shifting them a pixel per
+# frame loops seamlessly and reads as the planet turning.
+SPIN_FRAMES = 6
+PACK_FRAMES = [(f"idle_{i}", False, False, 0, i) for i in range(SPIN_FRAMES)] + [
+    ("bright", False, True, 0, 0), ("grown", True, False, 0, 0),
+    ("grown_bright", True, True, 0, 0), ("hud", False, False, HUD_RADIUS, 0)]
 
 
-def pack_pixels(kind: str, grown: bool, bright: bool, radius: int) -> dict:
+def pack_pixels(kind: str, grown: bool, bright: bool, radius: int, spin: int = 0) -> dict:
     ramp = RED if kind == "red" else BLUE
     r = (radius if radius > 0 else PACK_RADIUS[kind]) + (1 if grown else 0)
     lift = 1 if bright else 0
@@ -62,7 +68,7 @@ def pack_pixels(kind: str, grown: bool, bright: bool, radius: int) -> dict:
                 continue
             light = (dx + dy + 2 * r) / (4 * r)
             step = len(ramp) - 1 - max(0, min(len(ramp) - 1, int(light * len(ramp))))
-            wave = 1 if dx % 6 < 3 else 0
+            wave = 1 if (dx + spin) % SPIN_FRAMES < 3 else 0
             if (dy + wave) % 4 == 0:
                 step -= 1
             dots[(dx, dy)] = ramp[max(0, min(len(ramp) - 1, step + lift))]
@@ -210,7 +216,7 @@ def write_strip(name: str, frames: list, names: list) -> None:
 def build() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for kind in ("blue", "red"):
-        write_strip(f"pack_{kind}", [pack_pixels(kind, g, b, r) for _, g, b, r in PACK_FRAMES], [f[0] for f in PACK_FRAMES])
+        write_strip(f"pack_{kind}", [pack_pixels(kind, g, b, r, s) for _, g, b, r, s in PACK_FRAMES], [f[0] for f in PACK_FRAMES])
     write_strip("pack_burst", [burst_pixels(i) for i in range(len(BURST_RADII))], [f"ring_{r}" for r in BURST_RADII])
     write_strip("slingshot", [fork_pixels(i) for i in range(PULL_FRAMES)], [f"pull_{i}" for i in range(PULL_FRAMES)])
     write_strip("dust_icon", [dust_pixels(False), dust_pixels(True)], ["large", "small"])

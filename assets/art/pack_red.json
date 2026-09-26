@@ -8,7 +8,12 @@
     7
   ],
   "frames": [
-    "idle",
+    "idle_0",
+    "idle_1",
+    "idle_2",
+    "idle_3",
+    "idle_4",
+    "idle_5",
     "bright",
     "grown",
     "grown_bright",
