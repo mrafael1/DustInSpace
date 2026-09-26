@@ -59,6 +59,21 @@ func test_a_loss_waits_for_the_last_payout_to_land() -> void:
 	assert_true(screen.is_showing(), "then shows")
 
 
+func test_a_second_ending_lays_out_exactly_like_the_first() -> void:
+	_win()
+	sequencer.advance(1.0)
+	var first: Array = _layout()
+	var next: RunState = Fixtures.run()
+	sequencer.bind(next)
+	screen.setup(next, sequencer)
+	run = next
+	_win()
+	sequencer.advance(1.0)
+	assert_true(screen.is_showing())
+	assert_eq(screen.lines(), ["SUN RESTORED", "LIGHT 105/100"] as Array[String], "only this ending's rows")
+	assert_eq(_layout(), first, "same rows, same plaque, same button: nothing left from the last ending")
+
+
 func test_the_text_is_bitmap_font_and_palette_only() -> void:
 	_lose()
 	sequencer.advance(1.0)
@@ -116,6 +131,14 @@ func test_restart_in_main_starts_a_fresh_run_and_hides_the_screen() -> void:
 	assert_eq(main.run.light, 0)
 	assert_eq(main.run.balance, old.balance, "on the same balance")
 	assert_false(end_screen.is_showing())
+
+
+## Where each row sits and where the button is, for comparing layouts.
+func _layout() -> Array:
+	var rows: Array = []
+	for label: Node in screen.get_node("Canvas/Lines").get_children():
+		rows.append((label as Label).position)
+	return [rows, screen.restart_rect()]
 
 
 ## Links a sequence (25 light) with 80 already in: a win at 105.

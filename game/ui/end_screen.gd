@@ -61,6 +61,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_waiting_for_payouts = false
 	_pressed = false
 	visible = false
+	_clear_lines()
 
 
 ## The payout particles to wait for before showing (Main wires them).
@@ -77,8 +78,7 @@ func is_showing() -> bool:
 func lines() -> Array[String]:
 	var texts: Array[String] = []
 	for label: Node in _lines.get_children():
-		if not label.is_queued_for_deletion():
-			texts.append((label as Label).text)
+		texts.append((label as Label).text)
 	return texts
 
 
@@ -127,8 +127,7 @@ func _on_payouts_landed() -> void:
 
 
 func _show_end() -> void:
-	for old: Node in _lines.get_children():
-		old.queue_free()
+	_clear_lines()
 	var light: String = "LIGHT %d/%d" % [_run.light, _run.balance.sun_target]
 	if _run.outcome == RunState.Outcome.WON:
 		_add_line("SUN RESTORED", Palette.C1)
@@ -145,6 +144,14 @@ func _show_end() -> void:
 	_pressed = false
 	visible = true
 	_canvas.queue_redraw()
+
+
+## Detaches the last ending's rows before freeing them: queue_free alone leaves them counted as
+## children until the frame ends, which would push the next ending's rows down.
+func _clear_lines() -> void:
+	for old: Node in _lines.get_children():
+		_lines.remove_child(old)
+		old.queue_free()
 
 
 func _add_line(text: String, colour: Color) -> void:
