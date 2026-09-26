@@ -11,7 +11,8 @@ extends Node2D
 ##    hang, orbiting, until it swallows them.
 ## 3. The hole implodes into a 1-2 px white point that pulses until the bang. (Silence: no
 ##    audio exists yet.)
-## 4. The bang: a full-screen flash fading in dithered steps, 3 staggered shockwave rings and
+## 4. The bang: a hard 2-frame full-screen flash, then a solid white core shrinking away (no
+##    dithered fade), 3 staggered shockwave rings and
 ##    about 200 multi-colour palette pixels that streak and twinkle; the world shakes (a Camera2D,
 ##    so the HUD and the banner stay still); newborn sparkles twinkle up across the sky; a
 ##    "BIG BANG" banner pops in, shimmers and rolls its dust up from 0, for BANNER_TIME.
@@ -55,9 +56,11 @@ const BANNER_TIME: float = 2.5
 const DARKEN_DENSITY: float = 0.25
 ## The white point swaps between a pixel and a small plus.
 const POINT_PULSE: float = 0.1
-## The flash fades from full C0 in dithered steps.
-const FLASH_TIME: float = 0.7
-const FLASH_DENSITIES: Array[float] = [1.0, 0.75, 0.5, 0.25]
+## The flash: solid C0 over the whole screen for about two frames, then cut. A solid C0 core
+## with a C1 rim stays at the burst point, shrinking from FLASH_CORE_RADIUS to nothing.
+const FLASH_HOLD: float = 0.07
+const FLASH_CORE_RADIUS: int = 40
+const FLASH_CORE_TIME: float = 0.25
 const RINGS: int = 3
 const RING_STAGGER: float = 0.12
 const RING_TIME: float = 0.5
@@ -112,7 +115,6 @@ var _sparkle_delay: Array[float] = []
 var _sparkle_ramp: Array[int] = []
 var _dust: int = 0
 var _darken: ImageTexture
-var _flashes: Array[ImageTexture] = []
 
 @onready var _front: Node2D = $Front/Flash
 @onready var _banner: Node2D = $Front/Banner
@@ -130,8 +132,6 @@ func _ready() -> void:
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_front.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_darken = ImageTexture.create_from_image(dither_tile(DARKEN_DENSITY, Palette.N0))
-	for density: float in FLASH_DENSITIES:
-		_flashes.append(ImageTexture.create_from_image(dither_tile(density, Palette.C0)))
 	_banner.visible = false
 
 
@@ -180,11 +180,18 @@ func banner_text() -> String:
 	return "%s %s" % [_title.text, _amount.text]
 
 
-## Which flash frame shows now (0 = full white), or -1 for none.
-func flash_frame() -> int:
-	if _time < BANG_AT or _time >= BANG_AT + FLASH_TIME:
-		return -1
-	return floori((_time - BANG_AT) / FLASH_TIME * FLASH_DENSITIES.size())
+## True while the whole screen flashes white.
+func is_flashing() -> bool:
+	return _time >= BANG_AT and _time < BANG_AT + FLASH_HOLD
+
+
+## The flash core's radius `t` seconds after the bang: FLASH_CORE_RADIUS once the full-screen
+## flash cuts, easing in to nothing over FLASH_CORE_TIME. 0 means no core.
+static func flash_core_radius(t: float) -> int:
+	var u: float = (t - FLASH_HOLD) / FLASH_CORE_TIME
+	if u < 0.0 or u >= 1.0:
+		return 0
+	return roundi(FLASH_CORE_RADIUS * (1.0 - u) * (1.0 - u))
 
 
 ## Moves the sequence on. Driven by `_process`; tests call it directly.
@@ -386,10 +393,15 @@ func _stop() -> void:
 func _draw_flash() -> void:
 	if _time < BANG_AT:
 		return
-	var frame: int = flash_frame()
-	if frame >= 0:
-		_front.draw_texture_rect(_flashes[frame], Rect2(Vector2.ZERO, Vector2(SCREEN)), true)
 	var since: float = _time - BANG_AT
+	if is_flashing():
+		_front.draw_rect(Rect2(Vector2.ZERO, Vector2(SCREEN)), Palette.C0)
+	var core: int = flash_core_radius(since)
+	for dy: int in range(-core, core + 1):
+		for dx: int in range(-core, core + 1):
+			var d2: int = dx * dx + dy * dy
+			if d2 <= core * core:
+				_dot(_front, _burst + Vector2i(dx, dy), Palette.C1 if d2 > (core - 1) * (core - 1) else Palette.C0)
 	for i: int in RINGS:
 		var dots: Dictionary[Vector2i, Color] = ring_pixels((since - i * RING_STAGGER) / RING_TIME)
 		for offset: Vector2i in dots:

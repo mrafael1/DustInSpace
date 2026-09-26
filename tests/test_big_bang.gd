@@ -41,16 +41,19 @@ func test_input_comes_back_about_a_second_after_the_bang() -> void:
 	assert_false(sequencer.is_busy())
 
 
-func test_the_bang_flashes_full_white_then_fades_in_dithered_steps() -> void:
+func test_the_bang_flashes_hard_then_leaves_a_shrinking_solid_core() -> void:
 	_big_bang()
 	big_bang.advance(BigBangSequence.BANG_AT - 0.01)
-	assert_eq(big_bang.flash_frame(), -1, "no flash before the bang")
+	assert_false(big_bang.is_flashing(), "no flash before the bang")
 	big_bang.advance(0.02)
-	assert_eq(big_bang.flash_frame(), 0, "full white first")
-	big_bang.advance(BigBangSequence.FLASH_TIME * 0.5)
-	assert_eq(big_bang.flash_frame(), 2)
-	big_bang.advance(BigBangSequence.FLASH_TIME * 0.5)
-	assert_eq(big_bang.flash_frame(), -1, "gone after ~700 ms")
+	assert_true(big_bang.is_flashing(), "full white")
+	big_bang.advance(BigBangSequence.FLASH_HOLD)
+	assert_false(big_bang.is_flashing(), "cut after about two frames: no dithered fade")
+	var t: float = BigBangSequence.FLASH_HOLD
+	assert_eq(BigBangSequence.flash_core_radius(t), BigBangSequence.FLASH_CORE_RADIUS, "a solid core stays")
+	assert_lt(BigBangSequence.flash_core_radius(t + BigBangSequence.FLASH_CORE_TIME / 2), BigBangSequence.FLASH_CORE_RADIUS, "and shrinks")
+	assert_eq(BigBangSequence.flash_core_radius(t + BigBangSequence.FLASH_CORE_TIME), 0, "to nothing")
+	assert_eq(BigBangSequence.flash_core_radius(0.0), 0, "not while the whole screen is white")
 
 
 func test_the_banner_shows_the_dust_for_two_and_a_half_seconds() -> void:
