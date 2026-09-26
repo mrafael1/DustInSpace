@@ -10,6 +10,8 @@ extends Node2D
 
 signal dust_arrived(amount: int)
 signal light_arrived(amount: int)
+## The last particle in the air has landed.
+signal all_landed
 
 enum Kind { DUST, LIGHT }
 
@@ -122,6 +124,8 @@ func advance(delta: float) -> void:
 			dust_arrived.emit(p.amount)
 		else:
 			light_arrived.emit(p.amount)
+	if not landed.is_empty() and _particles.is_empty():
+		all_landed.emit()
 	queue_redraw()
 
 

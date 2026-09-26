@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/ui/end_screen.gd" id="1_end"]
+
+[node name="EndScreen" type="CanvasLayer"]
+layer = 30
+visible = false
+script = ExtResource("1_end")
+
+[node name="Canvas" type="Node2D" parent="."]
+
+[node name="Lines" type="Node2D" parent="Canvas"]
+
+[node name="Restart" type="Label" parent="Canvas"]
+mouse_filter = 2
+text = "RESTART"
