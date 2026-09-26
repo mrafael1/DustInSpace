@@ -113,14 +113,34 @@ func test_a_buy_while_dust_is_flying_lands_on_the_right_total() -> void:
 	_assert_shows_the_run()
 
 
-func test_costs_light_up_only_when_the_dust_lands() -> void:
+func test_a_cost_lights_up_once_a_tap_on_it_would_work() -> void:
 	run.dust = 2
 	hud.refresh()
+	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "4 costs more than 2")
 	_link_small_triple()
 	sequencer.advance(0.0)
-	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "4 costs more than the 2 shown")
-	hud.receive_dust(3)
-	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.D0)
+	assert_eq(_label("Dust").text, "2", "the reward's dust is still flying")
+	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.D0, "but it's won: the buy would work")
+
+
+func test_spending_dust_still_in_flight_never_shows_a_negative_balance() -> void:
+	var ids: Array[int] = []
+	for x: int in [70, 90, 110]:
+		ids.append(run.add_star(Star.Size.MEDIUM, Vector2i(x, 150)).id)
+	assert_eq(run.link(ids), "medium_triple")
+	sequencer.advance(0.0)
+	_tap_part("blue", &"cost")
+	assert_eq(run.dust, 1, "the core credited the 5 dust, so the buy worked")
+	sequencer.advance(0.0)
+	assert_eq(_label("Dust").text, "0", "nothing landed yet and the buy spent it: 0, not -4")
+	for i: int in 4:
+		hud.receive_dust(1)
+		assert_eq(_label("Dust").text, "0", "landings pay back what the buy spent first")
+	hud.receive_dust(1)
+	assert_eq(_label("Dust").text, "1", "then the counter meets the run")
+	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "1 dust can't buy a blue")
+	hud.receive_light(10)
+	_assert_shows_the_run()
 
 
 func test_launching_the_last_pack_clears_the_marker() -> void:
