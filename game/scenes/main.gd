@@ -18,6 +18,7 @@ var run: RunState
 @onready var _collect: CollectParticles = $CollectParticles
 @onready var _hud: Hud = $HUD
 @onready var _sun: SunView = $Sun
+@onready var _end_screen: EndScreen = $EndScreen
 
 
 func _ready() -> void:
@@ -26,6 +27,8 @@ func _ready() -> void:
 	_collect.dust_arrived.connect(_hud.receive_dust)
 	_collect.light_arrived.connect(_hud.receive_light)
 	_collect.light_arrived.connect(_sun.receive_light)
+	_end_screen.restart_requested.connect(restart)
+	_end_screen.watch_payouts(_collect)
 	start_run(Balance.load_file(balance_path))
 
 
@@ -43,6 +46,11 @@ func start_run(balance: Balance) -> bool:
 			child.setup(run, _sequencer)
 	run_started.emit(run)
 	return true
+
+
+## A fresh run on the current run's balance (the end screen's RESTART).
+func restart() -> bool:
+	return run != null and start_run(run.balance)
 
 
 func _new_rng() -> RandomNumberGenerator:

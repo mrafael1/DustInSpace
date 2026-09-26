@@ -14,6 +14,8 @@ signal run_won
 signal run_lost
 
 enum Outcome { PLAYING, WON, LOST }
+## The loss check's three conditions: a lost run has all of them.
+enum LossReason { NO_PACKS, NO_DUST, NO_COMBINATION }
 
 ## XOR'd into the seed so star layout has its own RNG stream and can't shift pack contents.
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
@@ -75,6 +77,19 @@ func sky_sizes() -> Array[int]:
 
 func has_remaining_combo() -> bool:
 	return Combos.has_any(sky_sizes())
+
+
+## Which of the loss check's conditions hold now, in LossReason order. A lost run has all three;
+## the end screen names them.
+func loss_reasons() -> Array[LossReason]:
+	var reasons: Array[LossReason] = []
+	if total_packs() == 0:
+		reasons.append(LossReason.NO_PACKS)
+	if dust < balance.cheapest_pack_cost():
+		reasons.append(LossReason.NO_DUST)
+	if not has_remaining_combo():
+		reasons.append(LossReason.NO_COMBINATION)
+	return reasons
 
 
 func find_star(id: int) -> Star:
@@ -206,7 +221,6 @@ func _check_end() -> void:
 		outcome = Outcome.WON
 		run_won.emit()
 		return
-	var can_buy: bool = dust >= balance.cheapest_pack_cost()
-	if total_packs() == 0 and not can_buy and not has_remaining_combo():
+	if loss_reasons().size() == LossReason.size():
 		outcome = Outcome.LOST
 		run_lost.emit()

@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://game/scenes/event_sequencer.gd" id="2_sequencer"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://game/fx/burst_sparks.gd" id="8_sparks"]
 [ext_resource type="Script" path="res://game/fx/collect_particles.gd" id="9_collect"]
 [ext_resource type="PackedScene" path="res://game/fx/big_bang.tscn" id="10_big_bang"]
+[ext_resource type="PackedScene" path="res://game/ui/end_screen.tscn" id="11_end"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -30,6 +31,8 @@ script = ExtResource("8_sparks")
 script = ExtResource("9_collect")
 
 [node name="HUD" parent="." instance=ExtResource("6_hud")]
+
+[node name="EndScreen" parent="." instance=ExtResource("11_end")]
 
 [node name="DebugKeys" type="Node" parent="."]
 script = ExtResource("4_debug_keys")
