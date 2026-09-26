@@ -2,7 +2,7 @@ class_name StarView
 extends Node2D
 ## One star in the sky, drawn from placeholder pixel maps until the star art lands (#12).
 ## Flies from its pack's burst point to the position the core gave it, then twinkles.
-## Owns no rules: Sky tells it when to fly, dissolve or show as selected.
+## Owns no rules: Sky tells it when to fly, dissolve, collapse or show as selected.
 ## The halo isn't drawn here: Sky paints every halo on a layer under all stars, so a newer
 ## star's halo can never cover an older star's rays. See `halo_dots()`.
 ## Every drawn pixel is a palette colour at an integer offset; the node sits on whole pixels.
@@ -12,7 +12,7 @@ signal dissolved(view: StarView)
 ## The halo appeared, changed or disappeared; whoever paints halos should redraw.
 signal halo_changed(view: StarView)
 
-enum State { SETTLING, IDLE, DISSOLVING }
+enum State { SETTLING, IDLE, DISSOLVING, COLLAPSING }
 
 ## Burst timing from the game-feel skill: stars scatter with an ease-out-back.
 const SETTLE_TIME: float = 0.65
@@ -92,6 +92,10 @@ var _bounds: Rect2i = Rect2i()
 var _time: float = 0.0
 var _twinkle_phase: float = 0.0
 var _frame_key: int = -1
+## A pending collapse: where to, how long, and seconds until it starts (-1 for none).
+var _collapse_point: Vector2i = Vector2i.ZERO
+var _collapse_duration: float = 0.0
+var _collapse_wait: float = -1.0
 
 
 func _process(delta: float) -> void:
@@ -106,6 +110,8 @@ func _draw() -> void:
 			_draw_idle()
 		State.DISSOLVING:
 			_draw_dissolve()
+		State.COLLAPSING:
+			_draw_collapse()
 
 
 ## Shows `star` settled at its position. `sky` is the run's sky rect; flights stay in its inner rect.
@@ -135,14 +141,46 @@ func dissolve() -> void:
 	visible = true
 
 
+## After `delay` seconds (whatever it is doing then, even mid-flight), is pulled into `point`
+## with an ease-in over `duration`, then frees itself. The Big Bang's collapse.
+func collapse_to(point: Vector2i, delay: float, duration: float) -> void:
+	selected = false
+	_collapse_point = point
+	_collapse_duration = duration
+	_collapse_wait = -1.0
+	if delay > 0.0:
+		_collapse_wait = delay
+	else:
+		_start_collapse()
+
+
+func is_collapsing() -> bool:
+	return state == State.COLLAPSING or _collapse_wait >= 0.0
+
+
 ## Moves the animation forward. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
+	if _collapse_wait >= 0.0:
+		_collapse_wait -= delta
+		if _collapse_wait <= 0.0:
+			# The part of this tick past the wait already counts toward the collapse.
+			var overshoot: float = -_collapse_wait
+			_collapse_wait = -1.0
+			_start_collapse()
+			delta = overshoot
 	_time += delta
 	match state:
 		State.SETTLING:
 			_advance_flight()
 		State.DISSOLVING:
 			if _time >= DISSOLVE_TIME:
+				dissolved.emit(self)
+				queue_free()
+				return
+		State.COLLAPSING:
+			var k: float = minf(_time / _collapse_duration, 1.0)
+			position = Vector2(Vector2(_from).lerp(Vector2(_collapse_point), k * k).round())
+			if k >= 1.0:
 				dissolved.emit(self)
 				queue_free()
 				return
@@ -226,6 +264,8 @@ func _current_frame_key() -> int:
 			return 1 if _is_spark() else 2
 		State.DISSOLVING:
 			return _dissolve_frame()
+		State.COLLAPSING:
+			return 1 if _is_crushed() else 2
 	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0)
 
 
@@ -239,6 +279,17 @@ func _is_glinting() -> bool:
 
 func _ring_frame() -> int:
 	return int(_time / RING_FRAME_TIME) % 2
+
+
+## Late in a collapse only the star's white core is left.
+func _is_crushed() -> bool:
+	return _time >= _collapse_duration * 0.7
+
+
+func _start_collapse() -> void:
+	_from = Vector2i(position)
+	_enter(State.COLLAPSING)
+	visible = true
 
 
 func _dissolve_frame() -> int:
@@ -270,6 +321,14 @@ func _draw_dissolve() -> void:
 			_draw_shape(0, 1)
 		_:
 			_dot(Vector2i.ZERO, Palette.C1)
+
+
+## Pulled in bright; crushed down to the C0 core near the end.
+func _draw_collapse() -> void:
+	if _is_crushed():
+		_draw_shape(0, 0)
+	else:
+		_draw_shape(STAR_STEPS.size() - 1, -1)
 
 
 ## Draws the pixels whose step is at most `max_step`, shifted by `shift` steps (negative = brighter).

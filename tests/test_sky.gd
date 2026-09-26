@@ -125,13 +125,38 @@ func test_a_rejected_link_leaves_every_star() -> void:
 	assert_eq(sky.star_count(), 3)
 
 
-func test_a_big_bang_clears_every_view() -> void:
+func test_a_big_bang_opens_into_decoys_then_collapses_every_star() -> void:
 	_seed_sky([Star.Size.SMALL, Star.Size.MEDIUM])
 	run.force_next_big_bang = true
+	var burst := Vector2i(90, 160)
+	run.launch(burst)
+	sequencer.advance(0.0)
+	assert_eq(sky.star_count(), 0, "the run's stars are gone at once")
+	var decoys: int = run.balance.packs["blue"].stars
+	assert_eq(_views().size(), 2 + decoys, "the two old stars, plus the blue pack's decoys flying out")
+	for view: StarView in _views():
+		assert_true(view.is_collapsing(), "every star will collapse")
+	_play(BigBangSequence.FREEZE_AT - STEP)
+	assert_eq(_views().filter(func(v: StarView) -> bool: return v.state == StarView.State.COLLAPSING).size(), 0,
+		"it looks like a normal opening until the freeze")
+	var start: Dictionary[StarView, float] = {}
+	for view: StarView in _views():
+		start[view] = Vector2(view.position).distance_to(Vector2(burst))
+	_play(STEP + BigBangSequence.COLLAPSE_TIME * 0.95)
+	for view: StarView in _views():
+		assert_lte(Vector2(view.position).distance_to(Vector2(burst)), start[view] * 0.2 + 1.0, "pulled into the burst point")
+	_play(BigBangSequence.COLLAPSE_TIME * 0.05 + STEP)
+	assert_eq(_views().size(), 0, "then gone")
+
+
+func test_decoys_are_never_linkable() -> void:
+	run.force_next_big_bang = true
 	run.launch(Vector2i(90, 160))
-	_play(StarView.DISSOLVE_TIME + STEP)
-	assert_eq(sky.star_count(), 0)
-	assert_eq(_views().size(), 0)
+	sequencer.advance(0.0)
+	_play(StarView.SETTLE_TIME * 0.2)
+	for view: StarView in _views():
+		assert_lt(view.star_id, 0, "decoy ids never match a run star")
+		assert_eq(sky.star_at(Vector2i(view.position)), 0, "nothing to link")
 
 
 func test_a_new_run_replaces_the_old_views() -> void:
