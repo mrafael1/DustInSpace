@@ -2,6 +2,7 @@ class_name DebugKeys
 extends Node
 ## Development shortcuts, active in debug builds only.
 ## L: launch the loaded pack at a random point in the sky (stand-in until the slingshot, #5).
+## B: the next pack opens as a Big Bang.
 
 ## XOR'd into the run seed so debug targets get their own stream.
 const TARGET_SEED_SALT: int = 0xDEB6
@@ -24,12 +25,23 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if key.keycode == KEY_L:
 		launch_at_random()
 		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_B:
+		force_big_bang()
+		get_viewport().set_input_as_handled()
 
 
 func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_run = run
 	_sequencer = sequencer
 	_rng.seed = run.run_seed ^ TARGET_SEED_SALT
+
+
+## Makes the next launched pack a Big Bang. Returns false with no run.
+func force_big_bang() -> bool:
+	if _run == null:
+		return false
+	_run.force_next_big_bang = true
+	return true
 
 
 ## Launches like a player would: not while a sequence is still playing.

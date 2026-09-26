@@ -4,6 +4,7 @@ extends Node2D
 ## linked stars to the dust counter and light particles fly into the Sun. Each particle carries
 ## part of the reward; `dust_arrived` / `light_arrived` fire as it lands, so the counters tick up
 ## on arrival. Particles never hold the sequencer, so input comes back while they fly.
+## A Big Bang's dust streams from the burst point once it bangs, in more, smaller shares.
 ## Owns no rules: the amounts come from the event. Every particle is 1-2 palette pixels on
 ## whole pixels: a head and a one-step-darker trail.
 
@@ -20,6 +21,8 @@ const FLIGHT_MIN: float = 0.75
 const FLIGHT_MAX: float = 1.1
 ## A reward bigger than this is shared between this many particles, so a big payout stays quick.
 const MAX_PARTICLES: int = 10
+## A Big Bang's dust streams in up to this many particles.
+const BIG_BANG_PARTICLES: int = 24
 ## How far the path bows sideways at its middle, at most.
 const MAX_BOW: int = 30
 ## The longest a combo's particles can take to all land: dust and light together.
@@ -132,6 +135,12 @@ static func split(total: int, parts: int) -> Array[int]:
 
 
 func _on_event_played(event: EventSequencer.RunEvent) -> void:
+	if event.type == &"big_bang_started":
+		var n0: int = _particles.size()
+		_launch(Kind.DUST, event.args[2], [event.args[0]] as Array[Vector2i], dust_target, BIG_BANG_PARTICLES)
+		for i: int in range(n0, _particles.size()):
+			_particles[i].delay = BigBangSequence.BANG_AT + STAGGER * (i - n0)
+		return
 	if event.type != &"combo_collected":
 		return
 	var sources: Array[Vector2i] = []
@@ -147,10 +156,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		_particles[i].delay = LAUNCH_DELAY + STAGGER * (i - n)
 
 
-func _launch(kind: Kind, total: int, sources: Array[Vector2i], target: Vector2i) -> void:
+func _launch(kind: Kind, total: int, sources: Array[Vector2i], target: Vector2i, most: int = MAX_PARTICLES) -> void:
 	if total <= 0:
 		return
-	var shares: Array[int] = split(total, mini(total, MAX_PARTICLES))
+	var shares: Array[int] = split(total, mini(total, most))
 	for i: int in shares.size():
 		var p := Particle.new()
 		p.kind = kind

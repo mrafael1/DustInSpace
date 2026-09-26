@@ -171,7 +171,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"pack_launched":
 			_shown_packs[event.args[0]] = _shown_packs.get(event.args[0], 0) - 1
 		&"big_bang_started":
-			_shown_dust += event.args[2]
+			# Streams to the counter once it bangs, like a combo's dust.
+			_dust_in_flight += event.args[2]
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			_light_in_flight += event.args[3]

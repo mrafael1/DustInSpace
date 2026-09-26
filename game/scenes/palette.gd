@@ -17,6 +17,9 @@ const N6 := Color("#5A51A6")
 const N7 := Color("#7E68C8")
 ## N8 doubles as the dust ramp's middle step (dust icon facets).
 const N8 := Color("#A77FD8")
+## The sky ramp's lightest steps: some of the Big Bang's debris.
+const N9 := Color("#D08FC8")
+const N10 := Color("#F2A9C2")
 
 ## Dim Sun ramp: the unlit Sun and its embers. S4 (ember) also marks a rejected link: blue and
 ## red are reserved for packs.

@@ -1,0 +1,38 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/fx/big_bang.gd" id="1_big_bang"]
+[ext_resource type="Script" path="res://game/ui/dust_icon.gd" id="2_dust_icon"]
+
+[node name="BigBang" type="Node2D"]
+script = ExtResource("1_big_bang")
+
+[node name="Front" type="CanvasLayer" parent="."]
+layer = 20
+
+[node name="Flash" type="Node2D" parent="Front"]
+
+[node name="Banner" type="Node2D" parent="Front"]
+visible = false
+position = Vector2(90, 132)
+
+[node name="Title" type="Label" parent="Front/Banner"]
+offset_left = -47.0
+offset_right = 0.0
+offset_bottom = 8.0
+scale = Vector2(2, 2)
+mouse_filter = 2
+text = "BIG BANG"
+horizontal_alignment = 1
+
+[node name="Amount" type="Label" parent="Front/Banner"]
+offset_left = -16.0
+offset_top = 22.0
+offset_right = 6.0
+offset_bottom = 30.0
+mouse_filter = 2
+text = "+0"
+horizontal_alignment = 2
+
+[node name="DustIcon" type="Node2D" parent="Front/Banner"]
+position = Vector2(12, 25)
+script = ExtResource("2_dust_icon")
