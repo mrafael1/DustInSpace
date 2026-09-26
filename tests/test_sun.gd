@@ -169,26 +169,53 @@ func test_an_ignited_sun_idles_with_shimmering_rays_and_a_moving_glint() -> void
 	assert_gt(core_changes, 0, "the core's glint moves")
 
 
-func test_only_an_ignited_sun_idles() -> void:
-	assert_eq(SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, false, false, 0),
-		SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, false, false, 1), "a full Sun that hasn't ignited holds still")
+func test_rays_only_shimmer_once_ignited() -> void:
+	var a: Dictionary[Vector2i, Color] = SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, false, false, 0)
+	var b: Dictionary[Vector2i, Color] = SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, false, false, 1)
+	var tip := Vector2i(0, -(SunView.RADIUS + SunView.RAY_GAP + SunView.LIT_RAY_LENGTH - 1))
+	assert_eq(a.get(tip), Palette.C3)
+	assert_eq(b.get(tip), Palette.C3, "a full Sun that hasn't ignited keeps its rays still")
 
 
-func test_the_glow_breathes_near_the_sun_and_holds_still_beyond() -> void:
-	var centre := Vector2i(sun.position)
-	var a: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, centre, 0)
-	var b: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, centre, 1)
-	var near: int = 0
-	var far: int = 0
-	for y: int in a.get_height():
-		for x: int in a.get_width():
-			if a.get_pixel(x, y) != b.get_pixel(x, y):
-				if Vector2(x - centre.x, y - centre.y).length() < SunView.GLOW_BREATH_REACH:
-					near += 1
-				else:
-					far += 1
-	assert_gt(near, 0, "the C4 band breathes")
-	assert_eq(far, 0, "the rest of the sky holds still")
+func test_a_dark_sun_smoulders() -> void:
+	var a: Dictionary[Vector2i, Color] = SunView.pixels(0, 0, false, false, 0)
+	var b: Dictionary[Vector2i, Color] = SunView.pixels(0, 0, false, false, 1)
+	for i: int in SunView.EMBERS.size():
+		var at: Vector2i = SunView.EMBERS[i]
+		assert_ne(a[at], b[at], "ember %s swaps" % at)
+		assert_true(a[at] in [Palette.S3, Palette.S4] and b[at] in [Palette.S3, Palette.S4])
+	var ring: Callable = func(dots: Dictionary[Vector2i, Color]) -> int:
+		return dots.keys().filter(func(o: Vector2i) -> bool:
+			var d: float = Vector2(o).length()
+			return d >= SunView.RADIUS + 2 and d < SunView.RADIUS + 6 and dots[o] == Palette.S1).size()
+	assert_lt(ring.call(b), ring.call(a), "the dim halo breathes")
+	for colour: Color in b.values():
+		assert_true(colour in SunView.DIM_RAMP, "still no starlight: %s" % colour.to_html(false))
+
+
+func test_embers_stay_off_the_craters_and_on_the_disc() -> void:
+	for ember: Vector2i in SunView.EMBERS:
+		assert_lte(ember.length_squared(), SunView.RADIUS * SunView.RADIUS)
+		for crater: Vector3i in SunView.CRATERS:
+			assert_gt(Vector2(ember - Vector2i(crater.x, crater.y)).length(), float(crater.z), "%s clear of the craters" % ember)
+
+
+func test_lit_light_covers_the_embers() -> void:
+	var dots: Dictionary[Vector2i, Color] = SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, false, false, 1)
+	for ember: Vector2i in SunView.EMBERS:
+		assert_true(dots[ember] in SunView.LIT_RAMP, "no ember under the light")
+
+
+func test_the_sky_glow_holds_still_once_ignited() -> void:
+	run.light = 80
+	sun.setup(run, sequencer)
+	_link_sequence()
+	sequencer.advance(0.0)
+	sun.advance(SunView.IGNITE_TIME)
+	assert_true(sun.is_ignited())
+	var frame: int = sun.ignite_frame()
+	sun.advance(SunView.RIPPLE_TIME)
+	assert_eq(sun.ignite_frame(), frame, "the glow keeps its last frame while the Sun idles")
 
 
 func test_a_new_run_brings_back_a_dark_sun() -> void:
