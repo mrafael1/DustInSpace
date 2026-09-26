@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://game/scenes/event_sequencer.gd" id="2_sequencer"]
@@ -9,6 +9,7 @@
 [ext_resource type="PackedScene" path="res://game/scenes/sun.tscn" id="7_sun"]
 [ext_resource type="Script" path="res://game/fx/burst_sparks.gd" id="8_sparks"]
 [ext_resource type="Script" path="res://game/fx/collect_particles.gd" id="9_collect"]
+[ext_resource type="Script" path="res://game/fx/screen_shake.gd" id="10_shake"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -25,6 +26,9 @@ script = ExtResource("8_sparks")
 
 [node name="CollectParticles" type="Node2D" parent="."]
 script = ExtResource("9_collect")
+
+[node name="ScreenShake" type="Camera2D" parent="."]
+script = ExtResource("10_shake")
 
 [node name="HUD" parent="." instance=ExtResource("6_hud")]
 

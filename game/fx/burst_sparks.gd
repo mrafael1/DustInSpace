@@ -3,6 +3,7 @@ extends Node2D
 ## The opening burst's spark pixels (game-feel: ring, spark pixels, stars scatter). The launcher
 ## draws the ring and the sky scatters the stars; this throws 1 px sparks out from the burst
 ## point, slowing as they go and cooling C0 to C3 before they vanish.
+## Juice: the burst opens with a one-frame C0 core flash before the sparks fly.
 ## A Big Bang starts exactly like a normal burst to keep the surprise, so it gets the same sparks.
 ## Owns no rules and never holds the sequencer.
 
@@ -13,6 +14,9 @@ const REACH_MIN: int = 10
 const REACH_MAX: int = 22
 ## A spark cools one step per quarter of its life.
 const COOLING: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+## The core flash: a C0 plus this big, for about two frames.
+const FLASH_TIME: float = 0.06
+const FLASH_RADIUS: int = 2
 
 
 class Burst:
@@ -38,6 +42,9 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	for burst: Burst in _bursts:
+		if burst.age < FLASH_TIME:
+			for offset: Vector2i in flash_pixels():
+				draw_rect(Rect2(Vector2(burst.at + offset), Vector2.ONE), Palette.C0)
 		var dots: Dictionary[Vector2i, Color] = spark_pixels(burst.reach, burst.age / SPARK_TIME)
 		for offset: Vector2i in dots:
 			draw_rect(Rect2(Vector2(burst.at + offset), Vector2.ONE), dots[offset])
@@ -57,6 +64,18 @@ func is_sparking() -> bool:
 	return not _bursts.is_empty()
 
 
+func is_flashing() -> bool:
+	return _bursts.any(func(b: Burst) -> bool: return b.age < FLASH_TIME)
+
+
+## The core flash's pixels: a plus of FLASH_RADIUS around the burst point.
+static func flash_pixels() -> Array[Vector2i]:
+	var dots: Array[Vector2i] = [Vector2i.ZERO]
+	for r: int in range(1, FLASH_RADIUS + 1):
+		dots.append_array([Vector2i(r, 0), Vector2i(-r, 0), Vector2i(0, r), Vector2i(0, -r)])
+	return dots
+
+
 ## Moves the sparks on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	if _bursts.is_empty():
@@ -68,13 +87,13 @@ func advance(delta: float) -> void:
 
 
 ## The sparks' pixels at `t` (0 to 1 of their life), as offsets from the burst point. They
-## ease out to their reach and cool one ramp step per quarter; nothing is left at t = 1.
-static func spark_pixels(reach: Array[Vector2], t: float) -> Dictionary[Vector2i, Color]:
+## ease out to their reach and cool one step of `ramp` per quarter; nothing is left at t = 1.
+static func spark_pixels(reach: Array[Vector2], t: float, ramp: Array = COOLING) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	if t >= 1.0:
 		return dots
 	var travelled: float = 1.0 - (1.0 - t) * (1.0 - t)
-	var colour: Color = COOLING[clampi(floori(t * COOLING.size()), 0, COOLING.size() - 1)]
+	var colour: Color = ramp[clampi(floori(t * ramp.size()), 0, ramp.size() - 1)]
 	for end: Vector2 in reach:
 		dots[Vector2i((end * travelled).round())] = colour
 	return dots

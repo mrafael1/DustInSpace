@@ -70,14 +70,33 @@ func test_every_particle_lands_one_by_one_and_the_sums_match() -> void:
 	assert_gt(light_landed.size(), 1, "the counter ticks, it doesn't jump")
 
 
-func test_a_particle_flies_from_its_star_to_its_counter_on_whole_pixels() -> void:
+func test_a_particle_pops_from_its_star_then_swooshes_to_its_counter() -> void:
 	var p := CollectParticles.Particle.new()
 	p.from = Vector2(70, 150)
+	p.popped = Vector2(62, 144)
 	p.bend = Vector2(100, 100)
 	p.to = Vector2(12, 300)
-	assert_eq(p.point_at(0.0), Vector2i(70, 150))
-	assert_eq(p.point_at(1.0), Vector2i(12, 300))
-	assert_true(p.point_at(0.5) is Vector2i)
+	assert_eq(p.point_at(0.0), Vector2i(70, 150), "starts on its star")
+	assert_eq(p.point_at(CollectParticles.POP_SHARE), Vector2i(62, 144), "anticipation: out first")
+	assert_eq(p.point_at(1.0), Vector2i(12, 300), "lands on its counter")
+	assert_true(p.point_at(0.5) is Vector2i, "whole pixels")
+
+
+func test_each_landing_throws_sparks_that_fade() -> void:
+	_link_sequence()
+	sequencer.advance(0.0)
+	particles.advance(CollectParticles.LONGEST_TRAVEL)
+	assert_gt(particles.impact_count(), 0, "landings spark at the counter")
+	particles.advance(CollectParticles.IMPACT_TIME)
+	assert_eq(particles.impact_count(), 0, "and fade quickly")
+
+
+func test_landing_sparks_cool_down_their_own_ramp() -> void:
+	var reach: Array[Vector2] = [Vector2(4, 0)]
+	var ramps: Dictionary = CollectParticles.IMPACT_RAMPS
+	assert_eq(BurstSparks.spark_pixels(reach, 0.0, ramps[CollectParticles.Kind.DUST]).values()[0], Palette.D0)
+	assert_eq(BurstSparks.spark_pixels(reach, 0.9, ramps[CollectParticles.Kind.DUST]).values()[0], Palette.N7)
+	assert_eq(BurstSparks.spark_pixels(reach, 0.9, ramps[CollectParticles.Kind.LIGHT]).values()[0], Palette.C3)
 
 
 func test_targets_are_the_dust_icon_and_the_sun() -> void:
@@ -103,6 +122,38 @@ func test_a_burst_throws_sparks_that_cool_and_vanish() -> void:
 	assert_true(sparks.is_sparking())
 	sparks.advance(BurstSparks.SPARK_TIME)
 	assert_false(sparks.is_sparking(), "gone within the burst")
+
+
+func test_a_burst_opens_with_a_one_frame_core_flash() -> void:
+	assert_true(run.launch(Vector2i(90, 150)))
+	sequencer.advance(0.0)
+	assert_true(sparks.is_flashing())
+	sparks.advance(BurstSparks.FLASH_TIME)
+	assert_false(sparks.is_flashing(), "about two frames")
+	assert_eq(BurstSparks.flash_pixels().size(), 1 + 4 * BurstSparks.FLASH_RADIUS, "a plus, whole pixels")
+
+
+func test_a_burst_jolts_the_world_a_whole_pixel_and_settles() -> void:
+	var shake := ScreenShake.new()
+	add_child_autofree(shake)
+	shake.set_process(false)
+	shake.setup(run, sequencer)
+	assert_true(run.launch(Vector2i(90, 150)))
+	sequencer.advance(0.0)
+	assert_true(shake.is_shaking())
+	for i: int in ScreenShake.SHAKE.size():
+		assert_eq(shake.offset, shake.offset.round(), "whole pixels")
+		assert_lte(shake.offset.length(), 1.0, "a 1 px jolt")
+		shake.advance(ScreenShake.SHAKE_STEP)
+	assert_false(shake.is_shaking())
+	assert_eq(shake.offset, Vector2.ZERO, "back at rest")
+
+
+func test_the_shake_leaves_the_hud_still() -> void:
+	var main: Main = preload("res://game/scenes/main.tscn").instantiate()
+	add_child_autofree(main)
+	assert_true(main.get_node("HUD") is CanvasLayer, "a Camera2D doesn't move CanvasLayers")
+	assert_true(main.get_node("ScreenShake") is ScreenShake)
 
 
 func test_a_big_bang_starts_with_the_same_sparks() -> void:
