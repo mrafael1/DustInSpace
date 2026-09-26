@@ -1,0 +1,31 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/ui/hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://game/ui/dust_icon.gd" id="2_dust_icon"]
+
+[node name="HUD" type="CanvasLayer"]
+layer = 5
+script = ExtResource("1_hud")
+
+[node name="DustIcon" type="Node2D" parent="."]
+position = Vector2(12, 300)
+script = ExtResource("2_dust_icon")
+
+[node name="Dust" type="Label" parent="."]
+offset_left = 20.0
+offset_top = 297.0
+offset_right = 60.0
+offset_bottom = 305.0
+mouse_filter = 2
+text = "0"
+
+[node name="Light" type="Label" parent="."]
+offset_left = 60.0
+offset_top = 66.0
+offset_right = 120.0
+offset_bottom = 72.0
+mouse_filter = 2
+text = "0/0"
+horizontal_alignment = 1
+
+[node name="Slots" type="Node2D" parent="."]

@@ -59,7 +59,7 @@ func test_buy_spends_dust_adds_pack_and_loads_it() -> void:
 	assert_eq(run.dust, 3)
 	assert_eq(run.owned_packs["red"], 2)
 	assert_eq(run.loaded_pack, "red", "buying loads the pack into the launcher")
-	assert_signal_emitted_with_parameters(run, "pack_bought", ["red"])
+	assert_signal_emitted_with_parameters(run, "pack_bought", ["red", 3])
 	assert_signal_emitted_with_parameters(run, "pack_loaded", ["red"])
 
 

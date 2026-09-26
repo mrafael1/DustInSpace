@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://game/scenes/event_sequencer.gd" id="2_sequencer"]
 [ext_resource type="PackedScene" path="res://game/scenes/sky.tscn" id="3_sky"]
 [ext_resource type="Script" path="res://game/scenes/debug_keys.gd" id="4_debug_keys"]
 [ext_resource type="PackedScene" path="res://game/scenes/launcher.tscn" id="5_launcher"]
+[ext_resource type="PackedScene" path="res://game/ui/hud.tscn" id="6_hud"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -13,6 +14,8 @@ script = ExtResource("1_main")
 
 [node name="Launcher" parent="." instance=ExtResource("5_launcher")]
 position = Vector2(90, 270)
+
+[node name="HUD" parent="." instance=ExtResource("6_hud")]
 
 [node name="DebugKeys" type="Node" parent="."]
 script = ExtResource("4_debug_keys")
