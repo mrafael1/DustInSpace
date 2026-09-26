@@ -74,8 +74,11 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	queue_redraw()
 
 
-## The shown light over the Sun's target, from 0 to 1.
+## The shown light over the Sun's target, from 0 to 1. Dark (0) until setup gives it a run:
+## Main doesn't when balance.json is invalid, and the Sun still draws and processes.
 func progress() -> float:
+	if _run == null:
+		return 0.0
 	return clampf(float(_shown_light) / float(_run.balance.sun_target), 0.0, 1.0)
 
 

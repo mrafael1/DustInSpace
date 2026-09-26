@@ -62,6 +62,9 @@ func test_invalid_balance_file_shows_errors_and_starts_no_run() -> void:
 	assert_true(label.visible, "debug builds show the errors")
 	assert_string_contains(label.text, "not found")
 	assert_push_error("balance.json")
+	await wait_process_frames(2, "views draw and process with no run")
+	assert_push_error_count(1, "the balance error and nothing else")
+	assert_engine_error_count(0, "no view reads a run it never got")
 
 
 func test_invalid_restart_keeps_the_current_run_and_views_in_step() -> void:

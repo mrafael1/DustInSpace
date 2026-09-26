@@ -167,6 +167,17 @@ func test_a_new_run_brings_back_a_dark_sun() -> void:
 	assert_eq(sun.progress(), 0.0)
 
 
+func test_a_sun_without_a_run_stays_dark() -> void:
+	var lone: SunView = SunScene.instantiate()
+	add_child_autofree(lone)
+	lone.advance(SunView.RIPPLE_TIME)
+	assert_eq(lone.progress(), 0.0)
+	assert_eq(lone.fill_rows(), 0)
+	assert_eq(lone.ignite_frame(), 0)
+	await wait_process_frames(2, "draws and processes with no run")
+	assert_engine_error_count(0)
+
+
 func test_every_sun_pixel_is_a_palette_colour() -> void:
 	var palette: Array = SunView.DIM_RAMP + SunView.LIT_RAMP
 	for p_ignited: bool in [false, true]:
