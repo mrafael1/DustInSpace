@@ -1,0 +1,15 @@
+{
+  "frame_size": [
+    27,
+    27
+  ],
+  "origin": [
+    13,
+    13
+  ],
+  "frames": [
+    "ring_5",
+    "ring_9",
+    "ring_13"
+  ]
+}

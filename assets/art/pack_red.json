@@ -1,0 +1,17 @@
+{
+  "frame_size": [
+    23,
+    15
+  ],
+  "origin": [
+    11,
+    7
+  ],
+  "frames": [
+    "idle",
+    "bright",
+    "grown",
+    "grown_bright",
+    "hud"
+  ]
+}

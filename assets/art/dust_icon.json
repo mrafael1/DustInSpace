@@ -1,0 +1,14 @@
+{
+  "frame_size": [
+    9,
+    9
+  ],
+  "origin": [
+    4,
+    4
+  ],
+  "frames": [
+    "large",
+    "small"
+  ]
+}
