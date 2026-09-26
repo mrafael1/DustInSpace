@@ -1,0 +1,10 @@
+{
+  "frame_size": [
+    15,
+    15
+  ],
+  "frames": [
+    "ring_0",
+    "ring_1"
+  ]
+}
