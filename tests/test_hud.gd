@@ -88,10 +88,19 @@ func test_a_combo_ticks_the_counters_up_as_its_particles_land() -> void:
 	hud.receive_dust(1)
 	assert_eq(_label("Dust").text, "1")
 	assert_eq(_label("Dust").position, rest + Vector2.UP, "the counter hops a pixel")
+	assert_eq(_label("Dust").label_settings.font_color, Palette.C0, "and flashes")
+	assert_true((hud.get_node("DustIcon") as DustIcon).bright, "the dust icon pulses")
 	hud.advance(Hud.HOP_TIME)
 	assert_eq(_label("Dust").position, rest, "and lands back")
+	assert_eq(_label("Dust").label_settings.font_color, Palette.D0)
+	assert_false((hud.get_node("DustIcon") as DustIcon).bright)
+	hud.receive_light(1)
+	assert_eq(_label("Light").label_settings.font_color, Palette.C0)
+	hud.advance(Hud.HOP_TIME)
+	assert_eq(_label("Light").label_settings.font_color, Palette.C1, "back to its own colour")
+	assert_false((hud.get_node("DustIcon") as DustIcon).bright, "light doesn't pulse the dust icon")
 	hud.receive_dust(2)
-	hud.receive_light(5)
+	hud.receive_light(4)
 	assert_eq(_label("Dust").text, "3")
 	assert_eq(_label("Light").text, "5/100")
 	_assert_shows_the_run()
@@ -243,6 +252,16 @@ func test_fonts_have_every_glyph_the_hud_writes() -> void:
 	for font: FontFile in [HudText.PRIMARY_FONT, HudText.SECONDARY_FONT]:
 		for c: String in "0123456789/×+- ":
 			assert_true(font.has_char(c.unicode_at(0)), "%s in %s" % [c, font.resource_path])
+
+
+func test_the_dust_icon_pulse_lifts_each_facet_up_the_dust_ramp() -> void:
+	var calm: Dictionary[Vector2i, Color] = DustIcon.pixels(false)
+	var bright: Dictionary[Vector2i, Color] = DustIcon.pixels(false, true)
+	assert_eq(calm.keys(), bright.keys(), "same shape, no scaling")
+	assert_eq(bright[Vector2i(3, 1)], Palette.N8, "N7 lifts to N8")
+	assert_eq(bright[Vector2i(3, -1)], Palette.D0, "N8 lifts to D0")
+	for colour: Color in bright.values():
+		assert_true(colour in [Palette.D0, Palette.N8, Palette.N7])
 
 
 func test_dust_icons_are_faceted_diamonds_on_the_dust_ramp() -> void:

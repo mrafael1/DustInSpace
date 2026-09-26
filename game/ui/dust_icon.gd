@@ -7,16 +7,21 @@ extends Node2D
 	set(value):
 		small = value
 		queue_redraw()
+## The pulse frame: every facet one step up the dust ramp (N7 -> N8 -> D0).
+var bright: bool = false:
+	set(value):
+		bright = value
+		queue_redraw()
 
 
 func _draw() -> void:
-	var dots: Dictionary[Vector2i, Color] = pixels(small)
+	var dots: Dictionary[Vector2i, Color] = pixels(small, bright)
 	for offset: Vector2i in dots:
 		draw_rect(Rect2(Vector2(offset), Vector2.ONE), dots[offset])
 
 
 ## Offsets from the centre. Facets: top-left D0, top-right and bottom-left N8, bottom-right N7.
-static func pixels(p_small: bool) -> Dictionary[Vector2i, Color]:
+static func pixels(p_small: bool, p_bright: bool = false) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	var r: int = 2 if p_small else 4
 	for dy: int in range(-r, r + 1):
@@ -28,5 +33,7 @@ static func pixels(p_small: bool) -> Dictionary[Vector2i, Color]:
 				colour = Palette.D0
 			elif dx > 0 and dy > 0:
 				colour = Palette.N7
+			if p_bright:
+				colour = Palette.D0 if colour != Palette.N7 else Palette.N8
 			dots[Vector2i(dx, dy)] = colour
 	return dots

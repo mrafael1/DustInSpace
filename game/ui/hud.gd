@@ -10,6 +10,7 @@ extends CanvasLayer
 ## A combo's dust and light arrive later, as particles land (receive_dust / receive_light, wired
 ## by Main): the counter ticks up and hops a pixel. Until then that amount is "in flight", and a
 ## purchase shows the dust it left minus what's still in flight, so arrivals land on the right total.
+## Juice: while a counter hops its number flashes C0, and a dust landing pulses the dust icon.
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -34,11 +35,13 @@ var _shown_loaded: String = ""
 ## Rewards whose event has played but whose particles haven't landed yet.
 var _dust_in_flight: int = 0
 var _light_in_flight: int = 0
-## Seconds of hop left per counter, and where each counter rests.
+## Seconds of hop left per counter, and where each counter rests and in which colour.
 var _hops: Dictionary[Label, float] = {}
 var _rest: Dictionary[Label, Vector2] = {}
+var _rest_colour: Dictionary[Label, Color] = {}
 
 @onready var _dust: Label = $Dust
+@onready var _dust_icon: DustIcon = $DustIcon
 @onready var _light: Label = $Light
 @onready var _slot_layer: Node2D = $Slots
 
@@ -48,6 +51,7 @@ func _ready() -> void:
 	_light.label_settings = HudText.secondary(Palette.C1)
 	for label: Label in [_dust, _light]:
 		_rest[label] = label.position
+		_rest_colour[label] = label.label_settings.font_color
 
 
 func _process(delta: float) -> void:
@@ -102,7 +106,7 @@ func receive_light(amount: int) -> void:
 func advance(delta: float) -> void:
 	for label: Label in _hops:
 		_hops[label] = maxf(_hops[label] - delta, 0.0)
-		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
+		_show_hop(label, _hops[label] > 0.0)
 
 
 func slot(kind: String) -> PackSlot:
@@ -181,7 +185,15 @@ func _show() -> void:
 
 func _hop(label: Label) -> void:
 	_hops[label] = HOP_TIME
-	label.position = _rest[label] + Vector2.UP
+	_show_hop(label, true)
+
+
+## A hopping counter sits 1 px up in C0; the dust icon pulses with the dust counter.
+func _show_hop(label: Label, hopping: bool) -> void:
+	label.position = _rest[label] + (Vector2.UP if hopping else Vector2.ZERO)
+	label.label_settings.font_color = Palette.C0 if hopping else _rest_colour[label]
+	if label == _dust:
+		_dust_icon.bright = hopping
 
 
 func _build_slots(kinds: Array[String]) -> void:
