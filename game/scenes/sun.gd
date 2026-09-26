@@ -3,12 +3,14 @@ extends Node2D
 ## The Sun, drawn in code until the Sun art lands (#13). Its frame follows light / sun_target:
 ## light pools up the disc from the bottom and the rays light clockwise from 12 o'clock, taking
 ## it from the dim S ramp to the lit C ramp. That change is the run's progress bar.
-## It pulses when a combo's light plays, and ignites and lights up the sky when run_won plays.
+## It pulses as each light particle lands (receive_light, wired by Main), and ignites and lights
+## up the sky when run_won plays, once the last of its light has landed.
 ## Until then its unlit part smoulders on the ripple's 2-frame tick: embers swap S3/S4 and the
 ## dim halo breathes, so even a dark Sun is alive. Once ignited it idles on the same tick:
 ## alternate rays shimmer and the core's glint moves, while the sky glow holds still.
 ## Whole-frame swaps, never rotation or scaling.
-## Owns no rules: like the HUD it keeps a shown copy of the light, moved only by played events.
+## Owns no rules: like the HUD it keeps a shown copy of the light, moved only by played events
+## and the particles they send.
 ## Every pixel is a palette colour at an integer offset from the centre; the node sits on whole pixels.
 
 ## Sun art: an r17 disc and 12 rays (art-direction.md).
@@ -24,6 +26,9 @@ const PULSE_TIME: float = 0.3
 const IGNITE_TIME: float = 1.8
 ## The ignition is drawn in this many frames: the halo turns warm, then the glow spreads.
 const IGNITE_FRAMES: int = 6
+## A won run holds this long past the particles' longest travel, so the last light always lands
+## (and the ignition extends the hold) before the sequence can finish.
+const ARRIVAL_MARGIN: float = 0.1
 ## The glow's reach on its last frame: past the farthest corner of the sky from the Sun.
 const GLOW_REACH: int = 230
 ## The light pool's surface ripples between two frames; the smoulder and ignited idle use the same tick.
@@ -41,6 +46,10 @@ var _sequencer: EventSequencer
 ## The light as the events played so far have shown it.
 var _shown_light: int = 0
 var _pulse_left: float = 0.0
+## Light whose combo has played but whose particles haven't landed yet.
+var _light_in_flight: int = 0
+## run_won has played and the ignition waits for the light still in flight.
+var _ignite_waiting: bool = false
 ## Seconds since the ignition started, or -1 before it.
 var _ignite_time: float = -1.0
 var _ripple: int = 0
@@ -75,8 +84,20 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer.event_played.connect(_on_event_played)
 	_shown_light = run.light
 	_pulse_left = 0.0
+	_light_in_flight = 0
+	_ignite_waiting = false
 	_glow_textures.clear()
 	_ignite_time = IGNITE_TIME if run.outcome == RunState.Outcome.WON else -1.0
+	queue_redraw()
+
+
+## A light particle landed: the fill rises and the Sun pulses. The last one lets a won run ignite.
+func receive_light(amount: int) -> void:
+	_shown_light += amount
+	_light_in_flight = maxi(_light_in_flight - amount, 0)
+	_pulse_left = PULSE_TIME
+	if _ignite_waiting and _light_in_flight == 0:
+		_ignite()
 	queue_redraw()
 
 
@@ -169,17 +190,22 @@ func _frame_key() -> Array:
 func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	match event.type:
 		&"combo_collected":
-			var gain: int = event.args[3]
-			if gain <= 0:
-				return
-			_shown_light += gain
-			_pulse_left = PULSE_TIME
+			_light_in_flight += event.args[3]
 		&"run_won":
-			_ignite_time = 0.0
-			_pulse_left = PULSE_TIME
-			_sequencer.hold(IGNITE_TIME)
-		_:
-			return
+			if _light_in_flight > 0:
+				# The win's light is still flying: hold until it can have landed, then ignite.
+				_ignite_waiting = true
+				_sequencer.hold(CollectParticles.LONGEST_TRAVEL + ARRIVAL_MARGIN)
+			else:
+				_ignite()
+
+
+## Starts the ignition and keeps the sequence (the win) waiting until it's done.
+func _ignite() -> void:
+	_ignite_waiting = false
+	_ignite_time = 0.0
+	_pulse_left = PULSE_TIME
+	_sequencer.hold(IGNITE_TIME)
 	queue_redraw()
 
 

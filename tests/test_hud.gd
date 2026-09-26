@@ -79,16 +79,48 @@ func test_a_flight_reveals_nothing_ahead_of_it() -> void:
 	_assert_shows_the_run()
 
 
-func test_a_combo_adds_its_dust_and_light_when_it_plays() -> void:
-	var ids: Array[int] = []
-	for x: int in [70, 90, 110]:
-		ids.append(run.add_star(Star.Size.SMALL, Vector2i(x, 150)).id)
-	run.link(ids)
-	assert_eq(_label("Light").text, "0/100")
+func test_a_combo_ticks_the_counters_up_as_its_particles_land() -> void:
+	_link_small_triple()
 	sequencer.advance(0.0)
+	assert_eq(_label("Dust").text, "0", "the combo played, but its dust is still flying")
+	assert_eq(_label("Light").text, "0/100")
+	var rest: Vector2 = _label("Dust").position
+	hud.receive_dust(1)
+	assert_eq(_label("Dust").text, "1")
+	assert_eq(_label("Dust").position, rest + Vector2.UP, "the counter hops a pixel")
+	hud.advance(Hud.HOP_TIME)
+	assert_eq(_label("Dust").position, rest, "and lands back")
+	hud.receive_dust(2)
+	hud.receive_light(5)
 	assert_eq(_label("Dust").text, "3")
 	assert_eq(_label("Light").text, "5/100")
 	_assert_shows_the_run()
+
+
+func test_a_buy_while_dust_is_flying_lands_on_the_right_total() -> void:
+	run.dust = 7
+	hud.refresh()
+	_link_small_triple()
+	sequencer.advance(0.0)
+	assert_eq(run.dust, 10)
+	_tap_part("blue", &"cost")
+	sequencer.advance(0.0)
+	assert_eq(_label("Dust").text, "3", "6 left after the buy, 3 of them still flying")
+	hud.receive_dust(3)
+	assert_eq(_label("Dust").text, "6")
+	assert_eq(_label("Dust").text, "%d" % run.dust)
+	hud.receive_light(5)
+	_assert_shows_the_run()
+
+
+func test_costs_light_up_only_when_the_dust_lands() -> void:
+	run.dust = 2
+	hud.refresh()
+	_link_small_triple()
+	sequencer.advance(0.0)
+	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "4 costs more than the 2 shown")
+	hud.receive_dust(3)
+	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.D0)
 
 
 func test_launching_the_last_pack_clears_the_marker() -> void:
@@ -221,6 +253,14 @@ func test_dust_icons_are_faceted_diamonds_on_the_dust_ramp() -> void:
 		assert_false(dots.has(Vector2i(r, r)), "a diamond, not a square")
 		for dot: Vector2i in dots:
 			assert_true(dots[dot] in [Palette.D0, Palette.N8, Palette.N7])
+
+
+## Links three small stars: a small triple, worth 3 dust and 5 light in the fixtures.
+func _link_small_triple() -> void:
+	var ids: Array[int] = []
+	for x: int in [70, 90, 110]:
+		ids.append(run.add_star(Star.Size.SMALL, Vector2i(x, 150)).id)
+	assert_eq(run.link(ids), "small_triple")
 
 
 ## Stands in for the launcher: keeps the pack flying for a second.

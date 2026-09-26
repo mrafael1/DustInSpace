@@ -15,10 +15,17 @@ var run: RunState
 
 @onready var _sequencer: EventSequencer = $EventSequencer
 @onready var _balance_errors: Label = $DebugLayer/BalanceErrors
+@onready var _collect: CollectParticles = $CollectParticles
+@onready var _hud: Hud = $HUD
+@onready var _sun: SunView = $Sun
 
 
 func _ready() -> void:
 	assert(_sequencer.get_index() == get_child_count() - 1, "EventSequencer must be Main's last child to lock input")
+	# Payouts travel: the counters tick up as the collect particles land on them.
+	_collect.dust_arrived.connect(_hud.receive_dust)
+	_collect.light_arrived.connect(_hud.receive_light)
+	_collect.light_arrived.connect(_sun.receive_light)
 	start_run(Balance.load_file(balance_path))
 
 

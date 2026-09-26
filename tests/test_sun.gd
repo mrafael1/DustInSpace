@@ -75,14 +75,19 @@ func test_rays_light_clockwise_from_twelve() -> void:
 	assert_eq(dots[Vector2i(-root - SunView.DIM_RAY_LENGTH + 1, 0)], Palette.S1, "a dim ray is short and ends in S1")
 
 
-func test_light_waits_for_the_combo_to_play_then_pulses() -> void:
+func test_light_lands_with_its_particles_and_pulses_each_time() -> void:
 	_link_sequence()
-	assert_eq(sun.progress(), 0.0, "not before its event plays")
 	sequencer.advance(0.0)
-	assert_eq(sun.progress(), 0.25, "the sequence's 25 light")
+	assert_eq(sun.progress(), 0.0, "the combo played, but its light is still flying")
+	assert_false(sun.is_pulsing())
+	sun.receive_light(10)
+	assert_eq(sun.progress(), 0.1)
 	assert_true(sun.is_pulsing())
 	sun.advance(SunView.PULSE_TIME)
 	assert_false(sun.is_pulsing(), "a pulse is short")
+	sun.receive_light(15)
+	assert_eq(sun.progress(), 0.25, "the sequence's 25 light, once all of it landed")
+	assert_true(sun.is_pulsing(), "every landing pulses")
 
 
 func test_a_pulse_lifts_every_pixel_one_step() -> void:
@@ -93,6 +98,23 @@ func test_a_pulse_lifts_every_pixel_one_step() -> void:
 	assert_eq(pulse[Vector2i(0, 10)], Palette.C0, "C1 light lifts to C0")
 	assert_eq(calm[Vector2i(0, -SunView.RADIUS)], Palette.S1)
 	assert_eq(pulse[Vector2i(0, -SunView.RADIUS)], Palette.S2, "S1 rim lifts to S2")
+
+
+func test_a_run_already_won_shows_an_ignited_sun() -> void:
+	run.light = 100
+	run.outcome = RunState.Outcome.WON
+	sun.setup(run, sequencer)
+	assert_true(sun.is_ignited(), "a run that is already won shows an ignited Sun")
+
+
+func test_a_new_run_drops_light_still_in_flight() -> void:
+	_link_sequence()
+	sequencer.advance(0.0)
+	var fresh: RunState = Fixtures.run()
+	sequencer.bind(fresh)
+	sun.setup(fresh, sequencer)
+	sun.receive_light(5)
+	assert_eq(sun.progress(), 0.05, "the old run's flight no longer counts")
 
 
 func test_a_big_bang_brings_no_light_and_no_pulse() -> void:
@@ -109,7 +131,13 @@ func test_winning_ignites_the_sun_and_holds_the_sequence() -> void:
 	_link_sequence()
 	assert_eq(run.outcome, RunState.Outcome.WON)
 	sequencer.advance(0.0)
-	assert_true(sun.is_igniting())
+	assert_false(sun.is_igniting(), "the winning light is still flying")
+	assert_true(sequencer.is_busy(), "the win waits for it")
+	sequencer.advance(1.0)
+	sun.receive_light(20)
+	assert_false(sun.is_igniting(), "5 light still to land")
+	sun.receive_light(5)
+	assert_true(sun.is_igniting(), "the last light ignites it")
 	assert_eq(sun.ignite_frame(), 1)
 	assert_true(sequencer.is_busy(), "the win waits for the ignition")
 	sequencer.advance(SunView.IGNITE_TIME - 0.2)
@@ -211,6 +239,7 @@ func test_the_sky_glow_holds_still_once_ignited() -> void:
 	sun.setup(run, sequencer)
 	_link_sequence()
 	sequencer.advance(0.0)
+	sun.receive_light(25)
 	sun.advance(SunView.IGNITE_TIME)
 	assert_true(sun.is_ignited())
 	var frame: int = sun.ignite_frame()
@@ -223,6 +252,7 @@ func test_a_new_run_brings_back_a_dark_sun() -> void:
 	sun.setup(run, sequencer)
 	_link_sequence()
 	sequencer.advance(0.0)
+	sun.receive_light(25)
 	sun.advance(SunView.IGNITE_TIME)
 	assert_true(sun.is_ignited())
 	var fresh: RunState = Fixtures.run()
