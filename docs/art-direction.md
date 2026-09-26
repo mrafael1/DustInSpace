@@ -49,7 +49,7 @@ The palette has 40 colours in 7 ramps (the dust ramp reuses N7 and N8). Files: `
 | Medium star | 11×11, halo r8 | 8-point star, cross core | same |
 | Big star | 15×15, halo r11 | Round 5 px core, long rays | same |
 | Selection ring | radius + 4 | Dashed C1 circle | 2-frame rotate |
-| Sun | r17 + 12 rays | Light pools from the bottom; rays light clockwise | 0–100%, pulse, ignite |
+| Sun | r17 + 12 rays | Light pools from the bottom; rays light clockwise | 0–100% with a smoulder (2 frames: embers swap, dim halo breathes), pulse, ignite, ignited idle (2 frames: alternate rays shimmer, core glint moves) |
 | Blue pack | r8 launcher / r6 HUD | Banded planet | idle, tremble, burst |
 | Red pack | r6 + ring | Ringed planet | same |
 | Slingshot | ~30×36 | Crescent fork with star gems | idle, pull (3–4 frames), release |

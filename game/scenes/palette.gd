@@ -18,7 +18,12 @@ const N7 := Color("#7E68C8")
 ## N8 doubles as the dust ramp's middle step (dust icon facets).
 const N8 := Color("#A77FD8")
 
-## Dim Sun ramp. S4 (ember) marks a rejected link: blue and red are reserved for packs.
+## Dim Sun ramp: the unlit Sun and its embers. S4 (ember) also marks a rejected link: blue and
+## red are reserved for packs.
+const S0 := Color("#2A1230")
+const S1 := Color("#45193A")
+const S2 := Color("#6B2238")
+const S3 := Color("#9A3232")
 const S4 := Color("#D0542E")
 
 ## Dust ramp: dust icon, numbers, particles.
