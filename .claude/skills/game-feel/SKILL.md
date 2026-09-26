@@ -37,4 +37,4 @@ The game's emotional core is the slot machine's: **anticipation, then reveal, th
 The debug key **B** forces the next pack to be a Big Bang.
 
 ## Sun ignition (win)
-The fill completes and all rays light. The halo switches from the S ramp to the C ramp, the sky warms over ~1.8 s, then the win screen appears.
+The fill completes and all rays light. The halo switches from the S ramp to the C ramp, the sky warms over ~1.8 s, then the win screen appears. Once ignited, the Sun idles on a 2-frame tick (0.5 s): every other ray loses its tip in turn, the core's C0 glint moves a pixel, and the glow within 60 px thins by one dither step. It never rotates or scales.
