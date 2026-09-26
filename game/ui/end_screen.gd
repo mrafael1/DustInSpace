@@ -3,8 +3,8 @@ extends CanvasLayer
 ## The run's end: when run_won or run_lost has played, this waits for the sequencer to finish
 ## (so the Sun's ignition plays out) and for every payout particle to land (so the counters
 ## show what the plaque says), then shows a plaque over everything.
-## Win: "SUN RESTORED" and the light. Loss: "THE SUN FADES", the reasons the core gives
-## (RunState.loss_reasons) and the light reached. RESTART asks Main for a new run.
+## Win: "SUN RESTORED" and the light. Loss: "THE SUN FADES" and the light reached.
+## RESTART asks Main for a new run.
 ## While it shows, it takes every pointer event, so nothing behind it can be touched.
 ## Owns no rules. Text is bitmap-font Labels (HudText); the plaque is drawn in code: N0 fill,
 ## N6 border with clipped corners, like the reward plaque. The button is warm: it's interactive.
@@ -20,11 +20,6 @@ const LINE_STEP: int = 11
 ## RESTART: 22 px tall, a 44 pt touch target at the phone's 2 pt per px.
 const BUTTON_SIZE := Vector2i(64, 22)
 const BUTTON_GAP: int = 6
-const REASON_TEXT: Dictionary = {
-	RunState.LossReason.NO_PACKS: "NO PACKS LEFT",
-	RunState.LossReason.NO_DUST: "NOT ENOUGH DUST",
-	RunState.LossReason.NO_COMBINATION: "NO COMBINATION LEFT",
-}
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -140,8 +135,6 @@ func _show_end() -> void:
 		_add_line(light, Palette.C1)
 	else:
 		_add_line("THE SUN FADES", Palette.S4)
-		for reason: RunState.LossReason in _run.loss_reasons():
-			_add_line(REASON_TEXT[reason], Palette.N8)
 		_add_line(light, Palette.C1)
 	var rows: int = _lines.get_child_count()
 	var height: int = PADDING + rows * LINE_STEP + BUTTON_GAP + BUTTON_SIZE.y + PADDING

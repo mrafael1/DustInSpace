@@ -36,12 +36,12 @@ func test_a_win_waits_for_the_sequence_then_shows() -> void:
 	assert_eq(screen.lines(), ["SUN RESTORED", "LIGHT 105/100"] as Array[String])
 
 
-func test_a_loss_names_every_reason_and_the_light_reached() -> void:
+func test_a_loss_shows_the_sun_fading_and_the_light_reached() -> void:
 	run.light = 40
 	_lose()
 	sequencer.advance(1.0)
 	assert_true(screen.is_showing())
-	assert_eq(screen.lines(), ["THE SUN FADES", "NO PACKS LEFT", "NOT ENOUGH DUST", "NO COMBINATION LEFT", "LIGHT 45/100"] as Array[String])
+	assert_eq(screen.lines(), ["THE SUN FADES", "LIGHT 45/100"] as Array[String])
 
 
 func test_a_loss_waits_for_the_last_payout_to_land() -> void:
@@ -65,7 +65,7 @@ func test_the_text_is_bitmap_font_and_palette_only() -> void:
 	for label: Node in screen.get_node("Canvas/Lines").get_children():
 		var settings: LabelSettings = (label as Label).label_settings
 		assert_eq(settings.font, HudText.PRIMARY_FONT)
-		assert_true(settings.font_color in [Palette.C1, Palette.S4, Palette.N8])
+		assert_true(settings.font_color in [Palette.C1, Palette.S4])
 		assert_eq((label as Label).position, (label as Label).position.round(), "whole pixels")
 		for c: String in (label as Label).text:
 			assert_true(HudText.PRIMARY_FONT.has_char(c.unicode_at(0)), "the font has %s" % c)
