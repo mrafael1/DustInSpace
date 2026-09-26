@@ -172,6 +172,40 @@ func test_stars_and_specks_spiral_into_the_hole() -> void:
 		assert_true(colour in [Palette.N6, Palette.N7, Palette.N8], "cool: sky dust isn't worth anything")
 
 
+func test_the_reviewed_corner_collapse_stays_on_screen() -> void:
+	var bounds: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
+	var from := Vector2i(171, 241)
+	var hole := StarScatter.clamp_to_sky(Vector2i(8, 86), Fixtures.SKY)
+	for step: int in 61:
+		var at: Vector2i = StarView.collapse_point(from, hole, step / 60.0, BigBangSequence.SWIRL, BigBangSequence.HOVER, bounds)
+		assert_true(bounds.has_point(at), "frame %d: %s stays in the sky" % [step, at])
+
+
+func test_stars_stay_visible_falling_into_a_hole_in_any_corner() -> void:
+	var bounds: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
+	var corners: Array[Vector2i] = [bounds.position, Vector2i(bounds.end.x - 1, bounds.position.y),
+		Vector2i(bounds.position.x, bounds.end.y - 1), bounds.end - Vector2i.ONE]
+	for i: int in corners.size():
+		var hole: Vector2i = corners[i]
+		var far: Vector2i = corners[3 - i]
+		var starts: Array[Vector2i] = [far, Vector2i(far.x, hole.y), Vector2i(hole.x, far.y), (hole + far) / 2]
+		for from: Vector2i in starts:
+			var outside: int = 0
+			for step: int in 61:
+				if not bounds.has_point(StarView.collapse_point(from, hole, step / 60.0, BigBangSequence.SWIRL, BigBangSequence.HOVER, bounds)):
+					outside += 1
+			assert_eq(outside, 0, "hole %s, star from %s: every frame on screen" % [hole, from])
+			assert_eq(StarView.collapse_point(from, hole, 1.0, BigBangSequence.SWIRL, BigBangSequence.HOVER, bounds), hole, "and into the hole")
+
+
+func test_far_stars_fall_nearly_straight_and_swirl_near_the_hole() -> void:
+	var from := Vector2i(150, 0)
+	var early: Vector2i = StarView.collapse_point(from, Vector2i.ZERO, 0.2, BigBangSequence.SWIRL, BigBangSequence.HOVER)
+	assert_lt(absf(Vector2(early).angle()), 0.2, "far away: nearly radial")
+	var late: Vector2i = StarView.collapse_point(from, Vector2i.ZERO, 0.8, BigBangSequence.SWIRL, BigBangSequence.HOVER)
+	assert_gt(absf(Vector2(late).angle()), 0.8, "near the hole: orbiting")
+
+
 func test_a_shockwave_ring_grows_and_cools() -> void:
 	assert_true(BigBangSequence.ring_pixels(-0.1).is_empty(), "a staggered ring waits")
 	assert_true(BigBangSequence.ring_pixels(1.0).is_empty())

@@ -189,7 +189,7 @@ func advance(delta: float) -> void:
 				return
 		State.COLLAPSING:
 			var k: float = minf(_time / _collapse_duration, 1.0)
-			position = Vector2(collapse_point(_from, _collapse_point, k, _collapse_swirl, _collapse_hover))
+			position = Vector2(collapse_point(_from, _collapse_point, k, _collapse_swirl, _collapse_hover, _bounds))
 			if k >= 1.0:
 				dissolved.emit(self)
 				queue_free()
@@ -238,17 +238,24 @@ static func half_extent(star_size: Star.Size) -> int:
 
 
 ## Where a collapsing star is at progress `k` (0-1), on whole pixels. Like falling into a black
-## hole: fast at first, then slower and slower as it nears `hover` px from `point` (an ease-out),
-## orbiting `swirl` turns meanwhile; from SWALLOW_AT it drops through to `point`.
-static func collapse_point(from: Vector2i, point: Vector2i, k: float, swirl: float, hover: int = 0) -> Vector2i:
+## hole: fast at first, then slower and slower as it nears `hover` px from `point` (an ease-out);
+## from SWALLOW_AT it drops through to `point`. It orbits faster the closer it gets (the turn
+## scales with hover / distance), so a far star falls nearly straight and swirls up to `swirl`
+## turns near the hole. With `bounds`, the path is clamped inside them: a hole in a corner of
+## the sky never swings a star off screen, and `point` itself must be inside them.
+static func collapse_point(from: Vector2i, point: Vector2i, k: float, swirl: float, hover: int = 0, bounds: Rect2i = Rect2i()) -> Vector2i:
 	var t: float = clampf(k, 0.0, 1.0)
 	var start: float = Vector2(from - point).length()
 	if start == 0.0:
 		return point
 	var edge: float = minf(float(hover), start)
 	var dist: float = (edge + (start - edge) * (1.0 - t) * (1.0 - t)) * (1.0 - smoothstep(SWALLOW_AT, 1.0, t))
-	var offset := Vector2(from - point).normalized().rotated(TAU * swirl * t) * dist
-	return point + Vector2i(offset.round())
+	var closeness: float = clampf(edge / maxf(dist, 1.0), 0.0, 1.0) if edge > 0.0 else 1.0
+	var offset := Vector2(from - point).normalized().rotated(TAU * swirl * t * closeness) * dist
+	var at: Vector2i = point + Vector2i(offset.round())
+	if bounds.has_area():
+		at = at.clamp(bounds.position, bounds.end - Vector2i.ONE)
+	return at
 
 
 static func _ease_out_back(k: float) -> float:

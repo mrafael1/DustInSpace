@@ -153,6 +153,25 @@ func test_a_big_bang_opens_into_decoys_then_collapses_every_star() -> void:
 	assert_eq(_views().size(), 0, "then gone")
 
 
+func test_a_corner_big_bang_keeps_every_star_on_screen() -> void:
+	run.add_star(Star.Size.BIG, Vector2i(171, 241))
+	run.add_star(Star.Size.MEDIUM, Vector2i(170, 90))
+	sky.setup(run, sequencer)
+	run.force_next_big_bang = true
+	run.launch(Vector2i(8, 86))
+	sequencer.advance(0.0)
+	var bounds: Rect2i = StarScatter.inner_rect(run.sky_rect)
+	var off_screen: int = 0
+	var frames: int = ceili((BigBangSequence.FREEZE_AT + BigBangSequence.COLLAPSE_TIME) / STEP)
+	for i: int in frames:
+		_play(STEP)
+		for view: StarView in _views():
+			if not bounds.has_point(Vector2i(view.position)):
+				off_screen += 1
+	assert_eq(off_screen, 0, "no star leaves the sky on its way into a corner hole")
+	assert_eq(_views().size(), 0)
+
+
 func test_decoys_are_never_linkable() -> void:
 	run.force_next_big_bang = true
 	run.launch(Vector2i(90, 160))
