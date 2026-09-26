@@ -112,13 +112,53 @@ func test_overshoot_peak_is_where_the_flight_turns_back() -> void:
 		previous = x
 
 
-func test_shapes_match_the_art_direction_sizes() -> void:
+func test_star_art_matches_the_art_direction_sizes() -> void:
 	var sizes: Array[int] = [5, 11, 15]
 	for size: int in Star.Size.values():
-		var rows: Array = StarView.SHAPES[size]
-		assert_eq(rows.size(), sizes[size], "height of %s" % Star.size_key(size))
-		for row: String in rows:
-			assert_eq(row.length(), sizes[size], "square pixel map for %s" % Star.size_key(size))
+		var sheet: Texture2D = StarView.SHEETS[size]
+		assert_eq(sheet.get_height(), sizes[size], "%s is %d px" % [Star.size_key(size), sizes[size]])
+		assert_eq(sheet.get_width(), sizes[size] * StarView.FRAMES.size(), "one square frame per state")
+		assert_eq(StarView.RING_SHEETS[size].get_width(), 2 * StarView.RING_SHEETS[size].get_height(), "2 ring frames")
+		assert_eq(StarView.half_extent(size), sizes[size] >> 1)
+
+
+func test_frame_names_match_the_json_sidecars() -> void:
+	for key: String in ["small", "medium", "big"]:
+		var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/art/stars_%s.json" % key))
+		var names: Array[StringName] = []
+		for name: String in data["frames"]:
+			names.append(StringName(name))
+		assert_eq(names, StarView.FRAMES, key)
+
+
+func test_star_art_is_opaque_palette_pixels_only() -> void:
+	var gpl: Array[Color] = _gpl_colours()
+	var sheets: Array[Texture2D] = StarView.SHEETS + StarView.RING_SHEETS
+	for sheet: Texture2D in sheets:
+		var image: Image = sheet.get_image()
+		var bad: int = 0
+		for y: int in image.get_height():
+			for x: int in image.get_width():
+				var c: Color = image.get_pixel(x, y)
+				if c.a == 0.0:
+					continue
+				if c.a < 1.0 or not gpl.any(func(g: Color) -> bool: return g.to_html(false) == c.to_html(false)):
+					bad += 1
+		assert_eq(bad, 0, "%s: opaque Stellar Sun colours only" % sheet.resource_path)
+
+
+func test_warm_stars_are_told_apart_by_silhouette() -> void:
+	var counts: Array[int] = []
+	for size: int in Star.Size.values():
+		var mask: Image = StarView.SHEETS[size].get_image().get_region(Rect2i(0, 0, StarView.SHEETS[size].get_height(), StarView.SHEETS[size].get_height()))
+		var lit: int = 0
+		for y: int in mask.get_height():
+			for x: int in mask.get_width():
+				if mask.get_pixel(x, y).a > 0.0:
+					lit += 1
+		counts.append(lit)
+	assert_lt(counts[0], counts[1], "small < medium")
+	assert_lt(counts[1], counts[2], "medium < big")
 
 
 func test_palette_colours_come_from_the_gpl_file() -> void:

@@ -1,6 +1,6 @@
 class_name StarView
 extends Node2D
-## One star in the sky, drawn from placeholder pixel maps until the star art lands (#12).
+## One star in the sky, drawn from the star art in assets/art/ (#12).
 ## Flies from its pack's burst point to the position the core gave it, then twinkles.
 ## Owns no rules: Sky tells it when to fly, dissolve, collapse or show as selected.
 ## The halo isn't drawn here: Sky paints every halo on a layer under all stars, so a newer
@@ -25,8 +25,6 @@ const TWINKLE_PERIOD: float = 2.4
 const GLINT_TIME: float = 0.16
 ## Selection ring: 2-frame rotate.
 const RING_FRAME_TIME: float = 0.2
-const RING_GAP: int = 4
-const RING_DASHES: int = 16
 const EASE_BACK: float = 1.70158
 ## Collapse: stars dim from here, and are swallowed from here to the end.
 const REDSHIFT_AT: float = 0.5
@@ -35,48 +33,24 @@ const SWALLOW_AT: float = 0.85
 ## only drifts back by at most 10% of its flight, so linking it no longer feels wrong.
 const OVERSHOOT_PEAK: float = 1.0 - 2.0 * EASE_BACK / (3.0 * (EASE_BACK + 1.0))
 
-## Pixel maps per Star.Size, centred. Digits are steps on STAR_STEPS (0 = C0 core), "." is empty.
-const SHAPES: Array = [
-	[
-		"..2..",
-		"..1..",
-		"21012",
-		"..1..",
-		"..2..",
-	],
-	[
-		".....3.....",
-		".....2.....",
-		".....1.....",
-		"..3..1..3..",
-		"...21012...",
-		"32110001123",
-		"...21012...",
-		"..3..1..3..",
-		".....1.....",
-		".....2.....",
-		".....3.....",
-	],
-	[
-		".......3.......",
-		".......2.......",
-		".......2.......",
-		"...3...1...3...",
-		"....2..1..2....",
-		"......111......",
-		".....10001.....",
-		"322111000111223",
-		".....10001.....",
-		"......111......",
-		"....2..1..2....",
-		"...3...1...3...",
-		".......2.......",
-		".......2.......",
-		".......3.......",
-	],
+## The star art (assets/art/, built by tools/art/build_stars.py): one horizontal strip per
+## Star.Size of square frames, in FRAMES order (the JSON sidecars name them), and a 2-frame
+## dashed selection ring strip per size. Drawn at whole-pixel offsets, never scaled.
+const SHEETS: Array[Texture2D] = [
+	preload("res://assets/art/stars_small.png"),
+	preload("res://assets/art/stars_medium.png"),
+	preload("res://assets/art/stars_big.png"),
 ]
+const RING_SHEETS: Array[Texture2D] = [
+	preload("res://assets/art/selection_ring_small.png"),
+	preload("res://assets/art/selection_ring_medium.png"),
+	preload("res://assets/art/selection_ring_big.png"),
+]
+const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flare_core", &"fade_core", &"fade_dot", &"dim", &"dim_core"]
+## Which dissolve and collapse frames play, in order.
+const DISSOLVE_SEQUENCE: Array[StringName] = [&"flare", &"flare_core", &"fade_core", &"fade_dot"]
+const COLLAPSE_SEQUENCE: Array[StringName] = [&"glint", &"dim", &"dim_core"]
 const HALO_RADIUS: Array[int] = [4, 8, 11]
-const STAR_STEPS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
 ## Ordered-dither thresholds (0-15) for the halo.
 const BAYER: Array[int] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
 
@@ -99,6 +73,7 @@ var _frame_key: int = -1
 var _collapse_point: Vector2i = Vector2i.ZERO
 var _collapse_duration: float = 0.0
 var _collapse_wait: float = -1.0
+static var _masks: Dictionary = {}
 ## Turns the star swirls around the point while it falls in, and how far out it hangs.
 var _collapse_swirl: float = 0.0
 var _collapse_hover: int = 0
@@ -234,7 +209,7 @@ static func flight_point(from: Vector2i, to: Vector2i, k: float, bounds: Rect2i)
 
 ## How far a star's sprite reaches from its centre pixel, e.g. 7 for the 15x15 big star.
 static func half_extent(star_size: Star.Size) -> int:
-	return (SHAPES[star_size] as Array).size() >> 1
+	return SHEETS[star_size].get_height() >> 1
 
 
 ## Where a collapsing star is at progress `k` (0-1), on whole pixels. Like falling into a black
@@ -332,77 +307,57 @@ func _dissolve_frame() -> int:
 
 
 func _draw_settling() -> void:
-	if _is_spark():
-		_draw_shape(0, 0)
-	else:
-		_draw_shape(STAR_STEPS.size() - 1, 0)
+	_draw_frame(&"spark" if _is_spark() else &"idle")
 
 
 func _draw_idle() -> void:
 	# A glint lifts every step one notch brighter for a moment.
-	_draw_shape(STAR_STEPS.size() - 1, -1 if _is_glinting() else 0)
+	_draw_frame(&"glint" if _is_glinting() else &"idle")
 	if selected:
 		_draw_ring()
 
 
-## Flare white (the halo stays for this frame), shrink to the bright core, then to one pixel.
 func _draw_dissolve() -> void:
-	match _dissolve_frame():
-		0:
-			_draw_shape(STAR_STEPS.size() - 1, -STAR_STEPS.size())
-		1:
-			_draw_shape(1, -STAR_STEPS.size())
-		2:
-			_draw_shape(0, 1)
-		_:
-			_dot(Vector2i.ZERO, Palette.C1)
+	_draw_frame(DISSOLVE_SEQUENCE[_dissolve_frame()])
 
 
-## Pulled in bright; crushed down to the C0 core near the end.
+## Pulled in bright, a step darker as it slows near the hole, then only a dim core.
 func _draw_collapse() -> void:
-	match _redshift():
-		0:
-			_draw_shape(STAR_STEPS.size() - 1, -1)
-		1:
-			_draw_shape(STAR_STEPS.size() - 1, 1)
-		_:
-			_draw_shape(0, STAR_STEPS.size() - 1)
+	_draw_frame(COLLAPSE_SEQUENCE[_redshift()])
 
 
-## Draws the pixels whose step is at most `max_step`, shifted by `shift` steps (negative = brighter).
-func _draw_shape(max_step: int, shift: int) -> void:
-	var rows: Array = SHAPES[size]
-	var half: int = _half_extent()
-	for y: int in rows.size():
-		var row: String = rows[y]
-		for x: int in row.length():
-			if row[x] == ".":
-				continue
-			var step: int = int(row[x])
-			if step <= max_step:
-				_dot(Vector2i(x - half, y - half), STAR_STEPS[clampi(step + shift, 0, STAR_STEPS.size() - 1)])
+## One frame of this star's strip, centred on the node.
+func _draw_frame(frame: StringName) -> void:
+	var sheet: Texture2D = SHEETS[size]
+	var w: int = sheet.get_height()
+	var i: int = FRAMES.find(frame)
+	draw_texture_rect_region(sheet, Rect2(Vector2(-(w >> 1), -(w >> 1)), Vector2(w, w)), Rect2(i * w, 0, w, w))
 
 
-## Dashed C1 circle at the star's radius + RING_GAP; the dashes swap every RING_FRAME_TIME.
+## The dashed C1 selection ring; its dashes swap every RING_FRAME_TIME.
 func _draw_ring() -> void:
-	var radius: int = _half_extent() + RING_GAP
-	var frame: int = _ring_frame()
-	for dy: int in range(-radius - 1, radius + 2):
-		for dx: int in range(-radius - 1, radius + 2):
-			if roundi(sqrt(float(dx * dx + dy * dy))) != radius:
-				continue
-			var dash: int = int((atan2(dy, dx) + PI) / TAU * RING_DASHES) % RING_DASHES
-			if (dash + frame) % 2 == 0:
-				_dot(Vector2i(dx, dy), Palette.C1)
+	var sheet: Texture2D = RING_SHEETS[size]
+	var cell: int = sheet.get_height()
+	draw_texture_rect_region(sheet, Rect2(Vector2(-(cell >> 1), -(cell >> 1)), Vector2(cell, cell)), Rect2(_ring_frame() * cell, 0, cell, cell))
 
 
+## Whether the idle sprite covers `offset` (from the centre): the halo leaves those pixels alone.
 func _is_shape_pixel(offset: Vector2i) -> bool:
-	var rows: Array = SHAPES[size]
+	var mask: Image = _idle_mask(size)
 	var half: int = _half_extent()
 	var cell: Vector2i = offset + Vector2i(half, half)
-	if cell.x < 0 or cell.y < 0 or cell.y >= rows.size() or cell.x >= (rows[cell.y] as String).length():
+	if cell.x < 0 or cell.y < 0 or cell.x >= mask.get_width() or cell.y >= mask.get_height():
 		return false
-	return (rows[cell.y] as String)[cell.x] != "."
+	return mask.get_pixelv(cell).a > 0.0
+
+
+## The idle frame's pixels, read once per size from its sheet.
+static func _idle_mask(star_size: Star.Size) -> Image:
+	if not _masks.has(star_size):
+		var sheet: Image = SHEETS[star_size].get_image()
+		var w: int = sheet.get_height()
+		_masks[star_size] = sheet.get_region(Rect2i(0, 0, w, w))
+	return _masks[star_size]
 
 
 func _refresh() -> void:
@@ -412,7 +367,3 @@ func _refresh() -> void:
 
 func _half_extent() -> int:
 	return half_extent(size)
-
-
-func _dot(offset: Vector2i, color: Color) -> void:
-	draw_rect(Rect2(Vector2(offset), Vector2.ONE), color)
