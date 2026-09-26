@@ -3,7 +3,7 @@ extends RefCounted
 ## One "Restore the Sun" run: dust, light, owned packs, the launcher, stars in the sky,
 ## and win/loss. Resolves every action instantly; scenes animate from the signals.
 
-signal pack_bought(kind: String)
+signal pack_bought(kind: String, dust_after: int)
 signal pack_loaded(kind: String)
 signal pack_launched(kind: String, burst_position: Vector2i)
 signal pack_burst(kind: String, burst_position: Vector2i, stars: Array[Star])
@@ -90,7 +90,7 @@ func buy(kind: String) -> bool:
 		return false
 	dust -= balance.packs[kind].cost
 	owned_packs[kind] += 1
-	pack_bought.emit(kind)
+	pack_bought.emit(kind, dust)
 	load_pack(kind)
 	return true
 
