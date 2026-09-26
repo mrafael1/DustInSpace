@@ -1,6 +1,6 @@
 # Dust In Space
 
-Portrait pixel-art mobile game in Godot 4. The player launches celestial packs, links stars, and restores light to a dying Sun.
+Portrait pixel-art mobile game in Godot 4.7. The player launches celestial packs, links stars, and restores light to a dying Sun.
 
 ![Gameplay concept](docs/concept/gameplay_mockup_4x.png)
 
@@ -10,6 +10,6 @@ Portrait pixel-art mobile game in Godot 4. The player launches celestial packs, 
 - Balance: `game/config/balance.json`. Check changes with `python tools/balance/sim.py`.
 
 ## Setup
-1. Install Godot 4 (latest stable) and open `project.godot`.
-2. Install **GUT** from the AssetLib for tests.
+1. Install Godot 4.7 (stable) and open `project.godot`.
+2. Tests use **GUT 9.7.1**, already committed in `addons/gut`.
 3. Load `assets/palettes/stellar_sun.gpl` into Aseprite for art.
