@@ -323,6 +323,27 @@ func test_loses_with_no_packs_no_dust_and_no_combo() -> void:
 	assert_signal_emit_count(run, "run_lost", 1)
 
 
+func test_loss_reasons_name_each_condition_that_holds() -> void:
+	assert_eq(run.loss_reasons(), [RunState.LossReason.NO_DUST, RunState.LossReason.NO_COMBINATION] as Array[RunState.LossReason],
+		"the start: packs but no dust and an empty sky")
+	_no_packs(run)
+	assert_eq(run.loss_reasons().size(), 3, "all three: that's a loss")
+	run.dust = 4
+	assert_false(RunState.LossReason.NO_DUST in run.loss_reasons(), "4 dust buys a blue pack")
+	run.dust = 0
+	_add([S, S, S])
+	assert_false(RunState.LossReason.NO_COMBINATION in run.loss_reasons())
+
+
+func test_a_lost_run_has_every_loss_reason() -> void:
+	_no_packs(run)
+	var stars: Array[Star] = _add([S, S, S])
+	run.link(Fixtures.ids(stars))
+	assert_eq(run.dust, 3, "3 dust can't buy a 4-dust pack")
+	assert_eq(run.outcome, RunState.Outcome.LOST)
+	assert_eq(run.loss_reasons(), [RunState.LossReason.NO_PACKS, RunState.LossReason.NO_DUST, RunState.LossReason.NO_COMBINATION] as Array[RunState.LossReason])
+
+
 func test_no_loss_while_a_combo_remains_in_the_sky() -> void:
 	# Last pack bursts into a sky that still holds a combo: the run must go on.
 	var state: RunState = Fixtures.run({"start_packs": {"blue": 1, "red": 0}})
