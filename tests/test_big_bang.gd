@@ -1,0 +1,276 @@
+extends GutTest
+## The Big Bang sequence: timeline, hold, flash, rings, debris, banner and dust stream.
+
+const Fixtures := preload("res://tests/fixtures.gd")
+const BigBangScene := preload("res://game/fx/big_bang.tscn")
+
+var run: RunState
+var sequencer: EventSequencer
+var big_bang: BigBangSequence
+
+
+func before_each() -> void:
+	run = Fixtures.run()
+	sequencer = EventSequencer.new()
+	add_child_autofree(sequencer)
+	sequencer.set_process(false)
+	sequencer.bind(run)
+	big_bang = BigBangScene.instantiate()
+	add_child_autofree(big_bang)
+	big_bang.set_process(false)
+	big_bang.setup(run, sequencer)
+
+
+func test_the_timeline_follows_the_game_feel_script() -> void:
+	assert_almost_eq(BigBangSequence.FREEZE_AT, 0.26, 0.001, "freeze at +260 ms")
+	assert_almost_eq(BigBangSequence.COLLAPSE_TIME, 0.75, 0.001)
+	assert_almost_eq(BigBangSequence.PAUSE_TIME, 0.5, 0.001, "a short silent pause")
+	assert_almost_eq(BigBangSequence.BANG_AT, 1.51, 0.001)
+	assert_almost_eq(BigBangSequence.INPUT_BACK_AFTER, 1.1, 0.001)
+	assert_almost_eq(BigBangSequence.BANNER_TIME, 2.5, 0.001)
+	assert_eq(BigBangSequence.RINGS, 3)
+	assert_eq(BigBangSequence.DEBRIS, 200)
+
+
+func test_input_comes_back_about_a_second_after_the_bang() -> void:
+	_big_bang()
+	assert_true(big_bang.is_playing())
+	sequencer.advance(BigBangSequence.BANG_AT + BigBangSequence.INPUT_BACK_AFTER - 0.05)
+	assert_true(sequencer.is_busy(), "held through the collapse and the bang")
+	sequencer.advance(0.1)
+	assert_false(sequencer.is_busy())
+
+
+func test_the_bang_flashes_hard_then_leaves_a_shrinking_solid_core() -> void:
+	_big_bang()
+	big_bang.advance(BigBangSequence.BANG_AT - 0.01)
+	assert_false(big_bang.is_flashing(), "no flash before the bang")
+	big_bang.advance(0.02)
+	assert_true(big_bang.is_flashing(), "full white")
+	big_bang.advance(BigBangSequence.FLASH_HOLD)
+	assert_false(big_bang.is_flashing(), "cut after about two frames: no dithered fade")
+	var t: float = BigBangSequence.FLASH_HOLD
+	assert_eq(BigBangSequence.flash_core_radius(t), BigBangSequence.FLASH_CORE_RADIUS, "a solid core stays")
+	assert_lt(BigBangSequence.flash_core_radius(t + BigBangSequence.FLASH_CORE_TIME / 2), BigBangSequence.FLASH_CORE_RADIUS, "and shrinks")
+	assert_eq(BigBangSequence.flash_core_radius(t + BigBangSequence.FLASH_CORE_TIME), 0, "to nothing")
+	assert_eq(BigBangSequence.flash_core_radius(0.0), 0, "not while the whole screen is white")
+
+
+func test_the_banner_shows_the_dust_for_two_and_a_half_seconds() -> void:
+	_big_bang()
+	assert_false(big_bang.is_banner_shown(), "no banner before the bang: the surprise")
+	big_bang.advance(BigBangSequence.BANG_AT + 0.01)
+	assert_true(big_bang.is_banner_shown())
+	assert_eq(big_bang.banner_text(), "BIG BANG +0", "the dust rolls up from 0")
+	big_bang.advance(BigBangSequence.COUNT_TIME)
+	assert_eq(big_bang.banner_text(), "BIG BANG +%d" % run.balance.big_bang_base_dust)
+	big_bang.advance(BigBangSequence.BANNER_TIME)
+	assert_false(big_bang.is_banner_shown())
+
+
+func test_the_banner_pops_in_and_shimmers() -> void:
+	_big_bang()
+	var title: Label = big_bang.get_node("Front/Banner/Title")
+	big_bang.advance(BigBangSequence.BANG_AT + 0.01)
+	assert_eq(title.scale, Vector2(3, 3), "pops in big")
+	assert_eq(title.position, title.position.round(), "whole pixels")
+	assert_eq(title.label_settings.font_color, Palette.C0, "shimmering")
+	big_bang.advance(BigBangSequence.BANNER_POP)
+	assert_eq(title.scale, Vector2(2, 2), "then settles, integer scale only")
+	assert_eq(title.position.x + title.size.x * title.scale.x / 2.0, 0.0, "centred on the banner")
+	assert_eq(title.label_settings.font_color, Palette.C1)
+	big_bang.advance(BigBangSequence.SHIMMER_TIME)
+	assert_eq(title.label_settings.font_color, Palette.C1, "the shimmer stops")
+
+
+func test_the_dust_rolls_up_like_a_payout() -> void:
+	assert_eq(BigBangSequence.banner_count(20, 0.0), 0)
+	assert_between(BigBangSequence.banner_count(20, BigBangSequence.COUNT_TIME / 2), 1, 19)
+	assert_eq(BigBangSequence.banner_count(20, BigBangSequence.COUNT_TIME), 20)
+	assert_eq(BigBangSequence.banner_count(20, 5.0), 20)
+
+
+func test_the_bang_shakes_the_world_whole_pixels_then_rests() -> void:
+	assert_eq(BigBangSequence.shake_offset(-0.1), Vector2i.ZERO, "still before the bang")
+	for i: int in BigBangSequence.SHAKE.size():
+		var at: Vector2i = BigBangSequence.shake_offset(i * BigBangSequence.SHAKE_STEP)
+		assert_lte(maxi(absi(at.x), absi(at.y)), 3, "1-3 px")
+	assert_eq(BigBangSequence.shake_offset(BigBangSequence.SHAKE.size() * BigBangSequence.SHAKE_STEP), Vector2i.ZERO, "then rest")
+	assert_true(big_bang.get_node("Shake") is Camera2D, "a camera: the HUD and banner layers stay still")
+	_big_bang()
+	big_bang.advance(BigBangSequence.BANG_AT + 0.01)
+	assert_ne((big_bang.get_node("Shake") as Camera2D).offset, Vector2.ZERO)
+	big_bang.advance(1.0)
+	assert_eq((big_bang.get_node("Shake") as Camera2D).offset, Vector2.ZERO)
+
+
+func test_newborn_sparkles_grow_then_fade_in_their_colours() -> void:
+	assert_true(BigBangSequence.sparkle_pixels(-0.1, 0).is_empty())
+	assert_true(BigBangSequence.sparkle_pixels(1.0, 0).is_empty())
+	assert_eq(BigBangSequence.sparkle_pixels(0.05, 0).size(), 1, "a dot")
+	var peak: Dictionary[Vector2i, Color] = BigBangSequence.sparkle_pixels(0.45, 0)
+	assert_eq(peak.size(), 9, "a big plus")
+	assert_eq(peak[Vector2i.ZERO], Palette.C0, "with a C0 heart")
+	assert_eq(BigBangSequence.sparkle_pixels(0.95, 1).values()[0], Palette.N7, "dust sparkles cool down the dust ramp")
+	for u: float in [0.05, 0.25, 0.45, 0.65, 0.85]:
+		for ramp: int in 2:
+			for colour: Color in BigBangSequence.sparkle_pixels(u, ramp).values():
+				assert_true(colour in [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.D0, Palette.N8, Palette.N7])
+
+
+func test_the_banner_font_has_its_letters() -> void:
+	for c: String in "BIG BANG+0123456789":
+		assert_true(HudText.PRIMARY_FONT.has_char(c.unicode_at(0)), c)
+
+
+func test_the_white_point_pulses_between_a_pixel_and_a_plus() -> void:
+	assert_eq(BigBangSequence.point_pixels(0.0).size(), 1)
+	assert_eq(BigBangSequence.point_pixels(BigBangSequence.POINT_PULSE).size(), 5)
+	assert_eq(BigBangSequence.point_pixels(2 * BigBangSequence.POINT_PULSE).size(), 1)
+
+
+func test_a_black_hole_opens_during_the_collapse_then_implodes_into_the_point() -> void:
+	assert_eq(BigBangSequence.hole_radius(-0.01), 0, "no hole before the freeze")
+	assert_gt(BigBangSequence.hole_radius(0.0), 0, "it opens at the freeze")
+	assert_lt(BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME * 0.2), BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME * 0.9), "it grows")
+	assert_eq(BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME - 0.001), BigBangSequence.HOLE_RADIUS)
+	assert_lt(BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME + BigBangSequence.HOLE_IMPLODE * 0.7), BigBangSequence.HOLE_RADIUS, "then implodes")
+	assert_eq(BigBangSequence.hole_radius(BigBangSequence.COLLAPSE_TIME + BigBangSequence.HOLE_IMPLODE), 0, "leaving the white point")
+	assert_lt(BigBangSequence.COLLAPSE_TIME + BigBangSequence.HOLE_IMPLODE, BigBangSequence.COLLAPSE_TIME + BigBangSequence.PAUSE_TIME, "inside the pause")
+
+
+func test_the_hole_is_black_in_a_photon_ring_with_a_lensed_arc_and_a_front_band() -> void:
+	var r: int = BigBangSequence.HOLE_RADIUS
+	var a: Dictionary[Vector2i, Color] = BigBangSequence.hole_pixels(r, 0)
+	var b: Dictionary[Vector2i, Color] = BigBangSequence.hole_pixels(r, 1)
+	assert_eq(a[Vector2i(0, -r + 1)], Palette.N0, "a black disc")
+	assert_true(a[Vector2i(-(r + 1), 0)] in [Palette.C0, Palette.C2], "in a bright photon ring")
+	assert_eq(a[Vector2i(0, -(r + 2))], Palette.C3, "the far side lensed over the top: not a ringed planet")
+	var band_y: int = roundi((r + BigBangSequence.DISC_GAP) * BigBangSequence.DISC_TILT)
+	assert_true(a[Vector2i(0, band_y)] in [Palette.C1, Palette.C2], "the near side crosses in front of the hole")
+	assert_ne(a, b, "highlights and dashes move each spin step")
+	for colour: Color in a.values():
+		assert_true(colour in [Palette.N0, Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.C5], colour.to_html(false))
+	var reach: float = a.keys().map(func(o: Vector2i) -> float: return Vector2(o).length()).max()
+	assert_lte(reach, r + BigBangSequence.HOLE_HALO + 0.5)
+
+
+func test_stars_and_specks_spiral_into_the_hole() -> void:
+	var from := Vector2i(60, 0)
+	var at: Callable = func(k: float) -> float:
+		return Vector2(StarView.collapse_point(from, Vector2i.ZERO, k, BigBangSequence.SWIRL, BigBangSequence.HOVER)).length()
+	assert_eq(StarView.collapse_point(from, Vector2i.ZERO, 0.0, BigBangSequence.SWIRL, BigBangSequence.HOVER), from)
+	assert_gt(at.call(0.0) - at.call(0.2), at.call(0.5) - at.call(0.7), "fast at first, slower near the hole")
+	assert_between(at.call(0.8), float(BigBangSequence.HOVER), BigBangSequence.HOVER + 3.0, "hanging just outside the hole")
+	var half: Vector2i = StarView.collapse_point(from, Vector2i.ZERO, 0.5, BigBangSequence.SWIRL, BigBangSequence.HOVER)
+	assert_ne(half.y, 0, "and turned: a spiral, not a straight line")
+	assert_eq(at.call(1.0), 0.0, "swallowed at the end")
+	var near := Vector2i(5, 0)
+	assert_lte(Vector2(StarView.collapse_point(near, Vector2i.ZERO, 0.5, BigBangSequence.SWIRL, BigBangSequence.HOVER)).length(), 5.0 + sqrt(0.5),
+		"a star already inside the hover distance never moves outward (beyond whole-pixel rounding)")
+	for colour: Color in BigBangSequence.SPECK_COLOURS:
+		assert_true(colour in [Palette.N6, Palette.N7, Palette.N8], "cool: sky dust isn't worth anything")
+
+
+func test_the_reviewed_corner_collapse_stays_on_screen() -> void:
+	var bounds: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
+	var from := Vector2i(171, 241)
+	var hole := StarScatter.clamp_to_sky(Vector2i(8, 86), Fixtures.SKY)
+	for step: int in 61:
+		var at: Vector2i = StarView.collapse_point(from, hole, step / 60.0, BigBangSequence.SWIRL, BigBangSequence.HOVER, bounds)
+		assert_true(bounds.has_point(at), "frame %d: %s stays in the sky" % [step, at])
+
+
+func test_stars_stay_visible_falling_into_a_hole_in_any_corner() -> void:
+	var bounds: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
+	var corners: Array[Vector2i] = [bounds.position, Vector2i(bounds.end.x - 1, bounds.position.y),
+		Vector2i(bounds.position.x, bounds.end.y - 1), bounds.end - Vector2i.ONE]
+	for i: int in corners.size():
+		var hole: Vector2i = corners[i]
+		var far: Vector2i = corners[3 - i]
+		var starts: Array[Vector2i] = [far, Vector2i(far.x, hole.y), Vector2i(hole.x, far.y), (hole + far) / 2]
+		for from: Vector2i in starts:
+			var outside: int = 0
+			for step: int in 61:
+				if not bounds.has_point(StarView.collapse_point(from, hole, step / 60.0, BigBangSequence.SWIRL, BigBangSequence.HOVER, bounds)):
+					outside += 1
+			assert_eq(outside, 0, "hole %s, star from %s: every frame on screen" % [hole, from])
+			assert_eq(StarView.collapse_point(from, hole, 1.0, BigBangSequence.SWIRL, BigBangSequence.HOVER, bounds), hole, "and into the hole")
+
+
+func test_far_stars_fall_nearly_straight_and_swirl_near_the_hole() -> void:
+	var from := Vector2i(150, 0)
+	var early: Vector2i = StarView.collapse_point(from, Vector2i.ZERO, 0.2, BigBangSequence.SWIRL, BigBangSequence.HOVER)
+	assert_lt(absf(Vector2(early).angle()), 0.2, "far away: nearly radial")
+	var late: Vector2i = StarView.collapse_point(from, Vector2i.ZERO, 0.8, BigBangSequence.SWIRL, BigBangSequence.HOVER)
+	assert_gt(absf(Vector2(late).angle()), 0.8, "near the hole: orbiting")
+
+
+func test_a_shockwave_ring_grows_and_cools() -> void:
+	assert_true(BigBangSequence.ring_pixels(-0.1).is_empty(), "a staggered ring waits")
+	assert_true(BigBangSequence.ring_pixels(1.0).is_empty())
+	var early: Dictionary[Vector2i, Color] = BigBangSequence.ring_pixels(0.1)
+	var late: Dictionary[Vector2i, Color] = BigBangSequence.ring_pixels(0.9)
+	assert_eq(early.values()[0], Palette.C0, "hot")
+	assert_eq(late.values()[0], Palette.C3, "cooled")
+	var reach: Callable = func(dots: Dictionary[Vector2i, Color]) -> float:
+		return dots.keys().map(func(o: Vector2i) -> float: return Vector2(o).length()).max()
+	assert_lt(reach.call(early), reach.call(late), "it grows")
+	assert_lte(reach.call(late), BigBangSequence.RING_REACH + 1.0)
+
+
+func test_dithers_cover_their_density() -> void:
+	for density: float in [0.25, 0.5, 0.75, 1.0]:
+		var tile: Image = BigBangSequence.dither_tile(density, Palette.C0)
+		var lit: int = 0
+		for y: int in 4:
+			for x: int in 4:
+				if tile.get_pixel(x, y).a > 0.0:
+					assert_eq(tile.get_pixel(x, y), Palette.C0)
+					lit += 1
+		assert_eq(lit, roundi(density * 16), "%s of the pixels" % density)
+
+
+func test_debris_uses_palette_colours_only() -> void:
+	for colour: Color in BigBangSequence.DEBRIS_COLOURS:
+		assert_true(colour in [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.N8, Palette.N9, Palette.N10, Palette.D0])
+
+
+func test_a_new_run_stops_the_sequence() -> void:
+	_big_bang()
+	big_bang.advance(BigBangSequence.BANG_AT + 0.1)
+	big_bang.setup(Fixtures.run(), sequencer)
+	assert_false(big_bang.is_playing())
+	assert_false(big_bang.is_banner_shown())
+
+
+func test_the_dust_streams_from_the_burst_after_the_bang() -> void:
+	var particles := CollectParticles.new()
+	add_child_autofree(particles)
+	particles.set_process(false)
+	particles.setup(run, sequencer)
+	var landed: Array[int] = []
+	particles.dust_arrived.connect(func(n: int) -> void: landed.append(n))
+	_big_bang()
+	var dust: int = run.balance.big_bang_base_dust
+	assert_eq(particles.in_flight(CollectParticles.Kind.DUST), dust)
+	particles.advance(BigBangSequence.BANG_AT)
+	assert_eq(landed, [] as Array[int], "nothing lands before the bang")
+	particles.advance(CollectParticles.STAGGER * CollectParticles.BIG_BANG_PARTICLES + CollectParticles.FLIGHT_MAX)
+	assert_eq(landed.reduce(func(a: int, b: int) -> int: return a + b, 0), dust)
+	assert_eq(landed.size(), mini(dust, CollectParticles.BIG_BANG_PARTICLES), "a stream, not a lump")
+
+
+func test_debug_key_b_forces_the_next_big_bang() -> void:
+	var keys := DebugKeys.new()
+	add_child_autofree(keys)
+	keys.setup(run, sequencer)
+	assert_true(keys.force_big_bang())
+	assert_true(run.force_next_big_bang)
+
+
+## Launches a forced Big Bang into an empty sky and plays its event.
+func _big_bang() -> void:
+	run.force_next_big_bang = true
+	assert_true(run.launch(Vector2i(90, 160)))
+	sequencer.advance(0.0)

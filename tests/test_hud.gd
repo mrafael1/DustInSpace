@@ -73,9 +73,11 @@ func test_a_flight_reveals_nothing_ahead_of_it() -> void:
 	assert_false(hud.slot("red").is_loaded(), "red isn't loaded until its event plays")
 	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.N7, "not affordable yet")
 	sequencer.advance(1.0)
-	assert_eq(_label("Dust").text, "%d" % run.dust)
+	assert_eq(_label("Dust").text, "0", "the Big Bang's dust streams in after the bang")
+	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.D0, "but it's won: red is affordable")
 	assert_true(hud.slot("red").is_loaded())
-	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.D0)
+	hud.receive_dust(run.dust)
+	assert_eq(_label("Dust").text, "%d" % run.dust)
 	_assert_shows_the_run()
 
 

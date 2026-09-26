@@ -7,6 +7,8 @@ extends Node2D
 ## Halos are painted on the HaloLayer, under every star, so no halo covers another star.
 ## Linking: pointer input goes through a LinkGesture; the traced line is on the LinkLayer and
 ## the reward preview on the RewardPlaque. The link itself is RunState.link()'s call.
+## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
+## linkable), then every star in the sky and the decoys collapse into the burst point.
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -20,6 +22,10 @@ var _run: RunState
 var _sequencer: EventSequencer
 var _views: Dictionary[int, StarView] = {}
 var _gesture := LinkGesture.new(star_at)
+## The kind of the pack last launched, so a Big Bang's decoys look like that pack's stars.
+var _launched_kind: String = ""
+## Draws decoy sizes and places. Its own stream, so decoys never shift the run's randomness.
+var _decoy_rng := RandomNumberGenerator.new()
 ## Where the pointer is, for the line that follows a drag.
 var _finger: Vector2i = Vector2i.ZERO
 
@@ -30,6 +36,7 @@ var _finger: Vector2i = Vector2i.ZERO
 
 
 func _ready() -> void:
+	_decoy_rng.randomize()
 	_halo_layer.draw.connect(_draw_halos)
 	_gesture.selection_changed.connect(_on_selection_changed)
 	_gesture.link_requested.connect(_on_link_requested)
@@ -113,9 +120,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_dissolve(event.args[1])
 		&"link_rejected":
 			_link_layer.flash_rejected(_positions_of_ids(event.args[0]))
+		&"pack_launched":
+			_launched_kind = event.args[0]
 		&"big_bang_started":
-			# Placeholder until the Big Bang sequence (#9): the cleared stars just dissolve.
-			_dissolve(event.args[1])
+			_big_bang(event.args[0], event.args[1])
 
 
 ## Presses only start inside the sky; a release always ends the press that started.
@@ -199,6 +207,37 @@ func _burst(burst: Vector2i, stars: Array[Star]) -> void:
 	_sequencer.hold(BURST_STAGGER * maxi(stars.size() - 1, 0) + StarView.SETTLE_TIME * StarView.OVERSHOOT_PEAK)
 
 
+## The Big Bang's stars: decoys fly out like a normal burst, then at the freeze every star,
+## decoys included, is pulled into the burst point. BigBangSequence holds the sequencer.
+func _big_bang(burst: Vector2i, cleared: Array[Star]) -> void:
+	var collapsing: Array[StarView] = []
+	for star: Star in cleared:
+		var view: StarView = _views.get(star.id)
+		if view != null:
+			_views.erase(star.id)
+			collapsing.append(view)
+	var decoys: Array[Star] = _decoys(burst)
+	for i: int in decoys.size():
+		var view: StarView = _add_view(decoys[i])
+		view.fly_from(burst, i * BURST_STAGGER)
+		collapsing.append(view)
+	for view: StarView in collapsing:
+		view.collapse_to(burst, BigBangSequence.FREEZE_AT, BigBangSequence.COLLAPSE_TIME, BigBangSequence.SWIRL, BigBangSequence.HOVER)
+
+
+## Stars the launched pack would have opened into, drawn and placed like real ones. Ids are
+## negative so they never match a star in the run.
+func _decoys(burst: Vector2i) -> Array[Star]:
+	var pack: Balance.PackDef = _run.balance.packs.get(_launched_kind)
+	var count: int = pack.stars if pack != null else 3
+	var weights: Array[int] = pack.weights if pack != null else [1, 1, 1] as Array[int]
+	var places: Array[Vector2i] = StarScatter.place(count, burst, _run.sky_rect, [] as Array[Vector2i], _decoy_rng)
+	var decoys: Array[Star] = []
+	for i: int in count:
+		decoys.append(Star.new(-1 - i, PackOpener.draw_size(weights, _decoy_rng) as Star.Size, places[i]))
+	return decoys
+
+
 func _dissolve(stars: Array[Star]) -> void:
 	for star: Star in stars:
 		var view: StarView = _views.get(star.id)
@@ -210,11 +249,17 @@ func _dissolve(stars: Array[Star]) -> void:
 
 
 func _spawn(star: Star) -> StarView:
+	var view: StarView = _add_view(star)
+	_views[star.id] = view
+	return view
+
+
+## A view on the star layer that isn't tracked as one of the run's stars.
+func _add_view(star: Star) -> StarView:
 	var view: StarView = StarViewScene.instantiate()
 	view.setup(star, _run.sky_rect)
 	view.halo_changed.connect(_on_halo_changed)
 	_star_layer.add_child(view)
-	_views[star.id] = view
 	return view
 
 
