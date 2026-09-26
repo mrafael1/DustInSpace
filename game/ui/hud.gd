@@ -7,6 +7,12 @@ extends CanvasLayer
 ## RunState.buy() refuse what isn't allowed, and a refused tap nudges the icon. No rules here.
 ## RunState resolves a whole launch at once, so the HUD keeps its own shown copy of the run and
 ## moves it only as the sequencer plays each event: counters never run ahead of the animation.
+## A combo's dust and light arrive later, as particles land (receive_dust / receive_light, wired
+## by Main): the counter ticks up and hops a pixel. Until then that amount is "in flight". The core
+## has already credited it, so a purchase may spend it: that part becomes a debt the next landings
+## pay first, the counter never drops below 0, and it always ends on the run's total.
+## Costs light up against the dust the player owns (shown + in flight - debt): exactly when a tap
+## on them would work.
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -14,6 +20,8 @@ const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 const SLOT_SPACING: int = 30
 const LAST_SLOT_X: int = 158
 const SLOT_Y: int = 292
+## A counter hops 1 px up for this long when a particle lands on it.
+const HOP_TIME: float = 0.1
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -26,6 +34,14 @@ var _shown_dust: int = 0
 var _shown_light: int = 0
 var _shown_packs: Dictionary[String, int] = {}
 var _shown_loaded: String = ""
+## Rewards whose event has played but whose particles haven't landed yet.
+var _dust_in_flight: int = 0
+## The part of the dust in flight that a purchase already spent.
+var _dust_debt: int = 0
+var _light_in_flight: int = 0
+## Seconds of hop left per counter, and where each counter rests.
+var _hops: Dictionary[Label, float] = {}
+var _rest: Dictionary[Label, Vector2] = {}
 
 @onready var _dust: Label = $Dust
 @onready var _light: Label = $Light
@@ -35,6 +51,12 @@ var _shown_loaded: String = ""
 func _ready() -> void:
 	_dust.label_settings = HudText.primary(Palette.D0)
 	_light.label_settings = HudText.secondary(Palette.C1)
+	for label: Label in [_dust, _light]:
+		_rest[label] = label.position
+
+
+func _process(delta: float) -> void:
+	advance(delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -60,7 +82,36 @@ func refresh() -> void:
 	_shown_light = _run.light
 	_shown_packs = _run.owned_packs.duplicate()
 	_shown_loaded = _run.loaded_pack
+	_dust_in_flight = 0
+	_dust_debt = 0
+	_light_in_flight = 0
 	_show()
+
+
+## A dust particle landed on the counter.
+func receive_dust(amount: int) -> void:
+	_dust_in_flight = maxi(_dust_in_flight - amount, 0)
+	var repaid: int = mini(amount, _dust_debt)
+	_dust_debt -= repaid
+	_shown_dust += amount - repaid
+	if amount > repaid:
+		_hop(_dust)
+	_show()
+
+
+## A light particle landed in the Sun, whose counter this is.
+func receive_light(amount: int) -> void:
+	_shown_light += amount
+	_light_in_flight = maxi(_light_in_flight - amount, 0)
+	_hop(_light)
+	_show()
+
+
+## Moves the counters' hops on. Driven by `_process`; tests call it directly.
+func advance(delta: float) -> void:
+	for label: Label in _hops:
+		_hops[label] = maxf(_hops[label] - delta, 0.0)
+		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
 
 
 func slot(kind: String) -> PackSlot:
@@ -111,7 +162,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	match event.type:
 		&"pack_bought":
 			_shown_packs[event.args[0]] = _shown_packs.get(event.args[0], 0) + 1
-			_shown_dust = event.args[1]
+			_shown_dust = event.args[1] - (_dust_in_flight - _dust_debt)
+			if _shown_dust < 0:
+				_dust_debt -= _shown_dust
+				_shown_dust = 0
 		&"pack_loaded":
 			_shown_loaded = event.args[0]
 		&"pack_launched":
@@ -119,8 +173,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"big_bang_started":
 			_shown_dust += event.args[2]
 		&"combo_collected":
-			_shown_dust += event.args[2]
-			_shown_light += event.args[3]
+			_dust_in_flight += event.args[2]
+			_light_in_flight += event.args[3]
 		_:
 			return
 	_show()
@@ -134,7 +188,17 @@ func _show() -> void:
 	for kind: String in _slots:
 		var count: int = _shown_packs.get(kind, 0)
 		var cost: int = _run.balance.packs[kind].cost
-		_slots[kind].show_pack(count, cost, _shown_dust >= cost, _shown_loaded == kind and count > 0)
+		_slots[kind].show_pack(count, cost, _owned_dust() >= cost, _shown_loaded == kind and count > 0)
+
+
+## The dust the player has as far as the played events go: shown, plus in flight, minus spent.
+func _owned_dust() -> int:
+	return _shown_dust + _dust_in_flight - _dust_debt
+
+
+func _hop(label: Label) -> void:
+	_hops[label] = HOP_TIME
+	label.position = _rest[label] + Vector2.UP
 
 
 func _build_slots(kinds: Array[String]) -> void:

@@ -91,6 +91,17 @@ func test_a_valid_restart_hides_old_errors() -> void:
 	assert_false((main.get_node("DebugLayer/BalanceErrors") as Label).visible)
 
 
+func test_landing_particles_tick_the_hud_and_the_sun() -> void:
+	var fx: CollectParticles = main.get_node("CollectParticles")
+	var sun: SunView = main.get_node("Sun")
+	var hud: Hud = main.get_node("HUD")
+	fx.dust_arrived.emit(2)
+	fx.light_arrived.emit(10)
+	assert_eq((hud.get_node("Dust") as Label).text, "%d" % (main.run.dust + 2))
+	assert_string_starts_with((hud.get_node("Light") as Label).text, "10/")
+	assert_eq(sun.progress(), 10.0 / main.run.balance.sun_target)
+
+
 func test_the_sky_shows_the_run_in_play() -> void:
 	var sky: SkyView = main.get_node("Sky")
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
