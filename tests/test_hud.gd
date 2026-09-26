@@ -51,6 +51,58 @@ func test_counters_wait_for_the_events() -> void:
 	assert_eq(_slot_label("blue", "Count").text, "×3")
 
 
+func test_a_buy_shows_the_dust_it_left() -> void:
+	run.dust = 10
+	_tap_part("blue", &"cost")
+	run.dust = 99
+	sequencer.advance(0.0)
+	assert_eq(_label("Dust").text, "6", "from the event, not the run as it is now")
+
+
+func test_a_flight_reveals_nothing_ahead_of_it() -> void:
+	run.owned_packs["blue"] = 1
+	hud.refresh()
+	run.force_next_big_bang = true
+	sequencer.event_played.connect(_hold_on_launch)
+	assert_true(run.launch(Vector2i(90, 100)))
+	assert_gt(run.dust, 7, "the Big Bang pays enough for a red pack")
+	assert_eq(run.loaded_pack, "red", "the run has already moved on")
+	sequencer.advance(0.0)
+	assert_eq(_label("Dust").text, "0", "no Big Bang payout mid-flight")
+	assert_eq(_slot_label("blue", "Count").text, "×0")
+	assert_false(hud.slot("red").is_loaded(), "red isn't loaded until its event plays")
+	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.N7, "not affordable yet")
+	sequencer.advance(1.0)
+	assert_eq(_label("Dust").text, "%d" % run.dust)
+	assert_true(hud.slot("red").is_loaded())
+	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.D0)
+	_assert_shows_the_run()
+
+
+func test_a_combo_adds_its_dust_and_light_when_it_plays() -> void:
+	var ids: Array[int] = []
+	for x: int in [70, 90, 110]:
+		ids.append(run.add_star(Star.Size.SMALL, Vector2i(x, 150)).id)
+	run.link(ids)
+	assert_eq(_label("Light").text, "0/100")
+	sequencer.advance(0.0)
+	assert_eq(_label("Dust").text, "3")
+	assert_eq(_label("Light").text, "5/100")
+	_assert_shows_the_run()
+
+
+func test_launching_the_last_pack_clears_the_marker() -> void:
+	run.owned_packs["blue"] = 1
+	run.owned_packs["red"] = 0
+	hud.refresh()
+	assert_true(run.launch(Vector2i(90, 100)))
+	sequencer.advance(0.0)
+	assert_eq(run.loaded_pack, "")
+	assert_false(hud.slot("blue").is_loaded(), "no pack left to mark")
+	assert_false(hud.slot("red").is_loaded())
+	_assert_shows_the_run()
+
+
 func test_tapping_an_owned_pack_loads_it() -> void:
 	_tap_part("red", &"icon")
 	assert_eq(run.loaded_pack, "red")
@@ -169,6 +221,29 @@ func test_dust_icons_are_faceted_diamonds_on_the_dust_ramp() -> void:
 		assert_false(dots.has(Vector2i(r, r)), "a diamond, not a square")
 		for dot: Vector2i in dots:
 			assert_true(dots[dot] in [Palette.D0, Palette.N8, Palette.N7])
+
+
+## Stands in for the launcher: keeps the pack flying for a second.
+func _hold_on_launch(event: EventSequencer.RunEvent) -> void:
+	if event.type == &"pack_launched":
+		sequencer.hold(1.0)
+
+
+## Once every event has played, the HUD shows exactly what RunState holds.
+func _assert_shows_the_run() -> void:
+	var shown: Array[String] = _texts()
+	var loaded: Array[bool] = [hud.slot("blue").is_loaded(), hud.slot("red").is_loaded()]
+	hud.refresh()
+	assert_eq(shown, _texts(), "counters caught up with the run")
+	assert_eq(loaded, [hud.slot("blue").is_loaded(), hud.slot("red").is_loaded()] as Array[bool])
+
+
+func _texts() -> Array[String]:
+	var texts: Array[String] = [_label("Dust").text, _label("Light").text]
+	for kind: String in ["blue", "red"]:
+		texts.append(_slot_label(kind, "Count").text)
+		texts.append("%s" % _slot_label(kind, "Cost").label_settings.font_color)
+	return texts
 
 
 func _tap_part(kind: String, part: StringName) -> void:

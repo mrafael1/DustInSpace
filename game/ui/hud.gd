@@ -5,7 +5,8 @@ extends CanvasLayer
 ## Pack taps follow docs/design.md (Packs): the icon loads an owned pack or buys one if none is
 ## owned; the cost buys one more. The core says whether that works: RunState.load_pack() and
 ## RunState.buy() refuse what isn't allowed, and a refused tap nudges the icon. No rules here.
-## Counters refresh as the sequencer plays events, so they never run ahead of the animation.
+## RunState resolves a whole launch at once, so the HUD keeps its own shown copy of the run and
+## moves it only as the sequencer plays each event: counters never run ahead of the animation.
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -20,6 +21,11 @@ var _slots: Dictionary[String, PackSlot] = {}
 ## The target a press started on, as [kind, part], or [] for none. A tap needs press and
 ## release on the same target.
 var _pressed: Array = []
+## The run as the events played so far have shown it.
+var _shown_dust: int = 0
+var _shown_light: int = 0
+var _shown_packs: Dictionary[String, int] = {}
+var _shown_loaded: String = ""
 
 @onready var _dust: Label = $Dust
 @onready var _light: Label = $Light
@@ -48,17 +54,13 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	refresh()
 
 
-## Shows the run as it stands: dust, light, and each pack's count, cost and state.
+## Catches up with the run as it stands: dust, light, and each pack's count, cost and state.
 func refresh() -> void:
-	_dust.text = "%d" % _run.dust
-	_light.text = "%d/%d" % [_run.light, _run.balance.sun_target]
-	for kind: String in _slots:
-		_slots[kind].show_pack(
-			_run.owned_packs.get(kind, 0),
-			_run.balance.packs[kind].cost,
-			_run.can_afford(kind),
-			_run.loaded_pack == kind,
-		)
+	_shown_dust = _run.dust
+	_shown_light = _run.light
+	_shown_packs = _run.owned_packs.duplicate()
+	_shown_loaded = _run.loaded_pack
+	_show()
 
 
 func slot(kind: String) -> PackSlot:
@@ -105,8 +107,34 @@ func _tap(kind: String, part: StringName) -> void:
 		_slots[kind].nudge()
 
 
-func _on_event_played(_event: EventSequencer.RunEvent) -> void:
-	refresh()
+func _on_event_played(event: EventSequencer.RunEvent) -> void:
+	match event.type:
+		&"pack_bought":
+			_shown_packs[event.args[0]] = _shown_packs.get(event.args[0], 0) + 1
+			_shown_dust = event.args[1]
+		&"pack_loaded":
+			_shown_loaded = event.args[0]
+		&"pack_launched":
+			_shown_packs[event.args[0]] = _shown_packs.get(event.args[0], 0) - 1
+		&"big_bang_started":
+			_shown_dust += event.args[2]
+		&"combo_collected":
+			_shown_dust += event.args[2]
+			_shown_light += event.args[3]
+		_:
+			return
+	_show()
+
+
+## The loaded marker needs a pack left to show: RunState empties the launcher without a signal
+## when the last pack flies, like the launcher's rest pack. Costs light up against the shown dust.
+func _show() -> void:
+	_dust.text = "%d" % _shown_dust
+	_light.text = "%d/%d" % [_shown_light, _run.balance.sun_target]
+	for kind: String in _slots:
+		var count: int = _shown_packs.get(kind, 0)
+		var cost: int = _run.balance.packs[kind].cost
+		_slots[kind].show_pack(count, cost, _shown_dust >= cost, _shown_loaded == kind and count > 0)
 
 
 func _build_slots(kinds: Array[String]) -> void:
