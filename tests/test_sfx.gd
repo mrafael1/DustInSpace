@@ -245,15 +245,66 @@ func test_main_wires_the_feedback_moments() -> void:
 		assert_has(played, cue)
 
 
-func test_the_speaker_tap_cycles_the_level_and_shows_it() -> void:
+func test_the_speaker_target_sits_on_the_hud_speaker() -> void:
+	var hud: Hud = _main().get_node("HUD")
+	assert_eq(SoundToggle.TARGET, hud.sound_target())
+	assert_eq(hud.target_at(Vector2i(8, 8)), [], "the HUD doesn't take speaker taps itself")
+
+
+func test_a_speaker_tap_cycles_the_level_and_shows_it() -> void:
 	var main: Main = _main()
-	var hud: Hud = main.get_node("HUD")
+	_tap_screen(Vector2i(8, 8))
+	assert_eq((main.get_node("Sfx") as Sfx).level, Sfx.Level.LOW)
+	assert_eq((main.get_node("HUD") as Hud).sound_level(), Sfx.Level.LOW)
+
+
+func test_the_speaker_works_while_a_sequence_blocks_the_game() -> void:
+	var main: Main = _main()
 	var main_sfx: Sfx = main.get_node("Sfx")
-	assert_eq(hud.target_at(Vector2i(8, 8)), ["", &"sound"])
-	hud.sound_toggled.emit()
-	assert_eq(main_sfx.level, Sfx.Level.LOW)
-	assert_eq(hud.sound_level(), Sfx.Level.LOW)
-	main_sfx.set_level(Sfx.Level.ON)
+	main.run.dust = 20
+	main.run.launch(Vector2i(90, 160))
+	assert_true((main.get_node("EventSequencer") as EventSequencer).is_busy())
+	_tap_screen(Vector2i(8, 8))
+	assert_eq(main_sfx.level, Sfx.Level.LOW, "turned down mid-launch")
+	var blue: Vector2i = Vector2i((main.get_node("HUD") as Hud).slot("blue").position) + PackSlot.COST_TARGET.get_center()
+	var owned: int = main.run.owned_packs["blue"]
+	_tap_screen(blue)
+	assert_eq(main.run.owned_packs["blue"], owned, "the game itself stays blocked")
+
+
+func test_the_speaker_works_over_the_end_screen() -> void:
+	var main: Main = _main()
+	var end_screen: EndScreen = main.get_node("EndScreen")
+	for kind: String in main.run.owned_packs.keys():
+		main.run.owned_packs[kind] = 0
+	main.run.loaded_pack = ""
+	var ids: Array[int] = []
+	for x: int in [70, 90, 110]:
+		ids.append(main.run.add_star(Star.Size.SMALL, Vector2i(x, 150)).id)
+	main.run.link(ids)
+	assert_eq(main.run.outcome, RunState.Outcome.LOST)
+	var main_sequencer: EventSequencer = main.get_node("EventSequencer")
+	var particles: CollectParticles = main.get_node("CollectParticles")
+	particles.set_process(false)
+	for i: int in 180:
+		main_sequencer.advance(1.0 / 30.0)
+		particles.advance(1.0 / 30.0)
+	assert_true(end_screen.is_showing())
+	_tap_screen(Vector2i(8, 8))
+	assert_eq((main.get_node("Sfx") as Sfx).level, Sfx.Level.LOW, "muted over the jingle")
+	assert_true(end_screen.is_showing(), "the plaque stays")
+	_tap_screen(end_screen.restart_rect().get_center())
+	assert_false(end_screen.is_showing(), "and RESTART still works")
+
+
+func test_a_press_off_the_speaker_released_on_it_does_nothing() -> void:
+	var toggle := SoundToggle.new()
+	add_child_autofree(toggle)
+	var toggles: Array[bool] = []
+	toggle.toggled.connect(func() -> void: toggles.append(true))
+	assert_false(toggle.handle_pointer(_touch(Vector2(90, 160), true)))
+	assert_true(toggle.handle_pointer(_touch(Vector2(8, 8), false)), "the release on it is still taken")
+	assert_eq(toggles, [] as Array[bool])
 
 
 func test_the_pull_signals_its_start_its_growing_gems_and_a_short_release() -> void:
@@ -339,6 +390,12 @@ func _main() -> Main:
 	for node: Node in [main.get_node("EventSequencer"), main.get_node("BigBang"), main.get_node("Sfx"), main.get_node("Launcher")]:
 		node.set_process(false)
 	return main
+
+
+## A tap through the real viewport, so every _input gate sees it in tree order.
+func _tap_screen(at: Vector2i) -> void:
+	for pressed: bool in [true, false]:
+		get_viewport().push_input(_touch(Vector2(at), pressed), true)
 
 
 func _touch(at: Vector2, pressed: bool) -> InputEventScreenTouch:

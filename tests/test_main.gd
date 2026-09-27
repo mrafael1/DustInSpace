@@ -49,8 +49,10 @@ func test_every_view_gets_the_run_and_sequencer() -> void:
 	assert_eq(view.sequencer, main.get_node("EventSequencer"))
 
 
-func test_sequencer_is_the_last_child_so_it_sees_input_first() -> void:
-	assert_eq(main.get_child(main.get_child_count() - 1), main.get_node("EventSequencer"))
+func test_sequencer_sees_input_before_every_view() -> void:
+	assert_eq(main.get_child(main.get_child_count() - 2), main.get_node("EventSequencer"))
+	assert_eq(main.get_child(main.get_child_count() - 1), main.get_node("SoundToggle"),
+		"only the speaker's own taps come first")
 
 
 func test_invalid_balance_file_shows_errors_and_starts_no_run() -> void:
