@@ -3,7 +3,8 @@ extends Node2D
 ## One star pack, drawn in code from its ramp until the pack art lands (#13).
 ## Blue: a banded planet, r8. Red: a smaller planet with a ring. Lit from the top-left, no outline.
 ## Tremble frames are drawn, never scaled: `grown` draws the next radius up, `bright` shifts
-## every pixel one step up its ramp.
+## every pixel one step up its ramp. `greyed` draws the pack on the land ramp instead of its own:
+## the HUD's mark for a pack the dust can't buy.
 
 const RADIUS: Dictionary[String, int] = {"blue": 8, "red": 6}
 ## Red pack ring: an ellipse this wide and tall around the planet.
@@ -22,6 +23,10 @@ var bright: bool = false:
 	set(value):
 		bright = value
 		queue_redraw()
+var greyed: bool = false:
+	set(value):
+		greyed = value
+		queue_redraw()
 ## Draws the planet at this radius instead of the kind's own (0 = the kind's). The HUD uses r6.
 var radius_override: int = 0:
 	set(value):
@@ -30,17 +35,19 @@ var radius_override: int = 0:
 
 
 func _draw() -> void:
-	var dots: Dictionary[Vector2i, Color] = pixels(kind, grown, bright, radius_override)
+	var dots: Dictionary[Vector2i, Color] = pixels(kind, grown, bright, radius_override, greyed)
 	for offset: Vector2i in dots:
 		draw_rect(Rect2(Vector2(offset), Vector2.ONE), dots[offset])
 
 
 ## The pack's pixels as offsets from its centre. Empty for an unknown kind.
-static func pixels(p_kind: String, p_grown: bool = false, p_bright: bool = false, p_radius: int = 0) -> Dictionary[Vector2i, Color]:
+static func pixels(p_kind: String, p_grown: bool = false, p_bright: bool = false, p_radius: int = 0, p_greyed: bool = false) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	if not RADIUS.has(p_kind):
 		return dots
 	var ramp: Array[Color] = Palette.RED_PACK if p_kind == "red" else Palette.BLUE_PACK
+	if p_greyed:
+		ramp = Palette.GREY_PACK
 	var radius: int = (p_radius if p_radius > 0 else RADIUS[p_kind]) + (1 if p_grown else 0)
 	var lift: int = 1 if p_bright else 0
 	if p_kind == "red":

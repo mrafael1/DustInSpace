@@ -125,6 +125,27 @@ func test_a_cost_lights_up_once_a_tap_on_it_would_work() -> void:
 	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.D0, "but it's won: the buy would work")
 
 
+func test_a_pack_icon_is_lit_when_affordable_and_grey_when_not() -> void:
+	run.dust = 5
+	hud.refresh()
+	assert_true(_icon("blue").bright, "5 dust buys a blue")
+	assert_false(_icon("blue").greyed)
+	assert_true(_icon("red").greyed, "but not a red")
+	assert_false(_icon("red").bright)
+	run.dust = 0
+	hud.refresh()
+	assert_true(_icon("blue").greyed, "grey even while one is still owned")
+
+
+func test_a_greyed_pack_is_drawn_on_the_land_ramp_only() -> void:
+	for kind: String in ["blue", "red"]:
+		var dots: Dictionary[Vector2i, Color] = PackView.pixels(kind, false, false, 6, true)
+		assert_false(dots.is_empty())
+		for colour: Color in dots.values():
+			assert_true(colour in Palette.GREY_PACK, "%s greys out" % kind)
+		assert_eq(dots.keys(), PackView.pixels(kind, false, false, 6).keys(), "same shape as the lit %s" % kind)
+
+
 func test_spending_dust_still_in_flight_never_shows_a_negative_balance() -> void:
 	var ids: Array[int] = []
 	for x: int in [70, 90, 110]:
@@ -325,6 +346,10 @@ func _touch(point: Vector2i, pressed: bool) -> bool:
 
 func _label(name: String) -> Label:
 	return hud.get_node(name)
+
+
+func _icon(kind: String) -> PackView:
+	return hud.slot(kind).get_node("Icon")
 
 
 func _slot_label(kind: String, name: String) -> Label:

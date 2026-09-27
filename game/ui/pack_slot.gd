@@ -1,6 +1,7 @@
 class_name PackSlot
 extends Node2D
 ## One pack in the HUD: its icon (r6) with "×count", and "◆cost" below.
+## The icon is lit when the dust can buy one and grey when it can't.
 ## Two tap targets (docs/design.md, Packs): the icon loads the pack if owned, or buys it if none
 ## is owned; the cost buys one more. The Hud decides what a tap does; this only shows the slot.
 ## Centred on the icon. Numbers are Labels in the 3x5 font; nothing is baked into art.
@@ -50,6 +51,9 @@ func show_pack(count: int, cost: int, affordable: bool, loaded: bool) -> void:
 	_cost.text = "%d" % cost
 	# Cool N7 when the dust isn't there: warm/light colours mean something you can use.
 	_cost.label_settings.font_color = Palette.D0 if affordable else Palette.N7
+	# The planet too: lit one step up its ramp when a buy would work, grey when it wouldn't.
+	_icon.bright = affordable
+	_icon.greyed = not affordable
 	_loaded = loaded
 	queue_redraw()
 
