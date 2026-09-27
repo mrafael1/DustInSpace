@@ -45,7 +45,7 @@ func test_tapping_two_stars_and_a_landmark_lights_it() -> void:
 	assert_true(run.scorpio.is_built(1))
 
 
-func test_tracing_shows_the_landmark_gold_and_the_string_it_would_form() -> void:
+func test_tracing_shows_the_landmark_lit_and_the_string_it_would_form() -> void:
 	var a: Star = _star(Star.Size.SMALL, Vector2i(30, 100))
 	var b: Star = _star(Star.Size.SMALL, Vector2i(50, 100))
 	_tap(a.position)
@@ -112,6 +112,26 @@ func test_landmarks_are_the_star_art_of_their_size_cool_until_lit() -> void:
 		for c: Color in cool.values():
 			assert_true(c in [Palette.M6, Palette.M5, Palette.N8, Palette.N7], "cool while unlit")
 	assert_gt(ConstellationView.star_pixels(Star.Size.BIG).size(), ConstellationView.star_pixels(Star.Size.SMALL).size())
+
+
+func test_a_lit_landmark_keeps_its_arts_colours_inside_a_solid_c1_ring() -> void:
+	for size: int in 3:
+		var art: Dictionary[Vector2i, Color] = ConstellationView.star_pixels(size)
+		assert_eq(ConstellationView.landmark_dots(art, true), art, "lit: the size's own colours")
+		var ring: Array[Vector2i] = ConstellationView.lit_ring_pixels(size)
+		var radius: int = StarView.half_extent(size as Star.Size) + ConstellationView.LIT_RING_GAP
+		assert_gt(ring.size(), 4 * radius, "a closed circle, not dashes")
+		for p: Vector2i in ring:
+			assert_eq(roundi(Vector2(p).length()), radius)
+			assert_false(art.has(p), "clear of the star")
+			assert_false(ConstellationView.cue_pixels(size).has(p), "not where the unlit cue sits")
+
+
+func test_blue_white_art_maps_to_cool_colours_while_unlit() -> void:
+	# The big star's size colours (M6-M4, #44) keep their steps when an unlit landmark cools them.
+	var art: Dictionary[Vector2i, Color] = {Vector2i(0, 0): Palette.C0, Vector2i(1, 0): Palette.M6, Vector2i(2, 0): Palette.M5, Vector2i(3, 0): Palette.M4}
+	var cool: Dictionary[Vector2i, Color] = ConstellationView.landmark_dots(art, false)
+	assert_eq(cool.values(), [Palette.M6, Palette.M5, Palette.N8, Palette.N7])
 
 
 func test_a_full_sun_ignites_then_starts_again_and_its_stars_shine_their_dust() -> void:
@@ -208,12 +228,12 @@ func test_the_scorpion_drawing_stays_in_the_sky_and_off_the_stars() -> void:
 
 
 func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:
-	assert_false(constellation.shows_cue(0), "the head is lit: it keeps its gold, no cue")
+	assert_false(constellation.shows_cue(0), "the head is lit: its ring, no cue")
 	assert_true(constellation.shows_cue(2), "unlit: it can be picked")
 	var a: Star = _star(Star.Size.SMALL, Vector2i(90, 150))
 	_tap(a.position)
 	_tap(Scorpio.LANDMARKS[2])
-	assert_false(constellation.shows_cue(2), "in the link it shows gold instead")
+	assert_false(constellation.shows_cue(2), "in the link it shows lit instead")
 	_tap(Vector2i(170, 240))
 	run.scorpio.lit[2] = true
 	assert_false(constellation.shows_cue(2), "lit: no cue")
