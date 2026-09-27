@@ -32,7 +32,7 @@ var big_bang_base_dust: int = 0
 var big_bang_dust_per_cleared_star: int = 0
 ## The Scorpio map (#40, a prototype). Optional in the file: without a "scorpio" block it's off.
 var scorpio_enabled: bool = false
-## Dust per star in the sky when a full Sun rekindles.
+## Dust per star a rekindled Sun bursts.
 var scorpio_sun_dust_per_star: int = 0
 ## The light that fills the Sun on the Scorpio map (it rekindles there). Optional: 0 = sun_target.
 var scorpio_sun_target: int = 0

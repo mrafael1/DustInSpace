@@ -24,6 +24,7 @@ var run: RunState
 @onready var _sky: SkyView = $Sky
 @onready var _big_bang: BigBangSequence = $BigBang
 @onready var _sound_toggle: SoundToggle = $SoundToggle
+@onready var _sparks: BurstSparks = $BurstSparks
 
 
 func _ready() -> void:
@@ -36,8 +37,7 @@ func _ready() -> void:
 	_collect.light_arrived.connect(_sun.receive_light)
 	# Scorpio: a rekindled Sun resets the light counter and then pays its dust.
 	_sun.rekindled.connect(_hud.reset_light)
-	_sun.rekindled.connect(_collect.release_rekindle)
-	_sun.rekindled.connect(_sky.shine_rekindled)
+	_sun.released.connect(func() -> void: _sky.launch_sunbeam(Vector2i(_sun.position)))
 	_sky.watch_payouts(_collect)
 	_end_screen.restart_requested.connect(restart)
 	_end_screen.watch_payouts(_collect)
@@ -76,9 +76,11 @@ func _wire_sound() -> void:
 	_launcher.pull_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_launcher.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
 	_sky.star_selected.connect(_sfx.on_star_selected)
-	_sky.star_shone.connect(_sfx.on_star_shone)
 	_sky.link_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
+	_sky.star_exploded.connect(_on_star_exploded)
+	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
+	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)
 	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
 	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
@@ -91,6 +93,13 @@ func _wire_sound() -> void:
 	_sun.ignited.connect(_sfx.play.bind(&"sun_ignite", 1.0))
 	_end_screen.shown.connect(_sfx.on_end_shown)
 	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
+
+
+## Scorpio clears the sky (and a sunbeam lands): each star blows up with a ring, big sparks and
+## the burst sound.
+func _on_star_exploded(at: Vector2i) -> void:
+	_sparks.explode_at(at)
+	_sfx.play(&"burst")
 
 
 func _new_rng() -> RandomNumberGenerator:
