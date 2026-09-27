@@ -43,7 +43,7 @@ func _ready() -> void:
 	_end_screen.restart_requested.connect(restart)
 	_end_screen.watch_payouts(_collect)
 	_wire_sound()
-	get_viewport().size_changed.connect(fit_screen)
+	get_window().size_changed.connect(fit_screen)
 	fit_screen()
 	start_run(Balance.load_file(balance_path))
 
@@ -64,10 +64,14 @@ func start_run(balance: Balance) -> bool:
 	return true
 
 
-## Centres the game's 180x320 screen in whatever the window shows (a phone that isn't 9:16
-## shows more; see ScreenZones.SCREEN): the camera moves the world, the UI layers follow it,
-## and the Backdrop fills the margins.
+## Fills the window and places the game's 180x320 screen in it (a phone that isn't 9:16 shows
+## more; see ScreenZones): the camera moves the world, the UI layers follow it, and the Backdrop
+## fills the rest.
 func fit_screen() -> void:
+	# Fill the window at a whole-number scale (Godot's own "expand" leaves bars on phones).
+	var window: Window = get_window()
+	if window == get_tree().root:
+		window.content_scale_size = ScreenZones.fill_size(window.size)
 	var visible: Vector2 = get_viewport().get_visible_rect().size
 	var offset: Vector2i = ScreenZones.game_offset(visible)
 	($BigBang/Shake as Camera2D).position = Vector2(-offset)
