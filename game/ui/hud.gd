@@ -11,8 +11,9 @@ extends CanvasLayer
 ## by Main): the counter ticks up and hops a pixel. Until then that amount is "in flight". The core
 ## has already credited it, so a purchase may spend it: that part becomes a debt the next landings
 ## pay first, the counter never drops below 0, and it always ends on the run's total.
-## Costs light up against the dust the player owns (shown + in flight - debt): exactly when a tap
-## on them would work.
+## Costs light up against the shown counter: as the dust lands, the pack reacts (its one-off cue
+## plays on the crossing). Buying works on the dust owned (shown + in flight - debt), which is never
+## less, so a lit cost always buys; right after a collect, a grey one may buy too.
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -85,7 +86,7 @@ func refresh() -> void:
 	_dust_in_flight = 0
 	_dust_debt = 0
 	_light_in_flight = 0
-	_show()
+	_show(false)
 
 
 ## A dust particle landed on the counter.
@@ -183,18 +184,15 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 
 ## The loaded marker needs a pack left to show: RunState empties the launcher without a signal
 ## when the last pack flies, like the launcher's rest pack. Costs light up against the shown dust.
-func _show() -> void:
+## `announce` false (a refresh) updates the slots without playing their cue.
+func _show(announce: bool = true) -> void:
 	_dust.text = "%d" % _shown_dust
 	_light.text = "%d/%d" % [_shown_light, _run.balance.sun_target]
 	for kind: String in _slots:
 		var count: int = _shown_packs.get(kind, 0)
 		var cost: int = _run.balance.packs[kind].cost
-		_slots[kind].show_pack(count, cost, _owned_dust() >= cost, _shown_loaded == kind and count > 0)
-
-
-## The dust the player has as far as the played events go: shown, plus in flight, minus spent.
-func _owned_dust() -> int:
-	return _shown_dust + _dust_in_flight - _dust_debt
+		var loaded: bool = _shown_loaded == kind and count > 0
+		_slots[kind].show_pack(count, cost, _shown_dust >= cost, loaded, announce)
 
 
 func _hop(label: Label) -> void:
