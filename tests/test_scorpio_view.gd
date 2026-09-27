@@ -209,8 +209,11 @@ func test_an_exploding_star_waits_then_bursts_and_vanishes() -> void:
 	assert_true(view.is_exploding())
 	view.advance(0.06)
 	assert_eq(burst, [true])
-	view.advance(StarView.DISSOLVE_TIME)
-	assert_true(view.is_queued_for_deletion())
+	view.advance(StarView.DISSOLVE_TIME - 0.005)
+	assert_true(view.is_queued_for_deletion(), "the tick past the wait counts toward the burst")
+	var other: StarView = sky.star_view(_star(Star.Size.SMALL, Vector2i(40, 120)).id)
+	other.dissolve()
+	assert_false(other.is_exploding(), "a plain dissolve isn't an explosion")
 
 
 func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_the_scorpion() -> void:

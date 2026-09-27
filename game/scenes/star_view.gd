@@ -94,6 +94,8 @@ var _collapse_swirl: float = 0.0
 var _collapse_hover: int = 0
 ## Seconds left before explode() bursts the star, or -1 when it isn't waiting to.
 var _explode_wait: float = -1.0
+## explode() was called: waiting to burst, or bursting.
+var _exploding: bool = false
 ## Seconds into a shine (negative while it waits to start), or -INF when not shining.
 var _shine_time: float = -INF
 
@@ -145,6 +147,7 @@ func dissolve() -> void:
 ## Scorpio's completion clears the sky this way.
 func explode(delay: float = 0.0) -> void:
 	selected = false
+	_exploding = true
 	if delay > 0.0:
 		_explode_wait = delay
 	else:
@@ -152,7 +155,7 @@ func explode(delay: float = 0.0) -> void:
 
 
 func is_exploding() -> bool:
-	return _explode_wait >= 0.0 or state == State.DISSOLVING
+	return _exploding
 
 
 ## After `delay` seconds (whatever it is doing then, even mid-flight), is pulled into `point`
@@ -191,8 +194,11 @@ func advance(delta: float) -> void:
 	if _explode_wait >= 0.0:
 		_explode_wait -= delta
 		if _explode_wait <= 0.0:
+			# The part of this tick past the wait already counts toward the burst.
+			var overshoot: float = -_explode_wait
 			_explode_wait = -1.0
 			_burst()
+			delta = overshoot
 	if _collapse_wait >= 0.0:
 		_collapse_wait -= delta
 		if _collapse_wait <= 0.0:
