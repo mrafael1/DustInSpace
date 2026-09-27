@@ -1,13 +1,13 @@
 class_name ConstellationView
 extends Node2D
 ## Draws the Scorpio map (#40) under the stars. Each landmark is drawn with the star art of its
-## size, so a small, medium or big landmark reads like the sky star it can stand in for. Unlit
-## (usable in a combo), the art is mapped onto cool colours, and four small corner brackets in the
-## dim halo tones (C4/C5, swapping every CUE_STEP) say "you can pick this". Lit, it shows the art's
-## own colours (whatever colour its size has) inside a solid C1 ring: the ring, not the star's
-## colour, is what says lit. Strings between two lit landmarks glow C1 with a C0 glint running
-## along them; strings still to form are dotted N8. While a link is traced, the landmarks in it
-## show lit and the strings it would form are dashed C2. Owns no rules:
+## size, so a small, medium or big landmark has the shape of the sky star it can stand in for.
+## Unlit (usable in a combo), it uses the art's "unlit" frame, a cool tint per size (small pink,
+## medium lavender, big blue), and four small corner brackets in the dim halo tones (C4/C5, swapping
+## every CUE_STEP) say "you can pick this". Lit, it uses the "gold" frame: the same gold on every
+## size, so gold only ever means lit. Strings between two lit landmarks glow C1 with a C0 glint
+## running along them; strings still to form are dotted N8. While a link is traced, the landmarks
+## in it show gold and the strings it would form are dashed C2. Owns no rules:
 ## RunState says what's lit. Draws nothing without the map.
 ## Completion plays the constellation like an instrument once every payout has landed (the Sky
 ## waits): string by string from the bottom of the sky to the top, each flashing C0 and vibrating
@@ -42,15 +42,6 @@ const COMPLETION_TIME: float = TUNE_TIME + REVEAL_TIME + CODA_TIME
 const VIBRATE_TIME: float = 0.5
 const VIBRATE_AMPLITUDE: float = 2.0
 const VIBRATE_CYCLES: float = 3.0
-## Unlit landmarks: the star art's colours mapped onto cool ones, step for step. The warm ramp
-## (C0-C3) and the big star's blue-white one (M6-M4) both land here, so every size keeps its shading.
-const COOL: Dictionary = {
-	"fffbea": Palette.M6, "ffe59a": Palette.M5, "ffc062": Palette.N8, "e88a57": Palette.N7,
-	"d9e2ff": Palette.M5, "9fb0ee": Palette.N8, "4a5aa8": Palette.N7,
-}
-## A lit landmark's ring: solid C1, this far out from the star art's edge. (A sky star's selection
-## ring is dashed and further out, so they don't read alike.)
-const LIT_RING_GAP: int = 2
 
 var _run: RunState
 var _time: float = 0.0
@@ -63,13 +54,13 @@ var _completion_time: float = -1.0
 ## The scorpion drawing is fully shown (after a completion, until the next run).
 var _revealed: bool = false
 var _drawing: Array[Vector2i] = []
-## Idle-frame pixels per star size, from the star art.
+## Landmark pixels per star size, from the star art: [unlit, lit].
 var _art: Array = []
 
 
 func _ready() -> void:
 	for size: int in 3:
-		_art.append(star_pixels(size))
+		_art.append([landmark_pixels(size, false), landmark_pixels(size, true)])
 	_drawing = scorpion_drawing()
 
 
@@ -281,38 +272,24 @@ static func outline_pixels(segment: int) -> Array[Vector2i]:
 	return line.slice(LANDMARK_CLEAR, line.size() - LANDMARK_CLEAR)
 
 
-## The idle frame of the star art for a size, as offsets from its centre.
-static func star_pixels(size: int) -> Dictionary[Vector2i, Color]:
+## A frame of the star art for a size, as offsets from its centre.
+static func star_pixels(size: int, frame: StringName = &"idle") -> Dictionary[Vector2i, Color]:
 	var image: Image = StarView.SHEETS[size].get_image()
 	var side: int = image.get_height()
 	var half: int = side >> 1
+	var left: int = StarView.FRAMES.find(frame) * side
 	var dots: Dictionary[Vector2i, Color] = {}
 	for y: int in side:
 		for x: int in side:
-			var c: Color = image.get_pixel(x, y)
+			var c: Color = image.get_pixel(left + x, y)
 			if c.a > 0.5:
 				dots[Vector2i(x - half, y - half)] = Color(c.r, c.g, c.b)
 	return dots
 
 
-## A landmark's pixels: the art's own colours when lit or in the link being traced, cool otherwise.
-static func landmark_dots(art: Dictionary, lit: bool) -> Dictionary[Vector2i, Color]:
-	var dots: Dictionary[Vector2i, Color] = {}
-	for d: Vector2i in art:
-		var c: Color = art[d]
-		dots[d] = c if lit else COOL.get(c.to_html(false), Palette.N7)
-	return dots
-
-
-## The lit ring around a landmark of `size`: a solid 1 px circle, as offsets from its centre.
-static func lit_ring_pixels(size: int) -> Array[Vector2i]:
-	var radius: int = StarView.half_extent(size as Star.Size) + LIT_RING_GAP
-	var dots: Array[Vector2i] = []
-	for dy: int in range(-radius - 1, radius + 2):
-		for dx: int in range(-radius - 1, radius + 2):
-			if roundi(sqrt(dx * dx + dy * dy)) == radius:
-				dots.append(Vector2i(dx, dy))
-	return dots
+## A landmark's pixels: gold when lit (or in the link being traced), its size's cool tint otherwise.
+static func landmark_pixels(size: int, lit: bool) -> Dictionary[Vector2i, Color]:
+	return star_pixels(size, &"gold" if lit else &"unlit")
 
 
 func _draw_string(segment: int) -> void:
@@ -365,12 +342,8 @@ func _draw_landmark(index: int) -> void:
 		for d: Vector2i in cue_pixels(Scorpio.SIZES[index]):
 			_dot(Scorpio.LANDMARKS[index] + d, colour)
 	var lit: bool = _run.scorpio.is_lit(index) or _selected.has(index)
-	var art: Dictionary = _art[Scorpio.SIZES[index]]
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
-	if lit:
-		for d: Vector2i in lit_ring_pixels(Scorpio.SIZES[index]):
-			_dot(Scorpio.LANDMARKS[index] + d, Palette.C0 if flash else Palette.C1)
-	var dots: Dictionary[Vector2i, Color] = landmark_dots(art, lit)
+	var dots: Dictionary = _art[Scorpio.SIZES[index]][1 if lit else 0]
 	for d: Vector2i in dots:
 		_dot(Scorpio.LANDMARKS[index] + d, Palette.C0 if flash else dots[d])
 
@@ -382,7 +355,7 @@ func _draw_completion() -> void:
 	for k: int in played:
 		var segment: int = order[k]
 		for index: int in [segment, segment + 1]:
-			var dots: Dictionary[Vector2i, Color] = landmark_dots(_art[Scorpio.SIZES[index]], true)
+			var dots: Dictionary = _art[Scorpio.SIZES[index]][1]
 			for d: Vector2i in dots:
 				_dot(Scorpio.LANDMARKS[index] + d, Palette.C0 if dots[d] != Palette.C3 else Palette.C1)
 

@@ -104,34 +104,26 @@ func test_built_strings_glow_and_open_ones_dont() -> void:
 	assert_gt(pixels.size(), ConstellationView.GLOW_SPACING, "room for glints")
 
 
-func test_landmarks_are_the_star_art_of_their_size_cool_until_lit() -> void:
+func test_landmarks_are_the_star_shape_of_their_size_cool_tinted_until_lit() -> void:
+	var tints: Array = []
 	for size: int in 3:
-		var art: Dictionary[Vector2i, Color] = ConstellationView.star_pixels(size)
-		var cool: Dictionary[Vector2i, Color] = ConstellationView.landmark_dots(art, false)
-		assert_eq(cool.keys(), art.keys(), "same shape as the sky star")
-		for c: Color in cool.values():
-			assert_true(c in [Palette.M6, Palette.M5, Palette.N8, Palette.N7], "cool while unlit")
+		var shape: Array = ConstellationView.star_pixels(size).keys()
+		var unlit: Dictionary[Vector2i, Color] = ConstellationView.landmark_pixels(size, false)
+		assert_eq(unlit.keys(), shape, "same shape as the sky star")
+		for c: Color in unlit.values():
+			assert_false(c in [Palette.C0, Palette.C1, Palette.C2, Palette.C3], "no gold while unlit")
+		tints.append(unlit[Vector2i.ZERO])
+	assert_eq(tints, [Palette.N10, Palette.D0, Palette.M6], "small pink, medium lavender, big blue: sizes tell apart")
 	assert_gt(ConstellationView.star_pixels(Star.Size.BIG).size(), ConstellationView.star_pixels(Star.Size.SMALL).size())
 
 
-func test_a_lit_landmark_keeps_its_arts_colours_inside_a_solid_c1_ring() -> void:
+func test_every_lit_landmark_is_the_same_gold() -> void:
 	for size: int in 3:
-		var art: Dictionary[Vector2i, Color] = ConstellationView.star_pixels(size)
-		assert_eq(ConstellationView.landmark_dots(art, true), art, "lit: the size's own colours")
-		var ring: Array[Vector2i] = ConstellationView.lit_ring_pixels(size)
-		var radius: int = StarView.half_extent(size as Star.Size) + ConstellationView.LIT_RING_GAP
-		assert_gt(ring.size(), 4 * radius, "a closed circle, not dashes")
-		for p: Vector2i in ring:
-			assert_eq(roundi(Vector2(p).length()), radius)
-			assert_false(art.has(p), "clear of the star")
-			assert_false(ConstellationView.cue_pixels(size).has(p), "not where the unlit cue sits")
-
-
-func test_blue_white_art_maps_to_cool_colours_while_unlit() -> void:
-	# The big star's size colours (M6-M4, #44) keep their steps when an unlit landmark cools them.
-	var art: Dictionary[Vector2i, Color] = {Vector2i(0, 0): Palette.C0, Vector2i(1, 0): Palette.M6, Vector2i(2, 0): Palette.M5, Vector2i(3, 0): Palette.M4}
-	var cool: Dictionary[Vector2i, Color] = ConstellationView.landmark_dots(art, false)
-	assert_eq(cool.values(), [Palette.M6, Palette.M5, Palette.N8, Palette.N7])
+		var lit: Dictionary[Vector2i, Color] = ConstellationView.landmark_pixels(size, true)
+		assert_eq(lit.keys(), ConstellationView.star_pixels(size).keys())
+		assert_eq(lit[Vector2i.ZERO], Palette.C0, "a white-gold core on every size")
+		for c: Color in lit.values():
+			assert_true(c in [Palette.C0, Palette.C1, Palette.C2, Palette.C3], "gold only: lit reads the same on every size")
 
 
 func test_a_full_sun_ignites_then_starts_again_and_its_stars_shine_their_dust() -> void:
