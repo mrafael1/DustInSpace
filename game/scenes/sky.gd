@@ -7,6 +7,9 @@ extends Node2D
 ## Halos are painted on the HaloLayer, under every star, so no halo covers another star.
 ## Linking: pointer input goes through a LinkGesture; the traced line is on the LinkLayer and
 ## the reward preview on the RewardPlaque. The link itself is RunState.link()'s call.
+## Scorpio (#40): the ConstellationLayer, under everything, draws the landmarks and the outline.
+## Landmarks can be picked like stars (their ids are negative, Scorpio.landmark_id); what a link
+## with them would build, and which star a combo would sting, come from RunState.
 ## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
 
@@ -34,6 +37,7 @@ var _finger: Vector2i = Vector2i.ZERO
 ## Stars in the link as last shown, to tell a star joining it from one leaving.
 var _selected_count: int = 0
 
+@onready var _constellation: ConstellationView = $ConstellationLayer
 @onready var _halo_layer: Node2D = $HaloLayer
 @onready var _link_layer: LinkLayer = $LinkLayer
 @onready var _star_layer: Node2D = $StarLayer
@@ -64,6 +68,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer.sequence_started.connect(_gesture.cancel)
 	_gesture.cancel()
 	_clear()
+	_constellation.setup(run)
 	for star: Star in run.stars:
 		_spawn(star)
 
@@ -95,8 +100,9 @@ func handle_pointer(event: InputEvent) -> bool:
 	return used
 
 
-## The id of the star whose hit circle holds `point` (the nearest if several do), or 0.
-## Uses the positions from the core, so a star still drifting home is hit where it will rest.
+## The id of the star (or Scorpio landmark) whose hit circle holds `point` (the nearest if
+## several do), or 0. Uses the positions from the core, so a star still drifting home is hit
+## where it will rest.
 func star_at(point: Vector2i) -> int:
 	var best_id: int = 0
 	var best_dist_sq: int = HIT_RADIUS * HIT_RADIUS + 1
@@ -108,6 +114,12 @@ func star_at(point: Vector2i) -> int:
 		if dist_sq < best_dist_sq:
 			best_dist_sq = dist_sq
 			best_id = id
+	if _run.scorpio != null:
+		for i: int in Scorpio.LANDMARKS.size():
+			var dist_sq: int = (Scorpio.LANDMARKS[i] - point).length_squared()
+			if dist_sq < best_dist_sq:
+				best_dist_sq = dist_sq
+				best_id = Scorpio.landmark_id(i)
 	return best_id
 
 
@@ -117,6 +129,8 @@ func selected_ids() -> Array[int]:
 
 
 func _on_event_played(event: EventSequencer.RunEvent) -> void:
+	# The gap hints follow the stars in the sky.
+	_constellation.queue_redraw()
 	match event.type:
 		&"pack_burst":
 			_burst(event.args[1], event.args[2])
@@ -129,6 +143,15 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_launched_kind = event.args[0]
 		&"big_bang_started":
 			_big_bang(event.args[0], event.args[1])
+		&"segment_built":
+			_constellation.flash_built(event.args[0])
+			_dissolve([event.args[1]] as Array[Star])
+		&"star_stung":
+			_link_layer.flash_collected([event.args[0], (event.args[1] as Star).position] as Array[Vector2i])
+			_dissolve([event.args[1]] as Array[Star])
+		&"constellation_completed":
+			_constellation.play_completion()
+			_sequencer.hold(ConstellationView.COMPLETION_TIME)
 
 
 ## Presses only start inside the sky; a release always ends the press that started.
@@ -167,9 +190,14 @@ func _show_link() -> void:
 	_show_preview()
 
 
-## Reads the combo and its reward; the plaque only displays them.
+## Reads the combo and its reward; the plaque only displays them. On the Scorpio map it also
+## previews what a link with landmarks would build, and where a combo would sting.
 func _show_preview() -> void:
 	var ids: Array[int] = _gesture.selected
+	if ids.any(Scorpio.is_landmark_id):
+		_show_build_preview(ids)
+		return
+	_constellation.clear_preview()
 	if ids.size() != Combos.LINK_LENGTH:
 		_plaque.visible = false
 		return
@@ -189,6 +217,50 @@ func _show_preview() -> void:
 	else:
 		var reward: Balance.ComboReward = _run.balance.combos[combo]
 		_plaque.show_reward(reward.dust, reward.light, anchor, half, bounds)
+		if _run.scorpio != null:
+			var target: Star = _run.sting_target(last.position, ids)
+			_constellation.show_sting_preview(last.position, target.position if target != null else Vector2i.ZERO, target != null)
+
+
+## A link with landmarks: their gap stars light up, and the segment it would build. Three picks
+## that build nothing get the plaque's no-combo cross, like a bad combo.
+func _show_build_preview(ids: Array[int]) -> void:
+	var landmarks: Array[int] = []
+	var candidates: Array[Vector2i] = []
+	for id: int in ids:
+		if Scorpio.is_landmark_id(id):
+			var index: int = Scorpio.landmark_index(id)
+			landmarks.append(index)
+			for star_id: int in _run.bridge_candidates(index):
+				if not ids.has(star_id):
+					candidates.append(_run.find_star(star_id).position)
+	var segment: int = -1
+	if ids.size() == Combos.LINK_LENGTH:
+		segment = _run.segment_for(ids)
+	elif ids.size() == 2 and landmarks.size() == 1:
+		segment = _segment_for_pair(landmarks[0], ids)
+	_constellation.show_build_preview(landmarks, candidates, segment)
+	if ids.size() == Combos.LINK_LENGTH and segment < 0:
+		var offset := Vector2i(get_global_transform_with_canvas().origin.round())
+		var anchor: Vector2i = _positions_of_ids([ids[-1]] as Array[int])[0] + offset
+		_plaque.show_no_combo(anchor, 3, Rect2i(_run.sky_rect.position + offset, _run.sky_rect.size))
+	else:
+		_plaque.visible = false
+
+
+## With one landmark and one star picked: the segment next to the landmark the star could bridge.
+func _segment_for_pair(landmark: int, ids: Array[int]) -> int:
+	for id: int in ids:
+		if Scorpio.is_landmark_id(id):
+			continue
+		for neighbour: int in [landmark - 1, landmark + 1]:
+			if neighbour < 0 or neighbour >= Scorpio.LANDMARKS.size():
+				continue
+			var trial: Array[int] = [Scorpio.landmark_id(landmark), id, Scorpio.landmark_id(neighbour)]
+			var segment: int = _run.segment_for(trial)
+			if segment >= 0:
+				return segment
+	return -1
 
 
 func _positions(stars: Array[Star]) -> Array[Vector2i]:
@@ -198,10 +270,13 @@ func _positions(stars: Array[Star]) -> Array[Vector2i]:
 	return points
 
 
-## Positions of the ids still in the run; unknown ids are skipped.
+## Positions of the ids still in the run (landmarks included); unknown ids are skipped.
 func _positions_of_ids(ids: Array[int]) -> Array[Vector2i]:
 	var points: Array[Vector2i] = []
 	for id: int in ids:
+		if _run.scorpio != null and Scorpio.is_landmark_id(id):
+			points.append(Scorpio.LANDMARKS[Scorpio.landmark_index(id)])
+			continue
 		var star: Star = _run.find_star(id)
 		if star != null:
 			points.append(star.position)

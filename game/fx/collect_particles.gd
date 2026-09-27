@@ -145,6 +145,13 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		for i: int in range(n0, _particles.size()):
 			_particles[i].delay = BigBangSequence.BANG_AT + STAGGER * (i - n0)
 		return
+	if event.type == &"star_stung":
+		_launch_now(Kind.DUST, event.args[2], [(event.args[1] as Star).position] as Array[Vector2i], dust_target)
+		return
+	if event.type == &"constellation_completed":
+		# Scorpio: the whole constellation pours its light into the Sun.
+		_launch_now(Kind.LIGHT, event.args[0], Scorpio.LANDMARKS, light_target)
+		return
 	if event.type != &"combo_collected":
 		return
 	var sources: Array[Vector2i] = []
@@ -156,6 +163,14 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	_launch(Kind.DUST, event.args[2], sources, dust_target)
 	_launch(Kind.LIGHT, event.args[3], sources, light_target)
 	# Stagger dust and light together, in launch order, from this combo's first particle.
+	for i: int in range(n, _particles.size()):
+		_particles[i].delay = LAUNCH_DELAY + STAGGER * (i - n)
+
+
+## Launches like a combo's payout, staggered from now.
+func _launch_now(kind: Kind, total: int, sources: Array[Vector2i], target: Vector2i) -> void:
+	var n: int = _particles.size()
+	_launch(kind, total, sources, target)
 	for i: int in range(n, _particles.size()):
 		_particles[i].delay = LAUNCH_DELAY + STAGGER * (i - n)
 

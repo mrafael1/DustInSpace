@@ -226,6 +226,12 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"link_collect")
 		&"link_rejected":
 			play(&"link_reject")
+		&"segment_built":
+			play(&"pack_ready")
+		&"star_stung":
+			play(&"link_collect", 1.5)
+		&"constellation_completed":
+			play(&"sun_ignite", 1.25)
 
 
 func _jitter() -> float:
