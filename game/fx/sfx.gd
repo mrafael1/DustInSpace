@@ -215,11 +215,6 @@ func on_string_sung(_segment: int, order: int) -> void:
 	play(&"light_land", PENTATONIC[order % PENTATONIC.size()] * (2.0 if order >= PENTATONIC.size() else 1.0))
 
 
-## A rekindled Sun's payout: each shining star rings a little higher.
-func on_star_shone(order: int) -> void:
-	play(&"star_select", pow(SEMITONE, mini(order * 2, 24)))
-
-
 func on_end_shown(won: bool) -> void:
 	play(&"win" if won else &"loss")
 

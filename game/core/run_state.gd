@@ -4,8 +4,7 @@ extends RefCounted
 ## and win/loss. Resolves every action instantly; scenes animate from the signals.
 ## On the Scorpio map (#40) the objective is the constellation instead: lighting every landmark
 ## wins. A combo may use unlit landmarks as stars (they light up instead of being used up), and a
-## full Sun doesn't win: it rekindles (back to 0 light), lights one landmark and pays dust for
-## every star in the sky. There the Sun fills at scorpio.sun_target, and each step of a link, from
+## full Sun doesn't win: it rekindles (back to 0 light), lights one landmark and clears the sky. There the Sun fills at scorpio.sun_target, and each step of a link, from
 ## one star to the next, must be at most scorpio.max_link_distance long.
 
 signal pack_bought(kind: String, dust_after: int)
@@ -19,13 +18,14 @@ signal link_rejected(star_ids: Array[int])
 signal landmark_lit(index: int)
 ## Scorpio: both ends of a string are lit, so the string formed.
 signal string_built(segment: int)
-## Scorpio: the Sun filled, so it rekindles at 0 light, lights `landmark` (-1: none left) and pays
-## `dust` for the stars in the sky.
-signal sun_rekindled(landmark: int, dust: int, star_positions: Array[Vector2i])
-## Scorpio: the constellation is complete, so every star still in the sky is cleared: `stars`
-## were removed, paying nothing (the run is won). Comes just before constellation_completed, and
-## only when the sky had stars.
-signal sky_cleared(stars: Array[Star])
+## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
+## Its light then clears the sky: sky_cleared follows the landmark's events.
+signal sun_rekindled(landmark: int)
+## Scorpio: every star still in the sky is cleared: `stars` were removed, paying `dust`. When
+## the Sun rekindles (after the landmark it lights; each star it bursts pays sun_dust_per_star)
+## and when a combo completes the constellation (just before constellation_completed; they pay
+## nothing, the run is won). Only when the sky had stars.
+signal sky_cleared(stars: Array[Star], dust: int)
 ## Scorpio: the last landmark lit. On the Scorpio map that's the win (run_won follows).
 signal constellation_completed
 signal run_won
@@ -243,12 +243,15 @@ func link(star_ids: Array[int]) -> String:
 		for star: Star in linked:
 			if Scorpio.is_landmark_id(star.id):
 				_light_landmark(Scorpio.landmark_index(star.id))
-		# The last landmark lit is the win: no rekindle on top of it, and the sky is cleared.
+		# The last landmark lit is the win: no rekindle on top of it.
+		var rekindled: bool = not scorpio.is_complete() and _rekindle_if_full()
+		# A rekindled Sun bursts the sky's stars for dust; a combo's completion clears them for nothing.
+		if rekindled:
+			_clear_sky(balance.scorpio_sun_dust_per_star)
+		elif scorpio.is_complete():
+			_clear_sky(0)
 		if scorpio.is_complete():
-			_clear_sky()
 			constellation_completed.emit()
-		else:
-			_rekindle_if_full()
 	_check_end()
 	return combo
 
@@ -288,21 +291,17 @@ func _light_landmark(index: int) -> void:
 		string_built.emit(segment)
 
 
-## Scorpio: a full Sun (light_target) rekindles at 0, lights the first unlit landmark next to a
-## lit one (else the first unlit), and pays sun_dust_per_star for every star in the sky.
-func _rekindle_if_full() -> void:
+## Scorpio: a full Sun (light_target) rekindles at 0 and lights the first unlit landmark next to a
+## lit one (else the first unlit). The caller clears the sky after. Returns whether it rekindled.
+func _rekindle_if_full() -> bool:
 	if light < light_target():
-		return
+		return false
 	light = 0
 	var index: int = rekindle_target()
-	var gain: int = balance.scorpio_sun_dust_per_star * stars.size()
-	var positions: Array[Vector2i] = []
-	for star: Star in stars:
-		positions.append(star.position)
-	dust += gain
-	sun_rekindled.emit(index, gain, positions)
+	sun_rekindled.emit(index)
 	if index >= 0:
 		_light_landmark(index)
+	return true
 
 
 ## Scorpio: the landmark a rekindled Sun would light, or -1 when all are lit.
@@ -340,13 +339,15 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 	pack_burst.emit(kind, burst, born)
 
 
-## Scorpio's completion: every star left in the sky goes, for nothing.
-func _clear_sky() -> void:
+## Scorpio's rekindle or completion: every star left in the sky goes, for `dust_per_star` each.
+func _clear_sky(dust_per_star: int) -> void:
 	if stars.is_empty():
 		return
 	var cleared: Array[Star] = stars.duplicate()
 	stars.clear()
-	sky_cleared.emit(cleared)
+	var gain: int = dust_per_star * cleared.size()
+	dust += gain
+	sky_cleared.emit(cleared, gain)
 
 
 ## Clears every star in the sky for base dust plus a bonus per star. No light.

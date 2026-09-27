@@ -126,37 +126,44 @@ func test_every_lit_landmark_is_the_same_gold() -> void:
 			assert_true(c in [Palette.C0, Palette.C1, Palette.C2, Palette.C3], "gold only: lit reads the same on every size")
 
 
-func test_a_full_sun_ignites_then_starts_again_and_its_stars_shine_their_dust() -> void:
+func test_a_full_sun_ignites_lights_its_landmark_then_bursts_the_stars_left_for_dust() -> void:
 	run.light = 95
-	var payer: Star = _star(Star.Size.SMALL, Vector2i(150, 240))
+	var left: Star = _star(Star.Size.SMALL, Vector2i(150, 240))
 	var ids: Array[int] = []
 	for x: int in [20, 40, 60]:
 		ids.append(_star(Star.Size.BIG, Vector2i(x, 100)).id)
-	var shone: Array[int] = []
-	sky.star_shone.connect(func(order: int) -> void: shone.append(order))
+	var target: int = run.rekindle_target()
+	var burst: Array[Vector2i] = []
+	sky.star_exploded.connect(func(at: Vector2i) -> void: burst.append(at))
 	run.link(ids)
 	var sun: SunView = main.get_node("Sun")
 	var particles: CollectParticles = main.get_node("CollectParticles")
-	var view: StarView = sky.star_view(payer.id)
+	var view: StarView = sky.star_view(left.id)
 	view.set_process(false)
+	var dust_before: int = run.dust
 	sequencer.advance(0.0)
 	for i: int in 60:
-		_tick([sequencer, particles, sun], 1.0 / 30.0)
+		_tick([sequencer, particles, sun, constellation, view], 1.0 / 30.0)
 	assert_true(sun.is_igniting(), "the Sun plays its ignition")
+	assert_eq(burst, [] as Array[Vector2i], "the stars wait for it")
 	for i: int in 50:
-		_tick([sequencer, particles, sun], 1.0 / 30.0)
+		_tick([sequencer, particles, sun, constellation, view], 1.0 / 30.0)
 	assert_false(sun.is_igniting())
-	assert_almost_eq(sun.progress(), 0.0, 0.001, "and starts again from 0")
+	assert_gt(sun.progress(), 0.0, "still shining while its sunbeam flies")
+	assert_eq(burst, [] as Array[Vector2i], "and for the sunbeam")
+	for i: int in ceili(ConstellationView.BEAM_TIME * 30.0) + 2:
+		_tick([sequencer, particles, sun, constellation], 1.0 / 30.0)
+		if is_instance_valid(view):
+			view.advance(1.0 / 30.0)
+	assert_almost_eq(sun.progress(), 0.0, 0.001, "then starts again from 0")
 	assert_eq((main.get_node("HUD/Light") as Label).text, "0/100")
-	assert_eq(shone, [0] as Array[int], "the star paying the dust shines")
-	view.advance(StarView.SHINE_PEAK)
-	assert_true(view.is_shining())
-	assert_eq(particles.in_flight(CollectParticles.Kind.DUST), 1, "one dust from the one star")
+	assert_true(constellation.shows_lit(target), "its landmark lit")
+	assert_eq(burst, [left.position], "then the star left bursts")
+	assert_eq(sky.star_count(), 0, "a clean sky")
+	assert_eq(particles.in_flight(CollectParticles.Kind.DUST), 1, "its dust flies from where it burst")
 	particles.advance(5.0)
-	assert_eq((main.get_node("HUD/Dust") as Label).text, "%d" % run.dust)
-	view.advance(1.0)
-	assert_false(view.is_shining(), "and settles back")
-	assert_not_null(sky.star_view(payer.id), "it stays in the sky")
+	assert_eq(run.dust, dust_before, "the core paid it with the link: 1 dust")
+	assert_eq((main.get_node("HUD/Dust") as Label).text, "%d" % run.dust, "and the counter meets the run once it lands")
 
 
 func test_completion_bursts_every_star_left_lowest_first_before_the_tune() -> void:
@@ -197,6 +204,19 @@ func test_completion_bursts_every_star_left_lowest_first_before_the_tune() -> vo
 		assert_true(not is_instance_valid(view) or view.is_queued_for_deletion(), "each one gone")
 
 
+func test_a_cleared_star_blows_up_bigger_than_a_pack_burst() -> void:
+	var sparks: BurstSparks = main.get_node("BurstSparks")
+	sparks.set_process(false)
+	sparks.explode_at(Vector2i(90, 150))
+	assert_true(sparks.is_sparking())
+	sparks.advance(BurstSparks.SPARK_TIME)
+	assert_true(sparks.is_sparking(), "it outlasts a pack burst's sparks")
+	sparks.advance(BurstSparks.EXPLODE_TIME - BurstSparks.SPARK_TIME)
+	assert_false(sparks.is_sparking(), "then it's gone")
+	assert_gt(BurstSparks.EXPLODE_SPARKS, BurstSparks.SPARKS)
+	assert_gt(BurstSparks.EXPLODE_REACH_MAX, BurstSparks.REACH_MAX)
+
+
 func test_an_exploding_star_waits_then_bursts_and_vanishes() -> void:
 	var star: Star = _star(Star.Size.MEDIUM, Vector2i(90, 150))
 	var view: StarView = sky.star_view(star.id)
@@ -214,6 +234,126 @@ func test_an_exploding_star_waits_then_bursts_and_vanishes() -> void:
 	var other: StarView = sky.star_view(_star(Star.Size.SMALL, Vector2i(40, 120)).id)
 	other.dissolve()
 	assert_false(other.is_exploding(), "a plain dissolve isn't an explosion")
+
+
+func test_a_landmark_the_sun_lights_shows_lit_only_after_the_ignition() -> void:
+	var sun: SunView = main.get_node("Sun")
+	sun.set_process(true)
+	run.light = run.light_target() - 5
+	var ids: Array[int] = []
+	for x: int in [20, 40, 60]:
+		ids.append(_star(Star.Size.SMALL, Vector2i(x, 100)).id)
+	var target: int = run.rekindle_target()
+	run.link(ids)
+	assert_true(run.scorpio.is_lit(target), "the core lit it at once")
+	assert_false(constellation.shows_lit(target), "the view waits")
+	var ignited_first: bool = false
+	for i: int in 400:
+		sequencer.advance(1.0 / 60.0)
+		sun.advance(1.0 / 60.0)
+		main.get_node("CollectParticles").advance(1.0 / 60.0)
+		if sun.is_igniting() and not constellation.shows_lit(target):
+			ignited_first = true
+		if constellation.shows_lit(target):
+			break
+	assert_true(ignited_first, "the Sun ignites while the landmark still shows unlit")
+	assert_true(constellation.shows_lit(target), "then it lights")
+	assert_false(sun.is_igniting(), "once the ignition is over")
+
+
+func test_the_sun_sends_a_sunbeam_and_the_landmark_lights_as_it_lands() -> void:
+	var sun: SunView = main.get_node("Sun")
+	var particles: CollectParticles = main.get_node("CollectParticles")
+	run.light = run.light_target() - 5
+	var ids: Array[int] = []
+	for x: int in [20, 40, 60]:
+		ids.append(_star(Star.Size.SMALL, Vector2i(x, 100)).id)
+	var target: int = run.rekindle_target()
+	var launched: Array[bool] = []
+	sky.sunbeam_launched.connect(func() -> void: launched.append(true))
+	var landed: Array[Vector2i] = []
+	sky.sunbeam_landed.connect(func(at: Vector2i) -> void: landed.append(at))
+	run.link(ids)
+	var beam_seen_at: float = -1.0
+	var lit_at: float = -1.0
+	var t: float = 0.0
+	for i: int in 600:
+		var dt: float = 1.0 / 60.0
+		sequencer.advance(dt)
+		sun.advance(dt)
+		particles.advance(dt)
+		constellation.advance(dt)
+		t += dt
+		if constellation.is_beaming() and beam_seen_at < 0.0:
+			beam_seen_at = t
+			assert_false(sun.is_igniting(), "the beam leaves once the ignition is over")
+			assert_false(constellation.shows_lit(target), "the landmark waits for it")
+		if constellation.shows_lit(target):
+			lit_at = t
+			break
+	assert_eq(launched, [true], "with its sound")
+	assert_gt(beam_seen_at, 0.0, "a sunbeam flew")
+	assert_almost_eq(lit_at - beam_seen_at, ConstellationView.BEAM_TIME, 0.05, "the landmark lights as it lands")
+	assert_eq(landed, [Scorpio.LANDMARKS[target]], "and it bursts there (sparks and sound)")
+
+
+func test_the_sunbeam_runs_from_the_suns_rim_to_the_landmark() -> void:
+	var sun_at := Vector2i(90, 39)
+	constellation.launch_sunbeam(sun_at, 3)
+	var start: Array[Vector2i] = ConstellationView.beam_pixels(constellation.get("_beam_from"), Scorpio.LANDMARKS[3], 0.0)
+	assert_almost_eq(Vector2(start[0] - sun_at).length(), float(ConstellationView.SUN_RIM), 1.5, "from the rim")
+	var end: Array[Vector2i] = ConstellationView.beam_pixels(constellation.get("_beam_from"), Scorpio.LANDMARKS[3], 1.0)
+	assert_eq(end[0], Scorpio.LANDMARKS[3], "to the landmark")
+	assert_eq(end.size(), ConstellationView.BEAM_TRAIL, "with its trail")
+	constellation.launch_sunbeam(sun_at, -1)
+	constellation.advance(ConstellationView.BEAM_TIME)
+	assert_false(constellation.is_beaming(), "no target, no beam")
+
+
+func test_a_lighting_landmark_throws_a_ring() -> void:
+	var near: Array[Vector2i] = ConstellationView.lit_ring_pixels(Star.Size.MEDIUM, 0.0)
+	var far: Array[Vector2i] = ConstellationView.lit_ring_pixels(Star.Size.MEDIUM, 1.0)
+	assert_eq(roundi(Vector2(far[0]).length()) - roundi(Vector2(near[0]).length()), ConstellationView.LIT_RING_GROWTH)
+	constellation.flash_landmark(3)
+	assert_eq(constellation.get("_ring_landmark"), 3)
+	constellation.advance(ConstellationView.LIT_RING_TIME)
+	assert_eq(constellation.get("_ring_time"), -1.0, "gone once spread")
+
+
+func test_the_sun_lighting_the_last_landmark_plays_the_completion() -> void:
+	# Light all but one landmark; the Sun will light the last.
+	var last: int = Scorpio.LANDMARKS.size() - 1
+	for index: int in range(2, last):
+		run.scorpio.lit[index] = true
+	sky.setup(run, sequencer)
+	var left: Star = _star(Star.Size.MEDIUM, Vector2i(150, 120))
+	run.light = run.light_target() - 5
+	var ids: Array[int] = []
+	for x: int in [20, 40, 60]:
+		ids.append(_star(Star.Size.SMALL, Vector2i(x, 100)).id)
+	var types: Array[StringName] = []
+	sequencer.event_played.connect(func(e: EventSequencer.RunEvent) -> void: types.append(e.type))
+	run.link(ids)
+	assert_eq(run.outcome, RunState.Outcome.WON)
+	var sun: SunView = main.get_node("Sun")
+	var particles: CollectParticles = main.get_node("CollectParticles")
+	var views: Array = [sky.star_view(left.id)]
+	for i: int in 600:
+		sequencer.advance(1.0 / 60.0)
+		sun.advance(1.0 / 60.0)
+		particles.advance(1.0 / 60.0)
+		constellation.advance(1.0 / 60.0)
+		for view: Variant in views:
+			if is_instance_valid(view):
+				(view as StarView).advance(1.0 / 60.0)
+		if constellation.is_completing():
+			break
+	var rekindled_at: int = types.find(&"sun_rekindled")
+	assert_gt(rekindled_at, -1)
+	assert_gt(types.find(&"landmark_lit"), rekindled_at, "the Sun lights the last landmark")
+	assert_gt(types.find(&"sky_cleared"), types.find(&"landmark_lit"), "then the sky clears")
+	assert_true(constellation.is_completing(), "and the constellation plays")
+	assert_eq(sky.star_count(), 0, "on a clean sky")
 
 
 func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_the_scorpion() -> void:
@@ -285,6 +425,8 @@ func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:
 	assert_false(constellation.shows_cue(2), "in the link it shows lit instead")
 	_tap(Vector2i(170, 240))
 	run.scorpio.lit[2] = true
+	assert_true(constellation.shows_cue(2), "lit in the core only: not shown until its event plays")
+	constellation.flash_landmark(2)
 	assert_false(constellation.shows_cue(2), "lit: no cue")
 
 

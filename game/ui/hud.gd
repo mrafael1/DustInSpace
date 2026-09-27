@@ -213,11 +213,12 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"big_bang_started":
 			# Streams to the counter once it bangs, like a combo's dust.
 			_dust_in_flight += event.args[2]
+		&"sky_cleared":
+			# Scorpio: the dust of the stars the Sun bursts streams in as they burst.
+			_dust_in_flight += event.args[1]
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			_light_in_flight += event.args[3]
-		&"sun_rekindled":
-			_dust_in_flight += event.args[1]
 		_:
 			return
 	_show()
