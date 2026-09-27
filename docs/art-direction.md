@@ -27,7 +27,7 @@ The palette has 40 colours in 7 ramps (the dust ramp reuses N7 and N8). Files: `
 
 ### Colour rules
 
-1. Warm (C0–C3) means interactive or valuable. Never use it for decoration.
+1. Warm (C0–C3) means interactive or valuable. Never use it for decoration. One exception: collectible stars are coloured by size, like a star's temperature, so the sizes read at a glance. Small is orange (C2 core, C3 arms), medium gold (C0 core, C1 body, C2 tips), and big blue-white (C0 core, M6 body, M5 tips, with a cool M4/M3 halo instead of C4/C5). The selection ring stays C1 on every size.
 2. Background stars are cool, 1 px, and kept away from collectible stars. 3 px glints are allowed only in the empty top corners.
 3. Blue and red appear only on packs.
 4. The Sun moves from the S ramp to the C ramp as it heals. That change is the progress bar.
@@ -45,9 +45,9 @@ The palette has 40 colours in 7 ramps (the dust ramp reuses N7 and N8). Files: `
 
 | Asset | Size (px) | Notes | States |
 |---|---|---|---|
-| Small star | 5×5, halo r4 | Plus shape | idle twinkle, selected, dissolve |
-| Medium star | 11×11, halo r8 | 8-point star, cross core | same |
-| Big star | 15×15, halo r11 | Round 5 px core, long rays | same |
+| Small star | 5×5, halo r4 | Plus shape; orange | idle twinkle, selected, dissolve |
+| Medium star | 11×11, halo r8 | 8-point star, cross core; gold | same |
+| Big star | 15×15, halo r11 | Round 5 px core, long rays; blue-white, cool halo | same |
 | Selection ring | radius + 4 | Dashed C1 circle | 2-frame rotate |
 | Sun | r17 + 12 rays | Light pools from the bottom; rays light clockwise | 0–100% with a smoulder (2 frames: embers swap, dim halo breathes), pulse, ignite, ignited idle (2 frames: alternate rays shimmer, core glint moves) |
 | Blue pack | r8 launcher / r6 HUD | Banded planet | idle, tremble, burst |
