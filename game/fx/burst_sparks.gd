@@ -4,6 +4,7 @@ extends Node2D
 ## draws the ring and the sky scatters the stars; this throws 1 px sparks out from the burst
 ## point, slowing as they go and cooling C0 to C3 before they vanish.
 ## A Big Bang starts exactly like a normal burst to keep the surprise, so it gets the same sparks.
+## Scorpio's completion also throws them from each star it clears (spark_at, wired by Main).
 ## Owns no rules and never holds the sequencer.
 
 const SPARKS: int = 12
@@ -86,6 +87,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_spark(event.args[1])
 		&"big_bang_started":
 			_spark(event.args[0])
+
+
+## Throws a burst of sparks from `at`, outside any event (Scorpio's exploding stars).
+func spark_at(at: Vector2i) -> void:
+	_spark(at)
 
 
 func _spark(at: Vector2i) -> void:

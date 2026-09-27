@@ -13,6 +13,7 @@ extends Node2D
 ## that pay its dust shine one after another (shine_rekindled, wired by Main). Each step of a link
 ## has a reach (RunState.link_reach): while tracing, the LinkLayer shows it as a ring around the
 ## last star picked, and a star out of reach can't join (its step shakes ember; the link stays).
+## Completion clears the sky: every star left bursts in turn, lowest first (sky_cleared).
 ## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
 
@@ -24,11 +25,16 @@ signal star_shone(order: int)
 signal link_refused
 ## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
 signal step_refused
+## Scorpio: the constellation is complete and a star left in the sky burst at `at`. Feedback only.
+signal star_exploded(at: Vector2i)
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
 ## Each star of a burst leaves a little after the previous one.
 const BURST_STAGGER: float = 0.04
+## Scorpio's completion clears the sky: the stars left burst one after another, from the bottom of
+## the sky to the top, this far apart, before the constellation plays.
+const EXPLODE_STAGGER: float = 0.06
 ## Touch target per star, whatever its sprite: at least 44 pt (art-direction.md). With integer
 ## scaling a phone shows about 2 pt per native px, so a 22 px circle is 44 pt.
 const HIT_RADIUS: int = 11
@@ -188,6 +194,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_constellation.flash_string(event.args[0])
 		&"sun_rekindled":
 			_rekindle_positions = event.args[2]
+		&"sky_cleared":
+			_explode(event.args[0])
 		&"constellation_completed":
 			# The tune waits for every payout to land (watch_payouts); the sequence waits for it.
 			_sequencer.hold(CollectParticles.LONGEST_TRAVEL + ConstellationView.COMPLETION_TIME)
@@ -373,6 +381,22 @@ func _decoys(burst: Vector2i) -> Array[Star]:
 	for i: int in count:
 		decoys.append(Star.new(-1 - i, PackOpener.draw_size(weights, _decoy_rng) as Star.Size, places[i]))
 	return decoys
+
+
+## Scorpio's completion: the stars left burst in turn, lowest first, and the tune waits for them.
+func _explode(stars: Array[Star]) -> void:
+	var views: Array[StarView] = []
+	for star: Star in stars:
+		var view: StarView = _views.get(star.id)
+		if view != null:
+			_views.erase(star.id)
+			views.append(view)
+	views.sort_custom(func(a: StarView, b: StarView) -> bool: return a.position.y > b.position.y or (a.position.y == b.position.y and a.position.x < b.position.x))
+	for i: int in views.size():
+		views[i].exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
+		views[i].explode(i * EXPLODE_STAGGER)
+	if not views.is_empty():
+		_sequencer.hold(EXPLODE_STAGGER * (views.size() - 1) + StarView.DISSOLVE_TIME)
 
 
 func _dissolve(stars: Array[Star]) -> void:

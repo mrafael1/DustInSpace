@@ -9,6 +9,8 @@ extends Node2D
 
 signal settled(view: StarView)
 signal dissolved(view: StarView)
+## explode()'s wait is over: the star bursts now (flare, then gone). For sparks and sound.
+signal exploded(view: StarView)
 ## The halo appeared, changed or disappeared; whoever paints halos should redraw.
 signal halo_changed(view: StarView)
 
@@ -90,6 +92,8 @@ static var _masks: Dictionary = {}
 ## Turns the star swirls around the point while it falls in, and how far out it hangs.
 var _collapse_swirl: float = 0.0
 var _collapse_hover: int = 0
+## Seconds left before explode() bursts the star, or -1 when it isn't waiting to.
+var _explode_wait: float = -1.0
 ## Seconds into a shine (negative while it waits to start), or -INF when not shining.
 var _shine_time: float = -INF
 
@@ -137,6 +141,20 @@ func dissolve() -> void:
 	visible = true
 
 
+## After `delay` seconds, bursts: emits exploded, then flares and vanishes like a dissolve.
+## Scorpio's completion clears the sky this way.
+func explode(delay: float = 0.0) -> void:
+	selected = false
+	if delay > 0.0:
+		_explode_wait = delay
+	else:
+		_burst()
+
+
+func is_exploding() -> bool:
+	return _explode_wait >= 0.0 or state == State.DISSOLVING
+
+
 ## After `delay` seconds (whatever it is doing then, even mid-flight), is pulled into `point`
 ## over `duration`, spiralling `swirl` turns on the way, then frees itself. It slows as it
 ## nears `hover` px from the point, hangs there dimming, and is swallowed at the very end
@@ -170,6 +188,11 @@ func is_collapsing() -> bool:
 
 ## Moves the animation forward. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
+	if _explode_wait >= 0.0:
+		_explode_wait -= delta
+		if _explode_wait <= 0.0:
+			_explode_wait = -1.0
+			_burst()
 	if _collapse_wait >= 0.0:
 		_collapse_wait -= delta
 		if _collapse_wait <= 0.0:
@@ -266,6 +289,11 @@ static func collapse_point(from: Vector2i, point: Vector2i, k: float, swirl: flo
 static func _ease_out_back(k: float) -> float:
 	var t: float = k - 1.0
 	return 1.0 + (EASE_BACK + 1.0) * t * t * t + EASE_BACK * t * t
+
+
+func _burst() -> void:
+	dissolve()
+	exploded.emit(self)
 
 
 func _enter(next: State) -> void:

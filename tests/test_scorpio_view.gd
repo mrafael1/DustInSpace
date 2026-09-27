@@ -159,6 +159,60 @@ func test_a_full_sun_ignites_then_starts_again_and_its_stars_shine_their_dust() 
 	assert_not_null(sky.star_view(payer.id), "it stays in the sky")
 
 
+func test_completion_bursts_every_star_left_lowest_first_before_the_tune() -> void:
+	for index: int in range(2, Scorpio.LANDMARKS.size() - 1):
+		run.scorpio.lit[index] = true
+	var high: Star = run.add_star(Star.Size.MEDIUM, Vector2i(60, 100))
+	var low: Star = run.add_star(Star.Size.BIG, Vector2i(150, 230))
+	var mid: Star = run.add_star(Star.Size.SMALL, Vector2i(120, 170))
+	var a: Star = run.add_star(Star.Size.BIG, Vector2i(20, 180))
+	var b: Star = run.add_star(Star.Size.BIG, Vector2i(40, 190))
+	sky.setup(run, sequencer)
+	var burst_at: Array[Vector2i] = []
+	sky.star_exploded.connect(func(at: Vector2i) -> void: burst_at.append(at))
+	var sparks: BurstSparks = main.get_node("BurstSparks")
+	sparks.set_process(false)
+	var views: Array[StarView] = [sky.star_view(high.id), sky.star_view(low.id), sky.star_view(mid.id)]
+	for view: StarView in views:
+		view.set_process(false)
+	run.link([a.id, b.id, Scorpio.landmark_id(Scorpio.LANDMARKS.size() - 1)] as Array[int])
+	assert_eq(run.stars.size(), 0, "the core cleared the sky")
+	var elapsed: float = 0.0
+	while burst_at.size() < 3 and elapsed < 3.0:
+		sequencer.advance(1.0 / 60.0)
+		for view: StarView in views:
+			if is_instance_valid(view):
+				view.advance(1.0 / 60.0)
+		elapsed += 1.0 / 60.0
+		if not burst_at.is_empty():
+			assert_false(constellation.is_completing(), "the tune waits for the sky to clear")
+	assert_eq(burst_at, [low.position, mid.position, high.position], "every star left bursts, lowest first")
+	assert_true(sparks.is_sparking(), "with a burst's sparks")
+	assert_eq(sky.star_count(), 0, "a clean sky")
+	for i: int in 60:
+		for view: StarView in views:
+			if is_instance_valid(view):
+				view.advance(1.0 / 60.0)
+	for view: StarView in views:
+		assert_true(not is_instance_valid(view) or view.is_queued_for_deletion(), "each one gone")
+
+
+func test_an_exploding_star_waits_then_bursts_and_vanishes() -> void:
+	var star: Star = _star(Star.Size.MEDIUM, Vector2i(90, 150))
+	var view: StarView = sky.star_view(star.id)
+	view.set_process(false)
+	var burst: Array[bool] = []
+	view.exploded.connect(func(_v: StarView) -> void: burst.append(true))
+	view.explode(0.1)
+	view.advance(0.05)
+	assert_eq(burst, [] as Array[bool], "still waiting")
+	assert_true(view.is_exploding())
+	view.advance(0.06)
+	assert_eq(burst, [true])
+	view.advance(StarView.DISSOLVE_TIME)
+	assert_true(view.is_queued_for_deletion())
+
+
 func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_the_scorpion() -> void:
 	var sung: Array[int] = []
 	constellation.string_sung.connect(func(segment: int, _order: int) -> void: sung.append(segment))

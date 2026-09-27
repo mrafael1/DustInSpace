@@ -24,6 +24,7 @@ var run: RunState
 @onready var _sky: SkyView = $Sky
 @onready var _big_bang: BigBangSequence = $BigBang
 @onready var _sound_toggle: SoundToggle = $SoundToggle
+@onready var _sparks: BurstSparks = $BurstSparks
 
 
 func _ready() -> void:
@@ -79,6 +80,7 @@ func _wire_sound() -> void:
 	_sky.star_shone.connect(_sfx.on_star_shone)
 	_sky.link_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
+	_sky.star_exploded.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)
 	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
 	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
@@ -91,6 +93,12 @@ func _wire_sound() -> void:
 	_sun.ignited.connect(_sfx.play.bind(&"sun_ignite", 1.0))
 	_end_screen.shown.connect(_sfx.on_end_shown)
 	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
+
+
+## Scorpio's completion clears the sky: each star bursts with a pack burst's sparks and sound.
+func _on_star_exploded(at: Vector2i) -> void:
+	_sparks.spark_at(at)
+	_sfx.play(&"burst")
 
 
 func _new_rng() -> RandomNumberGenerator:
