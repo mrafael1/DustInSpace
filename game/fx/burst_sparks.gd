@@ -4,7 +4,8 @@ extends Node2D
 ## draws the ring and the sky scatters the stars; this throws 1 px sparks out from the burst
 ## point, slowing as they go and cooling C0 to C3 before they vanish.
 ## A Big Bang starts exactly like a normal burst to keep the surprise, so it gets the same sparks.
-## Scorpio's completion also throws them from each star it clears (spark_at, wired by Main).
+## Scorpio's sky clears (a rekindle, the completion) blow each star up bigger (explode_at, wired
+## by Main): the pack burst's ring, then more sparks that fly further and last longer.
 ## Owns no rules and never holds the sequencer.
 
 const SPARKS: int = 12
@@ -14,12 +15,23 @@ const REACH_MIN: int = 10
 const REACH_MAX: int = 22
 ## A spark cools one step per quarter of its life.
 const COOLING: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+## An exploding star (explode_at): the pack burst's ring, a frame per RING_FRAME_TIME, and
+## EXPLODE_SPARKS sparks reaching EXPLODE_REACH_MIN-MAX px over EXPLODE_TIME.
+const RING_RADII: Array[int] = [5, 9, 13]
+const RING_FRAME_TIME: float = 0.05
+const EXPLODE_SPARKS: int = 18
+const EXPLODE_REACH_MIN: int = 14
+const EXPLODE_REACH_MAX: int = 32
+const EXPLODE_TIME: float = 0.7
 
 
 class Burst:
 	extends RefCounted
 	var at: Vector2i
 	var age: float = 0.0
+	var life: float = SPARK_TIME
+	## Draws the pack burst's ring first (explode_at).
+	var ring: bool = false
 	## One end point per spark, as an offset from `at`.
 	var reach: Array[Vector2] = []
 
@@ -39,7 +51,10 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	for burst: Burst in _bursts:
-		var dots: Dictionary[Vector2i, Color] = spark_pixels(burst.reach, burst.age / SPARK_TIME)
+		var frame: int = floori(burst.age / RING_FRAME_TIME)
+		if burst.ring and frame < RING_RADII.size():
+			ArtStrip.named("pack_burst").draw(self, "ring_%d" % RING_RADII[frame], burst.at)
+		var dots: Dictionary[Vector2i, Color] = spark_pixels(burst.reach, burst.age / burst.life)
 		for offset: Vector2i in dots:
 			draw_rect(Rect2(Vector2(burst.at + offset), Vector2.ONE), dots[offset])
 
@@ -64,7 +79,7 @@ func advance(delta: float) -> void:
 		return
 	for burst: Burst in _bursts:
 		burst.age += delta
-	_bursts = _bursts.filter(func(b: Burst) -> bool: return b.age < SPARK_TIME)
+	_bursts = _bursts.filter(func(b: Burst) -> bool: return b.age < b.life)
 	queue_redraw()
 
 
@@ -89,9 +104,17 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_spark(event.args[0])
 
 
-## Throws a burst of sparks from `at`, outside any event (Scorpio's exploding stars).
-func spark_at(at: Vector2i) -> void:
-	_spark(at)
+## Blows a star up at `at`, outside any event (Scorpio's sky clears): ring and big sparks.
+func explode_at(at: Vector2i) -> void:
+	var burst := Burst.new()
+	burst.at = at
+	burst.life = EXPLODE_TIME
+	burst.ring = true
+	for i: int in EXPLODE_SPARKS:
+		var angle: float = TAU * (i + _rng.randf_range(-0.3, 0.3)) / EXPLODE_SPARKS
+		burst.reach.append(Vector2.from_angle(angle) * _rng.randf_range(EXPLODE_REACH_MIN, EXPLODE_REACH_MAX))
+	_bursts.append(burst)
+	queue_redraw()
 
 
 func _spark(at: Vector2i) -> void:

@@ -37,8 +37,6 @@ func _ready() -> void:
 	_collect.light_arrived.connect(_sun.receive_light)
 	# Scorpio: a rekindled Sun resets the light counter and then pays its dust.
 	_sun.rekindled.connect(_hud.reset_light)
-	_sun.rekindled.connect(_collect.release_rekindle)
-	_sun.rekindled.connect(_sky.shine_rekindled)
 	_sun.released.connect(func() -> void: _sky.launch_sunbeam(Vector2i(_sun.position)))
 	_sky.watch_payouts(_collect)
 	_end_screen.restart_requested.connect(restart)
@@ -78,7 +76,6 @@ func _wire_sound() -> void:
 	_launcher.pull_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_launcher.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
 	_sky.star_selected.connect(_sfx.on_star_selected)
-	_sky.star_shone.connect(_sfx.on_star_shone)
 	_sky.link_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.star_exploded.connect(_on_star_exploded)
@@ -98,9 +95,10 @@ func _wire_sound() -> void:
 	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
 
 
-## Scorpio's completion clears the sky: each star bursts with a pack burst's sparks and sound.
+## Scorpio clears the sky (and a sunbeam lands): each star blows up with a ring, big sparks and
+## the burst sound.
 func _on_star_exploded(at: Vector2i) -> void:
-	_sparks.spark_at(at)
+	_sparks.explode_at(at)
 	_sfx.play(&"burst")
 
 
