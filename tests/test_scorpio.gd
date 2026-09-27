@@ -212,7 +212,7 @@ func test_bursts_keep_stars_off_the_landmarks() -> void:
 func test_the_shipped_balance_sets_scorpios_reach_and_sun() -> void:
 	var balance: Balance = Balance.load_file()
 	assert_eq(balance.scorpio_max_link_distance, REACH, "each step of a link at most 56 px")
-	assert_eq(balance.scorpio_sun_target, 50, "Scorpio's Sun fills at 50")
+	assert_eq(balance.scorpio_sun_target, 75, "Scorpio's Sun fills at 75")
 	assert_eq(balance.sun_target, 100, "the plain stage keeps its 100")
 
 
