@@ -1,0 +1,16 @@
+{
+  "frame_size": [
+    25,
+    20
+  ],
+  "origin": [
+    12,
+    5
+  ],
+  "frames": [
+    "pull_0",
+    "pull_1",
+    "pull_2",
+    "pull_3"
+  ]
+}

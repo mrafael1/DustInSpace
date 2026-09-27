@@ -1,14 +1,18 @@
 class_name PackView
 extends Node2D
-## One star pack, drawn in code from its ramp until the pack art lands (#13).
+## One star pack, drawn from its art (assets/art/pack_<kind>.png, tools/art/build_ui_art.py).
 ## Blue: a banded planet, r8. Red: a smaller planet with a ring. Lit from the top-left, no outline.
-## Tremble frames are drawn, never scaled: `grown` draws the next radius up, `bright` shifts
-## every pixel one step up its ramp. `greyed` draws the pack on the land ramp instead of its own:
-## the HUD's mark for a pack the dust can't buy.
+## Tremble frames are drawn, never scaled: `grown` is the next radius up, `bright` is every pixel
+## one step up its ramp. The HUD shows the r6 frame, still: lit a step up when the dust can buy
+## one, `greyed` (on the land ramp) when it can't.
+## Idle, the planet spins: its bands drift through SPIN_FRAMES frames, one every SPIN_STEP.
 
 const RADIUS: Dictionary[String, int] = {"blue": 8, "red": 6}
-## Red pack ring: an ellipse this wide and tall around the planet.
-const RING_RADII := Vector2(10.5, 3.5)
+## The HUD's icon radius, the only override the art has a frame for.
+const HUD_RADIUS: int = 6
+## The idle spin: a full turn in SPIN_FRAMES frames.
+const SPIN_FRAMES: int = 6
+const SPIN_STEP: float = 0.18
 
 ## "" draws nothing.
 var kind: String = "":
@@ -34,52 +38,51 @@ var radius_override: int = 0:
 		queue_redraw()
 
 
+var _spin_time: float = 0.0
+var _spin: int = 0
+
+
+func _process(delta: float) -> void:
+	advance(delta)
+
+
 func _draw() -> void:
-	var dots: Dictionary[Vector2i, Color] = pixels(kind, grown, bright, radius_override, greyed)
-	for offset: Vector2i in dots:
-		draw_rect(Rect2(Vector2(offset), Vector2.ONE), dots[offset])
+	var frame: String = frame_name(grown, bright, radius_override, _spin, greyed)
+	if RADIUS.has(kind):
+		ArtStrip.named("pack_" + kind).draw(self, frame)
 
 
-## The pack's pixels as offsets from its centre. Empty for an unknown kind.
+## The pack's pixels as offsets from its centre, read from its art. Empty for an unknown kind.
 static func pixels(p_kind: String, p_grown: bool = false, p_bright: bool = false, p_radius: int = 0, p_greyed: bool = false) -> Dictionary[Vector2i, Color]:
-	var dots: Dictionary[Vector2i, Color] = {}
 	if not RADIUS.has(p_kind):
-		return dots
-	var ramp: Array[Color] = Palette.RED_PACK if p_kind == "red" else Palette.BLUE_PACK
-	if p_greyed:
-		ramp = Palette.GREY_PACK
-	var radius: int = (p_radius if p_radius > 0 else RADIUS[p_kind]) + (1 if p_grown else 0)
-	var lift: int = 1 if p_bright else 0
-	if p_kind == "red":
-		_add_ring(dots, ramp, lift, radius, false)
-	_add_planet(dots, ramp, lift, radius)
-	if p_kind == "red":
-		_add_ring(dots, ramp, lift, radius, true)
-	return dots
+		return {} as Dictionary[Vector2i, Color]
+	return ArtStrip.named("pack_" + p_kind).pixels(frame_name(p_grown, p_bright, p_radius, 0, p_greyed))
 
 
-## A disc shaded in 5 steps from the top-left, with a wavy darker band every 4 rows.
-static func _add_planet(dots: Dictionary[Vector2i, Color], ramp: Array[Color], lift: int, radius: int) -> void:
-	for dy: int in range(-radius, radius + 1):
-		for dx: int in range(-radius, radius + 1):
-			if dx * dx + dy * dy > radius * radius + radius:
-				continue
-			var light: float = float(dx + dy + 2 * radius) / float(4 * radius)
-			var step: int = ramp.size() - 1 - clampi(int(light * ramp.size()), 0, ramp.size() - 1)
-			var wave: int = 1 if posmod(dx, 6) < 3 else 0
-			if posmod(dy + wave, 4) == 0:
-				step -= 1
-			dots[Vector2i(dx, dy)] = ramp[clampi(step + lift, 0, ramp.size() - 1)]
+## The spin frame showing now, 0 to SPIN_FRAMES - 1.
+func spin_frame() -> int:
+	return _spin
 
 
-## The ring's back half is drawn before the planet, its front half after, so it wraps around.
-static func _add_ring(dots: Dictionary[Vector2i, Color], ramp: Array[Color], lift: int, radius: int, front: bool) -> void:
-	var radii := RING_RADII + Vector2.ONE * (radius - RADIUS["red"])
-	for dy: int in range(-ceili(radii.y), ceili(radii.y) + 1):
-		for dx: int in range(-ceili(radii.x), ceili(radii.x) + 1):
-			var e: float = pow(dx / radii.x, 2) + pow(dy / radii.y, 2)
-			if e < 0.6 or e > 1.05:
-				continue
-			if (dy >= 0) != front:
-				continue
-			dots[Vector2i(dx, dy)] = ramp[clampi(3 + lift, 0, ramp.size() - 1) if dy >= 0 else 2]
+## Moves the idle spin on. Driven by `_process`; tests call it directly.
+func advance(delta: float) -> void:
+	_spin_time += delta
+	var spin: int = floori(_spin_time / SPIN_STEP) % SPIN_FRAMES
+	if spin != _spin:
+		_spin = spin
+		if not grown and not bright and radius_override == 0:
+			queue_redraw()
+
+
+## The art frame for a state: the HUD's r6 icon (still; lit or grey), the tremble's grown and
+## bright steps, or the idle spin's frame `spin`. Only the HUD's icon has a grey frame.
+static func frame_name(p_grown: bool, p_bright: bool, p_radius: int, spin: int = 0, p_greyed: bool = false) -> String:
+	if p_radius == HUD_RADIUS:
+		if p_greyed:
+			return "hud_grey"
+		return "hud_bright" if p_bright else "hud"
+	assert(not p_greyed, "only the HUD's r%d icon greys out" % HUD_RADIUS)
+	assert(p_radius == 0, "pack art has the kind's own radius and the HUD's r%d only" % HUD_RADIUS)
+	if p_grown:
+		return "grown_bright" if p_bright else "grown"
+	return "bright" if p_bright else "idle_%d" % posmod(spin, SPIN_FRAMES)

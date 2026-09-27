@@ -1,7 +1,8 @@
 class_name RewardPlaque
 extends Control
 ## The 46x11 plaque shown while linking: what the traced link would pay.
-## N0 fill, N6 border with clipped corners (art-direction.md). Numbers are Labels, never art.
+## N0 fill, N6 border with clipped corners (art-direction.md), from assets/art/reward_plaque.png.
+## Numbers are Labels, never art.
 ## Uses the default font until the bitmap fonts land (#14). Owns no rules: it shows what it's given.
 
 const PLAQUE_SIZE := Vector2i(46, 11)
@@ -23,14 +24,7 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	var w: int = PLAQUE_SIZE.x
-	var h: int = PLAQUE_SIZE.y
-	draw_rect(Rect2(1, 1, w - 2, h - 2), Palette.N0)
-	# Border without its four corner pixels.
-	draw_rect(Rect2(1, 0, w - 2, 1), Palette.N6)
-	draw_rect(Rect2(1, h - 1, w - 2, 1), Palette.N6)
-	draw_rect(Rect2(0, 1, 1, h - 2), Palette.N6)
-	draw_rect(Rect2(w - 1, 1, 1, h - 2), Palette.N6)
+	ArtStrip.named("reward_plaque").draw(self, "plaque")
 
 
 ## Shows the reward of a valid link above (or below) the star at `anchor`.

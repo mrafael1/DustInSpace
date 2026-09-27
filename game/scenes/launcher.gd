@@ -267,26 +267,15 @@ func _show_rest_pack() -> void:
 
 ## Crescent fork on a stepped handle, bands from the tips to the pack, star gems on the tips.
 ## Only whole pixels: the bands are redrawn along their new line each frame, never stretched.
+## The bands to the pack (code: they follow the pull), then the fork art over them, its star
+## gems warming as the pull grows (warm, because the slingshot is interactive).
 func _draw_fork() -> void:
-	# Handle, down to the HUD line (y 284 on screen).
-	draw_rect(Rect2(-1, 6, 3, 9), Palette.M3)
-	draw_rect(Rect2(-1, 6, 1, 9), Palette.M4)
-	# Fork arms: a crescent from the handle up to each tip.
-	for side: int in [-1, 1]:
-		var tip: Vector2i = FORK_TIPS[0 if side < 0 else 1]
-		for p: Vector2i in LinkLayer.path_pixels([Vector2i(0, 6), Vector2i(side * 9, 3), tip] as Array[Vector2i]):
-			draw_rect(Rect2(Vector2(p), Vector2(1, 2)), Palette.M4)
-	# Bands to the pack.
 	var pack: Vector2i = pull_pixel()
 	if shown_pack() != "":
 		for tip: Vector2i in FORK_TIPS:
 			for p: Vector2i in LinkLayer.line_pixels(tip, pack):
 				draw_rect(Rect2(Vector2(p), Vector2.ONE), Palette.M5)
-	# Star gems: warm, because the slingshot is interactive; brighter as the pull grows.
-	var gem: Color = [Palette.C3, Palette.C2, Palette.C1, Palette.C0][pull_frame()]
-	for tip: Vector2i in FORK_TIPS:
-		for d: Vector2i in [Vector2i.ZERO, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-			draw_rect(Rect2(Vector2(tip + d), Vector2.ONE), gem if d == Vector2i.ZERO else Palette.C3)
+	ArtStrip.named("slingshot").draw(self, "pull_%d" % pull_frame())
 
 
 ## Four C1 corner ticks around the burst point.
@@ -299,11 +288,7 @@ func _draw_reticle(at: Vector2i) -> void:
 	draw_rect(Rect2(Vector2(at), Vector2.ONE), Palette.C0)
 
 
-## A 1 px ring that grows frame by frame, dithered at 50%.
+## A 1 px ring that grows frame by frame, dithered at 50%: the pack_burst art.
 func _draw_burst_ring() -> void:
 	var frame: int = mini(int(_burst_time / BURST_FRAME_TIME), BURST_RADII.size() - 1)
-	var radius: int = BURST_RADII[frame]
-	for dy: int in range(-radius - 1, radius + 2):
-		for dx: int in range(-radius - 1, radius + 2):
-			if roundi(sqrt(float(dx * dx + dy * dy))) == radius and posmod(dx + dy, 2) == 0:
-				draw_rect(Rect2(Vector2(_burst_at + Vector2i(dx, dy)), Vector2.ONE), Palette.C1 if frame < 2 else Palette.C2)
+	ArtStrip.named("pack_burst").draw(self, "ring_%d" % BURST_RADII[frame], _burst_at)
