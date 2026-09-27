@@ -269,4 +269,5 @@ func _load_level() -> void:
 
 
 func _apply_level() -> void:
+	_ensure_bus()
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index(BUS), LEVEL_DB[level])
