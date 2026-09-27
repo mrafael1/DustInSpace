@@ -3,7 +3,9 @@ extends Node2D
 ## Draws the Scorpio map (#40) under the stars. Each landmark is drawn with the star art of its
 ## size, so a small, medium or big landmark reads like the sky star it can stand in for: cool
 ## (unlit, usable in a combo) or gold (lit). Strings between two lit landmarks glow C1 with a C0
-## glint running along them; strings still to form are dotted N8. While a link is traced, the
+## glint running along them; strings still to form are dotted N8. An unlit landmark, which can be
+## picked, also has four small corner brackets in the dim halo tones (C4/C5, swapping every
+## CUE_STEP): a quiet "you can pick this" that background stars and lit landmarks never show. While a link is traced, the
 ## landmarks in it show gold and the strings it would form are dashed C2. Owns no rules:
 ## RunState says what's lit. Draws nothing without the map.
 ## Completion plays the constellation like an instrument once every payout has landed (the Sky
@@ -21,6 +23,10 @@ const OUTLINE_STEP: int = 2
 ## Built strings' idle glow: a C0 glint every GLOW_SPACING px moves one pixel per GLOW_STEP.
 const GLOW_SPACING: int = 6
 const GLOW_STEP: float = 0.12
+## The selectable cue: its brackets sit this far out from the star art's edge, and swap between
+## C5 and C4 every CUE_STEP.
+const CUE_GAP: int = 2
+const CUE_STEP: float = 0.6
 ## A landmark or string that just lit shows C0 this long.
 const LIT_FLASH: float = 0.25
 ## Completion: one string every STRING_STEP, bottom to top; then the drawing is traced over
@@ -237,8 +243,11 @@ func glow_step() -> int:
 ## Moves the glow, flashes and completion on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	var step: int = glow_step()
+	var cue: int = cue_frame()
 	_time += delta
-	var redraw: bool = glow_step() != step and _run != null and _run.scorpio != null and _run.scorpio.built_count() > 0
+	var mapped: bool = _run != null and _run.scorpio != null
+	var redraw: bool = mapped and ((glow_step() != step and _run.scorpio.built_count() > 0) \
+		or (cue_frame() != cue and not _run.scorpio.is_complete()))
 	if _flash_left > 0.0:
 		_flash_left = maxf(_flash_left - delta, 0.0)
 		redraw = true
@@ -308,7 +317,34 @@ func _draw_string(segment: int) -> void:
 			_dot(pixels[i], Palette.N8)
 
 
+## The selectable cue's pixels around a landmark of `size`: an L in each corner, pointing in.
+static func cue_pixels(size: int) -> Array[Vector2i]:
+	var o: int = StarView.half_extent(size as Star.Size) + CUE_GAP
+	var dots: Array[Vector2i] = []
+	for sx: int in [-1, 1]:
+		for sy: int in [-1, 1]:
+			var corner := Vector2i(sx * o, sy * o)
+			dots.append_array([corner, corner - Vector2i(sx, 0), corner - Vector2i(0, sy)])
+	return dots
+
+
+## Which of the cue's two colours shows now: 0 (C5) or 1 (C4).
+func cue_frame() -> int:
+	return int(_time / CUE_STEP) % 2
+
+
+## Whether landmark `index` shows the selectable cue: unlit, not in the link being traced, and
+## not while the constellation plays.
+func shows_cue(index: int) -> bool:
+	return _run != null and _run.scorpio != null and not _run.scorpio.is_lit(index) \
+		and not _selected.has(index) and _completion_time < 0.0
+
+
 func _draw_landmark(index: int) -> void:
+	if shows_cue(index):
+		var colour: Color = Palette.C4 if cue_frame() == 1 else Palette.C5
+		for d: Vector2i in cue_pixels(Scorpio.SIZES[index]):
+			_dot(Scorpio.LANDMARKS[index] + d, colour)
 	var gold: bool = _run.scorpio.is_lit(index) or _selected.has(index)
 	var art: Dictionary = _art[Scorpio.SIZES[index]]
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
