@@ -281,3 +281,8 @@ func test_the_spin_leaves_the_tremble_and_the_hud_icon_still() -> void:
 		assert_eq(PackView.frame_name(false, false, PackView.HUD_RADIUS, spin), "hud")
 		assert_eq(PackView.frame_name(true, false, 0, spin), "grown")
 		assert_eq(PackView.frame_name(false, true, 0, spin), "bright")
+
+
+func test_every_art_strip_holds_all_its_frames() -> void:
+	for name: String in ["pack_blue", "pack_red", "pack_burst", "slingshot", "dust_icon", "reward_plaque"]:
+		assert_true(ArtStrip.named(name).fits_texture(), "%s.png matches its sidecar" % name)
