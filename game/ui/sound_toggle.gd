@@ -9,7 +9,7 @@ extends Node
 signal toggled
 
 ## The speaker's tap target on the 180x320 screen: the HUD's SoundIcon position + SoundIcon.TARGET.
-const TARGET := Rect2i(0, 0, 22, 22)
+const TARGET := Rect2i(6, 6, 22, 22)
 
 ## Where the game's screen sits in the window (ScreenZones.game_offset; Main sets it).
 var screen_offset: Vector2i = Vector2i.ZERO

@@ -30,7 +30,8 @@ const LAST_SLOT_X: int = 158
 const SLOT_Y: int = 290
 ## Where the speaker, the dust icon and the dust counter sit on a 9:16 screen (fit_screen moves
 ## them to the real screen's corners).
-const SOUND_AT := Vector2i(4, 4)
+## The speaker sits 10 px in from the corner: a phone's rounded corner clipped it at 4 px.
+const SOUND_AT := Vector2i(10, 10)
 const DUST_ICON_AT := Vector2i(12, 300)
 const DUST_AT := Vector2i(20, 297)
 const LIGHT_AT := Vector2i(60, 66)
