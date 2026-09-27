@@ -95,9 +95,10 @@ func _wire_sound() -> void:
 	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
 
 
-## Scorpio's completion clears the sky: each star bursts with a pack burst's sparks and sound.
+## Scorpio clears the sky (and a sunbeam lands): each star blows up with a ring, big sparks and
+## the burst sound.
 func _on_star_exploded(at: Vector2i) -> void:
-	_sparks.spark_at(at)
+	_sparks.explode_at(at)
 	_sfx.play(&"burst")
 
 

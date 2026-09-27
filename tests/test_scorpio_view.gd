@@ -203,6 +203,19 @@ func test_completion_bursts_every_star_left_lowest_first_before_the_tune() -> vo
 		assert_true(not is_instance_valid(view) or view.is_queued_for_deletion(), "each one gone")
 
 
+func test_a_cleared_star_blows_up_bigger_than_a_pack_burst() -> void:
+	var sparks: BurstSparks = main.get_node("BurstSparks")
+	sparks.set_process(false)
+	sparks.explode_at(Vector2i(90, 150))
+	assert_true(sparks.is_sparking())
+	sparks.advance(BurstSparks.SPARK_TIME)
+	assert_true(sparks.is_sparking(), "it outlasts a pack burst's sparks")
+	sparks.advance(BurstSparks.EXPLODE_TIME - BurstSparks.SPARK_TIME)
+	assert_false(sparks.is_sparking(), "then it's gone")
+	assert_gt(BurstSparks.EXPLODE_SPARKS, BurstSparks.SPARKS)
+	assert_gt(BurstSparks.EXPLODE_REACH_MAX, BurstSparks.REACH_MAX)
+
+
 func test_an_exploding_star_waits_then_bursts_and_vanishes() -> void:
 	var star: Star = _star(Star.Size.MEDIUM, Vector2i(90, 150))
 	var view: StarView = sky.star_view(star.id)
