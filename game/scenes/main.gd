@@ -24,6 +24,7 @@ var run: RunState
 @onready var _sky: SkyView = $Sky
 @onready var _big_bang: BigBangSequence = $BigBang
 @onready var _sound_toggle: SoundToggle = $SoundToggle
+@onready var _backdrop: Backdrop = $Backdrop
 
 
 func _ready() -> void:
@@ -42,6 +43,8 @@ func _ready() -> void:
 	_end_screen.restart_requested.connect(restart)
 	_end_screen.watch_payouts(_collect)
 	_wire_sound()
+	get_viewport().size_changed.connect(fit_screen)
+	fit_screen()
 	start_run(Balance.load_file(balance_path))
 
 
@@ -59,6 +62,19 @@ func start_run(balance: Balance) -> bool:
 			child.setup(run, _sequencer)
 	run_started.emit(run)
 	return true
+
+
+## Centres the game's 180x320 screen in whatever the window shows (a phone that isn't 9:16
+## shows more; see ScreenZones.SCREEN): the camera moves the world, the UI layers follow it,
+## and the Backdrop fills the margins.
+func fit_screen() -> void:
+	var visible: Vector2 = get_viewport().get_visible_rect().size
+	var offset: Vector2i = ScreenZones.game_offset(visible)
+	($BigBang/Shake as Camera2D).position = Vector2(-offset)
+	for layer: CanvasLayer in [$HUD, $EndScreen, $DebugLayer, $BigBang/Front] as Array[CanvasLayer]:
+		layer.offset = Vector2(offset)
+	_sound_toggle.screen_offset = offset
+	_backdrop.fit(offset, Vector2i(visible))
 
 
 ## A fresh run on the current run's balance (the end screen's RESTART).

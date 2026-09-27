@@ -11,11 +11,14 @@ signal toggled
 ## The speaker's tap target on the 180x320 screen: the HUD's SoundIcon position + SoundIcon.TARGET.
 const TARGET := Rect2i(0, 0, 22, 22)
 
+## Where the game's screen sits in the window (ScreenZones.game_offset; Main sets it).
+var screen_offset: Vector2i = Vector2i.ZERO
+
 var _pressed: bool = false
 
 
 func _input(event: InputEvent) -> void:
-	if handle_pointer(event):
+	if handle_pointer(ScreenZones.to_game(event, screen_offset)):
 		get_viewport().set_input_as_handled()
 
 

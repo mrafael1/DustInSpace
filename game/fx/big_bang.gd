@@ -148,7 +148,7 @@ func _draw() -> void:
 	if _time < 0.0:
 		return
 	if _time >= FREEZE_AT and _time < BANG_AT:
-		draw_texture_rect(_darken, Rect2(Vector2.ZERO, Vector2(SCREEN)), true)
+		draw_texture_rect(_darken, _visible_rect(), true)
 	var since_freeze: float = _time - FREEZE_AT
 	if since_freeze >= 0.0 and since_freeze < COLLAPSE_TIME:
 		var k: float = since_freeze / COLLAPSE_TIME
@@ -389,6 +389,14 @@ func _scatter_debris() -> void:
 		_debris_colour.append(DEBRIS_COLOURS[_rng.randi() % DEBRIS_COLOURS.size()])
 
 
+## The whole visible screen in game coordinates, margins included (Main offsets the Front layer
+## by the same amount it centres the game).
+func _visible_rect() -> Rect2:
+	var offset := Vector2(($Front as CanvasLayer).offset)
+	var size: Vector2 = get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(SCREEN)
+	return Rect2(-offset, size.max(Vector2(SCREEN)))
+
+
 func _stop() -> void:
 	_time = -1.0
 	_banner.visible = false
@@ -404,7 +412,7 @@ func _draw_flash() -> void:
 		return
 	var since: float = _time - BANG_AT
 	if is_flashing():
-		_front.draw_rect(Rect2(Vector2.ZERO, Vector2(SCREEN)), Palette.C0)
+		_front.draw_rect(_visible_rect(), Palette.C0)
 	var core: int = flash_core_radius(since)
 	for dy: int in range(-core, core + 1):
 		for dx: int in range(-core, core + 1):

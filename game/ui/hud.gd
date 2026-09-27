@@ -69,7 +69,7 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if handle_pointer(event):
+	if handle_pointer(ScreenZones.to_game(event, Vector2i(offset))):
 		get_viewport().set_input_as_handled()
 
 
