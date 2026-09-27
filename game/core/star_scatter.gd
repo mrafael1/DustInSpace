@@ -13,6 +13,9 @@ const RING_MAX: int = 30
 const RING_SQUASH: float = 0.85
 ## Big star width + 1, so sprites never overlap in an open sky.
 const MIN_SPACING: int = 16
+## Scorpio's landmark stars: a burst star keeps this far from one, so they never overlap
+## (a big landmark's arms reach 7 px).
+const LANDMARK_SPACING: int = 14
 const RELAX_STEPS: int = 24
 
 
@@ -35,6 +38,7 @@ static func place(
 	sky: Rect2i,
 	occupied: Array[Vector2i],
 	rng: RandomNumberGenerator,
+	landmarks: Array[Vector2i] = [],
 ) -> Array[Vector2i]:
 	var inner: Rect2i = inner_rect(sky)
 	var lo := Vector2(inner.position)
@@ -47,7 +51,7 @@ static func place(
 		var dist: float = rng.randf_range(RING_MIN, RING_MAX)
 		var p := center + Vector2(cos(angle) * dist, sin(angle) * dist * RING_SQUASH)
 		points.append(p.clamp(lo, hi))
-	_relax(points, occupied, lo, hi)
+	_relax(points, occupied, landmarks, lo, hi)
 	var result: Array[Vector2i] = []
 	for p: Vector2 in points:
 		result.append(clamp_to_sky(Vector2i(p.round()), sky))
@@ -56,26 +60,28 @@ static func place(
 
 ## Pushes new stars apart from each other and from stars already in the sky.
 ## Best effort only: a crowded sky can still overlap; clamping always wins.
-static func _relax(points: Array[Vector2], occupied: Array[Vector2i], lo: Vector2, hi: Vector2) -> void:
+static func _relax(points: Array[Vector2], occupied: Array[Vector2i], landmarks: Array[Vector2i], lo: Vector2, hi: Vector2) -> void:
 	var center: Vector2 = (lo + hi) / 2.0
 	for step: int in RELAX_STEPS:
 		for i: int in points.size():
 			var p: Vector2 = points[i]
 			for o: Vector2i in occupied:
 				p += _push(p, Vector2(o), 1.0, center)
+			for o: Vector2i in landmarks:
+				p += _push(p, Vector2(o), 1.0, center, LANDMARK_SPACING)
 			for j: int in points.size():
 				if j != i:
 					p += _push(p, points[j], 0.5, center)
 			points[i] = p.clamp(lo, hi)
 
 
-static func _push(p: Vector2, other: Vector2, share: float, center: Vector2) -> Vector2:
+static func _push(p: Vector2, other: Vector2, share: float, center: Vector2, spacing: int = MIN_SPACING) -> Vector2:
 	var delta: Vector2 = p - other
 	var d: float = delta.length()
-	if d >= MIN_SPACING:
+	if d >= spacing:
 		return Vector2.ZERO
 	var dir: Vector2 = delta / d if d > 0.01 else _separation_dir(p, center)
-	return dir * (MIN_SPACING - d) * share
+	return dir * (spacing - d) * share
 
 
 ## Direction for coincident stars: toward the sky centre, so clamping at an edge can't cancel it.

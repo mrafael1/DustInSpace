@@ -1,6 +1,7 @@
 class_name SunView
 extends Node2D
-## The Sun, drawn in code until the Sun art lands (#13). Its frame follows light / sun_target:
+## The Sun, drawn in code until the Sun art lands (#13). Its frame follows light over the run's
+## target (RunState.light_target: sun_target, or scorpio.sun_target on the Scorpio map):
 ## light pools up the disc from the bottom and the rays light clockwise from 12 o'clock, taking
 ## it from the dim S ramp to the lit C ramp. That change is the run's progress bar.
 ## It pulses as each light particle lands (receive_light, wired by Main), and ignites and lights
@@ -16,6 +17,8 @@ extends Node2D
 ## Sun art: an r17 disc and 12 rays (art-direction.md).
 ## The ignition started: the last light landed on a won run. Feedback only (sound).
 signal ignited
+## Scorpio (#40): a full Sun's ignition played through and it's back at 0 light.
+signal rekindled
 
 const RADIUS: int = 17
 const DISC_ROWS: int = 2 * RADIUS + 1
@@ -53,6 +56,8 @@ var _pulse_left: float = 0.0
 var _light_in_flight: int = 0
 ## run_won has played and the ignition waits for the light still in flight.
 var _ignite_waiting: bool = false
+## Scorpio: this ignition is a rekindle, so the Sun goes back to 0 once it's done.
+var _rekindling: bool = false
 ## Seconds since the ignition started, or -1 before it.
 var _ignite_time: float = -1.0
 var _ripple: int = 0
@@ -89,6 +94,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_pulse_left = 0.0
 	_light_in_flight = 0
 	_ignite_waiting = false
+	_rekindling = false
 	_glow_textures.clear()
 	_ignite_time = IGNITE_TIME if run.outcome == RunState.Outcome.WON else -1.0
 	queue_redraw()
@@ -109,7 +115,7 @@ func receive_light(amount: int) -> void:
 func progress() -> float:
 	if _run == null:
 		return 0.0
-	return clampf(float(_shown_light) / float(_run.balance.sun_target), 0.0, 1.0)
+	return clampf(float(_shown_light) / float(_run.light_target()), 0.0, 1.0)
 
 
 ## Rows of the disc filled with light, from the bottom. All of them only at 100%.
@@ -147,6 +153,8 @@ func advance(delta: float) -> void:
 	_pulse_left = maxf(_pulse_left - delta, 0.0)
 	if is_igniting():
 		_ignite_time = minf(_ignite_time + delta, IGNITE_TIME)
+		if _rekindling and _ignite_time >= IGNITE_TIME:
+			_rekindle_done()
 	_ripple_time += delta
 	if _ripple_time >= RIPPLE_TIME:
 		_ripple_time = fmod(_ripple_time, RIPPLE_TIME)
@@ -194,13 +202,37 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	match event.type:
 		&"combo_collected":
 			_light_in_flight += event.args[3]
+		&"sun_rekindled":
+			_rekindling = true
+			_ignite_when_landed()
 		&"run_won":
+			# Scorpio's win is the constellation's tune, not the Sun (#40).
+			if _rekindling or _run.scorpio != null:
+				return
 			if _light_in_flight > 0:
 				# The win's light is still flying: hold until it can have landed, then ignite.
 				_ignite_waiting = true
 				_sequencer.hold(CollectParticles.LONGEST_TRAVEL + ARRIVAL_MARGIN)
 			else:
 				_ignite()
+
+
+func _ignite_when_landed() -> void:
+	if _light_in_flight > 0:
+		_ignite_waiting = true
+		_sequencer.hold(CollectParticles.LONGEST_TRAVEL + ARRIVAL_MARGIN)
+	else:
+		_ignite()
+
+
+## Scorpio: the rekindle's ignition is over; the Sun starts again from 0.
+func _rekindle_done() -> void:
+	_rekindling = false
+	_ignite_time = -1.0
+	_shown_light = 0
+	_glow_textures.clear()
+	queue_redraw()
+	rekindled.emit()
 
 
 ## Starts the ignition and keeps the sequence (the win) waiting until it's done.

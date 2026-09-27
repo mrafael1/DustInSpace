@@ -7,11 +7,23 @@ extends Node2D
 ## Halos are painted on the HaloLayer, under every star, so no halo covers another star.
 ## Linking: pointer input goes through a LinkGesture; the traced line is on the LinkLayer and
 ## the reward preview on the RewardPlaque. The link itself is RunState.link()'s call.
+## Scorpio (#40): the ConstellationLayer, under everything, draws the landmarks and the outline.
+## Unlit landmarks can be picked like stars (their ids are negative, Scorpio.landmark_id); the
+## combo and the strings a link would form come from RunState. When the Sun rekindles, the stars
+## that pay its dust shine one after another (shine_rekindled, wired by Main). Each step of a link
+## has a reach (RunState.link_reach): while tracing, the LinkLayer shows it as a ring around the
+## last star picked, and a star out of reach can't join (its step shakes ember; the link stays).
 ## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
 
 ## A star joined the link being traced; `count` stars are in it now. Feedback only (sound).
 signal star_selected(count: int)
+## Scorpio: the `order`-th star paying a rekindled Sun's dust started to shine. Feedback only.
+signal star_shone(order: int)
+## Scorpio: a second landmark was picked for one link; the link was dropped at once. Feedback only.
+signal link_refused
+## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
+signal step_refused
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -33,7 +45,13 @@ var _decoy_rng := RandomNumberGenerator.new()
 var _finger: Vector2i = Vector2i.ZERO
 ## Stars in the link as last shown, to tell a star joining it from one leaving.
 var _selected_count: int = 0
+## Scorpio: where the stars paying a rekindled Sun's dust are, in payout order.
+var _rekindle_positions: Array[Vector2i] = []
+## Scorpio: the completion tune waits for the payouts still flying.
+var _payouts: CollectParticles
+var _completion_waiting: bool = false
 
+@onready var _constellation: ConstellationView = $ConstellationLayer
 @onready var _halo_layer: Node2D = $HaloLayer
 @onready var _link_layer: LinkLayer = $LinkLayer
 @onready var _star_layer: Node2D = $StarLayer
@@ -45,6 +63,8 @@ func _ready() -> void:
 	_halo_layer.draw.connect(_draw_halos)
 	_gesture.selection_changed.connect(_on_selection_changed)
 	_gesture.link_requested.connect(_on_link_requested)
+	_gesture.can_join = _can_join
+	_gesture.join_refused.connect(_on_join_refused)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -64,6 +84,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer.sequence_started.connect(_gesture.cancel)
 	_gesture.cancel()
 	_clear()
+	_completion_waiting = false
+	_constellation.setup(run)
 	for star: Star in run.stars:
 		_spawn(star)
 
@@ -71,6 +93,26 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 ## The view of a star still in the sky, or null.
 func star_view(id: int) -> StarView:
 	return _views.get(id)
+
+
+## The payout particles the completion tune waits for (Main wires them).
+func watch_payouts(payouts: CollectParticles) -> void:
+	_payouts = payouts
+	_payouts.all_landed.connect(_on_payouts_landed)
+
+
+## Scorpio: the Sun is back at 0; the stars paying its dust shine in turn, StarView.SHINE_STAGGER
+## apart, in the order CollectParticles sends their dust.
+func shine_rekindled() -> void:
+	var order: int = 0
+	for at: Vector2i in _rekindle_positions:
+		for id: int in _views:
+			var star: Star = _run.find_star(id)
+			if star != null and star.position == at:
+				_views[id].shine(order * StarView.SHINE_STAGGER)
+				star_shone.emit(order)
+		order += 1
+	_rekindle_positions = []
 
 
 func star_count() -> int:
@@ -95,8 +137,9 @@ func handle_pointer(event: InputEvent) -> bool:
 	return used
 
 
-## The id of the star whose hit circle holds `point` (the nearest if several do), or 0.
-## Uses the positions from the core, so a star still drifting home is hit where it will rest.
+## The id of the star (or Scorpio landmark) whose hit circle holds `point` (the nearest if
+## several do), or 0. Uses the positions from the core, so a star still drifting home is hit
+## where it will rest.
 func star_at(point: Vector2i) -> int:
 	var best_id: int = 0
 	var best_dist_sq: int = HIT_RADIUS * HIT_RADIUS + 1
@@ -108,6 +151,14 @@ func star_at(point: Vector2i) -> int:
 		if dist_sq < best_dist_sq:
 			best_dist_sq = dist_sq
 			best_id = id
+	if _run.scorpio != null:
+		for i: int in Scorpio.LANDMARKS.size():
+			if _run.scorpio.is_lit(i):
+				continue
+			var dist_sq: int = (Scorpio.LANDMARKS[i] - point).length_squared()
+			if dist_sq < best_dist_sq:
+				best_dist_sq = dist_sq
+				best_id = Scorpio.landmark_id(i)
 	return best_id
 
 
@@ -117,6 +168,8 @@ func selected_ids() -> Array[int]:
 
 
 func _on_event_played(event: EventSequencer.RunEvent) -> void:
+	# The gap hints follow the stars in the sky.
+	_constellation.queue_redraw()
 	match event.type:
 		&"pack_burst":
 			_burst(event.args[1], event.args[2])
@@ -129,6 +182,19 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_launched_kind = event.args[0]
 		&"big_bang_started":
 			_big_bang(event.args[0], event.args[1])
+		&"landmark_lit":
+			_constellation.flash_landmark(event.args[0])
+		&"string_built":
+			_constellation.flash_string(event.args[0])
+		&"sun_rekindled":
+			_rekindle_positions = event.args[2]
+		&"constellation_completed":
+			# The tune waits for every payout to land (watch_payouts); the sequence waits for it.
+			_sequencer.hold(CollectParticles.LONGEST_TRAVEL + ConstellationView.COMPLETION_TIME)
+			if _payouts != null and _payouts.particle_count() > 0:
+				_completion_waiting = true
+			else:
+				_play_completion()
 
 
 ## Presses only start inside the sky; a release always ends the press that started.
@@ -146,6 +212,9 @@ func _on_touch(touch: InputEventScreenTouch) -> bool:
 
 
 func _on_selection_changed(ids: Array[int]) -> void:
+	if _too_many_landmarks(ids):
+		_refuse_link(ids)
+		return
 	for id: int in _views:
 		_views[id].selected = ids.has(id)
 	if ids.size() > _selected_count:
@@ -154,41 +223,98 @@ func _on_selection_changed(ids: Array[int]) -> void:
 	_show_link()
 
 
+## Scorpio: a link can hold only Scorpio.LANDMARKS_PER_COMBO landmarks; picking another is
+## refused on the spot, with the red shake of a wrong link, so the rule shows on the first try.
+func _too_many_landmarks(ids: Array[int]) -> bool:
+	if _run == null or _run.scorpio == null:
+		return false
+	return ids.filter(Scorpio.is_landmark_id).size() > Scorpio.LANDMARKS_PER_COMBO
+
+
+func _refuse_link(ids: Array[int]) -> void:
+	_link_layer.flash_rejected(_positions_of_ids(ids))
+	_gesture.cancel()
+	link_refused.emit()
+
+
 func _on_link_requested(ids: Array[int]) -> void:
 	_run.link(ids)
 
 
+## A star may join the link only within reach of the last one picked (RunState rules the same).
+func _can_join(ids: Array[int], id: int) -> bool:
+	if ids.is_empty() or _run == null:
+		return true
+	var ends: Array[Vector2i] = _positions_of_ids([ids[-1], id] as Array[int])
+	return ends.size() < 2 or _run.in_reach(ends[0], ends[1])
+
+
+func _on_join_refused(ids: Array[int], id: int) -> void:
+	if ids.is_empty():
+		return
+	_link_layer.flash_rejected(_positions_of_ids([ids[-1], id] as Array[int]))
+	step_refused.emit()
+
+
 ## Line through the selected stars (and to the finger while dragging), plus the reward preview.
+## With a reach, the ring around the last star picked shows how far the next step can go, and the
+## line to the finger goes loose past it.
 func _show_link() -> void:
 	var points: Array[Vector2i] = _positions_of_ids(_gesture.selected)
+	var open: bool = not points.is_empty() and points.size() < Combos.LINK_LENGTH
+	var loose: bool = false
 	if _gesture.is_dragging() and points.size() < Combos.LINK_LENGTH:
+		loose = not points.is_empty() and not _run.in_reach(points[-1], _finger)
 		points.append(_finger)
-	_link_layer.show_path(points)
+	_link_layer.show_path(points, loose)
+	var reach: int = _run.link_reach() if _run != null else 0
+	_link_layer.show_reach(points[_gesture.selected.size() - 1] if open else Vector2i.ZERO, reach if open else 0)
 	_show_preview()
 
 
-## Reads the combo and its reward; the plaque only displays them.
+## Reads the combo and its reward; the plaque only displays them. On the Scorpio map it also
+## previews the landmarks in the link, the strings it would form, and where it would sting.
 func _show_preview() -> void:
 	var ids: Array[int] = _gesture.selected
+	if _run.scorpio != null:
+		var landmarks: Array[int] = []
+		for id: int in ids:
+			if Scorpio.is_landmark_id(id):
+				landmarks.append(Scorpio.landmark_index(id))
+		_constellation.show_link_preview(landmarks, _run.strings_for(ids))
 	if ids.size() != Combos.LINK_LENGTH:
 		_plaque.visible = false
 		return
-	var sizes: Array[int] = []
-	for id: int in ids:
-		sizes.append(_run.find_star(id).size)
-	var last: Star = _run.find_star(ids[-1])
-	var half: int = StarView.half_extent(last.size)
+	var last_at: Vector2i = _positions_of_ids([ids[-1]] as Array[int])[0]
+	var half: int = StarView.half_extent(_size_of(ids[-1]))
 	# The plaque is on a CanvasLayer, which ignores this node's transform (e.g. screen shake),
 	# so hand it screen coordinates. Only whole-pixel translation is allowed on the grid.
 	var offset := Vector2i(get_global_transform_with_canvas().origin.round())
-	var anchor: Vector2i = last.position + offset
+	var anchor: Vector2i = last_at + offset
 	var bounds := Rect2i(_run.sky_rect.position + offset, _run.sky_rect.size)
-	var combo: String = Combos.evaluate(sizes)
+	var combo: String = _run.combo_for(ids)
 	if combo == Combos.INVALID:
 		_plaque.show_no_combo(anchor, half, bounds)
 	else:
 		var reward: Balance.ComboReward = _run.balance.combos[combo]
 		_plaque.show_reward(reward.dust, reward.light, anchor, half, bounds)
+
+
+func _size_of(id: int) -> Star.Size:
+	if Scorpio.is_landmark_id(id):
+		return Scorpio.SIZES[Scorpio.landmark_index(id)] as Star.Size
+	return _run.find_star(id).size
+
+
+func _on_payouts_landed() -> void:
+	if _completion_waiting:
+		_completion_waiting = false
+		_play_completion()
+
+
+func _play_completion() -> void:
+	_constellation.play_completion()
+	_sequencer.hold(ConstellationView.COMPLETION_TIME)
 
 
 func _positions(stars: Array[Star]) -> Array[Vector2i]:
@@ -198,10 +324,13 @@ func _positions(stars: Array[Star]) -> Array[Vector2i]:
 	return points
 
 
-## Positions of the ids still in the run; unknown ids are skipped.
+## Positions of the ids still in the run (landmarks included); unknown ids are skipped.
 func _positions_of_ids(ids: Array[int]) -> Array[Vector2i]:
 	var points: Array[Vector2i] = []
 	for id: int in ids:
+		if _run.scorpio != null and Scorpio.is_landmark_id(id):
+			points.append(Scorpio.LANDMARKS[Scorpio.landmark_index(id)])
+			continue
 		var star: Star = _run.find_star(id)
 		if star != null:
 			points.append(star.position)

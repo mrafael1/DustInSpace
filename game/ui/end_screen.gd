@@ -4,6 +4,7 @@ extends CanvasLayer
 ## (so the Sun's ignition plays out) and for every payout particle to land (so the counters
 ## show what the plaque says), then shows a plaque over everything.
 ## Win: "SUN RESTORED" and the light. Loss: "THE SUN FADES" and the light reached.
+## On the Scorpio map: "SCORPIO COMPLETE" or "SCORPIO UNFINISHED" and the strings formed.
 ## RESTART asks Main for a new run.
 ## While it shows, it takes every pointer event, so nothing behind it can be touched.
 ## Owns no rules. Text is bitmap-font Labels (HudText); the plaque is drawn in code: N0 fill,
@@ -130,8 +131,13 @@ func _on_payouts_landed() -> void:
 
 func _show_end() -> void:
 	_clear_lines()
-	var light: String = "LIGHT %d/%d" % [_run.light, _run.balance.sun_target]
-	if _run.outcome == RunState.Outcome.WON:
+	var light: String = "LIGHT %d/%d" % [_run.light, _run.light_target()]
+	var won: bool = _run.outcome == RunState.Outcome.WON
+	if _run.scorpio != null:
+		# The Scorpio map's objective is the constellation (#40).
+		_add_line("SCORPIO COMPLETE" if won else "SCORPIO UNFINISHED", Palette.C1 if won else Palette.S4)
+		_add_line("STRINGS %d/%d" % [_run.scorpio.built_count(), Scorpio.segment_count()], Palette.C1)
+	elif won:
 		_add_line("SUN RESTORED", Palette.C1)
 		_add_line(light, Palette.C1)
 	else:
