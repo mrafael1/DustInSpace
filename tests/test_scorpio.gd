@@ -135,6 +135,32 @@ func test_completing_the_constellation_clears_the_sky_for_nothing() -> void:
 	assert_eq([run.dust, run.light], [dust + reward.dust, light + reward.light], "only the last combo pays")
 
 
+func test_a_sun_that_lights_the_last_landmark_completes_and_clears_for_nothing() -> void:
+	for index: int in range(2, Scorpio.LANDMARKS.size() - 1):
+		_light(index)
+	var left: Star = run.add_star(MEDIUM, Vector2i(150, 120))
+	run.light = run.light_target() - 5
+	var order: Array[String] = []
+	var rekindle: Array = []
+	run.sun_rekindled.connect(func(i: int, d: int, p: Array[Vector2i]) -> void:
+		order.append("rekindled")
+		rekindle.append([i, d, p.size()]))
+	run.landmark_lit.connect(func(_i: int) -> void: order.append("lit"))
+	run.sky_cleared.connect(func(_s: Array[Star]) -> void: order.append("cleared"))
+	run.constellation_completed.connect(func() -> void: order.append("completed"))
+	run.run_won.connect(func() -> void: order.append("won"))
+	var dust: int = run.dust
+	var ids: Array[int] = []
+	for x: int in [10, 30, 50]:
+		ids.append(run.add_star(SMALL, Vector2i(x, 90)).id)
+	run.link(ids)
+	assert_eq(order, ["rekindled", "lit", "cleared", "completed", "won"] as Array[String])
+	assert_eq(rekindle, [[Scorpio.LANDMARKS.size() - 1, 0, 0]], "the winning rekindle pays nothing: the sky is cleared")
+	assert_eq(run.dust, dust + run.balance.combos["small_triple"].dust)
+	assert_null(run.find_star(left.id))
+	assert_eq(run.outcome, RunState.Outcome.WON)
+
+
 func test_an_empty_sky_isnt_cleared() -> void:
 	for index: int in range(2, Scorpio.LANDMARKS.size() - 1):
 		_light(index)

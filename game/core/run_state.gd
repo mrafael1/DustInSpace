@@ -244,11 +244,12 @@ func link(star_ids: Array[int]) -> String:
 			if Scorpio.is_landmark_id(star.id):
 				_light_landmark(Scorpio.landmark_index(star.id))
 		# The last landmark lit is the win: no rekindle on top of it, and the sky is cleared.
+		if not scorpio.is_complete():
+			_rekindle_if_full()
+		# Complete now, by this combo or by the Sun it filled.
 		if scorpio.is_complete():
 			_clear_sky()
 			constellation_completed.emit()
-		else:
-			_rekindle_if_full()
 	_check_end()
 	return combo
 
@@ -289,16 +290,19 @@ func _light_landmark(index: int) -> void:
 
 
 ## Scorpio: a full Sun (light_target) rekindles at 0, lights the first unlit landmark next to a
-## lit one (else the first unlit), and pays sun_dust_per_star for every star in the sky.
+## lit one (else the first unlit), and pays sun_dust_per_star for every star in the sky. When the
+## landmark it lights is the last one, it pays nothing: the run is won and the sky gets cleared.
 func _rekindle_if_full() -> void:
 	if light < light_target():
 		return
 	light = 0
 	var index: int = rekindle_target()
-	var gain: int = balance.scorpio_sun_dust_per_star * stars.size()
+	var gain: int = 0
 	var positions: Array[Vector2i] = []
-	for star: Star in stars:
-		positions.append(star.position)
+	if scorpio.unlit_sizes().size() > 1:
+		gain = balance.scorpio_sun_dust_per_star * stars.size()
+		for star: Star in stars:
+			positions.append(star.position)
 	dust += gain
 	sun_rekindled.emit(index, gain, positions)
 	if index >= 0:
