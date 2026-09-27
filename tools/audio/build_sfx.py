@@ -136,6 +136,11 @@ def pack_buy():
     )
 
 
+def pack_ready():
+    # With the slot's flash and sparkle: two quick rising chimes, a tiny "ding-ding".
+    return mix((0, bell(note("E6"), 0.18), 0.8), (0.07, bell(note("B6"), 0.28), 1.0))
+
+
 def tap_refused():
     return envelope(tone(170, 0.12, "square", 140, duty=0.3), attack=0.004, curve=1.5)
 
@@ -260,6 +265,7 @@ def restart():
 CUES = {
     "pack_load": (pack_load, -14),
     "pack_buy": (pack_buy, -10),
+    "pack_ready": (pack_ready, -13),
     "tap_refused": (tap_refused, -16),
     "pull_start": (pull_start, -18),
     "pull_step": (pull_step, -18),
