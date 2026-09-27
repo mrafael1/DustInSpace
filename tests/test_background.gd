@@ -51,17 +51,38 @@ func _cool_colours() -> Dictionary[String, String]:
 	return colours
 
 
-func test_the_game_screen_sits_centred_on_whole_pixels() -> void:
+func test_the_view_fills_a_phone_at_a_whole_number_scale() -> void:
+	assert_eq(ScreenZones.fill_scale(Vector2i(1080, 1920)), 6, "9:16 at 6x")
+	assert_eq(ScreenZones.fill_size(Vector2i(1080, 1920)), Vector2i(180, 320), "exactly the game's screen")
+	# Godot's own expand left 45 px bars across and 99 px top and bottom here.
+	assert_eq(ScreenZones.fill_scale(Vector2i(1170, 2532)), 6)
+	assert_eq(ScreenZones.fill_size(Vector2i(1170, 2532)), Vector2i(195, 422), "fills: under 6 device px left over")
+	assert_eq(ScreenZones.fill_size(Vector2i(412, 915)), Vector2i(206, 457), "a CSS-sized web canvas at 2x")
+	assert_eq(ScreenZones.fill_size(Vector2i(64, 64)), Vector2i(180, 320), "never smaller than the game")
+
+
+func test_the_game_sits_on_the_bottom_edge_centred_across() -> void:
 	assert_eq(ScreenZones.game_offset(Vector2(180, 320)), Vector2i.ZERO, "9:16: nothing around it")
-	assert_eq(ScreenZones.game_offset(Vector2(180, 400)), Vector2i(0, 40), "a taller phone: sky above, ground below")
-	assert_eq(ScreenZones.game_offset(Vector2(191, 320)), Vector2i(5, 0), "whole pixels")
+	assert_eq(ScreenZones.game_offset(Vector2(180, 400)), Vector2i(0, 80), "a taller phone: all the extra is sky above")
+	assert_eq(ScreenZones.game_offset(Vector2(195, 422)), Vector2i(7, 102), "whole pixels")
 	assert_eq(ScreenZones.game_offset(Vector2(100, 100)), Vector2i.ZERO, "never negative")
 	var tap := InputEventScreenTouch.new()
 	tap.position = Vector2(50, 90)
 	assert_eq((ScreenZones.to_game(tap, Vector2i(0, 40)) as InputEventScreenTouch).position, Vector2(50, 50))
 
 
-func test_main_centres_the_world_and_the_ui_layers_together() -> void:
+func test_the_sky_above_fades_into_space_with_cool_stars() -> void:
+	var top := Color("#0e1438")
+	assert_eq(Backdrop.space_colour(10, -1, top), top, "the sky's top colour carries on")
+	assert_eq(Backdrop.space_colour(10, -Backdrop.SKY_BAND - Backdrop.SEAM - 1, top), Palette.N0, "then space")
+	var stars: Array[Vector2i] = Backdrop.margin_stars(Rect2i(0, -100, 180, 420))
+	assert_gt(stars.size(), 50, "a starfield above the game")
+	for p: Vector2i in stars:
+		assert_true(p.y < 0, "only in the margin sky, never over the game's screen")
+	assert_eq(stars, Backdrop.margin_stars(Rect2i(0, -100, 180, 420)), "fixed: they never move")
+
+
+func test_main_places_the_world_and_the_ui_layers_together() -> void:
 	var main: Main = MainScene.instantiate()
 	main.seed_override = 7
 	add_child_autofree(main)
