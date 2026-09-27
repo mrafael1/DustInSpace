@@ -1,10 +1,11 @@
 class_name Scorpio
 extends RefCounted
 ## The Scorpio constellation map (#40, a prototype). Fixed landmark stars trace Scorpio from its
-## head to its stinger; each pair of neighbours is a segment the player builds by linking the two
-## landmarks with a sky star that sits in the gap between them. The star is used up and stays as
-## the segment's bridge. A star is in the gap if it's within `reach` px of the segment line and
-## its projection falls between the two landmarks, so placement is forgiving but still spatial.
+## head to its stinger. Most of the outline is given; the GAPS are the segments the player builds,
+## by linking the two landmarks with a sky star that sits in the gap between them. The star is
+## used up and stays as the segment's bridge. A star is in the gap if it's within `reach` px of
+## the segment line and its projection falls between the two landmarks, so placement is
+## forgiving but still spatial.
 ## Pure geometry and state; RunState owns the rules and rewards. Landmark positions are map
 ## layout, not balance; the reach values come from balance.json.
 
@@ -15,7 +16,11 @@ const LANDMARKS: Array[Vector2i] = [
 	Vector2i(88, 200), Vector2i(66, 220), Vector2i(38, 222), Vector2i(24, 198),
 ]
 
-## segment i joins landmarks i and i + 1. The id of the star bridging it, or 0 while unbuilt.
+## The segments left to build (segment i joins landmarks i and i + 1). Four: a run has about
+## 25-30 stars and most go into combos, so seven gaps were rarely finished (tools/balance/sim.py).
+const GAPS: Array[int] = [1, 3, 5, 6]
+
+## Per segment: the id of the star bridging it, or 0 while unbuilt (always 0 for a given one).
 var bridges: Array[int] = []
 ## Where each bridge star sat when it was used, for drawing.
 var bridge_positions: Array[Vector2i] = []
@@ -29,6 +34,10 @@ func _init() -> void:
 
 static func segment_count() -> int:
 	return LANDMARKS.size() - 1
+
+
+static func is_gap(segment: int) -> bool:
+	return GAPS.has(segment)
 
 
 ## Landmarks use negative ids in a link so they never collide with star ids: landmark i is -(i + 1).
@@ -79,13 +88,13 @@ func built_count() -> int:
 
 
 func is_complete() -> bool:
-	return built_count() == segment_count()
+	return built_count() == GAPS.size()
 
 
-## Unbuilt segments whose gap holds `point`.
+## Unbuilt gaps that hold `point`.
 func open_segments_for(point: Vector2i, reach: int) -> Array[int]:
 	var found: Array[int] = []
-	for segment: int in segment_count():
+	for segment: int in GAPS:
 		if not is_built(segment) and in_gap(segment, point, reach):
 			found.append(segment)
 	return found

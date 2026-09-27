@@ -11,7 +11,7 @@ signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: in
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
 ## Scorpio (#40): a landmark-star-landmark link built a segment; the star is its bridge now.
-signal segment_built(segment: int, star: Star)
+signal segment_built(segment: int, star: Star, dust: int)
 ## Scorpio: a combo's last star stung a nearby star, collecting it for dust.
 signal star_stung(from_position: Vector2i, target: Star, dust: int)
 ## Scorpio: the last segment was built; the constellation pours light into the Sun.
@@ -195,7 +195,7 @@ func segment_for(ids: Array[int]) -> int:
 	if landmarks.size() != 2 or star == null:
 		return -1
 	var segment: int = Scorpio.segment_between(landmarks[0], landmarks[1])
-	if segment < 0 or scorpio.is_built(segment):
+	if segment < 0 or not Scorpio.is_gap(segment) or scorpio.is_built(segment):
 		return -1
 	return segment if Scorpio.in_gap(segment, star.position, balance.scorpio_segment_reach) else -1
 
@@ -241,7 +241,8 @@ func _build_segment(ids: Array[int]) -> String:
 			star = find_star(id)
 	stars.erase(star)
 	scorpio.build(segment, star)
-	segment_built.emit(segment, star)
+	dust += balance.scorpio_segment_dust
+	segment_built.emit(segment, star, balance.scorpio_segment_dust)
 	if scorpio.is_complete():
 		light += balance.scorpio_completion_light
 		constellation_completed.emit(balance.scorpio_completion_light)

@@ -145,6 +145,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		for i: int in range(n0, _particles.size()):
 			_particles[i].delay = BigBangSequence.BANG_AT + STAGGER * (i - n0)
 		return
+	if event.type == &"segment_built":
+		_launch_now(Kind.DUST, event.args[2], [(event.args[1] as Star).position] as Array[Vector2i], dust_target)
+		return
 	if event.type == &"star_stung":
 		_launch_now(Kind.DUST, event.args[2], [(event.args[1] as Star).position] as Array[Vector2i], dust_target)
 		return

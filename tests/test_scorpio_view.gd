@@ -19,7 +19,7 @@ func before_each() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
 	data["packs"]["red"]["big_bang_chance"] = 0.0
-	data["scorpio"] = {"enabled": true, "segment_reach": 10, "sting_reach": 28, "sting_dust": 2, "completion_light": 45}
+	data["scorpio"] = {"enabled": true, "segment_reach": 10, "sting_reach": 28, "sting_dust": 2, "segment_dust": 2, "completion_light": 45}
 	assert_true(main.start_run(Balance.from_dict(data)))
 	run = main.run
 	sky = main.get_node("Sky")
@@ -37,42 +37,42 @@ func test_landmarks_are_picked_like_stars() -> void:
 
 
 func test_tapping_landmark_star_landmark_builds_the_segment() -> void:
-	var star: Star = _star_in_gap(2)
-	for point: Vector2i in [Scorpio.LANDMARKS[2], star.position, Scorpio.LANDMARKS[3]]:
+	var star: Star = _star_in_gap(3)
+	for point: Vector2i in [Scorpio.LANDMARKS[3], star.position, Scorpio.LANDMARKS[4]]:
 		_tap(point)
-	assert_true(run.scorpio.is_built(2))
+	assert_true(run.scorpio.is_built(3))
 	_play()
 	assert_null(sky.star_view(star.id), "the bridge star's view dissolves into the outline")
 
 
 func test_dragging_through_them_builds_it_too() -> void:
-	var star: Star = _star_in_gap(4)
-	_touch(Scorpio.LANDMARKS[4], true)
-	for point: Vector2i in [star.position, Scorpio.LANDMARKS[5]]:
+	var star: Star = _star_in_gap(5)
+	_touch(Scorpio.LANDMARKS[5], true)
+	for point: Vector2i in [star.position, Scorpio.LANDMARKS[6]]:
 		_drag(point)
-	_touch(Scorpio.LANDMARKS[5], false)
-	assert_true(run.scorpio.is_built(4))
+	_touch(Scorpio.LANDMARKS[6], false)
+	assert_true(run.scorpio.is_built(5))
 
 
 func test_picking_a_landmark_marks_the_stars_that_could_bridge_its_gaps() -> void:
-	var star: Star = _star_in_gap(2)
+	var star: Star = _star_in_gap(3)
 	_star(Vector2i(30, 100))
-	_tap(Scorpio.LANDMARKS[3])
+	_tap(Scorpio.LANDMARKS[4])
 	assert_eq(constellation.get("_candidates"), [star.position] as Array[Vector2i])
-	assert_eq(constellation.get("_selected_landmarks"), [3] as Array[int])
+	assert_eq(constellation.get("_selected_landmarks"), [4] as Array[int])
 	_tap(star.position)
-	assert_eq(constellation.get("_preview_segment"), 2, "the segment it would build")
+	assert_eq(constellation.get("_preview_segment"), 3, "the segment it would build")
 
 
 func test_three_picks_that_build_nothing_show_the_no_combo_cross() -> void:
-	var star: Star = _star_in_gap(2)
-	_tap(Scorpio.LANDMARKS[2])
+	var star: Star = _star_in_gap(3)
+	_tap(Scorpio.LANDMARKS[3])
 	_tap(star.position)
-	_touch(Scorpio.LANDMARKS[5], true)
+	_touch(Scorpio.LANDMARKS[6], true)
 	var plaque: RewardPlaque = main.get_node("Sky/UILayer/RewardPlaque")
 	assert_true(plaque.visible, "shown while the third pick is held")
 	_touch(Scorpio.LANDMARKS[5], false)
-	assert_false(run.scorpio.is_built(2), "not neighbours: nothing built")
+	assert_false(run.scorpio.is_built(3), "not neighbours: nothing built")
 	assert_not_null(run.find_star(star.id), "and nothing used up")
 
 
@@ -102,7 +102,7 @@ func test_a_sting_pays_dust_through_particles_and_the_counter_catches_up() -> vo
 
 
 func test_completion_runs_along_the_outline_and_pours_light_into_the_sun() -> void:
-	for segment: int in Scorpio.segment_count():
+	for segment: int in Scorpio.GAPS:
 		var star: Star = _star_in_gap(segment)
 		run.link([Scorpio.landmark_id(segment), star.id, Scorpio.landmark_id(segment + 1)] as Array[int])
 	sequencer.advance(0.0)
@@ -110,7 +110,7 @@ func test_completion_runs_along_the_outline_and_pours_light_into_the_sun() -> vo
 	while not constellation.is_completing() and waited < 5.0:
 		sequencer.advance(1.0 / 30.0)
 		waited += 1.0 / 30.0
-	assert_true(constellation.is_completing(), "after the seven builds, a pulse runs head to stinger")
+	assert_true(constellation.is_completing(), "after the last build, a pulse runs head to stinger")
 	var particles: CollectParticles = main.get_node("CollectParticles")
 	assert_eq(particles.in_flight(CollectParticles.Kind.LIGHT), 45)
 	particles.advance(5.0)

@@ -1,7 +1,7 @@
 class_name ConstellationView
 extends Node2D
-## Draws the Scorpio map (#40) under the stars: the landmarks, a faint dotted outline for each
-## unbuilt segment, built segments lit C1 with their bridge star, and the previews the Sky asks
+## Draws the Scorpio map (#40) under the stars: the landmarks, the given outline in solid cool
+## M3, a faint dotted outline for each gap still to build, built gaps lit C1 with their bridge star, and the previews the Sky asks
 ## for while a link is traced. Owns no rules: RunState says what's built, what a link would
 ## build and what a combo would sting; this only shows it. Draws nothing without the map.
 ## Warm colours mean usable: a selected landmark, the stars that could bridge its gaps, a segment
@@ -155,6 +155,10 @@ func _draw_segment(segment: int) -> void:
 		var bridge: Vector2i = _run.scorpio.bridge_positions[segment]
 		for d: Vector2i in [Vector2i.ZERO, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
 			_dot(bridge + d, Palette.C0 if d == Vector2i.ZERO else Palette.C1)
+		return
+	if not Scorpio.is_gap(segment):
+		for p: Vector2i in pixels:
+			_dot(p, Palette.M3)
 		return
 	var preview: bool = segment == _preview_segment
 	for i: int in pixels.size():

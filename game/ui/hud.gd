@@ -210,7 +210,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			_light_in_flight += event.args[3]
-		&"star_stung":
+		&"star_stung", &"segment_built":
 			_dust_in_flight += event.args[2]
 		&"constellation_completed":
 			_light_in_flight += event.args[0]

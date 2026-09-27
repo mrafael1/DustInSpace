@@ -3,7 +3,7 @@ extends GutTest
 
 const Fixtures := preload("res://tests/fixtures.gd")
 
-const SCORPIO := {"enabled": true, "segment_reach": 10, "sting_reach": 28, "sting_dust": 2, "completion_light": 45}
+const SCORPIO := {"enabled": true, "segment_reach": 10, "sting_reach": 28, "sting_dust": 2, "segment_dust": 2, "completion_light": 45}
 
 var run: RunState
 
@@ -26,7 +26,7 @@ func test_a_bad_scorpio_block_is_a_balance_error() -> void:
 	data["scorpio"] = {"enabled": "yes", "segment_reach": 0, "sting_reach": 28, "sting_dust": 2}
 	var balance: Balance = Balance.from_dict(data)
 	assert_false(balance.is_valid())
-	assert_eq(balance.errors.size(), 3, str(balance.errors))
+	assert_eq(balance.errors.size(), 4, str(balance.errors))
 
 
 func test_the_shipped_balance_turns_scorpio_on() -> void:
@@ -57,22 +57,29 @@ func test_a_star_is_in_the_gap_near_the_line_between_the_ends() -> void:
 
 
 func test_linking_two_neighbours_and_a_star_in_their_gap_builds_the_segment() -> void:
-	var star: Star = _star_in_gap(2)
+	var star: Star = _star_in_gap(3)
 	var built: Array = []
-	run.segment_built.connect(func(segment: int, s: Star) -> void: built.append([segment, s.id]))
-	var ids: Array[int] = [Scorpio.landmark_id(3), star.id, Scorpio.landmark_id(2)]
+	run.segment_built.connect(func(segment: int, s: Star, d: int) -> void: built.append([segment, s.id, d]))
+	var ids: Array[int] = [Scorpio.landmark_id(4), star.id, Scorpio.landmark_id(3)]
 	assert_eq(run.link(ids), RunState.SEGMENT, "any order")
-	assert_eq(built, [[2, star.id]])
-	assert_true(run.scorpio.is_built(2))
+	assert_eq(built, [[3, star.id, 2]])
+	assert_true(run.scorpio.is_built(3))
 	assert_null(run.find_star(star.id), "the star is used up: it's the bridge now")
-	assert_eq(run.scorpio.bridge_positions[2], star.position)
-	assert_eq([run.dust, run.light], [0, 0], "building pays nothing by itself")
+	assert_eq(run.scorpio.bridge_positions[3], star.position)
+	assert_eq([run.dust, run.light], [2, 0], "a little dust, no light until it's complete")
+
+
+func test_a_given_segment_cant_be_built() -> void:
+	assert_false(Scorpio.is_gap(2))
+	var star: Star = _star_in_gap(2)
+	assert_eq(run.link([Scorpio.landmark_id(2), star.id, Scorpio.landmark_id(3)] as Array[int]), Combos.INVALID)
+	assert_eq(run.bridge_candidates(2), [] as Array[int], "no gap there to bridge")
 
 
 func test_a_link_that_cant_build_uses_nothing_up() -> void:
 	var star: Star = _star_in_gap(1)
 	var far: Star = run.add_star(Star.Size.SMALL, Vector2i(20, 100))
-	var other: Star = _star_in_gap(4)
+	var other: Star = _star_in_gap(5)
 	var rejected: Array[int] = []
 	run.link_rejected.connect(func(ids: Array[int]) -> void: rejected.append(ids.size()))
 	var cases: Array = [
@@ -92,27 +99,28 @@ func test_a_link_that_cant_build_uses_nothing_up() -> void:
 
 
 func test_a_built_segment_cant_be_built_again() -> void:
-	_build(0)
-	var again: Star = _star_in_gap(0)
-	assert_eq(run.link([Scorpio.landmark_id(0), again.id, Scorpio.landmark_id(1)] as Array[int]), Combos.INVALID)
+	_build(1)
+	var again: Star = _star_in_gap(1)
+	assert_eq(run.link([Scorpio.landmark_id(1), again.id, Scorpio.landmark_id(2)] as Array[int]), Combos.INVALID)
 	assert_not_null(run.find_star(again.id))
 
 
 func test_the_last_segment_pours_light_into_the_sun_once() -> void:
 	var poured: Array[int] = []
 	run.constellation_completed.connect(func(l: int) -> void: poured.append(l))
-	for segment: int in Scorpio.segment_count() - 1:
+	for segment: int in Scorpio.GAPS.slice(0, -1):
 		_build(segment)
 	assert_eq(poured, [] as Array[int])
-	_build(Scorpio.segment_count() - 1)
+	_build(Scorpio.GAPS[-1])
 	assert_true(run.scorpio.is_complete())
 	assert_eq(poured, [45])
 	assert_eq(run.light, 45)
+	assert_eq(run.dust, 2 * Scorpio.GAPS.size())
 
 
 func test_completion_can_win_the_run() -> void:
 	run.light = 60
-	for segment: int in Scorpio.segment_count():
+	for segment: int in Scorpio.GAPS:
 		_build(segment)
 	assert_eq(run.outcome, RunState.Outcome.WON)
 
@@ -176,8 +184,8 @@ func test_a_normal_run_never_stings() -> void:
 
 
 func test_landmarks_are_never_stung_or_part_of_a_combo() -> void:
-	var star: Star = _star_in_gap(0)
-	assert_null(run.sting_target(Scorpio.LANDMARKS[0], [star.id]), "only sky stars are targets")
+	var star: Star = _star_in_gap(1)
+	assert_null(run.sting_target(Scorpio.LANDMARKS[1], [star.id]), "only sky stars are targets")
 	var normal: RunState = Fixtures.run()
 	var s: Star = normal.add_star(Star.Size.SMALL, Vector2i(60, 120))
 	assert_eq(normal.link([Scorpio.landmark_id(0), s.id, Scorpio.landmark_id(1)] as Array[int]), Combos.INVALID,
@@ -195,12 +203,12 @@ func test_bridge_candidates_are_stars_in_a_gap_next_to_the_landmark() -> void:
 
 
 func test_a_big_bang_clears_the_sky_but_not_the_constellation() -> void:
-	_build(0)
-	_star_in_gap(1)
+	_build(1)
+	_star_in_gap(3)
 	run.force_next_big_bang = true
 	run.launch(Vector2i(90, 160))
 	assert_eq(run.stars.size(), 0)
-	assert_true(run.scorpio.is_built(0), "built segments stay lit")
+	assert_true(run.scorpio.is_built(1), "built segments stay lit")
 
 
 func test_bursts_keep_stars_off_the_landmarks() -> void:
