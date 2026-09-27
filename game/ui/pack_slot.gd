@@ -1,9 +1,9 @@
 class_name PackSlot
 extends Node2D
 ## One pack in the HUD: its icon (r6) with "×count", and a "+◆cost" buy button below.
-## The icon is lit and spinning while tapping it does something: a pack is owned (it loads) or
-## the dust buys the first one. It's grey and still only with none owned and none affordable.
-## It hops now and then while the dust can buy one.
+## The icon is lit and spinning while at least one is owned (tapping it loads), grey and still
+## at ×0, even when the dust would buy one: the buy button shows that. A lit icon hops now and
+## then while the dust can buy another.
 ## Becoming buyable plays a one-off cue: the icon flashes solid C0 for FLASH_TIME and a cross
 ## sparkle shrinks away beside it. Staying buyable never repeats it.
 ## Two tap targets (docs/design.md, Packs): the icon loads the pack if owned, or buys it if none
@@ -95,10 +95,9 @@ func show_pack(count: int, cost: int, affordable: bool, loaded: bool, announce: 
 		_lay_out_buy_row()
 	# Cool N7 when the dust isn't there: warm/light colours mean something you can use.
 	_cost.label_settings.font_color = Palette.D0 if affordable else Palette.N7
-	# The planet: lit one step up its ramp and spinning while it's usable, grey when it isn't.
-	var usable: bool = count > 0 or affordable
-	_icon.bright = usable
-	_icon.greyed = not usable
+	# The planet: lit one step up its ramp and spinning while one is owned, grey at ×0.
+	_icon.bright = count > 0
+	_icon.greyed = count == 0
 	if affordable and not _affordable:
 		_hop_time = 0.0
 		if announce:
@@ -192,7 +191,8 @@ func advance(delta: float) -> void:
 			_buy.queue_redraw()
 	_hop_time = fmod(_hop_time + delta, HOP_PERIOD)
 	if _nudge_time < 0.0:
-		_icon.position = Vector2(0, -1 if _affordable and _hop_time < HOP_TIME else 0)
+		var hops: bool = _affordable and _icon.bright
+		_icon.position = Vector2(0, -1 if hops and _hop_time < HOP_TIME else 0)
 		return
 	_nudge_time += delta
 	var step: int = int(_nudge_time / NUDGE_STEP)
