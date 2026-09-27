@@ -8,6 +8,9 @@ extends Node2D
 ## is owned; the cost buys one more. The Hud decides what a tap does; this only shows the slot.
 ## Centred on the icon. Numbers are Labels in the 3x5 font; nothing is baked into art.
 
+## The pack just became buyable and its cue started. Feedback only (sound).
+signal cue_started(kind: String)
+
 const ICON_RADIUS: int = 6
 ## Tap targets around the icon and under it, meeting at y +11. The icon's is 24x22 px (44 pt);
 ## the cost's runs from there to the bottom of the screen (17 px when the slot sits at y 292).
@@ -76,6 +79,7 @@ func show_pack(count: int, cost: int, affordable: bool, loaded: bool, announce: 
 		_hop_time = 0.0
 		if announce:
 			_cue_time = 0.0
+			cue_started.emit(kind)
 	if not affordable or not announce:
 		_cue_time = -1.0
 	_affordable = affordable

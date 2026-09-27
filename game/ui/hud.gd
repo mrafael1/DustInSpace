@@ -19,6 +19,8 @@ extends CanvasLayer
 
 ## A pack tap the run refused (the icon nudges). Feedback only (sound).
 signal tap_refused(kind: String)
+## A pack became buyable as the dust landed (its slot's cue). Feedback only (sound).
+signal pack_ready(kind: String)
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -232,4 +234,5 @@ func _build_slots(kinds: Array[String]) -> void:
 		pack_slot.kind = kinds[i]
 		pack_slot.position = Vector2(LAST_SLOT_X - SLOT_SPACING * (kinds.size() - 1 - i), SLOT_Y)
 		_slot_layer.add_child(pack_slot)
+		pack_slot.cue_started.connect(pack_ready.emit)
 		_slots[kinds[i]] = pack_slot

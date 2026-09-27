@@ -38,7 +38,7 @@ func test_every_cue_has_a_short_clean_sound() -> void:
 		assert_gt(stream.get_length(), 0.0)
 		assert_lt(stream.get_length(), 2.1, "%s: no long or looping sounds" % cue)
 		assert_eq(stream.loop_mode, AudioStreamWAV.LOOP_DISABLED, "%s never loops" % cue)
-	for cue: StringName in [&"dust_land", &"light_land", &"star_select", &"pull_step", &"pack_load"]:
+	for cue: StringName in [&"dust_land", &"light_land", &"star_select", &"pull_step", &"pack_load", &"pack_ready"]:
 		var stream: AudioStream = load(Sfx.AUDIO_DIR + cue + ".wav")
 		assert_lt(stream.get_length(), 0.35, "%s is heard many times a run: short" % cue)
 
@@ -243,6 +243,41 @@ func test_main_wires_the_feedback_moments() -> void:
 	(main.get_node("Sun") as SunView).ignited.emit()
 	for cue: StringName in [&"pull_start", &"tremble", &"star_select", &"tap_refused", &"sun_ignite"]:
 		assert_has(played, cue)
+
+
+func test_a_pack_chimes_when_the_counter_reaches_its_cost() -> void:
+	var main: Main = _main()
+	var main_sfx: Sfx = main.get_node("Sfx")
+	main_sfx.level = Sfx.Level.ON
+	main_sfx.cue_played.connect(_record)
+	var hud: Hud = main.get_node("HUD")
+	main.run.dust = 2
+	hud.refresh()
+	assert_false(played.has(&"pack_ready"), "a refresh isn't news")
+	var ids: Array[int] = []
+	for x: int in [70, 90, 110]:
+		ids.append(main.run.add_star(Star.Size.SMALL, Vector2i(x, 150)).id)
+	main.run.link(ids)
+	(main.get_node("EventSequencer") as EventSequencer).advance(0.0)
+	hud.receive_dust(1)
+	main_sfx.advance(0.1)
+	assert_false(played.has(&"pack_ready"), "3 is short of 4")
+	hud.receive_dust(1)
+	assert_eq(played.count(&"pack_ready"), 1, "4: blue is buyable, with its flash")
+	main_sfx.advance(0.1)
+	hud.receive_dust(1)
+	assert_eq(played.count(&"pack_ready"), 1, "still buyable: no repeat")
+
+
+func test_a_new_run_never_chimes_its_packs() -> void:
+	var main: Main = _main()
+	var main_sfx: Sfx = main.get_node("Sfx")
+	main_sfx.level = Sfx.Level.ON
+	main_sfx.cue_played.connect(_record)
+	var rich: Dictionary = Fixtures.balance_dict()
+	rich["start_dust"] = 20
+	main.start_run(Balance.from_dict(rich))
+	assert_false(played.has(&"pack_ready"))
 
 
 func test_the_speaker_target_sits_on_the_hud_speaker() -> void:

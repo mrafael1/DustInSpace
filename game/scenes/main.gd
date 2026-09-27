@@ -72,6 +72,7 @@ func _wire_sound() -> void:
 	_launcher.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
 	_sky.star_selected.connect(_sfx.on_star_selected)
 	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
+	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
 	_sound_toggle.toggled.connect(_sfx.cycle_level)
 	_sfx.level_changed.connect(_hud.show_sound_level)
 	_hud.show_sound_level(_sfx.level)
