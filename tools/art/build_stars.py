@@ -1,9 +1,10 @@
 """Builds the star sprites in assets/art/ (issue #12, docs/art-direction.md "Assets").
 
-Three collectible stars, drawn at native size on the Starlight ramp (C0 core -> C3 tips):
-  small  5x5   plus shape
-  medium 11x11 8-point star with a cross core
-  big    15x15 round 5 px core (a C0 plus in a C1 disc) with long rays
+Three collectible stars, drawn at native size. Each size has its own colour, like a star's
+temperature, so the sizes tell apart at a glance (RAMPS below):
+  small  5x5   plus shape                                        orange: C2 core, C3 arms
+  medium 11x11 8-point star with a cross core                    gold: C0 core, C1 body, C2 tips
+  big    15x15 round 5 px core (a plus in a disc) with long rays blue-white: C0 core, M6, M5 tips
 Each size is one horizontal strip, stars_<size>.png, with one frame per state (FRAMES below),
 and a JSON sidecar naming the frames. The dashed C1 selection ring is selection_ring_<size>.png,
 2 frames (the dashes swap). StarView draws these frames; the halo stays a dithered glow in code.
@@ -25,10 +26,18 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "assets" / "art"
 
-# Starlight ramp, core to tips (stellar_sun.gpl C0-C3).
-STEPS = [(255, 251, 234), (255, 229, 154), (255, 192, 98), (232, 138, 87)]
+C0, C1, C2, C3 = (255, 251, 234), (255, 229, 154), (255, 192, 98), (232, 138, 87)
+M4, M5, M6 = (74, 90, 168), (159, 176, 238), (217, 226, 255)
 
-# Digits are steps on STEPS (0 = C0 core); "." is empty. Centred, odd sizes.
+# Each size's colour chain, brightest first, and where each shape step (0 = core) sits on it.
+# Frames brighten or dim by moving along the chain; every chain starts at C0, so a flare is white.
+RAMPS = {
+    "small": ([C0, C1, C2, C3], [2, 3, 3, 3]),
+    "medium": ([C0, C1, C2, C3], [0, 1, 1, 2]),
+    "big": ([C0, M6, M5, M4], [0, 1, 1, 2]),
+}
+
+# Digits are shape steps (0 = core); "." is empty. Centred, odd sizes.
 SHAPES = {
     "small": [
         "..2..",
@@ -72,13 +81,13 @@ SHAPES = {
 # Each frame: (name, highest step drawn, step shift). Negative shift = brighter.
 #   idle        the settled star
 #   glint       a twinkle: every step one notch brighter
-#   spark       mid-flight after a burst: only the C0 core
+#   spark       mid-flight after a burst: only the core
 #   flare       a valid link's first dissolve frame: all white
 #   flare_core  second dissolve frame: core and inner ring, white
-#   fade_core   third dissolve frame: core only, C1
-#   fade_dot    last dissolve frame: a single C1 pixel (drawn specially)
+#   fade_core   third dissolve frame: core only, a step down its chain
+#   fade_dot    last dissolve frame: a single pixel of the first ring's colour (drawn specially)
 #   dim         Big Bang redshift: a step darker as it nears the hole
-#   dim_core    Big Bang swallow: only a C3 core
+#   dim_core    Big Bang swallow: only the core, three steps dimmer
 FRAMES = [
     ("idle", 3, 0),
     ("glint", 3, -1),
@@ -92,17 +101,18 @@ FRAMES = [
 ]
 
 # Selection ring: a dashed C1 circle this far outside the sprite, dashes swapping per frame.
+# Warm on every size: it marks what the player picked.
 RING_GAP = 4
 RING_DASHES = 16
 RING_FRAMES = 2
-C1 = STEPS[1]
 
 
-def frame_pixels(rows: list[str], max_step: int, shift: int) -> dict[tuple[int, int], tuple]:
+def frame_pixels(size_name: str, rows: list[str], max_step: int, shift: int) -> dict[tuple[int, int], tuple]:
+    chain, place = RAMPS[size_name]
     size = len(rows)
     if max_step < 0:
         # A single pixel at the centre, one step down from the core.
-        return {(size // 2, size // 2): STEPS[1]}
+        return {(size // 2, size // 2): chain[place[1]]}
     dots = {}
     for y, row in enumerate(rows):
         for x, ch in enumerate(row):
@@ -110,7 +120,7 @@ def frame_pixels(rows: list[str], max_step: int, shift: int) -> dict[tuple[int, 
                 continue
             step = int(ch)
             if step <= max_step:
-                dots[(x, y)] = STEPS[max(0, min(len(STEPS) - 1, step + shift))]
+                dots[(x, y)] = chain[max(0, min(len(chain) - 1, place[step] + shift))]
     return dots
 
 
@@ -142,7 +152,7 @@ def build() -> None:
     for size, rows in SHAPES.items():
         n = len(rows)
         assert all(len(r) == n for r in rows), size
-        write_strip(f"stars_{size}", [frame_pixels(rows, m, s) for _, m, s in FRAMES], n, [f[0] for f in FRAMES])
+        write_strip(f"stars_{size}", [frame_pixels(size, rows, m, s) for _, m, s in FRAMES], n, [f[0] for f in FRAMES])
         radius = n // 2 + RING_GAP
         cell = 2 * (radius + 1) + 1
         rings = []

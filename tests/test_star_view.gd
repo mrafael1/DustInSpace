@@ -80,6 +80,24 @@ func test_dissolve_frees_the_view_after_its_time() -> void:
 	assert_true(view.is_queued_for_deletion())
 
 
+func test_each_size_has_its_own_colour() -> void:
+	# Small orange (C2 core), medium gold (C0 core, C1 body), big blue-white (C0 core, M6 body).
+	var small: Dictionary = _idle_colours(Star.Size.SMALL)
+	var medium: Dictionary = _idle_colours(Star.Size.MEDIUM)
+	var big: Dictionary = _idle_colours(Star.Size.BIG)
+	assert_eq(small.keys().map(func(c: Color) -> String: return c.to_html(false)).filter(func(h: String) -> bool: return h in ["ffc062", "e88a57"]).size(), small.size(), "small: C2 and C3 only")
+	assert_true(medium.has(Palette.C1) and not medium.has(Palette.M6), "medium: gold")
+	assert_true(big.has(Palette.M6) and not big.has(Palette.C1), "big: blue-white")
+
+
+func test_halos_match_their_star() -> void:
+	for size: int in [Star.Size.SMALL, Star.Size.MEDIUM]:
+		var dots: Dictionary[Vector2i, Color] = _view(Star.new(1, size as Star.Size, Vector2i(100, 150))).halo_dots()
+		assert_false(dots.is_empty())
+		for dot: Vector2i in dots:
+			assert_true(dots[dot] == Palette.C4 or dots[dot] == Palette.C5, "warm stars: a warm C4-C5 halo")
+
+
 func test_halo_shows_when_settled_and_on_the_dissolve_flare_only() -> void:
 	var view: StarView = _view(Star.new(1, Star.Size.BIG, Vector2i(100, 150)))
 	var dots: Dictionary[Vector2i, Color] = view.halo_dots()
@@ -87,7 +105,7 @@ func test_halo_shows_when_settled_and_on_the_dissolve_flare_only() -> void:
 	for dot: Vector2i in dots:
 		assert_lte(Vector2(dot).distance_to(Vector2(100, 150)), float(StarView.HALO_RADIUS[Star.Size.BIG]),
 			"halo dots are in sky coordinates around the star")
-		assert_true(dots[dot] == Palette.C4 or dots[dot] == Palette.C5, "halos use C4-C5 only")
+		assert_true(dots[dot] == Palette.M4 or dots[dot] == Palette.M3, "a big star's halo is cool: M4-M3")
 	view.fly_from(Vector2i(90, 160))
 	assert_true(view.halo_dots().is_empty(), "no halo while flying")
 	view.advance(StarView.SETTLE_TIME)
@@ -178,6 +196,19 @@ func _view(star: Star) -> StarView:
 	view.setup(star, Fixtures.SKY)
 	add_child_autofree(view)
 	return view
+
+
+## The colours in a size's idle frame, as a set.
+func _idle_colours(size: Star.Size) -> Dictionary:
+	var image: Image = StarView.SHEETS[size].get_image()
+	var side: int = image.get_height()
+	var colours: Dictionary = {}
+	for y: int in side:
+		for x: int in side:
+			var c: Color = image.get_pixel(x, y)
+			if c.a > 0.5:
+				colours[Color(c.r, c.g, c.b)] = true
+	return colours
 
 
 func _gpl_colours() -> Array[Color]:
