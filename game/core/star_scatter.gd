@@ -13,9 +13,9 @@ const RING_MAX: int = 30
 const RING_SQUASH: float = 0.85
 ## Big star width + 1, so sprites never overlap in an open sky.
 const MIN_SPACING: int = 16
-## Landmark stars (Scorpio) are small: a star keeps this far from one, close enough to fit in
-## the gap between two neighbours.
-const LANDMARK_SPACING: int = 10
+## Scorpio's landmark stars: a burst star keeps this far from one, so they never overlap
+## (a big landmark's arms reach 7 px).
+const LANDMARK_SPACING: int = 14
 const RELAX_STEPS: int = 24
 
 

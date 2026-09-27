@@ -32,13 +32,8 @@ var big_bang_base_dust: int = 0
 var big_bang_dust_per_cleared_star: int = 0
 ## The Scorpio map (#40, a prototype). Optional in the file: without a "scorpio" block it's off.
 var scorpio_enabled: bool = false
-## How far from a segment's line a star may sit and still bridge it, in px.
-var scorpio_segment_reach: int = 0
-## How far a combo's sting reaches from the last linked star, in px.
-var scorpio_sting_reach: int = 0
-var scorpio_sting_dust: int = 0
-## Dust for each segment built: keeping a star for the constellation isn't a pure loss.
-var scorpio_segment_dust: int = 0
+## Dust per star in the sky when a full Sun rekindles.
+var scorpio_sun_dust_per_star: int = 0
 
 var errors: Array[String] = []
 
@@ -143,10 +138,7 @@ func _parse_scorpio(raw: Dictionary) -> void:
 		errors.append("scorpio.enabled: must be true or false")
 	else:
 		scorpio_enabled = raw["enabled"]
-	scorpio_segment_reach = _read_int(raw, "segment_reach", "scorpio.", 1)
-	scorpio_sting_reach = _read_int(raw, "sting_reach", "scorpio.", 1)
-	scorpio_sting_dust = _read_int(raw, "sting_dust", "scorpio.", 0)
-	scorpio_segment_dust = _read_int(raw, "segment_dust", "scorpio.", 0)
+	scorpio_sun_dust_per_star = _read_int(raw, "sun_dust_per_star", "scorpio.", 0)
 
 
 func _read_dict(data: Dictionary, key: Variant, ctx: String) -> Dictionary:

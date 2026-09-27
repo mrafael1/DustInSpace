@@ -1,9 +1,13 @@
 extends GutTest
-## Scorpio (#40): landmarks, building segments with a star in the gap, the sting, completion.
+## Scorpio (#40): landmarks with sizes, lighting them in combos, strings, the Sun's rekindle,
+## and the constellation as the objective.
 
 const Fixtures := preload("res://tests/fixtures.gd")
 
-const SCORPIO := {"enabled": true, "segment_reach": 10, "sting_reach": 28, "sting_dust": 2, "segment_dust": 2}
+const SCORPIO := {"enabled": true, "sun_dust_per_star": 1}
+const SMALL := Star.Size.SMALL
+const MEDIUM := Star.Size.MEDIUM
+const BIG := Star.Size.BIG
 
 var run: RunState
 
@@ -15,7 +19,6 @@ func before_each() -> void:
 func test_the_map_is_off_without_a_scorpio_block_and_on_with_one() -> void:
 	assert_null(Fixtures.run().scorpio, "the fixture's balance has no block")
 	assert_not_null(run.scorpio)
-	assert_eq(run.balance.scorpio_sting_dust, 2)
 	var off: Dictionary = SCORPIO.duplicate()
 	off["enabled"] = false
 	assert_null(_scorpio_run(off).scorpio)
@@ -23,10 +26,9 @@ func test_the_map_is_off_without_a_scorpio_block_and_on_with_one() -> void:
 
 func test_a_bad_scorpio_block_is_a_balance_error() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
-	data["scorpio"] = {"enabled": "yes", "segment_reach": 0, "sting_reach": 28, "sting_dust": 2}
+	data["scorpio"] = {"enabled": "yes"}
 	var balance: Balance = Balance.from_dict(data)
-	assert_false(balance.is_valid())
-	assert_eq(balance.errors.size(), 3, str(balance.errors))
+	assert_eq(balance.errors.size(), 2, str(balance.errors))
 
 
 func test_the_shipped_balance_turns_scorpio_on() -> void:
@@ -35,204 +37,161 @@ func test_the_shipped_balance_turns_scorpio_on() -> void:
 	assert_true(balance.scorpio_enabled, "on for the playtest; set scorpio.enabled false to play without")
 
 
-func test_landmarks_sit_in_the_sky_with_a_star_sized_gap_between_neighbours() -> void:
+func test_the_map_starts_with_the_head_string_and_six_to_build() -> void:
+	assert_eq(Scorpio.LANDMARKS.size(), Scorpio.SIZES.size())
 	var inner: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
 	for landmark: Vector2i in Scorpio.LANDMARKS:
-		assert_true(inner.has_point(landmark), "%s in the sky" % landmark)
-	for segment: int in Scorpio.segment_count():
-		var ends: Array[Vector2i] = Scorpio.segment_ends(segment)
-		var length: float = Vector2(ends[0]).distance_to(Vector2(ends[1]))
-		assert_between(length, 2.0 * StarScatter.LANDMARK_SPACING + 4.0, 34.0, "segment %d" % segment)
+		assert_true(inner.has_point(landmark))
+	for size: int in [SMALL, MEDIUM, BIG]:
+		assert_true(Scorpio.SIZES.has(size), "every size is on the map")
+	assert_eq(run.scorpio.built_count(), 1)
+	assert_true(run.scorpio.is_built(0))
+	assert_eq(Scorpio.segment_count() - run.scorpio.built_count(), 6)
 
 
-func test_a_star_is_in_the_gap_near_the_line_between_the_ends() -> void:
-	var ends: Array[Vector2i] = Scorpio.segment_ends(0)
-	var mid: Vector2i = (ends[0] + ends[1]) / 2
-	var normal: Vector2 = Vector2(ends[1] - ends[0]).orthogonal().normalized()
-	assert_true(Scorpio.in_gap(0, mid, 10), "on the line")
-	assert_true(Scorpio.in_gap(0, mid + Vector2i((normal * 9).round()), 10), "a near miss counts")
-	assert_false(Scorpio.in_gap(0, mid + Vector2i((normal * 12).round()), 10), "too far off the line")
-	var beyond: Vector2i = ends[0] + (ends[0] - ends[1]) / 3
-	assert_false(Scorpio.in_gap(0, beyond, 10), "past the end is no gap")
+func test_an_unlit_landmark_stands_in_for_a_star_and_lights_up() -> void:
+	# Landmark 2 is small: two sky smalls and it make a small triple.
+	var a: Star = run.add_star(SMALL, Vector2i(40, 110))
+	var b: Star = run.add_star(SMALL, Vector2i(60, 110))
+	var lit: Array[int] = []
+	var strings: Array[int] = []
+	run.landmark_lit.connect(func(i: int) -> void: lit.append(i))
+	run.string_built.connect(func(s: int) -> void: strings.append(s))
+	assert_eq(run.link([a.id, Scorpio.landmark_id(2), b.id] as Array[int]), "small_triple")
+	assert_eq(lit, [2] as Array[int])
+	assert_eq(strings, [1] as Array[int], "landmark 1 was lit: the string 1-2 forms")
+	assert_eq([run.dust, run.light], [3, 5], "the combo pays as usual")
+	assert_eq(run.stars.size(), 0, "the sky stars are used up")
+	assert_true(run.scorpio.is_lit(2), "the landmark stays, lit")
 
 
-func test_linking_two_neighbours_and_a_star_in_their_gap_builds_the_segment() -> void:
-	var star: Star = _star_in_gap(3)
-	var built: Array = []
-	run.segment_built.connect(func(segment: int, s: Star, d: int) -> void: built.append([segment, s.id, d]))
-	var ids: Array[int] = [Scorpio.landmark_id(4), star.id, Scorpio.landmark_id(3)]
-	assert_eq(run.link(ids), RunState.SEGMENT, "any order")
-	assert_eq(built, [[3, star.id, 2]])
-	assert_true(run.scorpio.is_built(3))
-	assert_null(run.find_star(star.id), "the star is used up: it's the bridge now")
-	assert_eq(run.scorpio.bridge_positions[3], star.position)
-	assert_eq([run.dust, run.light], [2, 0], "a little dust, no light until it's complete")
+func test_one_landmark_per_combo() -> void:
+	# Landmarks 3 (medium) and 4 (small) with a big sky star would be a sequence.
+	var big: Star = run.add_star(BIG, Vector2i(40, 110))
+	assert_eq(run.link([Scorpio.landmark_id(3), big.id, Scorpio.landmark_id(4)] as Array[int]), Combos.INVALID)
+	assert_false(run.scorpio.is_lit(3) or run.scorpio.is_lit(4))
+	assert_not_null(run.find_star(big.id), "nothing used up")
 
 
-func test_a_given_segment_cant_be_built() -> void:
-	assert_false(Scorpio.is_gap(2))
-	var star: Star = _star_in_gap(2)
-	assert_eq(run.link([Scorpio.landmark_id(2), star.id, Scorpio.landmark_id(3)] as Array[int]), Combos.INVALID)
-	assert_eq(run.bridge_candidates(2), [] as Array[int], "no gap there to bridge")
-
-
-func test_a_link_that_cant_build_uses_nothing_up() -> void:
-	var star: Star = _star_in_gap(1)
-	var far: Star = run.add_star(Star.Size.SMALL, Vector2i(20, 100))
-	var other: Star = _star_in_gap(5)
+func test_a_link_with_no_sky_star_or_a_lit_landmark_is_refused() -> void:
 	var rejected: Array[int] = []
 	run.link_rejected.connect(func(ids: Array[int]) -> void: rejected.append(ids.size()))
-	var cases: Array = [
-		[Scorpio.landmark_id(1), star.id, Scorpio.landmark_id(3)],  # not neighbours
-		[Scorpio.landmark_id(1), far.id, Scorpio.landmark_id(2)],  # star not in the gap
-		[Scorpio.landmark_id(1), star.id, other.id],  # one landmark
-		[Scorpio.landmark_id(1), Scorpio.landmark_id(2)],  # no star
-		[Scorpio.landmark_id(1), star.id, star.id],  # same star twice
-	]
-	for ids: Array in cases:
-		var typed: Array[int] = []
-		typed.assign(ids)
-		assert_eq(run.link(typed), Combos.INVALID, str(ids))
-	assert_eq(rejected.size(), cases.size())
-	assert_eq(run.stars.size(), 3, "nothing left the sky")
-	assert_eq(run.scorpio.built_count(), 0)
+	# Landmarks 2, 4, 6 are all small, but a link needs a sky star.
+	assert_eq(run.link([Scorpio.landmark_id(2), Scorpio.landmark_id(4), Scorpio.landmark_id(6)] as Array[int]), Combos.INVALID)
+	# Landmark 1 (big) is lit already.
+	var b1: Star = run.add_star(BIG, Vector2i(40, 110))
+	var b2: Star = run.add_star(BIG, Vector2i(60, 110))
+	assert_eq(run.link([b1.id, Scorpio.landmark_id(1), b2.id] as Array[int]), Combos.INVALID)
+	assert_eq(rejected, [3, 3])
+	assert_eq(run.stars.size(), 2, "nothing used up")
+	assert_false(run.scorpio.is_lit(2))
 
 
-func test_a_built_segment_cant_be_built_again() -> void:
-	_build(1)
-	var again: Star = _star_in_gap(1)
-	assert_eq(run.link([Scorpio.landmark_id(1), again.id, Scorpio.landmark_id(2)] as Array[int]), Combos.INVALID)
-	assert_not_null(run.find_star(again.id))
+func test_sizes_must_make_a_combo() -> void:
+	var s1: Star = run.add_star(SMALL, Vector2i(40, 110))
+	var s2: Star = run.add_star(SMALL, Vector2i(60, 110))
+	# Landmark 3 is medium: small, small, medium is no combo.
+	assert_eq(run.link([s1.id, s2.id, Scorpio.landmark_id(3)] as Array[int]), Combos.INVALID)
+	assert_false(run.scorpio.is_lit(3))
 
 
-func test_finishing_the_constellation_wins_the_run() -> void:
+func test_lighting_every_landmark_wins() -> void:
 	var completed: Array[bool] = []
 	run.constellation_completed.connect(func() -> void: completed.append(true))
-	for segment: int in Scorpio.GAPS.slice(0, -1):
-		_build(segment)
+	for index: int in range(2, Scorpio.LANDMARKS.size() - 1):
+		_light(index)
 	assert_eq(run.outcome, RunState.Outcome.PLAYING)
-	assert_eq(completed, [] as Array[bool])
-	_build(Scorpio.GAPS[-1])
+	_light(Scorpio.LANDMARKS.size() - 1)
 	assert_true(run.scorpio.is_complete())
+	assert_eq(run.scorpio.built_count(), Scorpio.segment_count())
 	assert_eq(completed, [true])
 	assert_eq(run.outcome, RunState.Outcome.WON, "the constellation is the objective")
-	assert_eq(run.light, 0, "no light for it: the Sun isn't the goal here")
-	assert_eq(run.dust, 2 * Scorpio.GAPS.size())
 
 
-func test_a_full_sun_doesnt_win_the_scorpio_map() -> void:
+func test_a_full_sun_rekindles_lights_a_landmark_and_pays_for_the_sky() -> void:
 	run.light = 90
-	var ids: Array[int] = []
-	for x: int in [60, 80, 100]:
-		ids.append(run.add_star(Star.Size.BIG, Vector2i(x, 120)).id)
-	run.link(ids)
-	assert_gte(run.light, run.balance.sun_target)
-	assert_eq(run.outcome, RunState.Outcome.PLAYING, "light fills the Sun, the run goes on")
-
-
-func test_a_run_isnt_lost_while_a_star_can_still_fill_a_gap() -> void:
-	for kind: String in run.owned_packs.keys():
-		run.owned_packs[kind] = 0
-	run.loaded_pack = ""
-	var star: Star = _star_in_gap(1)
+	var rekindled: Array = []
+	run.sun_rekindled.connect(func(i: int, d: int, p: Array[Vector2i]) -> void: rekindled.append([i, d, p.size()]))
+	for x: int in [120, 150]:
+		run.add_star(SMALL, Vector2i(x, 240))
 	var ids: Array[int] = []
 	for x: int in [20, 40, 60]:
-		ids.append(run.add_star(Star.Size.SMALL, Vector2i(x, 110)).id)
+		ids.append(run.add_star(BIG, Vector2i(x, 100)).id)
 	run.link(ids)
-	assert_not_null(run.find_star(star.id), "out of the sting's reach")
-	assert_eq(run.loss_reasons().size(), RunState.LossReason.size(), "no packs, no dust for one, no combo")
-	assert_true(run.can_build())
-	assert_eq(run.outcome, RunState.Outcome.PLAYING, "but the gap star can still be built")
-	_build_with(1, star)
-	assert_eq(run.dust, 3 + 2, "the build's dust buys another pack")
-	assert_eq(run.outcome, RunState.Outcome.PLAYING)
-	assert_false(run.can_build(), "no star left in a gap")
+	assert_eq(rekindled, [[2, 2, 2]], "landmark 2 grows the lit head; 1 dust for each of the 2 sky stars")
+	assert_eq(run.light, 0, "back at 0")
+	assert_true(run.scorpio.is_lit(2))
+	assert_eq(run.dust, 6 + 2)
+	assert_eq(run.stars.size(), 2, "the stars stay in the sky")
+	assert_eq(run.outcome, RunState.Outcome.PLAYING, "a full Sun doesn't win here")
 
 
-func test_a_combo_stings_the_nearest_star_in_reach_of_its_last_star() -> void:
-	var a: Star = run.add_star(Star.Size.SMALL, Vector2i(60, 120))
-	var b: Star = run.add_star(Star.Size.SMALL, Vector2i(80, 120))
-	var c: Star = run.add_star(Star.Size.SMALL, Vector2i(100, 120))
-	var near: Star = run.add_star(Star.Size.BIG, Vector2i(120, 124))
-	var farther: Star = run.add_star(Star.Size.BIG, Vector2i(100, 146))
-	var stung: Array = []
-	run.star_stung.connect(func(from: Vector2i, t: Star, d: int) -> void: stung.append([from, t.id, d]))
-	assert_eq(run.link([a.id, b.id, c.id] as Array[int]), "small_triple")
-	assert_eq(stung, [[c.position, near.id, 2]], "from the last star traced, to the nearest")
-	assert_null(run.find_star(near.id))
-	assert_not_null(run.find_star(farther.id))
-	assert_eq(run.dust, 3 + 2, "the combo's dust plus the sting's")
+func test_the_combo_that_completes_the_constellation_doesnt_rekindle_the_sun() -> void:
+	for index: int in range(2, Scorpio.LANDMARKS.size() - 1):
+		_light(index)
+	run.light = 95
+	var rekindled: Array[int] = []
+	run.sun_rekindled.connect(func(i: int, _d: int, _p: Array[Vector2i]) -> void: rekindled.append(i))
+	_light(Scorpio.LANDMARKS.size() - 1)
+	assert_eq(run.outcome, RunState.Outcome.WON)
+	assert_eq(rekindled, [] as Array[int], "the win's tune plays, not the Sun")
 
 
-func test_trace_order_picks_where_the_sting_starts() -> void:
-	var a: Star = run.add_star(Star.Size.SMALL, Vector2i(60, 120))
-	var b: Star = run.add_star(Star.Size.SMALL, Vector2i(80, 120))
-	var c: Star = run.add_star(Star.Size.SMALL, Vector2i(100, 120))
-	var by_a: Star = run.add_star(Star.Size.BIG, Vector2i(40, 120))
-	var by_c: Star = run.add_star(Star.Size.BIG, Vector2i(120, 120))
-	assert_eq(run.sting_target(a.position, [a.id, b.id, c.id]), by_a)
-	run.link([c.id, b.id, a.id] as Array[int])
-	assert_null(run.find_star(by_a.id), "traced ending on a")
-	assert_not_null(run.find_star(by_c.id))
+func test_the_rekindle_lights_next_to_the_lit_chain_first() -> void:
+	assert_eq(run.rekindle_target(), 2)
+	_light(5)
+	run.scorpio.lit[2] = true
+	run.scorpio.lit[3] = true
+	assert_eq(run.rekindle_target(), 4, "between lit neighbours")
 
 
-func test_no_star_in_reach_no_sting() -> void:
-	var a: Star = run.add_star(Star.Size.SMALL, Vector2i(60, 120))
-	var b: Star = run.add_star(Star.Size.SMALL, Vector2i(80, 120))
-	var c: Star = run.add_star(Star.Size.SMALL, Vector2i(100, 120))
-	var out: Star = run.add_star(Star.Size.BIG, Vector2i(100, 150))
-	var stung: Array = []
-	run.star_stung.connect(func(_f: Vector2i, t: Star, _d: int) -> void: stung.append(t))
-	run.link([a.id, b.id, c.id] as Array[int])
-	assert_eq(stung, [], "30 px is out of a 28 px reach")
-	assert_not_null(run.find_star(out.id))
+func test_a_combo_takes_nothing_but_its_own_stars() -> void:
+	var ids: Array[int] = []
+	for x: int in [60, 80, 100]:
+		ids.append(run.add_star(SMALL, Vector2i(x, 120)).id)
+	var near: Star = run.add_star(BIG, Vector2i(110, 124))
+	run.link(ids)
+	assert_not_null(run.find_star(near.id), "no sting any more")
 	assert_eq(run.dust, 3)
 
 
-func test_equally_near_targets_sting_the_oldest() -> void:
-	var first: Star = run.add_star(Star.Size.BIG, Vector2i(100, 100))
-	var second: Star = run.add_star(Star.Size.BIG, Vector2i(100, 140))
-	assert_eq(run.sting_target(Vector2i(100, 120), []), first)
-	assert_ne(first.id, second.id)
-
-
-func test_a_normal_run_never_stings() -> void:
+func test_a_normal_run_never_takes_landmarks() -> void:
 	var normal: RunState = Fixtures.run()
-	var ids: Array[int] = []
-	for x: int in [60, 80, 100]:
-		ids.append(normal.add_star(Star.Size.SMALL, Vector2i(x, 120)).id)
-	var near: Star = normal.add_star(Star.Size.BIG, Vector2i(110, 120))
-	normal.link(ids)
-	assert_not_null(normal.find_star(near.id))
-	assert_eq(normal.dust, 3)
+	var a: Star = normal.add_star(SMALL, Vector2i(20, 100))
+	var b: Star = normal.add_star(SMALL, Vector2i(40, 100))
+	assert_eq(normal.link([a.id, Scorpio.landmark_id(2), b.id] as Array[int]), Combos.INVALID)
 
 
-func test_landmarks_are_never_stung_or_part_of_a_combo() -> void:
-	var star: Star = _star_in_gap(1)
-	assert_null(run.sting_target(Scorpio.LANDMARKS[1], [star.id]), "only sky stars are targets")
-	var normal: RunState = Fixtures.run()
-	var s: Star = normal.add_star(Star.Size.SMALL, Vector2i(60, 120))
-	assert_eq(normal.link([Scorpio.landmark_id(0), s.id, Scorpio.landmark_id(1)] as Array[int]), Combos.INVALID,
-		"no landmarks without the map")
+func test_unlit_landmarks_count_for_the_loss_check() -> void:
+	for kind: String in run.owned_packs.keys():
+		run.owned_packs[kind] = 0
+	run.loaded_pack = ""
+	run.add_star(SMALL, Vector2i(40, 110))
+	run.add_star(SMALL, Vector2i(60, 110))
+	assert_false(Combos.has_any(run.sky_sizes()), "the sky alone has no combo")
+	assert_true(run.has_remaining_combo(), "but with small landmark 2 it does")
 
 
-func test_bridge_candidates_are_stars_in_a_gap_next_to_the_landmark() -> void:
-	var in_gap: Star = _star_in_gap(3)
-	run.add_star(Star.Size.SMALL, Vector2i(20, 100))
-	assert_eq(run.bridge_candidates(3), [in_gap.id] as Array[int], "segment 3 starts at landmark 3")
-	assert_eq(run.bridge_candidates(4), [in_gap.id] as Array[int], "and ends at landmark 4")
-	assert_eq(run.bridge_candidates(1), [] as Array[int])
-	_build_with(3, in_gap)
-	assert_eq(run.bridge_candidates(3), [] as Array[int], "a built segment takes no more")
+func test_three_unlit_landmarks_dont_count_as_a_remaining_combo() -> void:
+	assert_eq(run.stars.size(), 0)
+	assert_false(run.has_remaining_combo(), "a link needs a sky star")
+
+
+func test_the_preview_queries_match_the_link() -> void:
+	var a: Star = run.add_star(SMALL, Vector2i(40, 110))
+	var b: Star = run.add_star(SMALL, Vector2i(60, 110))
+	var ids: Array[int] = [a.id, Scorpio.landmark_id(2), b.id]
+	assert_eq(run.combo_for(ids), "small_triple")
+	assert_eq(run.strings_for(ids), [1] as Array[int])
+	assert_eq(run.stars.size(), 2, "previews change nothing")
 
 
 func test_a_big_bang_clears_the_sky_but_not_the_constellation() -> void:
-	_build(1)
-	_star_in_gap(3)
+	_light(2)
 	run.force_next_big_bang = true
 	run.launch(Vector2i(90, 160))
 	assert_eq(run.stars.size(), 0)
-	assert_true(run.scorpio.is_built(1), "built segments stay lit")
+	assert_true(run.scorpio.is_lit(2), "lit landmarks stay lit")
 
 
 func test_bursts_keep_stars_off_the_landmarks() -> void:
@@ -257,16 +216,9 @@ func _scorpio_run(scorpio: Dictionary = SCORPIO) -> RunState:
 	return RunState.new(balance, Fixtures.rng(), Fixtures.SKY)
 
 
-## A star at the middle of a segment.
-func _star_in_gap(segment: int) -> Star:
-	var ends: Array[Vector2i] = Scorpio.segment_ends(segment)
-	return run.add_star(Star.Size.SMALL, (ends[0] + ends[1]) / 2)
-
-
-func _build(segment: int) -> void:
-	_build_with(segment, _star_in_gap(segment))
-
-
-func _build_with(segment: int, star: Star) -> void:
-	var ids: Array[int] = [Scorpio.landmark_id(segment), star.id, Scorpio.landmark_id(segment + 1)]
-	assert_eq(run.link(ids), RunState.SEGMENT)
+## Lights landmark `index` with a triple of its size, far from everything so nothing is stung.
+func _light(index: int) -> void:
+	var size: int = Scorpio.SIZES[index]
+	var a: Star = run.add_star(size as Star.Size, Vector2i(170, 90))
+	var b: Star = run.add_star(size as Star.Size, Vector2i(10, 90))
+	assert_ne(run.link([a.id, b.id, Scorpio.landmark_id(index)] as Array[int]), Combos.INVALID)

@@ -2,8 +2,10 @@ class_name RunState
 extends RefCounted
 ## One "Restore the Sun" run: dust, light, owned packs, the launcher, stars in the sky,
 ## and win/loss. Resolves every action instantly; scenes animate from the signals.
-## On the Scorpio map (#40) the objective is the constellation instead: finishing it wins, and
-## light still fills the Sun but doesn't win (a full Sun's bonus is still to be designed).
+## On the Scorpio map (#40) the objective is the constellation instead: lighting every landmark
+## wins. A combo may use unlit landmarks as stars (they light up instead of being used up), and a
+## full Sun doesn't win: it rekindles (back to 0 light), lights one landmark and pays dust for
+## every star in the sky.
 
 signal pack_bought(kind: String, dust_after: int)
 signal pack_loaded(kind: String)
@@ -12,11 +14,14 @@ signal pack_burst(kind: String, burst_position: Vector2i, stars: Array[Star])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
-## Scorpio (#40): a landmark-star-landmark link built a segment; the star is its bridge now.
-signal segment_built(segment: int, star: Star, dust: int)
-## Scorpio: a combo's last star stung a nearby star, collecting it for dust.
-signal star_stung(from_position: Vector2i, target: Star, dust: int)
-## Scorpio: the last gap was built. On the Scorpio map that's the win (run_won follows).
+## Scorpio (#40): a landmark lit up (a combo used it, or the Sun rekindled).
+signal landmark_lit(index: int)
+## Scorpio: both ends of a string are lit, so the string formed.
+signal string_built(segment: int)
+## Scorpio: the Sun filled, so it rekindles at 0 light, lights `landmark` (-1: none left) and pays
+## `dust` for the stars in the sky.
+signal sun_rekindled(landmark: int, dust: int, star_positions: Array[Vector2i])
+## Scorpio: the last landmark lit. On the Scorpio map that's the win (run_won follows).
 signal constellation_completed
 signal run_won
 signal run_lost
@@ -25,8 +30,6 @@ enum Outcome { PLAYING, WON, LOST }
 ## The loss check's three conditions: a lost run has all of them.
 enum LossReason { NO_PACKS, NO_DUST, NO_COMBINATION }
 
-## What link() returns for a landmark-star-landmark link that built a segment.
-const SEGMENT: String = "segment"
 
 ## XOR'd into the seed so star layout has its own RNG stream and can't shift pack contents.
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
@@ -90,8 +93,23 @@ func sky_sizes() -> Array[int]:
 	return sizes
 
 
+## A combo is still possible. On the Scorpio map one unlit landmark may be in it.
 func has_remaining_combo() -> bool:
-	return Combos.has_any(sky_sizes())
+	if scorpio == null:
+		return Combos.has_any(sky_sizes())
+	var pool: Array[Vector2i] = []
+	for size: int in sky_sizes():
+		pool.append(Vector2i(size, 0))
+	for size: int in scorpio.unlit_sizes():
+		pool.append(Vector2i(size, 1))
+	for a: int in pool.size():
+		for b: int in range(a + 1, pool.size()):
+			for c: int in range(b + 1, pool.size()):
+				if pool[a].y + pool[b].y + pool[c].y > Scorpio.LANDMARKS_PER_COMBO:
+					continue
+				if Combos.evaluate([pool[a].x, pool[b].x, pool[c].x] as Array[int]) != Combos.INVALID:
+					return true
+	return false
 
 
 ## Which of the loss check's conditions hold now, in LossReason order. A lost run has all three;
@@ -155,12 +173,10 @@ func launch(target: Vector2i) -> bool:
 
 
 ## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up.
-## On the Scorpio map a link with landmarks in it builds a segment instead (segment_for), and
-## a combo's last star stings the nearest star in reach (sting_target).
-## Returns the combo key, SEGMENT, or Combos.INVALID.
+## On the Scorpio map one unlit landmark can be in it too: the combo pays as usual and the
+## landmark lights up instead of being used up. A full Sun then rekindles.
+## Returns the combo key, or Combos.INVALID.
 func link(star_ids: Array[int]) -> String:
-	if scorpio != null and star_ids.any(Scorpio.is_landmark_id):
-		return _build_segment(star_ids)
 	var linked: Array[Star] = _stars_for_link(star_ids)
 	var sizes: Array[int] = []
 	for star: Star in linked:
@@ -175,89 +191,80 @@ func link(star_ids: Array[int]) -> String:
 	dust += reward.dust
 	light += reward.light
 	combo_collected.emit(combo, linked, reward.dust, reward.light)
-	_sting(linked.back())
+	if scorpio != null:
+		for star: Star in linked:
+			if Scorpio.is_landmark_id(star.id):
+				_light_landmark(Scorpio.landmark_index(star.id))
+		# The last landmark lit is the win: no rekindle on top of it.
+		if scorpio.is_complete():
+			constellation_completed.emit()
+		else:
+			_rekindle_if_full()
 	_check_end()
 	return combo
 
 
-## Scorpio: the segment a landmark-star-landmark link would build, or -1 if it wouldn't. The two
-## landmarks must be neighbours with their segment unbuilt, and the star in its gap. Any order.
-func segment_for(ids: Array[int]) -> int:
-	if scorpio == null or ids.size() != Combos.LINK_LENGTH:
-		return -1
-	var landmarks: Array[int] = []
-	var star: Star = null
-	for id: int in ids:
+## The combo a link would make (Combos.INVALID if none), without making it. For previews.
+func combo_for(star_ids: Array[int]) -> String:
+	var linked: Array[Star] = _stars_for_link(star_ids)
+	var sizes: Array[int] = []
+	for star: Star in linked:
+		sizes.append(star.size)
+	return Combos.evaluate(sizes)
+
+
+## Scorpio: the strings a link would form by lighting its landmarks, if its combo is valid.
+func strings_for(star_ids: Array[int]) -> Array[int]:
+	var formed: Array[int] = []
+	if scorpio == null or combo_for(star_ids) == Combos.INVALID:
+		return formed
+	var lit: Array[bool] = scorpio.lit.duplicate()
+	for id: int in star_ids:
 		if Scorpio.is_landmark_id(id):
-			landmarks.append(Scorpio.landmark_index(id))
-		elif star == null:
-			star = find_star(id)
-		else:
-			return -1
-	if landmarks.size() != 2 or star == null:
-		return -1
-	var segment: int = Scorpio.segment_between(landmarks[0], landmarks[1])
-	if segment < 0 or not Scorpio.is_gap(segment) or scorpio.is_built(segment):
-		return -1
-	return segment if Scorpio.in_gap(segment, star.position, balance.scorpio_segment_reach) else -1
+			lit[Scorpio.landmark_index(id)] = true
+	for segment: int in Scorpio.segment_count():
+		if lit[segment] and lit[segment + 1] and not scorpio.is_built(segment):
+			formed.append(segment)
+	return formed
 
 
-## Scorpio: sky stars that could bridge an unbuilt segment next to landmark `index`.
-func bridge_candidates(index: int) -> Array[int]:
-	var ids: Array[int] = []
-	if scorpio == null:
-		return ids
-	for star: Star in stars:
-		for segment: int in scorpio.open_segments_for(star.position, balance.scorpio_segment_reach):
-			if segment == index or segment == index - 1:
-				ids.append(star.id)
-				break
-	return ids
-
-
-## Scorpio: the star a combo ending at `from` would sting: the nearest sky star within
-## sting_reach that isn't in `excluded` (ties: the oldest). Null without Scorpio or a target.
-func sting_target(from: Vector2i, excluded: Array[int]) -> Star:
-	if scorpio == null:
-		return null
-	var best: Star = null
-	var best_d: int = balance.scorpio_sting_reach * balance.scorpio_sting_reach + 1
-	for star: Star in stars:
-		if excluded.has(star.id):
-			continue
-		var d: int = (star.position - from).length_squared()
-		if d < best_d or (d == best_d and best != null and star.id < best.id):
-			best = star
-			best_d = d
-	return best
-
-
-func _build_segment(ids: Array[int]) -> String:
-	var segment: int = -1 if is_over() else segment_for(ids)
-	if segment < 0:
-		link_rejected.emit(ids)
-		return Combos.INVALID
-	var star: Star = null
-	for id: int in ids:
-		if not Scorpio.is_landmark_id(id):
-			star = find_star(id)
-	stars.erase(star)
-	scorpio.build(segment, star)
-	dust += balance.scorpio_segment_dust
-	segment_built.emit(segment, star, balance.scorpio_segment_dust)
-	if scorpio.is_complete():
-		constellation_completed.emit()
-	_check_end()
-	return SEGMENT
-
-
-func _sting(from: Star) -> void:
-	var target: Star = sting_target(from.position, [])
-	if target == null:
+func _light_landmark(index: int) -> void:
+	if scorpio.is_lit(index):
 		return
-	stars.erase(target)
-	dust += balance.scorpio_sting_dust
-	star_stung.emit(from.position, target, balance.scorpio_sting_dust)
+	var formed: Array[int] = scorpio.light(index)
+	landmark_lit.emit(index)
+	for segment: int in formed:
+		string_built.emit(segment)
+
+
+## Scorpio: a full Sun rekindles at 0, lights the first unlit landmark next to a lit one (else the
+## first unlit), and pays sun_dust_per_star for every star in the sky.
+func _rekindle_if_full() -> void:
+	if light < balance.sun_target:
+		return
+	light = 0
+	var index: int = rekindle_target()
+	var gain: int = balance.scorpio_sun_dust_per_star * stars.size()
+	var positions: Array[Vector2i] = []
+	for star: Star in stars:
+		positions.append(star.position)
+	dust += gain
+	sun_rekindled.emit(index, gain, positions)
+	if index >= 0:
+		_light_landmark(index)
+
+
+## Scorpio: the landmark a rekindled Sun would light, or -1 when all are lit.
+func rekindle_target() -> int:
+	var first: int = -1
+	for i: int in Scorpio.LANDMARKS.size():
+		if scorpio.is_lit(i):
+			continue
+		if (i > 0 and scorpio.is_lit(i - 1)) or (i + 1 < Scorpio.LANDMARKS.size() and scorpio.is_lit(i + 1)):
+			return i
+		if first < 0:
+			first = i
+	return first
 
 
 ## Adds a star directly. Used by launches, tests and the debug overlay.
@@ -291,18 +298,35 @@ func _big_bang(burst: Vector2i) -> void:
 	big_bang_started.emit(burst, cleared, gain)
 
 
-## Returns the stars for a link, or an empty array if the ids aren't 3 distinct sky stars.
+## Returns the stars for a link, or an empty array if the ids aren't 3 distinct sky stars. On the
+## Scorpio map one unlit landmark can be in it too (Scorpio.LANDMARKS_PER_COMBO).
 func _stars_for_link(star_ids: Array[int]) -> Array[Star]:
 	var linked: Array[Star] = []
 	if star_ids.size() != Combos.LINK_LENGTH:
 		return linked
+	var sky_count: int = 0
+	var landmark_count: int = 0
 	for id: int in star_ids:
-		var star: Star = find_star(id)
-		if star == null or linked.has(star):
+		var star: Star = _link_star(id)
+		if star == null or linked.any(func(s: Star) -> bool: return s.id == star.id):
 			linked.clear()
 			return linked
+		if Scorpio.is_landmark_id(id):
+			landmark_count += 1
+		else:
+			sky_count += 1
 		linked.append(star)
+	if sky_count == 0 or landmark_count > Scorpio.LANDMARKS_PER_COMBO:
+		linked.clear()
 	return linked
+
+
+## A sky star, or an unlit landmark on the Scorpio map, by link id. Null otherwise.
+func _link_star(id: int) -> Star:
+	if scorpio != null and Scorpio.is_landmark_id(id):
+		var index: int = Scorpio.landmark_index(id)
+		return null if scorpio.is_lit(index) else Scorpio.landmark_star(index)
+	return find_star(id)
 
 
 ## Keeps the loaded kind while any remain; otherwise loads the first owned kind in balance order.
@@ -317,16 +341,6 @@ func _auto_load() -> void:
 	loaded_pack = ""
 
 
-## Scorpio: a sky star could still fill an open gap, so the constellation can still grow.
-func can_build() -> bool:
-	if scorpio == null:
-		return false
-	for star: Star in stars:
-		if not scorpio.open_segments_for(star.position, balance.scorpio_segment_reach).is_empty():
-			return true
-	return false
-
-
 func _check_end() -> void:
 	if is_over():
 		return
@@ -334,6 +348,6 @@ func _check_end() -> void:
 		outcome = Outcome.WON
 		run_won.emit()
 		return
-	if loss_reasons().size() == LossReason.size() and not can_build():
+	if loss_reasons().size() == LossReason.size():
 		outcome = Outcome.LOST
 		run_lost.emit()
