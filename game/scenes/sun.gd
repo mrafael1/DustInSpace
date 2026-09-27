@@ -17,7 +17,10 @@ extends Node2D
 ## Sun art: an r17 disc and 12 rays (art-direction.md).
 ## The ignition started: the last light landed on a won run. Feedback only (sound).
 signal ignited
-## Scorpio (#40): a full Sun's ignition played through and it's back at 0 light.
+## Scorpio (#40): a full Sun's ignition played through; its light leaves for the landmark it
+## lights (a sunbeam, ConstellationView.BEAM_TIME), still shining until the beam lands.
+signal released
+## Scorpio (#40): the rekindle is over (the sunbeam landed) and it's back at 0 light.
 signal rekindled
 
 const RADIUS: int = 17
@@ -58,6 +61,8 @@ var _light_in_flight: int = 0
 var _ignite_waiting: bool = false
 ## Scorpio: this ignition is a rekindle, so the Sun goes back to 0 once it's done.
 var _rekindling: bool = false
+## Scorpio: seconds left while the rekindled Sun's sunbeam flies, before it goes back to 0.
+var _release_left: float = 0.0
 ## Seconds since the ignition started, or -1 before it.
 var _ignite_time: float = -1.0
 var _ripple: int = 0
@@ -95,6 +100,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_light_in_flight = 0
 	_ignite_waiting = false
 	_rekindling = false
+	_release_left = 0.0
 	_glow_textures.clear()
 	_ignite_time = IGNITE_TIME if run.outcome == RunState.Outcome.WON else -1.0
 	queue_redraw()
@@ -154,6 +160,12 @@ func advance(delta: float) -> void:
 	if is_igniting():
 		_ignite_time = minf(_ignite_time + delta, IGNITE_TIME)
 		if _rekindling and _ignite_time >= IGNITE_TIME:
+			_release_left = ConstellationView.BEAM_TIME
+			released.emit()
+	elif _release_left > 0.0:
+		_release_left -= delta
+		if _release_left <= 0.0:
+			_release_left = 0.0
 			_rekindle_done()
 	_ripple_time += delta
 	if _ripple_time >= RIPPLE_TIME:
@@ -225,7 +237,7 @@ func _ignite_when_landed() -> void:
 		_ignite()
 
 
-## Scorpio: the rekindle's ignition is over; the Sun starts again from 0.
+## Scorpio: the rekindle is over (its sunbeam landed); the Sun starts again from 0.
 func _rekindle_done() -> void:
 	_rekindling = false
 	_ignite_time = -1.0
@@ -235,12 +247,13 @@ func _rekindle_done() -> void:
 	rekindled.emit()
 
 
-## Starts the ignition and keeps the sequence (the win) waiting until it's done.
+## Starts the ignition and keeps the sequence (the win) waiting until it's done. A rekindle also
+## waits for the sunbeam it sends to the landmark it lights (ConstellationView.BEAM_TIME).
 func _ignite() -> void:
 	_ignite_waiting = false
 	_ignite_time = 0.0
 	_pulse_left = PULSE_TIME
-	_sequencer.hold(IGNITE_TIME)
+	_sequencer.hold(IGNITE_TIME + (ConstellationView.BEAM_TIME if _rekindling else 0.0))
 	ignited.emit()
 	queue_redraw()
 

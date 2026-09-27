@@ -7,13 +7,17 @@ extends Node2D
 ## every CUE_STEP) say "you can pick this". Lit, it uses the "gold" frame: the same gold on every
 ## size, so gold only ever means lit. Strings between two lit landmarks glow C1 with a C0 glint
 ## running along them; strings still to form are dotted N8. While a link is traced, the landmarks
-## in it show gold and the strings it would form are dashed C2. Owns no rules:
+## in it show gold and the strings it would form are dashed C2. Like the HUD and the Sun it keeps
+## a shown copy of what's lit, moved only by played landmark_lit events, so a landmark the Sun
+## lights stays unlit until the Sun's ignition has played. Owns no rules:
 ## RunState says what's lit. Draws nothing without the map.
 ## Completion plays the constellation like an instrument once every payout has landed (the Sky
 ## waits): string by string from the bottom of the sky to the top, each flashing C0 and vibrating
 ## as its note sounds (string_sung). Then a drawing of the scorpion is traced around the lit
 ## stars, stroke by stroke, and stays.
 
+## The sunbeam reached its landmark, at `at`. Feedback only.
+signal sunbeam_landed(at: Vector2i)
 ## Completion: the `order`-th string (0 = the lowest) lit and its note should sound.
 signal string_sung(segment: int, order: int)
 
@@ -30,6 +34,19 @@ const CUE_GAP: int = 2
 const CUE_STEP: float = 0.6
 ## A landmark or string that just lit shows C0 this long.
 const LIT_FLASH: float = 0.25
+## A landmark lighting throws a 1 px ring from its art's edge out LIT_RING_GROWTH px over
+## LIT_RING_TIME, cooling C0 to C3.
+const LIT_RING_TIME: float = 0.4
+const LIT_RING_GROWTH: int = 14
+const LIT_RING_COLOURS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+## The Sun lights a landmark with a sunbeam: a comet from the Sun's rim to the landmark over
+## BEAM_TIME, eased out: a small star for a head (C0 heart, C1 arms) and a 3 px wide trail of
+## BEAM_TRAIL pixels cooling C0 to C3, its edges a step dimmer. The landmark lights as it lands
+## (the Sun holds the sequence that long, still shining).
+const BEAM_TIME: float = 0.5
+const BEAM_TRAIL: int = 14
+const BEAM_RAMP: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+const SUN_RIM: int = 20
 ## Completion: one string every STRING_STEP, bottom to top; then the drawing is traced over
 ## REVEAL_TIME; then CODA_TIME with everything shown.
 const STRING_STEP: float = 0.24
@@ -46,10 +63,19 @@ const VIBRATE_CYCLES: float = 3.0
 var _run: RunState
 var _time: float = 0.0
 var _selected: Array[int] = []
+## Which landmarks show lit: the run's as of setup, then each played landmark_lit.
+var _shown_lit: Array[bool] = []
 var _preview_strings: Array[int] = []
 var _flash_landmark: int = -1
 var _flash_string: int = -1
 var _flash_left: float = 0.0
+## The landmark whose lit ring is spreading, and for how long it has (-1: none).
+var _ring_landmark: int = -1
+var _ring_time: float = -1.0
+## The sunbeam in flight: from, to, and its age (-1: none).
+var _beam_from: Vector2i = Vector2i.ZERO
+var _beam_to: Vector2i = Vector2i.ZERO
+var _beam_time: float = -1.0
 var _completion_time: float = -1.0
 ## The scorpion drawing is fully shown (after a completion, until the next run).
 var _revealed: bool = false
@@ -76,14 +102,24 @@ func _draw() -> void:
 		_draw_string(segment)
 	for i: int in Scorpio.LANDMARKS.size():
 		_draw_landmark(i)
+	if _ring_time >= 0.0:
+		for p: Vector2i in lit_ring_pixels(Scorpio.SIZES[_ring_landmark], _ring_time / LIT_RING_TIME):
+			_dot(Scorpio.LANDMARKS[_ring_landmark] + p, LIT_RING_COLOURS[mini(floori(_ring_time / LIT_RING_TIME * 4.0), 3)])
+	if _beam_time >= 0.0:
+		_draw_beam(beam_pixels(_beam_from, _beam_to, _beam_time / BEAM_TIME))
 	if _completion_time >= 0.0:
 		_draw_completion()
 
 
 func setup(run: RunState) -> void:
 	_run = run
+	_shown_lit.clear()
+	if run.scorpio != null:
+		_shown_lit.assign(run.scorpio.lit)
 	clear_preview()
 	_flash_left = 0.0
+	_ring_time = -1.0
+	_beam_time = -1.0
 	_completion_time = -1.0
 	_revealed = false
 
@@ -101,11 +137,72 @@ func clear_preview() -> void:
 	queue_redraw()
 
 
+## A landmark_lit event played: it shows lit from now, with a C0 flash and a ring spreading out.
 func flash_landmark(index: int) -> void:
+	if index < _shown_lit.size():
+		_shown_lit[index] = true
+	_ring_landmark = index
+	_ring_time = 0.0
 	_flash_landmark = index
 	_flash_string = -1
 	_flash_left = LIT_FLASH
 	queue_redraw()
+
+
+## The Sun's ignition is over: a sunbeam flies from its rim (the Sun sits at `sun`) to landmark
+## `index`, which lights when it lands (its landmark_lit event plays then). -1: no beam.
+func launch_sunbeam(sun: Vector2i, index: int) -> void:
+	if index < 0 or index >= Scorpio.LANDMARKS.size():
+		return
+	_beam_to = Scorpio.LANDMARKS[index]
+	var toward: Vector2 = Vector2(_beam_to - sun).normalized()
+	_beam_from = sun + Vector2i((toward * SUN_RIM).round())
+	_beam_time = 0.0
+	queue_redraw()
+
+
+func is_beaming() -> bool:
+	return _beam_time >= 0.0
+
+
+## The sunbeam's head and trail at `k` (0-1 of its flight), head first: whole pixels along the
+## line, the head eased out, the trail the BEAM_TRAIL pixels behind it.
+static func beam_pixels(from: Vector2i, to: Vector2i, k: float) -> Array[Vector2i]:
+	var line: Array[Vector2i] = LinkLayer.line_pixels(from, to)
+	var eased: float = 1.0 - (1.0 - clampf(k, 0.0, 1.0)) * (1.0 - clampf(k, 0.0, 1.0))
+	var head: int = roundi(eased * (line.size() - 1))
+	var pixels: Array[Vector2i] = []
+	for i: int in range(head, maxi(head - BEAM_TRAIL, -1), -1):
+		pixels.append(line[i])
+	return pixels
+
+
+## The sunbeam: its trail, 3 px wide and cooling, then its star-shaped head on top.
+func _draw_beam(trail: Array[Vector2i]) -> void:
+	var along: Vector2 = Vector2(_beam_to - _beam_from).normalized()
+	var side := Vector2i(Vector2(-along.y, along.x).round())
+	for i: int in range(trail.size() - 1, 0, -1):
+		var step: int = mini(i * BEAM_RAMP.size() / trail.size(), BEAM_RAMP.size() - 1)
+		var edge: Color = BEAM_RAMP[mini(step + 1, BEAM_RAMP.size() - 1)]
+		if i < trail.size() - 3:
+			_dot(trail[i] + side, edge)
+			_dot(trail[i] - side, edge)
+		_dot(trail[i], BEAM_RAMP[step])
+	for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		_dot(trail[0] + n, Palette.C1)
+		_dot(trail[0] + n * 2, Palette.C2)
+	_dot(trail[0], Palette.C0)
+
+
+## A lit ring around a landmark of `size`, `k` (0-1) of the way out: a 1 px circle.
+static func lit_ring_pixels(size: int, k: float) -> Array[Vector2i]:
+	var radius: int = StarView.half_extent(size as Star.Size) + 2 + roundi(clampf(k, 0.0, 1.0) * LIT_RING_GROWTH)
+	var dots: Array[Vector2i] = []
+	for dy: int in range(-radius - 1, radius + 2):
+		for dx: int in range(-radius - 1, radius + 2):
+			if roundi(sqrt(dx * dx + dy * dy)) == radius:
+				dots.append(Vector2i(dx, dy))
+	return dots
 
 
 func flash_string(segment: int) -> void:
@@ -245,10 +342,21 @@ func advance(delta: float) -> void:
 	var cue: int = cue_frame()
 	_time += delta
 	var mapped: bool = _run != null and _run.scorpio != null
-	var redraw: bool = mapped and ((glow_step() != step and _run.scorpio.built_count() > 0) \
-		or (cue_frame() != cue and not _run.scorpio.is_complete()))
+	var redraw: bool = mapped and ((glow_step() != step and _shown_lit.count(true) > 1) \
+		or (cue_frame() != cue and _shown_lit.has(false)))
 	if _flash_left > 0.0:
 		_flash_left = maxf(_flash_left - delta, 0.0)
+		redraw = true
+	if _ring_time >= 0.0:
+		_ring_time += delta
+		if _ring_time >= LIT_RING_TIME:
+			_ring_time = -1.0
+		redraw = true
+	if _beam_time >= 0.0:
+		_beam_time += delta
+		if _beam_time >= BEAM_TIME:
+			_beam_time = -1.0
+			sunbeam_landed.emit(_beam_to)
 		redraw = true
 	if _completion_time >= 0.0:
 		var before: int = floori(_completion_time / STRING_STEP)
@@ -298,7 +406,7 @@ func _draw_string(segment: int) -> void:
 	if age >= 0.0 and age < VIBRATE_TIME:
 		_draw_vibrating(segment, pixels, age)
 		return
-	if _run.scorpio.is_built(segment):
+	if shows_built(segment):
 		var flash: bool = segment == _flash_string and _flash_left > 0.0
 		var step: int = glow_step()
 		for i: int in pixels.size():
@@ -324,6 +432,16 @@ static func cue_pixels(size: int) -> Array[Vector2i]:
 	return dots
 
 
+## Whether landmark `index` shows lit: its landmark_lit event has played (or it was lit at setup).
+func shows_lit(index: int) -> bool:
+	return index < _shown_lit.size() and _shown_lit[index]
+
+
+## Whether string `segment` shows formed: both its landmarks show lit.
+func shows_built(segment: int) -> bool:
+	return shows_lit(segment) and shows_lit(segment + 1)
+
+
 ## Which of the cue's two colours shows now: 0 (C5) or 1 (C4).
 func cue_frame() -> int:
 	return int(_time / CUE_STEP) % 2
@@ -332,7 +450,7 @@ func cue_frame() -> int:
 ## Whether landmark `index` shows the selectable cue: unlit, not in the link being traced, and
 ## not while the constellation plays.
 func shows_cue(index: int) -> bool:
-	return _run != null and _run.scorpio != null and not _run.scorpio.is_lit(index) \
+	return _run != null and _run.scorpio != null and not shows_lit(index) \
 		and not _selected.has(index) and _completion_time < 0.0
 
 
@@ -341,7 +459,7 @@ func _draw_landmark(index: int) -> void:
 		var colour: Color = Palette.C4 if cue_frame() == 1 else Palette.C5
 		for d: Vector2i in cue_pixels(Scorpio.SIZES[index]):
 			_dot(Scorpio.LANDMARKS[index] + d, colour)
-	var lit: bool = _run.scorpio.is_lit(index) or _selected.has(index)
+	var lit: bool = shows_lit(index) or _selected.has(index)
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
 	var dots: Dictionary = _art[Scorpio.SIZES[index]][1 if lit else 0]
 	for d: Vector2i in dots:
