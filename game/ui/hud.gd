@@ -28,6 +28,11 @@ const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 const SLOT_SPACING: int = 30
 const LAST_SLOT_X: int = 158
 const SLOT_Y: int = 290
+## Where the speaker, the dust icon and the dust counter sit on a 9:16 screen (fit_screen moves
+## them to the real screen's corners).
+const SOUND_AT := Vector2i(4, 4)
+const DUST_ICON_AT := Vector2i(12, 300)
+const DUST_AT := Vector2i(20, 297)
 ## A counter hops 1 px up for this long when a particle lands on it.
 const HOP_TIME: float = 0.1
 
@@ -66,6 +71,18 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	advance(delta)
+
+
+## Anchors the HUD to the real screen, `screen` in game coordinates (on a 9:16 screen, the game's
+## own 0,0 180x320): the speaker in its top-left corner, the dust counter on its bottom-left, the
+## pack slots on its bottom-right. The Sun's light counter stays under the Sun.
+func fit_screen(screen: Rect2i) -> void:
+	var bottom: int = screen.end.y - ScreenZones.SCREEN.y
+	_sound.position = Vector2(SOUND_AT + screen.position)
+	($DustIcon as Node2D).position = Vector2(DUST_ICON_AT + Vector2i(screen.position.x, bottom))
+	_rest[_dust] = Vector2(DUST_AT + Vector2i(screen.position.x, bottom))
+	_dust.position = _rest[_dust]
+	_slot_layer.position = Vector2(screen.end.x - ScreenZones.SCREEN.x, bottom)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -172,7 +189,7 @@ func handle_pointer(event: InputEvent) -> bool:
 ## The tap target under a screen point, as [kind, &"icon" or &"cost"], or [] for none.
 func target_at(point: Vector2i) -> Array:
 	for kind: String in _slots:
-		var part: StringName = _slots[kind].target_at(point - Vector2i(_slots[kind].position))
+		var part: StringName = _slots[kind].target_at(point - Vector2i(_slot_layer.position + _slots[kind].position))
 		if part != &"":
 			return [kind, part]
 	return []

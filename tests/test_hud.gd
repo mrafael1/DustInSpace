@@ -640,3 +640,16 @@ func _icon(kind: String) -> PackView:
 
 func _slot_label(kind: String, name: String) -> Label:
 	return hud.slot(kind).get_node(name)
+
+
+func test_the_hud_anchors_to_a_taller_phone_screens_corners() -> void:
+	# A 1170x2532 phone: 195x422 game pixels, the game's 180x320 on the bottom, centred across.
+	var phone := Rect2i(-7, -102, 195, 422)
+	var blue_before: Vector2i = Vector2i(hud.slot("blue").position)
+	hud.fit_screen(phone)
+	assert_eq(hud.sound_target(), Rect2i(SoundToggle.TARGET.position + phone.position, SoundToggle.TARGET.size), "the speaker's corner of the screen, as on 9:16")
+	assert_eq(Vector2i((hud.get_node("Dust") as Label).position), Hud.DUST_AT + Vector2i(-7, 0), "dust on its left edge")
+	assert_eq(Vector2i((hud.get_node("DustIcon") as Node2D).position), Hud.DUST_ICON_AT + Vector2i(-7, 0))
+	var blue_at: Vector2i = blue_before + Vector2i(phone.end.x - ScreenZones.SCREEN.x, 0)
+	assert_eq(hud.target_at(blue_at + PackSlot.COST_TARGET.get_center()), ["blue", &"cost"], "the slots on its right edge, taps follow")
+	assert_eq(Vector2i((hud.get_node("Light") as Label).position), Vector2i(60, 66), "the light counter stays under the Sun")

@@ -175,3 +175,19 @@ func _touch(point: Vector2i, pressed: bool) -> InputEventScreenTouch:
 	e.position = Vector2(point)
 	e.pressed = pressed
 	return e
+
+
+func test_the_panel_centres_on_a_taller_phone_screen() -> void:
+	_lose()
+	sequencer.advance(1.0)
+	var home: Rect2i = screen.get("_panel")
+	# A 1170x2532 phone: 195x422 game pixels, the game's 180x320 on the bottom, centred across.
+	var phone := Rect2i(-7, -102, 195, 422)
+	screen.fit_screen(phone)
+	var panel: Rect2i = screen.get("_panel")
+	assert_eq(panel.size, home.size)
+	assert_eq(panel.position - home.position, Vector2i(0, -51), "half the extra sky up: centred on the phone")
+	assert_true(phone.encloses(panel))
+	var button: Rect2i = screen.get("_button")
+	assert_true(panel.encloses(button), "RESTART moves with it")
+	assert_true(screen.handle_pointer(_touch(button.get_center(), true)))

@@ -79,6 +79,11 @@ func fit_screen() -> void:
 		layer.offset = Vector2(offset)
 	_sound_toggle.screen_offset = offset
 	_backdrop.fit(offset, Vector2i(visible))
+	# The UI anchors to the real screen's edges, not the game's 180x320 (the Sun's counter aside).
+	var screen := Rect2i(-offset, Vector2i(visible))
+	_hud.fit_screen(screen)
+	_sound_toggle.target = _hud.sound_target()
+	_end_screen.fit_screen(screen)
 
 
 ## A fresh run on the current run's balance (the end screen's RESTART).
