@@ -12,7 +12,8 @@ so real players will do slightly worse than these numbers.
 Scorpio (#40): when balance.json has scorpio.enabled, the objective is the constellation:
 lighting every landmark wins. A combo may use unlit landmarks as stars (at least one sky star in
 it) and lights them; the bots always prefer a combo that lights the most landmarks. A full Sun
-rekindles: back to 0 light, lights one landmark and pays dust per sky star. The Sun fills at
+rekindles: back to 0 light, lights one landmark and clears the sky (its stars pay nothing). The
+bots link every combo they can before that happens, best first. The Sun fills at
 scorpio.sun_target there (sun_target without it).
 Not modelled: where stars are. The bots link any stars in the sky, so scorpio.max_link_distance
 (each step of a link must be at most that long) is ignored: real Scorpio runs can only do worse.
@@ -128,7 +129,7 @@ def run(cfg, policy, lighting_pays="all"):
             if on:
                 if light >= sun_full:
                     light = 0
-                    dust += scorpio["sun_dust_per_star"] * len(sky)
+                    sky = []
                     if unlit:
                         unlit.pop(0)
                 if not unlit:

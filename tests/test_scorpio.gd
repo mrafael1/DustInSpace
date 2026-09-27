@@ -4,10 +4,10 @@ extends GutTest
 
 const Fixtures := preload("res://tests/fixtures.gd")
 
-const SCORPIO := {"enabled": true, "sun_dust_per_star": 1}
+const SCORPIO := {"enabled": true}
 ## With a reach and the Sun's own target, as the shipped balance has them.
 const REACH := 56
-const SCORPIO_REACH := {"enabled": true, "sun_dust_per_star": 1, "max_link_distance": REACH, "sun_target": 50}
+const SCORPIO_REACH := {"enabled": true, "max_link_distance": REACH, "sun_target": 50}
 const SMALL := Star.Size.SMALL
 const MEDIUM := Star.Size.MEDIUM
 const BIG := Star.Size.BIG
@@ -31,7 +31,7 @@ func test_a_bad_scorpio_block_is_a_balance_error() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["scorpio"] = {"enabled": "yes"}
 	var balance: Balance = Balance.from_dict(data)
-	assert_eq(balance.errors.size(), 2, str(balance.errors))
+	assert_eq(balance.errors.size(), 1, str(balance.errors))
 
 
 func test_the_shipped_balance_turns_scorpio_on() -> void:
@@ -141,10 +141,10 @@ func test_a_sun_that_lights_the_last_landmark_completes_and_clears_for_nothing()
 	var left: Star = run.add_star(MEDIUM, Vector2i(150, 120))
 	run.light = run.light_target() - 5
 	var order: Array[String] = []
-	var rekindle: Array = []
-	run.sun_rekindled.connect(func(i: int, d: int, p: Array[Vector2i]) -> void:
+	var rekindle: Array[int] = []
+	run.sun_rekindled.connect(func(i: int) -> void:
 		order.append("rekindled")
-		rekindle.append([i, d, p.size()]))
+		rekindle.append(i))
 	run.landmark_lit.connect(func(_i: int) -> void: order.append("lit"))
 	run.sky_cleared.connect(func(_s: Array[Star]) -> void: order.append("cleared"))
 	run.constellation_completed.connect(func() -> void: order.append("completed"))
@@ -155,7 +155,7 @@ func test_a_sun_that_lights_the_last_landmark_completes_and_clears_for_nothing()
 		ids.append(run.add_star(SMALL, Vector2i(x, 90)).id)
 	run.link(ids)
 	assert_eq(order, ["rekindled", "lit", "cleared", "completed", "won"] as Array[String])
-	assert_eq(rekindle, [[Scorpio.LANDMARKS.size() - 1, 0, 0]], "the winning rekindle pays nothing: the sky is cleared")
+	assert_eq(rekindle, [Scorpio.LANDMARKS.size() - 1] as Array[int], "the Sun lights the last landmark")
 	assert_eq(run.dust, dust + run.balance.combos["small_triple"].dust)
 	assert_null(run.find_star(left.id))
 	assert_eq(run.outcome, RunState.Outcome.WON)
@@ -180,22 +180,39 @@ func test_lighting_a_landmark_short_of_the_end_keeps_the_sky() -> void:
 	assert_not_null(run.find_star(near.id))
 
 
-func test_a_full_sun_rekindles_lights_a_landmark_and_pays_for_the_sky() -> void:
+func test_a_full_sun_rekindles_lights_a_landmark_and_clears_the_sky_for_nothing() -> void:
 	run.light = 90
-	var rekindled: Array = []
-	run.sun_rekindled.connect(func(i: int, d: int, p: Array[Vector2i]) -> void: rekindled.append([i, d, p.size()]))
+	var order: Array[String] = []
+	run.sun_rekindled.connect(func(i: int) -> void: order.append("rekindled %d" % i))
+	run.landmark_lit.connect(func(i: int) -> void: order.append("lit %d" % i))
+	var cleared: Array[int] = []
+	run.sky_cleared.connect(func(stars: Array[Star]) -> void:
+		order.append("cleared")
+		cleared.append(stars.size()))
 	for x: int in [120, 150]:
 		run.add_star(SMALL, Vector2i(x, 240))
 	var ids: Array[int] = []
 	for x: int in [20, 40, 60]:
 		ids.append(run.add_star(BIG, Vector2i(x, 100)).id)
 	run.link(ids)
-	assert_eq(rekindled, [[2, 2, 2]], "landmark 2 grows the lit head; 1 dust for each of the 2 sky stars")
+	assert_eq(order, ["rekindled 2", "lit 2", "cleared"] as Array[String], "landmark 2 grows the lit head, then the sky clears")
+	assert_eq(cleared, [2] as Array[int], "both stars left in the sky")
 	assert_eq(run.light, 0, "back at 0")
-	assert_true(run.scorpio.is_lit(2))
-	assert_eq(run.dust, 6 + 2)
-	assert_eq(run.stars.size(), 2, "the stars stay in the sky")
+	assert_eq(run.dust, 6, "only the combo's dust: the cleared stars pay nothing")
+	assert_eq(run.stars.size(), 0, "a clean sky")
 	assert_eq(run.outcome, RunState.Outcome.PLAYING, "a full Sun doesn't win here")
+
+
+func test_a_rekindle_on_an_empty_sky_clears_nothing() -> void:
+	run.light = 90
+	var cleared: Array[bool] = []
+	run.sky_cleared.connect(func(_s: Array[Star]) -> void: cleared.append(true))
+	var ids: Array[int] = []
+	for x: int in [20, 40, 60]:
+		ids.append(run.add_star(BIG, Vector2i(x, 100)).id)
+	run.link(ids)
+	assert_true(run.scorpio.is_lit(2), "it still lights its landmark")
+	assert_eq(cleared, [] as Array[bool])
 
 
 func test_the_combo_that_completes_the_constellation_doesnt_rekindle_the_sun() -> void:
@@ -203,7 +220,7 @@ func test_the_combo_that_completes_the_constellation_doesnt_rekindle_the_sun() -
 		_light(index)
 	run.light = 95
 	var rekindled: Array[int] = []
-	run.sun_rekindled.connect(func(i: int, _d: int, _p: Array[Vector2i]) -> void: rekindled.append(i))
+	run.sun_rekindled.connect(func(i: int) -> void: rekindled.append(i))
 	_light(Scorpio.LANDMARKS.size() - 1)
 	assert_eq(run.outcome, RunState.Outcome.WON)
 	assert_eq(rekindled, [] as Array[int], "the win's tune plays, not the Sun")
@@ -287,7 +304,7 @@ func test_the_shipped_balance_sets_scorpios_reach_and_sun() -> void:
 
 func test_reach_and_sun_target_must_be_positive_whole_numbers() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
-	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "max_link_distance": 0, "sun_target": 12.5}
+	data["scorpio"] = {"enabled": true, "max_link_distance": 0, "sun_target": 12.5}
 	var balance: Balance = Balance.from_dict(data)
 	assert_eq(balance.errors.size(), 2, str(balance.errors))
 
@@ -374,7 +391,7 @@ func test_scorpios_sun_rekindles_at_its_own_target() -> void:
 	var r: RunState = _scorpio_run(SCORPIO_REACH)
 	assert_eq(r.light_target(), 50)
 	var rekindled: Array[int] = []
-	r.sun_rekindled.connect(func(i: int, _d: int, _p: Array[Vector2i]) -> void: rekindled.append(i))
+	r.sun_rekindled.connect(func(i: int) -> void: rekindled.append(i))
 	r.light = 44
 	r.link(_row(r, SMALL, [20, 40, 60], 100))
 	assert_eq(r.light, 49, "one short: no rekindle")
