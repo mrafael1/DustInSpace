@@ -146,7 +146,10 @@ func test_a_full_sun_ignites_then_starts_again_and_its_stars_shine_their_dust() 
 	for i: int in 50:
 		_tick([sequencer, particles, sun], 1.0 / 30.0)
 	assert_false(sun.is_igniting())
-	assert_almost_eq(sun.progress(), 0.0, 0.001, "and starts again from 0")
+	assert_gt(sun.progress(), 0.0, "still shining while its sunbeam flies")
+	for i: int in ceili(ConstellationView.BEAM_TIME * 30.0) + 1:
+		_tick([sequencer, particles, sun], 1.0 / 30.0)
+	assert_almost_eq(sun.progress(), 0.0, 0.001, "then starts again from 0")
 	assert_eq((main.get_node("HUD/Light") as Label).text, "0/100")
 	assert_eq(shone, [0] as Array[int], "the star paying the dust shines")
 	view.advance(StarView.SHINE_PEAK)
@@ -239,6 +242,65 @@ func test_a_landmark_the_sun_lights_shows_lit_only_after_the_ignition() -> void:
 	assert_true(ignited_first, "the Sun ignites while the landmark still shows unlit")
 	assert_true(constellation.shows_lit(target), "then it lights")
 	assert_false(sun.is_igniting(), "once the ignition is over")
+
+
+func test_the_sun_sends_a_sunbeam_and_the_landmark_lights_as_it_lands() -> void:
+	var sun: SunView = main.get_node("Sun")
+	var particles: CollectParticles = main.get_node("CollectParticles")
+	run.light = run.light_target() - 5
+	var ids: Array[int] = []
+	for x: int in [20, 40, 60]:
+		ids.append(_star(Star.Size.SMALL, Vector2i(x, 100)).id)
+	var target: int = run.rekindle_target()
+	var launched: Array[bool] = []
+	sky.sunbeam_launched.connect(func() -> void: launched.append(true))
+	var landed: Array[Vector2i] = []
+	sky.sunbeam_landed.connect(func(at: Vector2i) -> void: landed.append(at))
+	run.link(ids)
+	var beam_seen_at: float = -1.0
+	var lit_at: float = -1.0
+	var t: float = 0.0
+	for i: int in 600:
+		var dt: float = 1.0 / 60.0
+		sequencer.advance(dt)
+		sun.advance(dt)
+		particles.advance(dt)
+		constellation.advance(dt)
+		t += dt
+		if constellation.is_beaming() and beam_seen_at < 0.0:
+			beam_seen_at = t
+			assert_false(sun.is_igniting(), "the beam leaves once the ignition is over")
+			assert_false(constellation.shows_lit(target), "the landmark waits for it")
+		if constellation.shows_lit(target):
+			lit_at = t
+			break
+	assert_eq(launched, [true], "with its sound")
+	assert_gt(beam_seen_at, 0.0, "a sunbeam flew")
+	assert_almost_eq(lit_at - beam_seen_at, ConstellationView.BEAM_TIME, 0.05, "the landmark lights as it lands")
+	assert_eq(landed, [Scorpio.LANDMARKS[target]], "and it bursts there (sparks and sound)")
+
+
+func test_the_sunbeam_runs_from_the_suns_rim_to_the_landmark() -> void:
+	var sun_at := Vector2i(90, 39)
+	constellation.launch_sunbeam(sun_at, 3)
+	var start: Array[Vector2i] = ConstellationView.beam_pixels(constellation.get("_beam_from"), Scorpio.LANDMARKS[3], 0.0)
+	assert_almost_eq(Vector2(start[0] - sun_at).length(), float(ConstellationView.SUN_RIM), 1.5, "from the rim")
+	var end: Array[Vector2i] = ConstellationView.beam_pixels(constellation.get("_beam_from"), Scorpio.LANDMARKS[3], 1.0)
+	assert_eq(end[0], Scorpio.LANDMARKS[3], "to the landmark")
+	assert_eq(end.size(), ConstellationView.BEAM_TRAIL, "with its trail")
+	constellation.launch_sunbeam(sun_at, -1)
+	constellation.advance(ConstellationView.BEAM_TIME)
+	assert_false(constellation.is_beaming(), "no target, no beam")
+
+
+func test_a_lighting_landmark_throws_a_ring() -> void:
+	var near: Array[Vector2i] = ConstellationView.lit_ring_pixels(Star.Size.MEDIUM, 0.0)
+	var far: Array[Vector2i] = ConstellationView.lit_ring_pixels(Star.Size.MEDIUM, 1.0)
+	assert_eq(roundi(Vector2(far[0]).length()) - roundi(Vector2(near[0]).length()), ConstellationView.LIT_RING_GROWTH)
+	constellation.flash_landmark(3)
+	assert_eq(constellation.get("_ring_landmark"), 3)
+	constellation.advance(ConstellationView.LIT_RING_TIME)
+	assert_eq(constellation.get("_ring_time"), -1.0, "gone once spread")
 
 
 func test_the_sun_lighting_the_last_landmark_plays_the_completion() -> void:

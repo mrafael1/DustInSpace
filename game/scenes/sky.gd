@@ -21,6 +21,10 @@ extends Node2D
 signal star_selected(count: int)
 ## Scorpio: the `order`-th star paying a rekindled Sun's dust started to shine. Feedback only.
 signal star_shone(order: int)
+## Scorpio: the rekindled Sun sent a sunbeam to the landmark it lights. Feedback only (sound).
+signal sunbeam_launched
+## Scorpio: the sunbeam reached its landmark at `at` (it lights now). Feedback only (sparks, sound).
+signal sunbeam_landed(at: Vector2i)
 ## Scorpio: a second landmark was picked for one link; the link was dropped at once. Feedback only.
 signal link_refused
 ## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
@@ -53,6 +57,8 @@ var _finger: Vector2i = Vector2i.ZERO
 var _selected_count: int = 0
 ## Scorpio: where the stars paying a rekindled Sun's dust are, in payout order.
 var _rekindle_positions: Array[Vector2i] = []
+## Scorpio: the landmark the rekindling Sun lights, for its sunbeam (-1: none).
+var _rekindle_landmark: int = -1
 ## Scorpio: the completion tune waits for the payouts still flying.
 var _payouts: CollectParticles
 var _completion_waiting: bool = false
@@ -66,6 +72,7 @@ var _completion_waiting: bool = false
 
 func _ready() -> void:
 	_decoy_rng.randomize()
+	_constellation.sunbeam_landed.connect(func(at: Vector2i) -> void: sunbeam_landed.emit(at))
 	_halo_layer.draw.connect(_draw_halos)
 	_gesture.selection_changed.connect(_on_selection_changed)
 	_gesture.link_requested.connect(_on_link_requested)
@@ -91,6 +98,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_gesture.cancel()
 	_clear()
 	_completion_waiting = false
+	_rekindle_landmark = -1
 	_constellation.setup(run)
 	for star: Star in run.stars:
 		_spawn(star)
@@ -109,6 +117,15 @@ func watch_payouts(payouts: CollectParticles) -> void:
 
 ## Scorpio: the Sun is back at 0; the stars paying its dust shine in turn, StarView.SHINE_STAGGER
 ## apart, in the order CollectParticles sends their dust.
+## Scorpio: the Sun (at `sun`) finished its ignition and releases its light: a sunbeam carries it
+## to the landmark it lights, which lights as the beam lands.
+func launch_sunbeam(sun: Vector2i) -> void:
+	_constellation.launch_sunbeam(sun, _rekindle_landmark)
+	if _rekindle_landmark >= 0:
+		sunbeam_launched.emit()
+	_rekindle_landmark = -1
+
+
 func shine_rekindled() -> void:
 	var order: int = 0
 	for at: Vector2i in _rekindle_positions:
@@ -194,6 +211,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_constellation.flash_string(event.args[0])
 		&"sun_rekindled":
 			_rekindle_positions = event.args[2]
+			_rekindle_landmark = event.args[0]
 		&"sky_cleared":
 			_explode(event.args[0])
 		&"constellation_completed":
