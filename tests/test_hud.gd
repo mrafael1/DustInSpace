@@ -74,9 +74,13 @@ func test_a_flight_reveals_nothing_ahead_of_it() -> void:
 	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.N7, "not affordable yet")
 	sequencer.advance(1.0)
 	assert_eq(_label("Dust").text, "0", "the Big Bang's dust streams in after the bang")
-	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.D0, "but it's won: red is affordable")
+	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.N7, "red lights up as it lands, not before")
+	hud.slot("red").set_process(false)
+	hud.receive_dust(7)
+	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.D0, "the Big Bang's dust made red affordable")
+	assert_true(hud.slot("red").is_cueing(), "and it cues as the counter gets there")
 	assert_true(hud.slot("red").is_loaded())
-	hud.receive_dust(run.dust)
+	hud.receive_dust(run.dust - 7)
 	assert_eq(_label("Dust").text, "%d" % run.dust)
 	_assert_shows_the_run()
 
@@ -115,14 +119,139 @@ func test_a_buy_while_dust_is_flying_lands_on_the_right_total() -> void:
 	_assert_shows_the_run()
 
 
-func test_a_cost_lights_up_once_a_tap_on_it_would_work() -> void:
+func test_a_cost_lights_up_as_the_dust_lands_on_the_counter() -> void:
 	run.dust = 2
 	hud.refresh()
 	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "4 costs more than 2")
 	_link_small_triple()
 	sequencer.advance(0.0)
 	assert_eq(_label("Dust").text, "2", "the reward's dust is still flying")
-	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.D0, "but it's won: the buy would work")
+	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "not lit before the counter shows it")
+	hud.receive_dust(1)
+	hud.receive_dust(1)
+	assert_eq(_label("Dust").text, "4")
+	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.D0, "lit as it lands")
+
+
+func test_a_grey_pack_still_buys_with_dust_that_is_flying() -> void:
+	run.dust = 2
+	hud.refresh()
+	_link_small_triple()
+	sequencer.advance(0.0)
+	assert_true(_icon("blue").greyed, "the counter still reads 2")
+	var owned: int = run.owned_packs["blue"]
+	_tap_part("blue", &"cost")
+	assert_eq(run.owned_packs["blue"], owned + 1, "the core owns the dust: buying is unchanged")
+
+
+func test_a_pack_cues_once_when_the_counter_reaches_its_cost() -> void:
+	run.dust = 2
+	hud.refresh()
+	var blue: PackSlot = _still_slot("blue")
+	_link_small_triple()
+	sequencer.advance(0.0)
+	assert_false(blue.is_cueing(), "no cue while the dust is flying")
+	hud.receive_dust(1)
+	assert_false(blue.is_cueing(), "3 is still short of 4")
+	hud.receive_dust(1)
+	assert_true(blue.is_cueing(), "the counter reached 4")
+	assert_true(blue.is_flashing())
+	assert_false(sequencer.is_busy(), "the cue never holds the sequencer")
+	assert_false(_still_slot("red").is_cueing(), "7 is out of reach")
+	hud.receive_dust(1)
+	assert_true(blue.is_cueing(), "a landing mid-cue doesn't restart it")
+	blue.advance(PackSlot.SPARKLE_STEP * PackSlot.SPARKLE_ARMS.size())
+	assert_false(blue.is_cueing())
+	hud.receive_light(5)
+	_link_small_triple()
+	sequencer.advance(0.0)
+	for i: int in 3:
+		hud.receive_dust(1)
+		assert_false(blue.is_cueing(), "still buyable: no repeat")
+
+
+func test_the_cue_flashes_then_shrinks_a_sparkle_away() -> void:
+	run.dust = 3
+	hud.refresh()
+	var blue: PackSlot = _still_slot("blue")
+	_link_small_triple()
+	sequencer.advance(0.0)
+	hud.receive_dust(1)
+	assert_true(blue.is_flashing())
+	assert_eq(blue.sparkle_arm(), PackSlot.SPARKLE_ARMS[0])
+	blue.advance(PackSlot.FLASH_TIME)
+	assert_false(blue.is_flashing(), "two frames of flash, then the lit icon")
+	var arms: Array[int] = [blue.sparkle_arm()]
+	for i: int in PackSlot.SPARKLE_ARMS.size() - 1:
+		blue.advance(PackSlot.SPARKLE_STEP)
+		arms.append(blue.sparkle_arm())
+	assert_eq(arms, PackSlot.SPARKLE_ARMS, "the sparkle shrinks a step at a time")
+	blue.advance(PackSlot.SPARKLE_STEP)
+	assert_eq(blue.sparkle_arm(), -1, "and is gone")
+	var length: float = PackSlot.SPARKLE_STEP * PackSlot.SPARKLE_ARMS.size()
+	assert_lt(length, 0.7, "short: players see it many times a run")
+
+
+func test_setup_and_refresh_never_cue() -> void:
+	run.dust = 10
+	hud.refresh()
+	assert_false(_still_slot("blue").is_cueing())
+	assert_false(_still_slot("red").is_cueing())
+	var next: RunState = Fixtures.run()
+	next.dust = 10
+	sequencer.bind(next)
+	hud.setup(next, sequencer)
+	assert_false(_still_slot("blue").is_cueing(), "a new run's slots start as they are")
+	assert_false(_still_slot("red").is_cueing())
+
+
+func test_a_cue_stops_when_the_pack_goes_grey() -> void:
+	run.dust = 3
+	hud.refresh()
+	var blue: PackSlot = _still_slot("blue")
+	_link_small_triple()
+	sequencer.advance(0.0)
+	hud.receive_dust(1)
+	assert_true(blue.is_cueing())
+	run.dust = 0
+	hud.refresh()
+	assert_false(blue.is_cueing())
+
+
+func test_spending_below_the_cost_and_earning_it_again_cues_again() -> void:
+	run.dust = 3
+	hud.refresh()
+	var blue: PackSlot = _still_slot("blue")
+	_link_small_triple()
+	sequencer.advance(0.0)
+	for i: int in 3:
+		hud.receive_dust(1)
+	assert_true(blue.is_cueing())
+	_tap_part("blue", &"cost")
+	sequencer.advance(0.0)
+	assert_eq(_label("Dust").text, "2", "6 - 4")
+	assert_false(blue.is_cueing(), "grey again")
+	hud.receive_light(5)
+	_link_small_triple()
+	sequencer.advance(0.0)
+	hud.receive_dust(1)
+	assert_false(blue.is_cueing())
+	hud.receive_dust(1)
+	assert_true(blue.is_cueing(), "back to 4: a new crossing")
+
+
+func test_blue_and_red_cue_on_their_own_costs() -> void:
+	run.dust = 5
+	hud.refresh()
+	var blue: PackSlot = _still_slot("blue")
+	var red: PackSlot = _still_slot("red")
+	_link_small_triple()
+	sequencer.advance(0.0)
+	hud.receive_dust(1)
+	assert_false(red.is_cueing(), "6 is short of 7")
+	hud.receive_dust(1)
+	assert_true(red.is_cueing(), "red crossed 7")
+	assert_false(blue.is_cueing(), "blue was buyable all along")
 
 
 func test_a_pack_icon_is_lit_when_affordable_and_grey_when_not() -> void:
@@ -197,6 +326,7 @@ func test_spending_dust_still_in_flight_never_shows_a_negative_balance() -> void
 		assert_eq(_label("Dust").text, "0", "landings pay back what the buy spent first")
 	hud.receive_dust(1)
 	assert_eq(_label("Dust").text, "1", "then the counter meets the run")
+	assert_false(hud.slot("blue").is_cueing(), "the landings only paid back the buy: no crossing")
 	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "1 dust can't buy a blue")
 	hud.receive_light(10)
 	_assert_shows_the_run()
@@ -382,6 +512,13 @@ func _touch(point: Vector2i, pressed: bool) -> bool:
 
 func _label(name: String) -> Label:
 	return hud.get_node(name)
+
+
+## A slot the test moves on by hand.
+func _still_slot(kind: String) -> PackSlot:
+	var pack_slot: PackSlot = hud.slot(kind)
+	pack_slot.set_process(false)
+	return pack_slot
 
 
 func _icon(kind: String) -> PackView:
