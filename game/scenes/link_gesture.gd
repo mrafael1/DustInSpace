@@ -70,6 +70,9 @@ func drag(point: Vector2i) -> void:
 	if not is_dragging():
 		return
 	for p: Vector2i in LinkLayer.line_pixels(from, point):
+		# A listener may drop the link as a star joins it (cancel): then the drag is over.
+		if not _down:
+			return
 		var id: int = _star_at.call(p)
 		if id != 0 and not selected.has(id) and _select(id):
 			_added_by_drag = true

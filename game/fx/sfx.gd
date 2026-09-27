@@ -41,6 +41,8 @@ const DUST_CLIMB_MAX: int = 12
 const DUST_CLIMB_RESET: float = 0.4
 ## Random pitch spread on the particle cues, so a stream never sounds like one sample.
 const JITTER: float = 0.03
+## Scorpio's completion tune: a major pentatonic, one note per string.
+const PENTATONIC: Array[float] = [1.0, 1.125, 1.25, 1.5, 1.6667]
 ## A link's stars ring up a major triad: root, third, fifth.
 const SELECT_PITCH: Array[float] = [1.0, 1.26, 1.5]
 ## Lifts a duck nothing else lifted (the bang is 0.5 s after the silence starts).
@@ -207,6 +209,17 @@ func on_big_bang_banged() -> void:
 	play(&"big_bang_bang")
 
 
+## Scorpio's completion: string `order` (0 = the lowest) sounds the next note up a major
+## pentatonic, so the constellation plays a rising tune as it lights.
+func on_string_sung(_segment: int, order: int) -> void:
+	play(&"light_land", PENTATONIC[order % PENTATONIC.size()] * (2.0 if order >= PENTATONIC.size() else 1.0))
+
+
+## A rekindled Sun's payout: each shining star rings a little higher.
+func on_star_shone(order: int) -> void:
+	play(&"star_select", pow(SEMITONE, mini(order * 2, 24)))
+
+
 func on_end_shown(won: bool) -> void:
 	play(&"win" if won else &"loss")
 
@@ -226,12 +239,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"link_collect")
 		&"link_rejected":
 			play(&"link_reject")
-		&"segment_built":
+		&"landmark_lit":
+			play(&"star_select", 1.5)
+		&"string_built":
 			play(&"pack_ready")
-		&"star_stung":
-			play(&"link_collect", 1.5)
-		&"constellation_completed":
-			play(&"sun_ignite", 1.25)
+
 
 
 func _jitter() -> float:

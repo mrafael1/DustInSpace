@@ -108,6 +108,12 @@ func receive_dust(amount: int) -> void:
 	_show()
 
 
+## Scorpio: the Sun rekindled and is back at 0 (Main wires SunView.rekindled).
+func reset_light() -> void:
+	_shown_light = 0
+	_show()
+
+
 ## A light particle landed in the Sun, whose counter this is.
 func receive_light(amount: int) -> void:
 	_shown_light += amount
@@ -210,8 +216,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			_light_in_flight += event.args[3]
-		&"star_stung", &"segment_built":
-			_dust_in_flight += event.args[2]
+		&"sun_rekindled":
+			_dust_in_flight += event.args[1]
 		_:
 			return
 	_show()
