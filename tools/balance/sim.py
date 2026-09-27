@@ -10,20 +10,22 @@ The bots always take a sequence when one exists, else the most valuable triple,
 so real players will do slightly worse than these numbers.
 
 Scorpio (#40): when balance.json has scorpio.enabled, the objective is the constellation:
-finishing its gaps wins, and light no longer does. The sting and the gaps are modelled without
-geometry, so two assumptions stand in for aiming and scatter:
-    --sting-hit P   chance a combo's last star has another star within sting reach (default 0.3)
-    --gap-hit P     chance each star of an aimed pack lands in an open gap (default 0.25)
-The bots combine the other stars first and build with the gap stars left over once no
-combination remains. Real rates depend on the player's aim: treat the Scorpio rows as rough.
+lighting every landmark wins. A combo may use unlit landmarks as stars (at least one sky star in
+it) and lights them; the bots always prefer a combo that lights the most landmarks. A full Sun
+rekindles: back to 0 light, lights one landmark and pays dust per sky star.
+    --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
+                    minus1 (dust - 1, no light) or none
 """
 import argparse, json, random, pathlib, statistics
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SIZES = ("small", "medium", "big")
 TRIPLE = {"small": "small_triple", "medium": "medium_triple", "big": "big_triple"}
-# Scorpio's gaps to build: Scorpio.GAPS in game/core/scorpio.gd.
-SEGMENTS = 4
+# Scorpio's landmark sizes, head to stinger, and the ones lit from the start (game/core/scorpio.gd).
+LANDMARK_SIZES = ("medium", "big", "small", "medium", "small", "medium", "small", "big")
+STARTING_LIT = (0, 1)
+MAX_LANDMARKS_PER_COMBO = 1
+
 
 
 def load(overrides):
@@ -48,52 +50,87 @@ def draw(pack):
     return random.choices(SIZES, [w[s] for s in SIZES])[0]
 
 
-def run(cfg, policy, build=False, sting_hit=0.3, gap_hit=0.25, segments=None):
+def best_combo(cfg, sky, unlit):
+    """The combo to take: (key, sky sizes used, landmark sizes used), or None.
+    Prefers lighting the most landmarks, then a sequence, then the most dust."""
+    best, best_rank = None, None
+    pool = [(size, False) for size in sky] + [(size, True) for size in unlit]
+    seen = set()
+    for i in range(len(pool)):
+        for j in range(i + 1, len(pool)):
+            for k in range(j + 1, len(pool)):
+                trio = sorted([pool[i], pool[j], pool[k]])
+                key_t = tuple(trio)
+                if key_t in seen:
+                    continue
+                seen.add(key_t)
+                marks = sum(1 for _, landmark in trio if landmark)
+                if marks > MAX_LANDMARKS_PER_COMBO:
+                    continue
+                sizes = [size for size, _ in trio]
+                if len(set(sizes)) == 3:
+                    key = "sequence"
+                elif len(set(sizes)) == 1:
+                    key = TRIPLE[sizes[0]]
+                else:
+                    continue
+                rank = (marks, key == "sequence", cfg["combos"][key]["dust"])
+                if best_rank is None or rank > best_rank:
+                    best_rank = rank
+                    best = (key, [s for s, landmark in trio if not landmark], [s for s, landmark in trio if landmark])
+    return best
+
+
+def run(cfg, policy, lighting_pays="all"):
     scorpio = cfg.get("scorpio", {})
     on = scorpio.get("enabled", False)
-    segments_left = (segments or SEGMENTS) if on and build else 0
+    unlit = [size for i, size in enumerate(LANDMARK_SIZES) if i not in STARTING_LIT] if on else []
     dust, light = cfg["start_dust"], 0
     packs = ["blue"] * cfg["start_packs"]["blue"] + ["red"] * cfg["start_packs"]["red"]
-    # Each star is [size, in_gap]. in_gap only matters to builders, who combine the other stars
-    # first and build with the gap stars left over once no combination remains.
     sky, opened, big_bangs = [], 0, 0
-
-    def take(size):
-        for want_gap in (False, True):
-            for star in sky:
-                if star[0] == size and star[1] == want_gap:
-                    sky.remove(star)
-                    return
-
     while True:
         # resolve every available combination (best first)
         while True:
-            sizes = [star[0] for star in sky]
-            c = {s: sizes.count(s) for s in SIZES}
-            if all(c.values()):
-                key, used = "sequence", list(SIZES)
-            else:
-                best = max((s for s in SIZES if c[s] >= 3), key=lambda s: cfg["combos"][TRIPLE[s]]["dust"], default=None)
-                if not best:
+            if on:
+                found = best_combo(cfg, sky, unlit)
+                if not found:
                     break
-                key, used = TRIPLE[best], [best] * 3
+                key, used, lit = found
+                for size in lit:
+                    unlit.remove(size)
+            else:
+                c = {s: sky.count(s) for s in SIZES}
+                if all(c.values()):
+                    key, used = "sequence", list(SIZES)
+                else:
+                    best = max((s for s in SIZES if c[s] >= 3), key=lambda s: cfg["combos"][TRIPLE[s]]["dust"], default=None)
+                    if not best:
+                        break
+                    key, used = TRIPLE[best], [best] * 3
             for s in used:
-                take(s)
-            dust += cfg["combos"][key]["dust"]
-            light += cfg["combos"][key]["light"]
-            if on and sky and random.random() < sting_hit:
-                sky.remove(random.choice(sky))
-                dust += scorpio["sting_dust"]
-            if not on and light >= cfg["sun_target"]:
-                return True, opened, big_bangs
-        # builders keep what the combinations didn't need
-        for star in [star for star in sky if star[1]]:
-            if segments_left:
-                sky.remove(star)
-                segments_left -= 1
-                dust += scorpio.get("segment_dust", 0)
-                if segments_left == 0:
+                sky.remove(s)
+            # What a combo that lights a landmark pays: as usual in the game ("all"); the other
+            # settings are what-ifs for the playtest (--lighting-pays).
+            lights = on and bool(lit)
+            reward = cfg["combos"][key]
+            if not lights or lighting_pays in ("all", "dust"):
+                dust += reward["dust"]
+            elif lighting_pays == "half":
+                dust += reward["dust"] // 2
+            elif lighting_pays == "minus1":
+                dust += reward["dust"] - 1
+            if not lights or lighting_pays in ("all", "light"):
+                light += reward["light"]
+            if on:
+                if light >= cfg["sun_target"]:
+                    light = 0
+                    dust += scorpio["sun_dust_per_star"] * len(sky)
+                    if unlit:
+                        unlit.pop(0)
+                if not unlit:
                     return True, opened, big_bangs
+            elif light >= cfg["sun_target"]:
+                return True, opened, big_bangs
         if not packs:
             choice = policy(cfg, sky, dust)
             if choice is None:
@@ -108,7 +145,7 @@ def run(cfg, policy, build=False, sting_hit=0.3, gap_hit=0.25, segments=None):
             dust += cfg["big_bang"]["base_dust"] + cfg["big_bang"]["dust_per_cleared_star"] * len(sky)
             sky = []
         else:
-            sky += [[draw(pack), bool(segments_left) and random.random() < gap_hit] for _ in range(int(pack["stars"]))]
+            sky += [draw(pack) for _ in range(int(pack["stars"]))]
 
 
 def blue_only(cfg, sky, dust):
@@ -129,21 +166,18 @@ def main():
     ap.add_argument("--runs", type=int, default=20000)
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--set", action="append", default=[], help="override, e.g. packs.red.cost=6")
-    ap.add_argument("--sting-hit", type=float, default=0.3)
-    ap.add_argument("--gap-hit", type=float, default=0.25)
-    ap.add_argument("--segments", type=int, default=None, help="explore a shorter or longer constellation")
+    ap.add_argument("--lighting-pays", default="all", choices=["all", "dust", "light", "half", "minus1", "none"],
+                    help="what-if: what a combo that lights a landmark pays (the game: all)")
     a = ap.parse_args()
     if a.seed is not None:
         random.seed(a.seed)
     cfg = load(a.set)
     print(f"{a.runs} runs per policy{' with ' + ', '.join(a.set) if a.set else ''}")
     print(f"{'policy':<30}{'win %':>7}{'packs to win':>14}{'runs w/ Big Bang':>18}")
-    rows = [(name, pol, False) for name, pol in POLICIES.items()]
     if cfg.get("scorpio", {}).get("enabled"):
-        print(f"scorpio on (the constellation wins): sting hit {a.sting_hit:.0%}, gap hit {a.gap_hit:.0%} (assumed)")
-        rows = [(name + " + build", pol, True) for name, pol in POLICIES.items()]
-    for name, pol, build in rows:
-        res = [run(cfg, pol, build, a.sting_hit, a.gap_hit, a.segments) for _ in range(a.runs)]
+        print(f"scorpio on (the constellation wins), lighting pays {a.lighting_pays}")
+    for name, pol in POLICIES.items():
+        res = [run(cfg, pol, a.lighting_pays) for _ in range(a.runs)]
         wins = [r for r in res if r[0]]
         packs = statistics.mean(r[1] for r in wins) if wins else float("nan")
         bb = 100 * sum(1 for r in res if r[2]) / a.runs
