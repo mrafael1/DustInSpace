@@ -38,6 +38,8 @@ const TREMBLE_STEP: float = 0.04
 ## Burst ring radii, one per frame.
 const BURST_RADII: Array[int] = [5, 9, 13]
 const BURST_FRAME_TIME: float = 0.05
+## Scorpio's landing ring: this many dots around the scatter's middle radius.
+const LANDING_RING_DOTS: int = 24
 ## Fork tips, where the bands attach and the star gems sit (the fork is about 30x36).
 const FORK_TIPS: Array[Vector2i] = [Vector2i(-11, -4), Vector2i(11, -4)]
 
@@ -72,6 +74,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _draw() -> void:
 	_draw_fork()
 	if _pulling and _pull.length() >= MIN_PULL:
+		if _run.scorpio != null:
+			_draw_landing_ring(burst_preview() - origin())
 		_draw_reticle(burst_preview() - origin())
 	if _burst_time >= 0.0:
 		_draw_burst_ring()
@@ -291,6 +295,16 @@ func _draw_fork() -> void:
 			for p: Vector2i in LinkLayer.line_pixels(tip, pack):
 				draw_rect(Rect2(Vector2(p), Vector2.ONE), Palette.M5)
 	ArtStrip.named("slingshot").draw(self, "pull_%d" % pull_frame())
+
+
+## Scorpio (#40): where the stars will land, a dotted ring at the scatter's middle radius, so a
+## gap can be aimed at. A burst leaves its centre empty: aiming at a gap itself drops nothing in it.
+func _draw_landing_ring(at: Vector2i) -> void:
+	var radius: float = (StarScatter.RING_MIN + StarScatter.RING_MAX) / 2.0
+	for k: int in LANDING_RING_DOTS:
+		var angle: float = TAU * k / LANDING_RING_DOTS
+		var dot := Vector2i((Vector2(cos(angle) * radius, sin(angle) * radius * StarScatter.RING_SQUASH)).round())
+		draw_rect(Rect2(Vector2(at + dot), Vector2.ONE), Palette.C3)
 
 
 ## Four C1 corner ticks around the burst point.

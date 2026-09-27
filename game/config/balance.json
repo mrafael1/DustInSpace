@@ -14,5 +14,5 @@
     "sequence":      { "dust": 3, "light": 25 }
   },
   "big_bang": { "base_dust": 8, "dust_per_cleared_star": 2 },
-  "scorpio": { "enabled": true, "segment_reach": 10, "sting_reach": 20, "sting_dust": 2, "segment_dust": 2, "completion_light": 60 }
+  "scorpio": { "enabled": true, "segment_reach": 10, "sting_reach": 20, "sting_dust": 2, "segment_dust": 2 }
 }

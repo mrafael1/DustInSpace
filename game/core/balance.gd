@@ -39,8 +39,7 @@ var scorpio_sting_reach: int = 0
 var scorpio_sting_dust: int = 0
 ## Dust for each segment built: keeping a star for the constellation isn't a pure loss.
 var scorpio_segment_dust: int = 0
-## Light poured into the Sun once, when the last segment is built.
-var scorpio_completion_light: int = 0
+
 var errors: Array[String] = []
 
 
@@ -148,7 +147,6 @@ func _parse_scorpio(raw: Dictionary) -> void:
 	scorpio_sting_reach = _read_int(raw, "sting_reach", "scorpio.", 1)
 	scorpio_sting_dust = _read_int(raw, "sting_dust", "scorpio.", 0)
 	scorpio_segment_dust = _read_int(raw, "segment_dust", "scorpio.", 0)
-	scorpio_completion_light = _read_int(raw, "completion_light", "scorpio.", 0)
 
 
 func _read_dict(data: Dictionary, key: Variant, ctx: String) -> Dictionary:

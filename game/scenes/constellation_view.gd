@@ -1,7 +1,7 @@
 class_name ConstellationView
 extends Node2D
 ## Draws the Scorpio map (#40) under the stars: the landmarks, the given outline in solid cool
-## M3, a faint dotted outline for each gap still to build, built gaps lit C1 with their bridge star, and the previews the Sky asks
+## N6, a brighter dotted N8 outline for each gap still to build (what's missing), built gaps lit C1 with their bridge star, and the previews the Sky asks
 ## for while a link is traced. Owns no rules: RunState says what's built, what a link would
 ## build and what a combo would sting; this only shows it. Draws nothing without the map.
 ## Warm colours mean usable: a selected landmark, the stars that could bridge its gaps, a segment
@@ -9,8 +9,8 @@ extends Node2D
 
 ## The outline stops this far short of each landmark, so the glyphs stay clear.
 const LANDMARK_CLEAR: int = 5
-## Unbuilt outline: one pixel in OUTLINE_STEP.
-const OUTLINE_STEP: int = 3
+## A gap still to build: one pixel in OUTLINE_STEP.
+const OUTLINE_STEP: int = 2
 ## A just-built segment flashes C0 this long, then stays C1.
 const BUILD_FLASH: float = 0.18
 ## Completion: a C0 head runs the whole outline, head to stinger, in COMPLETION_TIME.
@@ -158,14 +158,14 @@ func _draw_segment(segment: int) -> void:
 		return
 	if not Scorpio.is_gap(segment):
 		for p: Vector2i in pixels:
-			_dot(p, Palette.M3)
+			_dot(p, Palette.N6)
 		return
 	var preview: bool = segment == _preview_segment
 	for i: int in pixels.size():
 		if preview and i % 2 == 0:
 			_dot(pixels[i], Palette.C2)
 		elif not preview and i % OUTLINE_STEP == 0:
-			_dot(pixels[i], Palette.N6)
+			_dot(pixels[i], Palette.N8)
 
 
 func _draw_landmark(index: int) -> void:

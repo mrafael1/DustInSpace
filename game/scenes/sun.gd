@@ -194,8 +194,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	match event.type:
 		&"combo_collected":
 			_light_in_flight += event.args[3]
-		&"constellation_completed":
-			_light_in_flight += event.args[0]
 		&"run_won":
 			if _light_in_flight > 0:
 				# The win's light is still flying: hold until it can have landed, then ignite.

@@ -2,6 +2,8 @@ class_name RunState
 extends RefCounted
 ## One "Restore the Sun" run: dust, light, owned packs, the launcher, stars in the sky,
 ## and win/loss. Resolves every action instantly; scenes animate from the signals.
+## On the Scorpio map (#40) the objective is the constellation instead: finishing it wins, and
+## light still fills the Sun but doesn't win (a full Sun's bonus is still to be designed).
 
 signal pack_bought(kind: String, dust_after: int)
 signal pack_loaded(kind: String)
@@ -14,8 +16,8 @@ signal link_rejected(star_ids: Array[int])
 signal segment_built(segment: int, star: Star, dust: int)
 ## Scorpio: a combo's last star stung a nearby star, collecting it for dust.
 signal star_stung(from_position: Vector2i, target: Star, dust: int)
-## Scorpio: the last segment was built; the constellation pours light into the Sun.
-signal constellation_completed(light: int)
+## Scorpio: the last gap was built. On the Scorpio map that's the win (run_won follows).
+signal constellation_completed
 signal run_won
 signal run_lost
 
@@ -244,8 +246,7 @@ func _build_segment(ids: Array[int]) -> String:
 	dust += balance.scorpio_segment_dust
 	segment_built.emit(segment, star, balance.scorpio_segment_dust)
 	if scorpio.is_complete():
-		light += balance.scorpio_completion_light
-		constellation_completed.emit(balance.scorpio_completion_light)
+		constellation_completed.emit()
 	_check_end()
 	return SEGMENT
 
@@ -316,13 +317,23 @@ func _auto_load() -> void:
 	loaded_pack = ""
 
 
+## Scorpio: a sky star could still fill an open gap, so the constellation can still grow.
+func can_build() -> bool:
+	if scorpio == null:
+		return false
+	for star: Star in stars:
+		if not scorpio.open_segments_for(star.position, balance.scorpio_segment_reach).is_empty():
+			return true
+	return false
+
+
 func _check_end() -> void:
 	if is_over():
 		return
-	if light >= balance.sun_target:
+	if scorpio.is_complete() if scorpio != null else light >= balance.sun_target:
 		outcome = Outcome.WON
 		run_won.emit()
 		return
-	if loss_reasons().size() == LossReason.size():
+	if loss_reasons().size() == LossReason.size() and not can_build():
 		outcome = Outcome.LOST
 		run_lost.emit()

@@ -9,12 +9,13 @@ Usage:
 The bots always take a sequence when one exists, else the most valuable triple,
 so real players will do slightly worse than these numbers.
 
-Scorpio (#40): when balance.json has scorpio.enabled, the sting and the constellation are
-modelled without geometry, so two assumptions stand in for aiming and scatter:
+Scorpio (#40): when balance.json has scorpio.enabled, the objective is the constellation:
+finishing its gaps wins, and light no longer does. The sting and the gaps are modelled without
+geometry, so two assumptions stand in for aiming and scatter:
     --sting-hit P   chance a combo's last star has another star within sting reach (default 0.3)
     --gap-hit P     chance each star of an aimed pack lands in an open gap (default 0.25)
-The "+ build" policies combine the other stars first and build with the gap stars left over
-once no combination remains; the others never build. Real rates depend on the player's aim: treat the Scorpio rows as rough.
+The bots combine the other stars first and build with the gap stars left over once no
+combination remains. Real rates depend on the player's aim: treat the Scorpio rows as rough.
 """
 import argparse, json, random, pathlib, statistics
 
@@ -83,7 +84,7 @@ def run(cfg, policy, build=False, sting_hit=0.3, gap_hit=0.25, segments=None):
             if on and sky and random.random() < sting_hit:
                 sky.remove(random.choice(sky))
                 dust += scorpio["sting_dust"]
-            if light >= cfg["sun_target"]:
+            if not on and light >= cfg["sun_target"]:
                 return True, opened, big_bangs
         # builders keep what the combinations didn't need
         for star in [star for star in sky if star[1]]:
@@ -92,9 +93,7 @@ def run(cfg, policy, build=False, sting_hit=0.3, gap_hit=0.25, segments=None):
                 segments_left -= 1
                 dust += scorpio.get("segment_dust", 0)
                 if segments_left == 0:
-                    light += scorpio["completion_light"]
-                    if light >= cfg["sun_target"]:
-                        return True, opened, big_bangs
+                    return True, opened, big_bangs
         if not packs:
             choice = policy(cfg, sky, dust)
             if choice is None:
@@ -141,8 +140,8 @@ def main():
     print(f"{'policy':<30}{'win %':>7}{'packs to win':>14}{'runs w/ Big Bang':>18}")
     rows = [(name, pol, False) for name, pol in POLICIES.items()]
     if cfg.get("scorpio", {}).get("enabled"):
-        print(f"scorpio on: sting hit {a.sting_hit:.0%}, gap hit {a.gap_hit:.0%} (assumed)")
-        rows += [(name + " + build", pol, True) for name, pol in POLICIES.items()]
+        print(f"scorpio on (the constellation wins): sting hit {a.sting_hit:.0%}, gap hit {a.gap_hit:.0%} (assumed)")
+        rows = [(name + " + build", pol, True) for name, pol in POLICIES.items()]
     for name, pol, build in rows:
         res = [run(cfg, pol, build, a.sting_hit, a.gap_hit, a.segments) for _ in range(a.runs)]
         wins = [r for r in res if r[0]]

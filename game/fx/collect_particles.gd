@@ -151,10 +151,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	if event.type == &"star_stung":
 		_launch_now(Kind.DUST, event.args[2], [(event.args[1] as Star).position] as Array[Vector2i], dust_target)
 		return
-	if event.type == &"constellation_completed":
-		# Scorpio: the whole constellation pours its light into the Sun.
-		_launch_now(Kind.LIGHT, event.args[0], Scorpio.LANDMARKS, light_target)
-		return
 	if event.type != &"combo_collected":
 		return
 	var sources: Array[Vector2i] = []

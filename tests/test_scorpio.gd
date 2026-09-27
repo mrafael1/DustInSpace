@@ -3,7 +3,7 @@ extends GutTest
 
 const Fixtures := preload("res://tests/fixtures.gd")
 
-const SCORPIO := {"enabled": true, "segment_reach": 10, "sting_reach": 28, "sting_dust": 2, "segment_dust": 2, "completion_light": 45}
+const SCORPIO := {"enabled": true, "segment_reach": 10, "sting_reach": 28, "sting_dust": 2, "segment_dust": 2}
 
 var run: RunState
 
@@ -26,7 +26,7 @@ func test_a_bad_scorpio_block_is_a_balance_error() -> void:
 	data["scorpio"] = {"enabled": "yes", "segment_reach": 0, "sting_reach": 28, "sting_dust": 2}
 	var balance: Balance = Balance.from_dict(data)
 	assert_false(balance.is_valid())
-	assert_eq(balance.errors.size(), 4, str(balance.errors))
+	assert_eq(balance.errors.size(), 3, str(balance.errors))
 
 
 func test_the_shipped_balance_turns_scorpio_on() -> void:
@@ -105,24 +105,48 @@ func test_a_built_segment_cant_be_built_again() -> void:
 	assert_not_null(run.find_star(again.id))
 
 
-func test_the_last_segment_pours_light_into_the_sun_once() -> void:
-	var poured: Array[int] = []
-	run.constellation_completed.connect(func(l: int) -> void: poured.append(l))
+func test_finishing_the_constellation_wins_the_run() -> void:
+	var completed: Array[bool] = []
+	run.constellation_completed.connect(func() -> void: completed.append(true))
 	for segment: int in Scorpio.GAPS.slice(0, -1):
 		_build(segment)
-	assert_eq(poured, [] as Array[int])
+	assert_eq(run.outcome, RunState.Outcome.PLAYING)
+	assert_eq(completed, [] as Array[bool])
 	_build(Scorpio.GAPS[-1])
 	assert_true(run.scorpio.is_complete())
-	assert_eq(poured, [45])
-	assert_eq(run.light, 45)
+	assert_eq(completed, [true])
+	assert_eq(run.outcome, RunState.Outcome.WON, "the constellation is the objective")
+	assert_eq(run.light, 0, "no light for it: the Sun isn't the goal here")
 	assert_eq(run.dust, 2 * Scorpio.GAPS.size())
 
 
-func test_completion_can_win_the_run() -> void:
-	run.light = 60
-	for segment: int in Scorpio.GAPS:
-		_build(segment)
-	assert_eq(run.outcome, RunState.Outcome.WON)
+func test_a_full_sun_doesnt_win_the_scorpio_map() -> void:
+	run.light = 90
+	var ids: Array[int] = []
+	for x: int in [60, 80, 100]:
+		ids.append(run.add_star(Star.Size.BIG, Vector2i(x, 120)).id)
+	run.link(ids)
+	assert_gte(run.light, run.balance.sun_target)
+	assert_eq(run.outcome, RunState.Outcome.PLAYING, "light fills the Sun, the run goes on")
+
+
+func test_a_run_isnt_lost_while_a_star_can_still_fill_a_gap() -> void:
+	for kind: String in run.owned_packs.keys():
+		run.owned_packs[kind] = 0
+	run.loaded_pack = ""
+	var star: Star = _star_in_gap(1)
+	var ids: Array[int] = []
+	for x: int in [20, 40, 60]:
+		ids.append(run.add_star(Star.Size.SMALL, Vector2i(x, 110)).id)
+	run.link(ids)
+	assert_not_null(run.find_star(star.id), "out of the sting's reach")
+	assert_eq(run.loss_reasons().size(), RunState.LossReason.size(), "no packs, no dust for one, no combo")
+	assert_true(run.can_build())
+	assert_eq(run.outcome, RunState.Outcome.PLAYING, "but the gap star can still be built")
+	_build_with(1, star)
+	assert_eq(run.dust, 3 + 2, "the build's dust buys another pack")
+	assert_eq(run.outcome, RunState.Outcome.PLAYING)
+	assert_false(run.can_build(), "no star left in a gap")
 
 
 func test_a_combo_stings_the_nearest_star_in_reach_of_its_last_star() -> void:

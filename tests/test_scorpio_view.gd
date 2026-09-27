@@ -19,7 +19,7 @@ func before_each() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
 	data["packs"]["red"]["big_bang_chance"] = 0.0
-	data["scorpio"] = {"enabled": true, "segment_reach": 10, "sting_reach": 28, "sting_dust": 2, "segment_dust": 2, "completion_light": 45}
+	data["scorpio"] = {"enabled": true, "segment_reach": 10, "sting_reach": 28, "sting_dust": 2, "segment_dust": 2}
 	assert_true(main.start_run(Balance.from_dict(data)))
 	run = main.run
 	sky = main.get_node("Sky")
@@ -101,10 +101,11 @@ func test_a_sting_pays_dust_through_particles_and_the_counter_catches_up() -> vo
 	assert_eq((main.get_node("HUD/Dust") as Label).text, "%d" % run.dust)
 
 
-func test_completion_runs_along_the_outline_and_pours_light_into_the_sun() -> void:
+func test_completion_runs_along_the_outline_then_the_run_is_won() -> void:
 	for segment: int in Scorpio.GAPS:
 		var star: Star = _star_in_gap(segment)
 		run.link([Scorpio.landmark_id(segment), star.id, Scorpio.landmark_id(segment + 1)] as Array[int])
+	assert_eq(run.outcome, RunState.Outcome.WON)
 	sequencer.advance(0.0)
 	var waited: float = 0.0
 	while not constellation.is_completing() and waited < 5.0:
@@ -112,12 +113,16 @@ func test_completion_runs_along_the_outline_and_pours_light_into_the_sun() -> vo
 		waited += 1.0 / 30.0
 	assert_true(constellation.is_completing(), "after the last build, a pulse runs head to stinger")
 	var particles: CollectParticles = main.get_node("CollectParticles")
-	assert_eq(particles.in_flight(CollectParticles.Kind.LIGHT), 45)
-	particles.advance(5.0)
-	assert_eq((main.get_node("HUD/Light") as Label).text, "45/100")
-	assert_almost_eq((main.get_node("Sun") as SunView).progress(), 0.45, 0.001)
+	assert_eq(particles.in_flight(CollectParticles.Kind.LIGHT), 0, "no light for the constellation")
 	constellation.advance(ConstellationView.COMPLETION_TIME)
 	assert_false(constellation.is_completing())
+	particles.advance(5.0)
+	for i: int in 150:
+		sequencer.advance(1.0 / 30.0)
+		(main.get_node("Sun") as SunView).advance(1.0 / 30.0)
+	var end: EndScreen = main.get_node("EndScreen")
+	assert_true(end.is_showing())
+	assert_eq(end.lines(), ["SCORPIO COMPLETE", "GAPS 4/4"] as Array[String])
 
 
 func test_the_guide_uses_palette_colours_and_stays_off_the_landmarks() -> void:
