@@ -19,7 +19,7 @@ func before_each() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
 	data["packs"]["red"]["big_bang_chance"] = 0.0
-	data["scorpio"] = {"enabled": true}
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1}
 	assert_true(main.start_run(Balance.from_dict(data)))
 	run = main.run
 	sky = main.get_node("Sky")
@@ -126,7 +126,7 @@ func test_every_lit_landmark_is_the_same_gold() -> void:
 			assert_true(c in [Palette.C0, Palette.C1, Palette.C2, Palette.C3], "gold only: lit reads the same on every size")
 
 
-func test_a_full_sun_ignites_lights_its_landmark_then_bursts_the_stars_left() -> void:
+func test_a_full_sun_ignites_lights_its_landmark_then_bursts_the_stars_left_for_dust() -> void:
 	run.light = 95
 	var left: Star = _star(Star.Size.SMALL, Vector2i(150, 240))
 	var ids: Array[int] = []
@@ -160,9 +160,10 @@ func test_a_full_sun_ignites_lights_its_landmark_then_bursts_the_stars_left() ->
 	assert_true(constellation.shows_lit(target), "its landmark lit")
 	assert_eq(burst, [left.position], "then the star left bursts")
 	assert_eq(sky.star_count(), 0, "a clean sky")
+	assert_eq(particles.in_flight(CollectParticles.Kind.DUST), 1, "its dust flies from where it burst")
 	particles.advance(5.0)
-	assert_eq(run.dust, dust_before, "no dust for it")
-	assert_eq((main.get_node("HUD/Dust") as Label).text, "%d" % run.dust)
+	assert_eq(run.dust, dust_before, "the core paid it with the link: 1 dust")
+	assert_eq((main.get_node("HUD/Dust") as Label).text, "%d" % run.dust, "and the counter meets the run once it lands")
 
 
 func test_completion_bursts_every_star_left_lowest_first_before_the_tune() -> void:
@@ -529,7 +530,7 @@ func _reach_run() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
 	data["packs"]["red"]["big_bang_chance"] = 0.0
-	data["scorpio"] = {"enabled": true, "max_link_distance": 56, "sun_target": 50}
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "max_link_distance": 56, "sun_target": 50}
 	assert_true(main.start_run(Balance.from_dict(data)))
 	run = main.run
 

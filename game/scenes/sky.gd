@@ -386,18 +386,27 @@ func _decoys(burst: Vector2i) -> Array[Star]:
 ## Scorpio's rekindle or completion: the stars left burst in turn, lowest first, and what follows
 ## (the tune) waits for them.
 func _explode(stars: Array[Star]) -> void:
-	var views: Array[StarView] = []
-	for star: Star in stars:
-		var view: StarView = _views.get(star.id)
-		if view != null:
-			_views.erase(star.id)
-			views.append(view)
-	views.sort_custom(func(a: StarView, b: StarView) -> bool: return a.position.y > b.position.y or (a.position.y == b.position.y and a.position.x < b.position.x))
-	for i: int in views.size():
-		views[i].exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
-		views[i].explode(i * EXPLODE_STAGGER)
-	if not views.is_empty():
-		_sequencer.hold(EXPLODE_STAGGER * (views.size() - 1) + StarView.DISSOLVE_TIME)
+	var order: Array[Star] = explode_order(stars)
+	var last: int = -1
+	for i: int in order.size():
+		var view: StarView = _views.get(order[i].id)
+		if view == null:
+			continue
+		_views.erase(order[i].id)
+		view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
+		view.explode(i * EXPLODE_STAGGER)
+		last = i
+	if last >= 0:
+		_sequencer.hold(EXPLODE_STAGGER * last + StarView.DISSOLVE_TIME)
+
+
+## The order a sky clear bursts `stars` in, EXPLODE_STAGGER apart: lowest first, then left to
+## right. Their dust leaves in the same order (CollectParticles).
+static func explode_order(stars: Array[Star]) -> Array[Star]:
+	var order: Array[Star] = stars.duplicate()
+	order.sort_custom(func(a: Star, b: Star) -> bool:
+		return a.position.y > b.position.y or (a.position.y == b.position.y and a.position.x < b.position.x))
+	return order
 
 
 func _dissolve(stars: Array[Star]) -> void:

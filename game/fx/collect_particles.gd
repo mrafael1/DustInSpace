@@ -145,6 +145,16 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		for i: int in range(n0, _particles.size()):
 			_particles[i].delay = BigBangSequence.BANG_AT + STAGGER * (i - n0)
 		return
+	if event.type == &"sky_cleared":
+		# Scorpio: each star the Sun bursts sends its dust as it bursts (SkyView's order and stagger).
+		var burst: Array[Vector2i] = []
+		for star: Star in SkyView.explode_order(event.args[0]):
+			burst.append(star.position)
+		var first: int = _particles.size()
+		_launch(Kind.DUST, event.args[1], burst, dust_target, burst.size())
+		for i: int in range(first, _particles.size()):
+			_particles[i].delay = SkyView.EXPLODE_STAGGER * (i - first)
+		return
 	if event.type != &"combo_collected":
 		return
 	var sources: Array[Vector2i] = []
