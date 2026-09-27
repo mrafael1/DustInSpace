@@ -10,14 +10,19 @@ extends RefCounted
 ## - Releasing a drag that added stars but has fewer than 3 still requests it, so the run
 ##   rejects it and the player sees why. Nothing is used up.
 ## - Tap a selected star to drop it. Tap empty sky to cancel the selection.
+## - With `can_join` set, a star it refuses isn't added: join_refused says which, once per contact.
 
 signal selection_changed(star_ids: Array[int])
 signal link_requested(star_ids: Array[int])
+## A star couldn't join the selection (can_join said no). Nothing changed.
+signal join_refused(star_ids: Array[int], star_id: int)
 
 ## A press that moves further than this (native px) is a drag, not a tap.
 const DRAG_THRESHOLD: int = 4
 
 var selected: Array[int] = []
+## Whether a star may join the selection: `func(selected: Array[int], id: int) -> bool`. Unset: any.
+var can_join: Callable
 
 ## Returns the id of the star under a point, or 0 for none. `func(point: Vector2i) -> int`.
 var _star_at: Callable
@@ -30,6 +35,8 @@ var _last_point: Vector2i = Vector2i.ZERO
 var _press_star: int = 0
 var _press_was_selected: bool = false
 var _added_by_drag: bool = false
+## The star last refused while the pointer stays on it, so a drag over it refuses it once.
+var _refused: int = 0
 
 
 func _init(star_at: Callable) -> void:
@@ -52,6 +59,7 @@ func press(point: Vector2i) -> bool:
 	_added_by_drag = false
 	_press_point = point
 	_last_point = point
+	_refused = 0
 	_press_star = _star_at.call(point)
 	_press_was_selected = selected.has(_press_star)
 	if _press_star != 0 and not _press_was_selected:
@@ -74,6 +82,8 @@ func drag(point: Vector2i) -> void:
 		if not _down:
 			return
 		var id: int = _star_at.call(p)
+		if id != _refused:
+			_refused = 0
 		if id != 0 and not selected.has(id) and _select(id):
 			_added_by_drag = true
 
@@ -93,6 +103,7 @@ func cancel() -> void:
 	_down = false
 	_moved = false
 	_press_star = 0
+	_refused = 0
 	if not selected.is_empty():
 		selected.clear()
 		selection_changed.emit(selected.duplicate())
@@ -123,6 +134,11 @@ func _release_drag() -> bool:
 
 func _select(id: int) -> bool:
 	if selected.size() >= Combos.LINK_LENGTH:
+		return false
+	if can_join.is_valid() and not can_join.call(selected.duplicate(), id):
+		if id != _refused:
+			_refused = id
+			join_refused.emit(selected.duplicate(), id)
 		return false
 	selected.append(id)
 	selection_changed.emit(selected.duplicate())

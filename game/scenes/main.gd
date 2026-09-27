@@ -78,6 +78,7 @@ func _wire_sound() -> void:
 	_sky.star_selected.connect(_sfx.on_star_selected)
 	_sky.star_shone.connect(_sfx.on_star_shone)
 	_sky.link_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
+	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)
 	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
 	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
