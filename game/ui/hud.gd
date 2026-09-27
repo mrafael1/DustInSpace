@@ -228,7 +228,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 ## `announce` false (a refresh) updates the slots without playing their cue.
 func _show(announce: bool = true) -> void:
 	_dust.text = "%d" % _shown_dust
-	_light.text = "%d/%d" % [_shown_light, _run.balance.sun_target]
+	_light.text = "%d/%d" % [_shown_light, _run.light_target()]
 	for kind: String in _slots:
 		var count: int = _shown_packs.get(kind, 0)
 		var cost: int = _run.balance.packs[kind].cost

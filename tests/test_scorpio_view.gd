@@ -207,6 +207,99 @@ func test_the_scorpion_drawing_stays_in_the_sky_and_off_the_stars() -> void:
 			assert_gt(maxi(absi(p.x - landmark.x), absi(p.y - landmark.y)), 3)
 
 
+func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:
+	assert_false(constellation.shows_cue(0), "the head is lit: it keeps its gold, no cue")
+	assert_true(constellation.shows_cue(2), "unlit: it can be picked")
+	var a: Star = _star(Star.Size.SMALL, Vector2i(90, 150))
+	_tap(a.position)
+	_tap(Scorpio.LANDMARKS[2])
+	assert_false(constellation.shows_cue(2), "in the link it shows gold instead")
+	_tap(Vector2i(170, 240))
+	run.scorpio.lit[2] = true
+	assert_false(constellation.shows_cue(2), "lit: no cue")
+
+
+func test_the_cue_is_four_quiet_brackets_off_the_star_art() -> void:
+	for size: int in 3:
+		var art: Dictionary = ConstellationView.star_pixels(size)
+		var cue: Array[Vector2i] = ConstellationView.cue_pixels(size)
+		assert_eq(cue.size(), 12, "an L of 3 px in each corner")
+		for p: Vector2i in cue:
+			assert_false(art.has(p), "clear of the star itself")
+			assert_eq(maxi(absi(p.x), absi(p.y)), StarView.half_extent(size as Star.Size) + ConstellationView.CUE_GAP)
+	var frame: int = constellation.cue_frame()
+	constellation.advance(ConstellationView.CUE_STEP)
+	assert_ne(constellation.cue_frame(), frame, "it swaps C5 and C4, slowly")
+
+
+func test_the_reach_ring_shows_around_the_last_star_picked() -> void:
+	_reach_run()
+	var link_layer: LinkLayer = main.get_node("Sky/LinkLayer")
+	var a: Star = _star(Star.Size.SMALL, Vector2i(40, 120))
+	assert_eq(link_layer.reach_radius(), 0, "nothing picked: no ring")
+	_tap(a.position)
+	assert_eq(link_layer.reach_radius(), 56)
+	assert_eq(link_layer.get("_reach_center"), a.position)
+	for p: Vector2i in LinkLayer.reach_ring(a.position, 56):
+		assert_almost_eq(Vector2(p - a.position).length(), 56.0, 1.0, "on the ring, whole pixels")
+	_tap(Vector2i(170, 240))
+	assert_eq(link_layer.reach_radius(), 0, "gone with the link")
+
+
+func test_dragging_past_the_reach_loosens_the_line() -> void:
+	_reach_run()
+	var link_layer: LinkLayer = main.get_node("Sky/LinkLayer")
+	var a: Star = _star(Star.Size.SMALL, Vector2i(40, 120))
+	_touch(a.position, true)
+	_drag(a.position + Vector2i(30, 0))
+	assert_false(link_layer.is_loose_end(), "30 px: in reach")
+	_drag(a.position + Vector2i(56, 0))
+	assert_false(link_layer.is_loose_end(), "56 px: just in reach")
+	_drag(a.position + Vector2i(57, 0))
+	assert_true(link_layer.is_loose_end(), "57 px: out of reach, before any star is picked")
+
+
+func test_a_star_out_of_reach_cant_join_and_nothing_is_used() -> void:
+	_reach_run()
+	var refused: Array[bool] = []
+	sky.step_refused.connect(func() -> void: refused.append(true))
+	var a: Star = _star(Star.Size.SMALL, Vector2i(20, 120))
+	var b: Star = _star(Star.Size.SMALL, Vector2i(76, 120))
+	var c: Star = _star(Star.Size.SMALL, Vector2i(133, 120))
+	_tap(a.position)
+	_tap(c.position)
+	assert_eq(sky.selected_ids(), [a.id] as Array[int], "113 px away: it doesn't join")
+	assert_eq(refused, [true], "the step shakes ember with a buzz")
+	_tap(b.position)
+	_tap(c.position)
+	assert_eq(run.stars.size(), 3, "76 -> 133 is 57 px: still out of reach, nothing linked")
+	assert_eq(sky.selected_ids(), [a.id, b.id] as Array[int], "the link so far stays")
+	assert_eq([run.dust, run.light], [0, 0])
+
+
+func test_a_link_in_reach_is_made_by_tap_and_by_drag() -> void:
+	_reach_run()
+	var a: Star = _star(Star.Size.SMALL, Vector2i(20, 120))
+	var b: Star = _star(Star.Size.SMALL, Vector2i(76, 120))
+	var c: Star = _star(Star.Size.SMALL, Vector2i(132, 120))
+	for point: Vector2i in [a.position, b.position, c.position]:
+		_tap(point)
+	assert_eq(run.stars.size(), 0, "56 px steps: linked")
+	var d: Star = _star(Star.Size.MEDIUM, Vector2i(20, 110))
+	var e: Star = _star(Star.Size.MEDIUM, Vector2i(60, 110))
+	var f: Star = _star(Star.Size.MEDIUM, Vector2i(100, 110))
+	_touch(d.position, true)
+	_drag(e.position)
+	_drag(f.position)
+	_touch(f.position, false)
+	assert_eq(run.stars.size(), 0, "a drag through them links too")
+
+
+func test_the_hud_shows_scorpios_sun_target() -> void:
+	_reach_run()
+	assert_eq((main.get_node("HUD/Light") as Label).text, "0/50")
+
+
 func test_a_normal_run_draws_no_constellation() -> void:
 	main.start_run(Fixtures.balance())
 	var ids: Array[int] = []
@@ -219,6 +312,22 @@ func test_a_normal_run_draws_no_constellation() -> void:
 		if id != ids[-1]:
 			_touch(at, false)
 	assert_eq(constellation.get("_selected"), [] as Array[int], "no constellation without the map")
+
+
+## Restarts on the Scorpio map with the shipped reach and Sun target.
+func _reach_run() -> void:
+	var data: Dictionary = Fixtures.balance_dict()
+	data["packs"]["blue"]["big_bang_chance"] = 0.0
+	data["packs"]["red"]["big_bang_chance"] = 0.0
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "max_link_distance": 56, "sun_target": 50}
+	assert_true(main.start_run(Balance.from_dict(data)))
+	run = main.run
+
+
+func _drag(at: Vector2i) -> void:
+	var e := InputEventScreenDrag.new()
+	e.position = Vector2(at)
+	sky.handle_pointer(e)
 
 
 ## A star in the sky with a view, as if it had burst there.

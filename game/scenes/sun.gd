@@ -1,6 +1,7 @@
 class_name SunView
 extends Node2D
-## The Sun, drawn in code until the Sun art lands (#13). Its frame follows light / sun_target:
+## The Sun, drawn in code until the Sun art lands (#13). Its frame follows light over the run's
+## target (RunState.light_target: sun_target, or scorpio.sun_target on the Scorpio map):
 ## light pools up the disc from the bottom and the rays light clockwise from 12 o'clock, taking
 ## it from the dim S ramp to the lit C ramp. That change is the run's progress bar.
 ## It pulses as each light particle lands (receive_light, wired by Main), and ignites and lights
@@ -114,7 +115,7 @@ func receive_light(amount: int) -> void:
 func progress() -> float:
 	if _run == null:
 		return 0.0
-	return clampf(float(_shown_light) / float(_run.balance.sun_target), 0.0, 1.0)
+	return clampf(float(_shown_light) / float(_run.light_target()), 0.0, 1.0)
 
 
 ## Rows of the disc filled with light, from the bottom. All of them only at 100%.

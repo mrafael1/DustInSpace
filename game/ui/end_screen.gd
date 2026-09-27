@@ -131,7 +131,7 @@ func _on_payouts_landed() -> void:
 
 func _show_end() -> void:
 	_clear_lines()
-	var light: String = "LIGHT %d/%d" % [_run.light, _run.balance.sun_target]
+	var light: String = "LIGHT %d/%d" % [_run.light, _run.light_target()]
 	var won: bool = _run.outcome == RunState.Outcome.WON
 	if _run.scorpio != null:
 		# The Scorpio map's objective is the constellation (#40).
