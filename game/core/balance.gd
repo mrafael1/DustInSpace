@@ -30,6 +30,15 @@ var packs: Dictionary[String, PackDef] = {}
 var combos: Dictionary[String, ComboReward] = {}
 var big_bang_base_dust: int = 0
 var big_bang_dust_per_cleared_star: int = 0
+## The Scorpio map (#40, a prototype). Optional in the file: without a "scorpio" block it's off.
+var scorpio_enabled: bool = false
+## How far from a segment's line a star may sit and still bridge it, in px.
+var scorpio_segment_reach: int = 0
+## How far a combo's sting reaches from the last linked star, in px.
+var scorpio_sting_reach: int = 0
+var scorpio_sting_dust: int = 0
+## Light poured into the Sun once, when the last segment is built.
+var scorpio_completion_light: int = 0
 var errors: Array[String] = []
 
 
@@ -83,6 +92,8 @@ func _parse(data: Dictionary) -> void:
 	var big_bang: Dictionary = _read_dict(data, "big_bang", "")
 	big_bang_base_dust = _read_int(big_bang, "base_dust", "big_bang.", 0)
 	big_bang_dust_per_cleared_star = _read_int(big_bang, "dust_per_cleared_star", "big_bang.", 0)
+	if data.has("scorpio"):
+		_parse_scorpio(_read_dict(data, "scorpio", ""))
 
 
 func _parse_packs(raw: Dictionary) -> void:
@@ -124,6 +135,17 @@ func _parse_combos(raw: Dictionary) -> void:
 		reward.dust = _read_int(entry, "dust", ctx, 0)
 		reward.light = _read_int(entry, "light", ctx, 0)
 		combos[key] = reward
+
+
+func _parse_scorpio(raw: Dictionary) -> void:
+	if not raw.has("enabled") or typeof(raw["enabled"]) != TYPE_BOOL:
+		errors.append("scorpio.enabled: must be true or false")
+	else:
+		scorpio_enabled = raw["enabled"]
+	scorpio_segment_reach = _read_int(raw, "segment_reach", "scorpio.", 1)
+	scorpio_sting_reach = _read_int(raw, "sting_reach", "scorpio.", 1)
+	scorpio_sting_dust = _read_int(raw, "sting_dust", "scorpio.", 0)
+	scorpio_completion_light = _read_int(raw, "completion_light", "scorpio.", 0)
 
 
 func _read_dict(data: Dictionary, key: Variant, ctx: String) -> Dictionary:

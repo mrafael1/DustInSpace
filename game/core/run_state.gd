@@ -10,12 +10,21 @@ signal pack_burst(kind: String, burst_position: Vector2i, stars: Array[Star])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
+## Scorpio (#40): a landmark-star-landmark link built a segment; the star is its bridge now.
+signal segment_built(segment: int, star: Star)
+## Scorpio: a combo's last star stung a nearby star, collecting it for dust.
+signal star_stung(from_position: Vector2i, target: Star, dust: int)
+## Scorpio: the last segment was built; the constellation pours light into the Sun.
+signal constellation_completed(light: int)
 signal run_won
 signal run_lost
 
 enum Outcome { PLAYING, WON, LOST }
 ## The loss check's three conditions: a lost run has all of them.
 enum LossReason { NO_PACKS, NO_DUST, NO_COMBINATION }
+
+## What link() returns for a landmark-star-landmark link that built a segment.
+const SEGMENT: String = "segment"
 
 ## XOR'd into the seed so star layout has its own RNG stream and can't shift pack contents.
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
@@ -33,6 +42,8 @@ var stars: Array[Star] = []
 var outcome: Outcome = Outcome.PLAYING
 ## Debug trigger: the next launched pack is a Big Bang (key B in debug builds).
 var force_next_big_bang: bool = false
+## The Scorpio map, or null when balance.json has it off.
+var scorpio: Scorpio
 
 var _rng: RandomNumberGenerator
 var _layout_rng := RandomNumberGenerator.new()
@@ -48,6 +59,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i)
 	run_seed = p_rng.seed
 	_layout_rng.seed = p_rng.seed ^ LAYOUT_SEED_SALT
 	dust = balance.start_dust
+	if balance.scorpio_enabled:
+		scorpio = Scorpio.new()
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -140,8 +153,12 @@ func launch(target: Vector2i) -> bool:
 
 
 ## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up.
-## Returns the combo key, or Combos.INVALID.
+## On the Scorpio map a link with landmarks in it builds a segment instead (segment_for), and
+## a combo's last star stings the nearest star in reach (sting_target).
+## Returns the combo key, SEGMENT, or Combos.INVALID.
 func link(star_ids: Array[int]) -> String:
+	if scorpio != null and star_ids.any(Scorpio.is_landmark_id):
+		return _build_segment(star_ids)
 	var linked: Array[Star] = _stars_for_link(star_ids)
 	var sizes: Array[int] = []
 	for star: Star in linked:
@@ -156,8 +173,89 @@ func link(star_ids: Array[int]) -> String:
 	dust += reward.dust
 	light += reward.light
 	combo_collected.emit(combo, linked, reward.dust, reward.light)
+	_sting(linked.back())
 	_check_end()
 	return combo
+
+
+## Scorpio: the segment a landmark-star-landmark link would build, or -1 if it wouldn't. The two
+## landmarks must be neighbours with their segment unbuilt, and the star in its gap. Any order.
+func segment_for(ids: Array[int]) -> int:
+	if scorpio == null or ids.size() != Combos.LINK_LENGTH:
+		return -1
+	var landmarks: Array[int] = []
+	var star: Star = null
+	for id: int in ids:
+		if Scorpio.is_landmark_id(id):
+			landmarks.append(Scorpio.landmark_index(id))
+		elif star == null:
+			star = find_star(id)
+		else:
+			return -1
+	if landmarks.size() != 2 or star == null:
+		return -1
+	var segment: int = Scorpio.segment_between(landmarks[0], landmarks[1])
+	if segment < 0 or scorpio.is_built(segment):
+		return -1
+	return segment if Scorpio.in_gap(segment, star.position, balance.scorpio_segment_reach) else -1
+
+
+## Scorpio: sky stars that could bridge an unbuilt segment next to landmark `index`.
+func bridge_candidates(index: int) -> Array[int]:
+	var ids: Array[int] = []
+	if scorpio == null:
+		return ids
+	for star: Star in stars:
+		for segment: int in scorpio.open_segments_for(star.position, balance.scorpio_segment_reach):
+			if segment == index or segment == index - 1:
+				ids.append(star.id)
+				break
+	return ids
+
+
+## Scorpio: the star a combo ending at `from` would sting: the nearest sky star within
+## sting_reach that isn't in `excluded` (ties: the oldest). Null without Scorpio or a target.
+func sting_target(from: Vector2i, excluded: Array[int]) -> Star:
+	if scorpio == null:
+		return null
+	var best: Star = null
+	var best_d: int = balance.scorpio_sting_reach * balance.scorpio_sting_reach + 1
+	for star: Star in stars:
+		if excluded.has(star.id):
+			continue
+		var d: int = (star.position - from).length_squared()
+		if d < best_d or (d == best_d and best != null and star.id < best.id):
+			best = star
+			best_d = d
+	return best
+
+
+func _build_segment(ids: Array[int]) -> String:
+	var segment: int = -1 if is_over() else segment_for(ids)
+	if segment < 0:
+		link_rejected.emit(ids)
+		return Combos.INVALID
+	var star: Star = null
+	for id: int in ids:
+		if not Scorpio.is_landmark_id(id):
+			star = find_star(id)
+	stars.erase(star)
+	scorpio.build(segment, star)
+	segment_built.emit(segment, star)
+	if scorpio.is_complete():
+		light += balance.scorpio_completion_light
+		constellation_completed.emit(balance.scorpio_completion_light)
+	_check_end()
+	return SEGMENT
+
+
+func _sting(from: Star) -> void:
+	var target: Star = sting_target(from.position, [])
+	if target == null:
+		return
+	stars.erase(target)
+	dust += balance.scorpio_sting_dust
+	star_stung.emit(from.position, target, balance.scorpio_sting_dust)
 
 
 ## Adds a star directly. Used by launches, tests and the debug overlay.
@@ -172,7 +270,10 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 	var occupied: Array[Vector2i] = []
 	for star: Star in stars:
 		occupied.append(star.position)
-	var positions: Array[Vector2i] = StarScatter.place(sizes.size(), burst, sky_rect, occupied, _layout_rng)
+	var landmarks: Array[Vector2i] = []
+	if scorpio != null:
+		landmarks = Scorpio.LANDMARKS
+	var positions: Array[Vector2i] = StarScatter.place(sizes.size(), burst, sky_rect, occupied, _layout_rng, landmarks)
 	var born: Array[Star] = []
 	for i: int in sizes.size():
 		born.append(add_star(sizes[i] as Star.Size, positions[i]))
