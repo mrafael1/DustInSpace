@@ -19,6 +19,10 @@ var run: RunState
 @onready var _hud: Hud = $HUD
 @onready var _sun: SunView = $Sun
 @onready var _end_screen: EndScreen = $EndScreen
+@onready var _sfx: Sfx = $Sfx
+@onready var _launcher: Launcher = $Launcher
+@onready var _sky: SkyView = $Sky
+@onready var _big_bang: BigBangSequence = $BigBang
 
 
 func _ready() -> void:
@@ -29,6 +33,7 @@ func _ready() -> void:
 	_collect.light_arrived.connect(_sun.receive_light)
 	_end_screen.restart_requested.connect(restart)
 	_end_screen.watch_payouts(_collect)
+	_wire_sound()
 	start_run(Balance.load_file(balance_path))
 
 
@@ -51,6 +56,28 @@ func start_run(balance: Balance) -> bool:
 ## A fresh run on the current run's balance (the end screen's RESTART).
 func restart() -> bool:
 	return run != null and start_run(run.balance)
+
+
+## Sound follows the views' feedback moments; the run's events reach Sfx through setup().
+## After restart's own connection, so the restart cue plays into the new run's silence.
+func _wire_sound() -> void:
+	_collect.dust_arrived.connect(_sfx.on_dust_arrived)
+	_collect.light_arrived.connect(_sfx.on_light_arrived)
+	_launcher.pull_started.connect(_sfx.play.bind(&"pull_start", 1.0))
+	_launcher.pull_stepped.connect(_sfx.on_pull_stepped)
+	_launcher.pull_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
+	_launcher.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
+	_sky.star_selected.connect(_sfx.on_star_selected)
+	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
+	_hud.sound_toggled.connect(_sfx.cycle_level)
+	_sfx.level_changed.connect(_hud.show_sound_level)
+	_hud.show_sound_level(_sfx.level)
+	_big_bang.collapse_started.connect(_sfx.play.bind(&"big_bang_collapse", 1.0))
+	_big_bang.silence_started.connect(_sfx.duck)
+	_big_bang.banged.connect(_sfx.on_big_bang_banged)
+	_sun.ignited.connect(_sfx.play.bind(&"sun_ignite", 1.0))
+	_end_screen.shown.connect(_sfx.on_end_shown)
+	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
 
 
 func _new_rng() -> RandomNumberGenerator:

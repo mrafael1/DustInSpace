@@ -9,8 +9,8 @@ extends Node2D
 ##    spirals into it (the Sky collapses them over COLLAPSE_TIME) and cool specks of sky dust
 ##    spiral in too: fast at first, then slowing and dimming as they near the hole, where they
 ##    hang, orbiting, until it swallows them.
-## 3. The hole implodes into a 1-2 px white point that pulses until the bang. (Silence: no
-##    audio exists yet.)
+## 3. The hole implodes into a 1-2 px white point that pulses until the bang. Silence: the
+##    sound ducks to nothing from the implosion to the bang (silence_started, banged).
 ## 4. The bang: a hard 2-frame full-screen flash, then a solid white core shrinking away (no
 ##    dithered fade), 3 staggered shockwave rings and
 ##    about 200 multi-colour palette pixels that streak and twinkle; the world shakes (a Camera2D,
@@ -21,6 +21,11 @@ extends Node2D
 ## Owns no rules: the dust comes from the event. Rare means different: none of these effects are
 ## used anywhere else. The flash, then the rings and debris over it, and the banner sit on their
 ## own CanvasLayer above the HUD, so the blast reads through the fading flash.
+## Its signals mark the timeline for sound; each fires once per Big Bang.
+
+signal collapse_started
+signal silence_started
+signal banged
 
 ## Timeline, in seconds from the event.
 const FREEZE_AT: float = 0.26
@@ -198,7 +203,11 @@ static func flash_core_radius(t: float) -> int:
 func advance(delta: float) -> void:
 	if _time < 0.0:
 		return
+	var before: float = _time
 	_time += delta
+	_mark(before, FREEZE_AT, collapse_started)
+	_mark(before, FREEZE_AT + COLLAPSE_TIME, silence_started)
+	_mark(before, BANG_AT, banged)
 	if _time >= BANG_AT + maxf(BANNER_TIME, DEBRIS_LIFE_MAX):
 		_stop()
 		return
@@ -424,3 +433,9 @@ func _draw_flash() -> void:
 
 func _dot(canvas: CanvasItem, at: Vector2i, colour: Color) -> void:
 	canvas.draw_rect(Rect2(Vector2(at), Vector2.ONE), colour)
+
+
+## Fires `mark` if the timeline just crossed `at`.
+func _mark(before: float, at: float, mark: Signal) -> void:
+	if before < at and _time >= at:
+		mark.emit()
