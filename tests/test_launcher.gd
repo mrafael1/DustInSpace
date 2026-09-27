@@ -258,3 +258,31 @@ func _play_until_idle() -> void:
 		_step()
 		elapsed += STEP
 	_step()
+
+
+func test_a_resting_pack_spins() -> void:
+	var pack: PackView = PackView.new()
+	add_child_autofree(pack)
+	pack.set_process(false)
+	pack.kind = "blue"
+	for i: int in PackView.SPIN_FRAMES + 1:
+		assert_eq(pack.spin_frame(), i % PackView.SPIN_FRAMES, "one frame per step, then round again")
+		pack.advance(PackView.SPIN_STEP * 1.001)
+	var turn: Array = []
+	for spin: int in PackView.SPIN_FRAMES:
+		turn.append(ArtStrip.named("pack_blue").pixels(PackView.frame_name(false, false, 0, spin)))
+	for spin: int in range(1, PackView.SPIN_FRAMES):
+		assert_ne(turn[spin], turn[spin - 1], "the bands move each frame")
+		assert_eq(turn[spin].keys().size(), turn[0].keys().size(), "same silhouette: nothing scales or moves")
+
+
+func test_the_spin_leaves_the_tremble_and_the_hud_icon_still() -> void:
+	for spin: int in PackView.SPIN_FRAMES:
+		assert_eq(PackView.frame_name(false, false, PackView.HUD_RADIUS, spin), "hud")
+		assert_eq(PackView.frame_name(true, false, 0, spin), "grown")
+		assert_eq(PackView.frame_name(false, true, 0, spin), "bright")
+
+
+func test_every_art_strip_holds_all_its_frames() -> void:
+	for name: String in ["pack_blue", "pack_red", "pack_burst", "slingshot", "dust_icon", "reward_plaque"]:
+		assert_true(ArtStrip.named(name).fits_texture(), "%s.png matches its sidecar" % name)

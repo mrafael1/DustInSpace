@@ -1,0 +1,29 @@
+{
+  "frame_size": [
+    23,
+    15
+  ],
+  "origin": [
+    11,
+    7
+  ],
+  "frames": [
+    "idle_0",
+    "idle_1",
+    "idle_2",
+    "idle_3",
+    "idle_4",
+    "idle_5",
+    "bright",
+    "grown",
+    "grown_bright",
+    "hud",
+    "hud_grey",
+    "hud_bright_0",
+    "hud_bright_1",
+    "hud_bright_2",
+    "hud_bright_3",
+    "hud_bright_4",
+    "hud_bright_5"
+  ]
+}
