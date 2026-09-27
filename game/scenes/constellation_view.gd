@@ -7,7 +7,9 @@ extends Node2D
 ## every CUE_STEP) say "you can pick this". Lit, it uses the "gold" frame: the same gold on every
 ## size, so gold only ever means lit. Strings between two lit landmarks glow C1 with a C0 glint
 ## running along them; strings still to form are dotted N8. While a link is traced, the landmarks
-## in it show gold and the strings it would form are dashed C2. Owns no rules:
+## in it show gold and the strings it would form are dashed C2. Like the HUD and the Sun it keeps
+## a shown copy of what's lit, moved only by played landmark_lit events, so a landmark the Sun
+## lights stays unlit until the Sun's ignition has played. Owns no rules:
 ## RunState says what's lit. Draws nothing without the map.
 ## Completion plays the constellation like an instrument once every payout has landed (the Sky
 ## waits): string by string from the bottom of the sky to the top, each flashing C0 and vibrating
@@ -46,6 +48,8 @@ const VIBRATE_CYCLES: float = 3.0
 var _run: RunState
 var _time: float = 0.0
 var _selected: Array[int] = []
+## Which landmarks show lit: the run's as of setup, then each played landmark_lit.
+var _shown_lit: Array[bool] = []
 var _preview_strings: Array[int] = []
 var _flash_landmark: int = -1
 var _flash_string: int = -1
@@ -82,6 +86,9 @@ func _draw() -> void:
 
 func setup(run: RunState) -> void:
 	_run = run
+	_shown_lit.clear()
+	if run.scorpio != null:
+		_shown_lit.assign(run.scorpio.lit)
 	clear_preview()
 	_flash_left = 0.0
 	_completion_time = -1.0
@@ -101,7 +108,10 @@ func clear_preview() -> void:
 	queue_redraw()
 
 
+## A landmark_lit event played: it shows lit from now, with a C0 flash.
 func flash_landmark(index: int) -> void:
+	if index < _shown_lit.size():
+		_shown_lit[index] = true
 	_flash_landmark = index
 	_flash_string = -1
 	_flash_left = LIT_FLASH
@@ -245,8 +255,8 @@ func advance(delta: float) -> void:
 	var cue: int = cue_frame()
 	_time += delta
 	var mapped: bool = _run != null and _run.scorpio != null
-	var redraw: bool = mapped and ((glow_step() != step and _run.scorpio.built_count() > 0) \
-		or (cue_frame() != cue and not _run.scorpio.is_complete()))
+	var redraw: bool = mapped and ((glow_step() != step and _shown_lit.count(true) > 1) \
+		or (cue_frame() != cue and _shown_lit.has(false)))
 	if _flash_left > 0.0:
 		_flash_left = maxf(_flash_left - delta, 0.0)
 		redraw = true
@@ -298,7 +308,7 @@ func _draw_string(segment: int) -> void:
 	if age >= 0.0 and age < VIBRATE_TIME:
 		_draw_vibrating(segment, pixels, age)
 		return
-	if _run.scorpio.is_built(segment):
+	if shows_built(segment):
 		var flash: bool = segment == _flash_string and _flash_left > 0.0
 		var step: int = glow_step()
 		for i: int in pixels.size():
@@ -324,6 +334,16 @@ static func cue_pixels(size: int) -> Array[Vector2i]:
 	return dots
 
 
+## Whether landmark `index` shows lit: its landmark_lit event has played (or it was lit at setup).
+func shows_lit(index: int) -> bool:
+	return index < _shown_lit.size() and _shown_lit[index]
+
+
+## Whether string `segment` shows formed: both its landmarks show lit.
+func shows_built(segment: int) -> bool:
+	return shows_lit(segment) and shows_lit(segment + 1)
+
+
 ## Which of the cue's two colours shows now: 0 (C5) or 1 (C4).
 func cue_frame() -> int:
 	return int(_time / CUE_STEP) % 2
@@ -332,7 +352,7 @@ func cue_frame() -> int:
 ## Whether landmark `index` shows the selectable cue: unlit, not in the link being traced, and
 ## not while the constellation plays.
 func shows_cue(index: int) -> bool:
-	return _run != null and _run.scorpio != null and not _run.scorpio.is_lit(index) \
+	return _run != null and _run.scorpio != null and not shows_lit(index) \
 		and not _selected.has(index) and _completion_time < 0.0
 
 
@@ -341,7 +361,7 @@ func _draw_landmark(index: int) -> void:
 		var colour: Color = Palette.C4 if cue_frame() == 1 else Palette.C5
 		for d: Vector2i in cue_pixels(Scorpio.SIZES[index]):
 			_dot(Scorpio.LANDMARKS[index] + d, colour)
-	var lit: bool = _run.scorpio.is_lit(index) or _selected.has(index)
+	var lit: bool = shows_lit(index) or _selected.has(index)
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
 	var dots: Dictionary = _art[Scorpio.SIZES[index]][1 if lit else 0]
 	for d: Vector2i in dots:

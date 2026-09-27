@@ -216,6 +216,67 @@ func test_an_exploding_star_waits_then_bursts_and_vanishes() -> void:
 	assert_false(other.is_exploding(), "a plain dissolve isn't an explosion")
 
 
+func test_a_landmark_the_sun_lights_shows_lit_only_after_the_ignition() -> void:
+	var sun: SunView = main.get_node("Sun")
+	sun.set_process(true)
+	run.light = run.light_target() - 5
+	var ids: Array[int] = []
+	for x: int in [20, 40, 60]:
+		ids.append(_star(Star.Size.SMALL, Vector2i(x, 100)).id)
+	var target: int = run.rekindle_target()
+	run.link(ids)
+	assert_true(run.scorpio.is_lit(target), "the core lit it at once")
+	assert_false(constellation.shows_lit(target), "the view waits")
+	var ignited_first: bool = false
+	for i: int in 400:
+		sequencer.advance(1.0 / 60.0)
+		sun.advance(1.0 / 60.0)
+		main.get_node("CollectParticles").advance(1.0 / 60.0)
+		if sun.is_igniting() and not constellation.shows_lit(target):
+			ignited_first = true
+		if constellation.shows_lit(target):
+			break
+	assert_true(ignited_first, "the Sun ignites while the landmark still shows unlit")
+	assert_true(constellation.shows_lit(target), "then it lights")
+	assert_false(sun.is_igniting(), "once the ignition is over")
+
+
+func test_the_sun_lighting_the_last_landmark_plays_the_completion() -> void:
+	# Light all but one landmark; the Sun will light the last.
+	var last: int = Scorpio.LANDMARKS.size() - 1
+	for index: int in range(2, last):
+		run.scorpio.lit[index] = true
+	sky.setup(run, sequencer)
+	var left: Star = _star(Star.Size.MEDIUM, Vector2i(150, 120))
+	run.light = run.light_target() - 5
+	var ids: Array[int] = []
+	for x: int in [20, 40, 60]:
+		ids.append(_star(Star.Size.SMALL, Vector2i(x, 100)).id)
+	var types: Array[StringName] = []
+	sequencer.event_played.connect(func(e: EventSequencer.RunEvent) -> void: types.append(e.type))
+	run.link(ids)
+	assert_eq(run.outcome, RunState.Outcome.WON)
+	var sun: SunView = main.get_node("Sun")
+	var particles: CollectParticles = main.get_node("CollectParticles")
+	var views: Array = [sky.star_view(left.id)]
+	for i: int in 600:
+		sequencer.advance(1.0 / 60.0)
+		sun.advance(1.0 / 60.0)
+		particles.advance(1.0 / 60.0)
+		constellation.advance(1.0 / 60.0)
+		for view: Variant in views:
+			if is_instance_valid(view):
+				(view as StarView).advance(1.0 / 60.0)
+		if constellation.is_completing():
+			break
+	var rekindled_at: int = types.find(&"sun_rekindled")
+	assert_gt(rekindled_at, -1)
+	assert_gt(types.find(&"landmark_lit"), rekindled_at, "the Sun lights the last landmark")
+	assert_gt(types.find(&"sky_cleared"), types.find(&"landmark_lit"), "then the sky clears")
+	assert_true(constellation.is_completing(), "and the constellation plays")
+	assert_eq(sky.star_count(), 0, "on a clean sky")
+
+
 func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_the_scorpion() -> void:
 	var sung: Array[int] = []
 	constellation.string_sung.connect(func(segment: int, _order: int) -> void: sung.append(segment))
@@ -285,6 +346,8 @@ func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:
 	assert_false(constellation.shows_cue(2), "in the link it shows lit instead")
 	_tap(Vector2i(170, 240))
 	run.scorpio.lit[2] = true
+	assert_true(constellation.shows_cue(2), "lit in the core only: not shown until its event plays")
+	constellation.flash_landmark(2)
 	assert_false(constellation.shows_cue(2), "lit: no cue")
 
 
