@@ -51,6 +51,9 @@ const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flar
 const DISSOLVE_SEQUENCE: Array[StringName] = [&"flare", &"flare_core", &"fade_core", &"fade_dot"]
 const COLLAPSE_SEQUENCE: Array[StringName] = [&"glint", &"dim", &"dim_core"]
 const HALO_RADIUS: Array[int] = [4, 8, 11]
+## Halo colours per size, near then far: warm around the orange and gold stars, cool around the
+## blue-white big star so its colour stays clean.
+const HALO_COLOURS: Array = [[Palette.C4, Palette.C5], [Palette.C4, Palette.C5], [Palette.M4, Palette.M3]]
 ## Ordered-dither thresholds (0-15) for the halo.
 const BAYER: Array[int] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
 
@@ -173,7 +176,8 @@ func advance(delta: float) -> void:
 
 
 ## Halo pixels in sky coordinates (the view's parent space), or none while the star flies.
-## Glow without blur: C4 at 50% dither near the star, C5 at about 20% further out.
+## Glow without blur: the size's near colour at 50% dither near the star, its far colour at about
+## 20% further out (HALO_COLOURS).
 func halo_dots() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	var shows_halo: bool = state == State.IDLE or (state == State.DISSOLVING and _dissolve_frame() == 0)
@@ -190,9 +194,9 @@ func halo_dots() -> Dictionary[Vector2i, Color]:
 			var threshold: int = BAYER[posmod(dy, 4) * 4 + posmod(dx, 4)]
 			if dist_sq * 4 <= radius * radius:
 				if threshold < 8:
-					dots[center + offset] = Palette.C4
+					dots[center + offset] = HALO_COLOURS[size][0]
 			elif threshold < 3:
-				dots[center + offset] = Palette.C5
+				dots[center + offset] = HALO_COLOURS[size][1]
 	return dots
 
 
