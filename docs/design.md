@@ -62,19 +62,19 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 
 ### Scorpio constellation (prototype, #40)
 
-An experiment to learn whether building in space makes the loop more fun and more challenging. It's on for playtesting (`scorpio.enabled` in `balance.json`); set it to `false` to play the plain stage. All numbers are in the `scorpio` block.
+An experiment to learn whether building a constellation makes the loop more fun and more challenging. It's on for playtesting (`scorpio.enabled` in `balance.json`); set it to `false` to play the plain stage.
 
-- **Objective:** on the Scorpio map the goal is the constellation, not the Sun. Building its last gap wins the run. Combos still fill the Sun with light, but a full Sun doesn't win there; it will give a bonus, still to be designed.
-- **The map:** 8 fixed landmark stars trace Scorpio, head to stinger. They're bigger and brighter than the background stars. Most of the outline is given (solid N6). **4 gaps** are brighter dotted lines: those are what the player builds.
-- **Aiming:** a burst scatters its stars on a ring 18–30 px out from the burst point and leaves the centre empty, so on this map the slingshot's reticle also shows that landing ring. Lay the ring across a gap. Aiming at the gap itself drops a star in it about 2% of the time; aiming 16–22 px beside it, about 65% per pack.
-- **Building a gap:** link the two landmarks at its ends with one sky star that sits in the gap, using the usual link gesture (tap or drag, any order). A star counts if it's within `segment_reach` px of the line between the landmarks, so a near miss works. The star is used up and stays as the gap's lit bridge; it pays `segment_dust`. The choice: combine that star now for dust and light, or keep it for the constellation.
-- **Previews:** stars sitting in an open gap carry faint corner ticks. Picking a landmark lights it and marks the stars that could bridge its gaps. Picking a star too shows the gap it would fill. Three picks that build nothing show the no-combo cross, and nothing is used up.
-- **Sting:** every valid combo's last-traced star stings the nearest other star within `sting_reach` px (ties: the oldest) and collects it for `sting_dust`. While tracing a valid combo, a dashed line previews the target; with no target, a dotted circle shows the reach. Landmarks and bridges are never stung.
-- **Completion:** building the last gap sends a pulse along the whole outline, then the run is won (the Sun ignites and the end screen says SCORPIO COMPLETE with the gaps built).
-- **Loss:** the usual check (no packs, no dust for one, no combo), and also no sky star left in an open gap.
-- **Big Bang:** clears the sky stars as usual; landmarks and built gaps stay.
+- **Objective:** the constellation, not the Sun. Lighting every landmark wins.
+- **The map:** 8 fixed landmark stars trace Scorpio, head to stinger. Each is small, medium or big, drawn with the same star art as the sky stars, so its size reads the same way: cool while unlit, gold once lit. Strings join neighbouring landmarks: dotted while waiting, lit when both ends are lit, with a small glint running along them. The head's string starts lit, so **6 strings** are left to build.
+- **Lighting a landmark:** an unlit landmark stands in for a star in a combo. Link it with two sky stars that make a valid combo with its size (tap or drag, any order). The combo pays as usual, the two sky stars are used up, and the landmark stays and lights up. When both ends of a string are lit, the string forms.
+- **One landmark per combo:** picking a second landmark in the same link is refused at once, with the red shake and buzz of a wrong link, and the link is dropped. A lit landmark can't be picked again.
+- **Previews:** while tracing, the picked landmark shows gold, the strings the link would form are dashed, and the reward plaque shows the combo as usual.
+- **A full Sun:** it doesn't win here. It plays its ignition, comes back at 0 light, lights one landmark (the first unlit one next to a lit one), and pays `sun_dust_per_star` dust for every sky star on screen: each of those stars flares and throws a ring in turn, and its dust flies to the counter. Light above the target is lost. The combo that lights the last landmark doesn't also rekindle the Sun.
+- **Completion:** once every dust and light payout has landed, the constellation plays itself: string by string from the bottom of the sky to the top, each flashing and vibrating as it sounds the next note of a rising pentatonic tune. Then a drawing of the scorpion (pincers, body, legs, tail, stinger) is traced around the lit stars and stays. The Sun doesn't ignite for this win. The end screen says SCORPIO COMPLETE and the strings formed.
+- **Loss:** the usual check (no packs, no dust for one, no combo), where a combo may use one unlit landmark.
+- **Big Bang:** clears the sky stars as usual; lit landmarks stay lit.
 
-Simulator (no geometry: it assumes a 30% sting hit and a chance per star of landing in a gap; the bots build with gap stars their combos don't need): at 25% per star, Scorpio wins about 96% (blue only) and 74% (red when affordable); at 15%, about 80% / 40%; at 35%, 99% / 91%. The plain stage is about 88% / 87%. Aim is what the playtest measures.
+Simulator (no geometry is needed now): with combos that light a landmark paying as usual, Scorpio is won in every run, in about 4.5 packs (blue only) or 4.1 (red when affordable), against about 88% / 87% in 8 / 6 packs on the plain stage. It's much easier; the playtest decides whether that's a problem. `--lighting-pays` shows what-ifs: half the dust and no light gives about 72%, dust only about 100%, light only about 17%, nothing about 3%.
 
 ### Sound
 
