@@ -4,7 +4,7 @@ extends Node2D
 ## Blue: a banded planet, r8. Red: a smaller planet with a ring. Lit from the top-left, no outline.
 ## Tremble frames are drawn, never scaled: `grown` is the next radius up, `bright` is every pixel
 ## one step up its ramp. The HUD shows the r6 frame: `greyed` (on the land ramp) and still when
-## the dust can't buy one; `bright` and spinning when it can.
+## none is owned; `bright` and spinning while one is.
 ## Idle, the planet spins: its bands drift through SPIN_FRAMES frames, one every SPIN_STEP.
 
 const RADIUS: Dictionary[String, int] = {"blue": 8, "red": 6}

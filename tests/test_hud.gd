@@ -33,8 +33,10 @@ func test_one_slot_per_pack_kind_in_balance_order() -> void:
 	for kind: String in ["blue", "red"]:
 		var at: Vector2 = hud.slot(kind).position
 		assert_eq(at, at.round(), "whole pixels")
-		assert_gte(at.y + PackSlot.ICON_TARGET.position.y, float(ScreenZones.HUD.position.y) - 3,
-			"targets sit in the HUD band")
+		# The icon's 44 pt target reaches up into the land strip, whose only other target is the
+		# launcher (kept clear below); never into the sky, where the stars are.
+		assert_gte(at.y + PackSlot.ICON_TARGET.position.y, float(ScreenZones.SKY.end.y),
+			"targets stay below the sky")
 
 
 func test_the_loaded_pack_is_marked() -> void:
@@ -138,7 +140,7 @@ func test_a_grey_pack_still_buys_with_dust_that_is_flying() -> void:
 	hud.refresh()
 	_link_small_triple()
 	sequencer.advance(0.0)
-	assert_true(_icon("blue").greyed, "the counter still reads 2")
+	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "the counter still reads 2")
 	var owned: int = run.owned_packs["blue"]
 	_tap_part("blue", &"cost")
 	assert_eq(run.owned_packs["blue"], owned + 1, "the core owns the dust: buying is unchanged")
@@ -254,16 +256,22 @@ func test_blue_and_red_cue_on_their_own_costs() -> void:
 	assert_false(blue.is_cueing(), "blue was buyable all along")
 
 
-func test_a_pack_icon_is_lit_when_affordable_and_grey_when_not() -> void:
+func test_a_pack_icon_is_lit_while_owned_and_grey_at_zero() -> void:
+	run.owned_packs["blue"] = 0
+	run.owned_packs["red"] = 1
 	run.dust = 5
 	hud.refresh()
-	assert_true(_icon("blue").bright, "5 dust buys a blue")
-	assert_false(_icon("blue").greyed)
-	assert_true(_icon("red").greyed, "but not a red")
-	assert_false(_icon("red").bright)
+	assert_true(_icon("blue").greyed, "×0 is grey, even when 5 dust would buy a blue")
+	assert_false(_icon("blue").bright)
+	var blue: PackSlot = hud.slot("blue")
+	blue.set_process(false)
+	for i: int in 20:
+		blue.advance(0.1)
+		assert_false(blue.is_hopping(), "and still")
 	run.dust = 0
 	hud.refresh()
-	assert_true(_icon("blue").greyed, "grey even while one is still owned")
+	assert_true(_icon("red").bright, "owned: lit and spinning even with no dust")
+	assert_false(_icon("red").greyed)
 
 
 func test_a_buyable_icon_spins_and_a_grey_one_stays_still() -> void:
@@ -425,6 +433,111 @@ func test_nothing_is_bought_once_the_run_is_over() -> void:
 	_tap_part("blue", &"cost")
 	assert_eq(run.owned_packs["blue"], 2)
 	assert_true(hud.slot("blue").is_nudging())
+
+
+func test_the_buy_button_buys_one_more_with_none_one_or_many_owned() -> void:
+	for kind: String in ["blue", "red"]:
+		var cost: int = run.balance.packs[kind].cost
+		for owned: int in [0, 1, 3]:
+			run.owned_packs[kind] = owned
+			run.dust = cost * 2 + 1
+			run.loaded_pack = ""
+			hud.refresh()
+			_tap_part(kind, &"cost")
+			var case: String = "%s with %d owned" % [kind, owned]
+			assert_eq(run.dust, cost + 1, "%s: the cost, exactly once" % case)
+			assert_eq(run.owned_packs[kind], owned + 1, "%s: one more" % case)
+			assert_eq(run.loaded_pack, kind, "%s: and it's loaded" % case)
+			sequencer.advance(0.0)
+			assert_eq(_slot_label(kind, "Count").text, "×%d" % (owned + 1))
+
+
+func test_the_buy_button_takes_the_exact_cost_and_refuses_one_short() -> void:
+	for kind: String in ["blue", "red"]:
+		var cost: int = run.balance.packs[kind].cost
+		var owned: int = run.owned_packs[kind]
+		run.dust = cost - 1
+		hud.refresh()
+		_tap_part(kind, &"cost")
+		assert_eq([run.dust, run.owned_packs[kind]], [cost - 1, owned], "%s: one short buys nothing" % kind)
+		assert_true(hud.slot(kind).is_nudging(), "and says no")
+		assert_eq(hud.slot(kind).buy_colours()[1], Palette.S4, "the button's border too")
+		run.dust = cost
+		hud.refresh()
+		_tap_part(kind, &"cost")
+		assert_eq([run.dust, run.owned_packs[kind]], [0, owned + 1], "%s: the exact cost buys" % kind)
+		sequencer.advance(0.0)
+
+
+func test_loading_an_owned_pack_never_buys_one() -> void:
+	run.dust = 20
+	run.owned_packs["red"] = 2
+	hud.refresh()
+	_tap_part("red", &"icon")
+	assert_eq(run.dust, 20, "the icon loads for free")
+	assert_eq(run.owned_packs["red"], 2)
+	assert_eq(run.loaded_pack, "red")
+	_tap_part("red", &"icon")
+	assert_eq([run.dust, run.owned_packs["red"]], [20, 2], "tapping the loaded pack again changes nothing")
+
+
+func test_nothing_is_bought_from_either_target_once_the_run_is_over() -> void:
+	run.dust = 20
+	run.owned_packs["red"] = 0
+	run.outcome = RunState.Outcome.WON
+	_tap_part("red", &"icon")
+	_tap_part("red", &"cost")
+	assert_eq([run.dust, run.owned_packs["red"]], [20, 0])
+
+
+func test_the_buy_button_reads_as_a_button() -> void:
+	run.dust = 5
+	hud.refresh()
+	var blue: PackSlot = hud.slot("blue")
+	var red: PackSlot = hud.slot("red")
+	assert_eq(blue.buy_colours(), [Palette.M1, Palette.C2, Palette.D0] as Array[Color], "warm border: you can buy")
+	assert_eq(red.buy_colours(), [Palette.M1, Palette.M4, Palette.N7] as Array[Color], "cool: not yet")
+	assert_true(PackSlot.COST_TARGET.encloses(PackSlot.BUY_PLATE), "the whole plate is tappable")
+	for size: Vector2i in [PackSlot.ICON_TARGET.size, PackSlot.COST_TARGET.size]:
+		assert_gte(size.x, 22)
+		assert_gte(size.y, 22, "44 pt both")
+
+
+func test_the_buy_row_is_centred_for_any_cost() -> void:
+	for cost: int in [4, 7, 12]:
+		var digits: int = str(cost).length()
+		hud.slot("blue").show_pack(1, cost, true, false, false)
+		var row: Array[Vector2i] = hud.slot("blue").buy_row()
+		var left: int = row[0].x - 1
+		var right: int = row[2].x + digits * PackSlot.DIGIT_ADVANCE - 2
+		var plate: Rect2i = PackSlot.BUY_PLATE
+		assert_lte(absi((left - plate.position.x) - (plate.end.x - 1 - right)), 1, "cost %d: centred" % cost)
+		assert_eq(row[1].x - row[0].x, 5, "+ then the dust icon")
+		assert_eq(row[2].x - row[1].x, 4, "then the cost")
+
+
+func test_the_buy_button_shows_the_press_and_the_buy() -> void:
+	run.dust = 5
+	hud.refresh()
+	var blue: PackSlot = hud.slot("blue")
+	blue.set_process(false)
+	var at: Vector2i = Vector2i(blue.position) + PackSlot.COST_TARGET.get_center()
+	_touch(at, true)
+	assert_true(blue.is_buy_pressed(), "held down at once")
+	assert_eq(blue.buy_colours()[0], Palette.M3)
+	_touch(at, false)
+	assert_false(blue.is_buy_pressed())
+	sequencer.advance(0.0)
+	assert_eq(blue.buy_colours()[1], Palette.C0, "the buy flashes the border")
+	blue.advance(PackSlot.BOUGHT_FLASH)
+	assert_ne(blue.buy_colours()[1], Palette.C0)
+	var icon_at: Vector2i = Vector2i(blue.position) + PackSlot.ICON_TARGET.get_center()
+	_touch(icon_at, true)
+	assert_false(blue.is_buy_pressed(), "pressing the icon doesn't press the button")
+	_touch(icon_at, false)
+	_touch(at, true)
+	_touch(Vector2i(90, 150), false)
+	assert_false(blue.is_buy_pressed(), "sliding off lets go without buying")
 
 
 func test_labels_use_the_bitmap_fonts_with_a_shadow() -> void:

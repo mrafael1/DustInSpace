@@ -60,7 +60,7 @@ The palette has 40 colours in 7 ramps (the dust ramp reuses N7 and N8). Files: `
 
 - All numbers are rendered by the engine from a bitmap font and are never baked into sprites.
 - Fonts: 5×7 for primary counters, 3×5 for secondary numbers, each with a 1 px N0 drop shadow.
-- There are no panels behind the HUD; it sits on the dark forest ground.
+- There are no panels behind the HUD; it sits on the dark forest ground. The one plate is each pack's buy button: M1 fill with a 1 px border and clipped corners (C2 when affordable, M4 when not), drawn in code.
 
 ## Pipeline
 

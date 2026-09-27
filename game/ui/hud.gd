@@ -27,7 +27,7 @@ const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 ## Slot layout: one column per pack kind, the last centred at LAST_SLOT_X.
 const SLOT_SPACING: int = 30
 const LAST_SLOT_X: int = 158
-const SLOT_Y: int = 292
+const SLOT_Y: int = 290
 ## A counter hops 1 px up for this long when a particle lands on it.
 const HOP_TIME: float = 0.1
 
@@ -80,8 +80,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 			_sequencer.event_played.disconnect(_on_event_played)
 		_sequencer = sequencer
 		_sequencer.event_played.connect(_on_event_played)
-	_pressed = []
 	_build_slots(run.balance.pack_kinds())
+	_press([])
 	refresh()
 
 
@@ -149,16 +149,17 @@ func handle_pointer(event: InputEvent) -> bool:
 	var target: Array = target_at(Vector2i(touch.position.floor()))
 	if touch.canceled:
 		var had: bool = not _pressed.is_empty()
-		_pressed = []
+		_press([])
 		return had
 	if touch.pressed:
-		_pressed = target
+		_press(target)
 		return not target.is_empty()
 	if _pressed.is_empty():
 		return false
-	if target == _pressed:
+	var pressed: Array = _pressed
+	_press([])
+	if target == pressed:
 		_tap(target[0], target[1])
-	_pressed = []
 	return true
 
 
@@ -169,6 +170,13 @@ func target_at(point: Vector2i) -> Array:
 		if part != &"":
 			return [kind, part]
 	return []
+
+
+## Remembers the target a press started on; a buy button shows held down while pressed.
+func _press(target: Array) -> void:
+	_pressed = target
+	for kind: String in _slots:
+		_slots[kind].press_buy(target == [kind, &"cost"])
 
 
 func _tap(kind: String, part: StringName) -> void:
@@ -186,6 +194,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	match event.type:
 		&"pack_bought":
 			_shown_packs[event.args[0]] = _shown_packs.get(event.args[0], 0) + 1
+			if _slots.has(event.args[0]):
+				_slots[event.args[0]].flash_bought()
 			_shown_dust = event.args[1] - (_dust_in_flight - _dust_debt)
 			if _shown_dust < 0:
 				_dust_debt -= _shown_dust
