@@ -216,8 +216,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			_light_in_flight += event.args[3]
-		&"sun_rekindled":
-			_dust_in_flight += event.args[1]
 		_:
 			return
 	_show()

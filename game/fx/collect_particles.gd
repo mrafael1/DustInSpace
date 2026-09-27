@@ -64,9 +64,6 @@ class Particle:
 var _sequencer: EventSequencer
 var _particles: Array[Particle] = []
 var _rng := RandomNumberGenerator.new()
-## Scorpio: a rekindled Sun's dust, waiting for its ignition to end.
-var _rekindle_dust: int = 0
-var _rekindle_sources: Array[Vector2i] = []
 
 
 func _ready() -> void:
@@ -148,11 +145,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		for i: int in range(n0, _particles.size()):
 			_particles[i].delay = BigBangSequence.BANG_AT + STAGGER * (i - n0)
 		return
-	if event.type == &"sun_rekindled":
-		# Scorpio: the rekindled Sun's dust flies from the sky's stars once it's done (release_rekindle).
-		_rekindle_dust = event.args[1]
-		_rekindle_sources = event.args[2]
-		return
 	if event.type != &"combo_collected":
 		return
 	var sources: Array[Vector2i] = []
@@ -166,18 +158,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	# Stagger dust and light together, in launch order, from this combo's first particle.
 	for i: int in range(n, _particles.size()):
 		_particles[i].delay = LAUNCH_DELAY + STAGGER * (i - n)
-
-
-## Scorpio: the Sun finished rekindling (Main wires SunView.rekindled): each star's dust leaves
-## as it shines (the Sky shines them StarView.SHINE_STAGGER apart), one particle per star.
-func release_rekindle() -> void:
-	var n: int = _particles.size()
-	if _rekindle_dust > 0 and not _rekindle_sources.is_empty():
-		_launch(Kind.DUST, _rekindle_dust, _rekindle_sources, dust_target, _rekindle_sources.size())
-	for i: int in range(n, _particles.size()):
-		_particles[i].delay = StarView.SHINE_PEAK + StarView.SHINE_STAGGER * (i - n)
-	_rekindle_dust = 0
-	_rekindle_sources = []
 
 
 ## Launches like a combo's payout, staggered from now.

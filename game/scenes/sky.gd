@@ -9,18 +9,17 @@ extends Node2D
 ## the reward preview on the RewardPlaque. The link itself is RunState.link()'s call.
 ## Scorpio (#40): the ConstellationLayer, under everything, draws the landmarks and the outline.
 ## Unlit landmarks can be picked like stars (their ids are negative, Scorpio.landmark_id); the
-## combo and the strings a link would form come from RunState. When the Sun rekindles, the stars
-## that pay its dust shine one after another (shine_rekindled, wired by Main). Each step of a link
+## combo and the strings a link would form come from RunState. When the Sun rekindles, a sunbeam
+## carries its light to the landmark it lights (launch_sunbeam, wired by Main). Each step of a link
 ## has a reach (RunState.link_reach): while tracing, the LinkLayer shows it as a ring around the
 ## last star picked, and a star out of reach can't join (its step shakes ember; the link stays).
-## Completion clears the sky: every star left bursts in turn, lowest first (sky_cleared).
+## A rekindle and the completion clear the sky: every star left bursts in turn, lowest first
+## (sky_cleared).
 ## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
 
 ## A star joined the link being traced; `count` stars are in it now. Feedback only (sound).
 signal star_selected(count: int)
-## Scorpio: the `order`-th star paying a rekindled Sun's dust started to shine. Feedback only.
-signal star_shone(order: int)
 ## Scorpio: the rekindled Sun sent a sunbeam to the landmark it lights. Feedback only (sound).
 signal sunbeam_launched
 ## Scorpio: the sunbeam reached its landmark at `at` (it lights now). Feedback only (sparks, sound).
@@ -55,8 +54,6 @@ var _decoy_rng := RandomNumberGenerator.new()
 var _finger: Vector2i = Vector2i.ZERO
 ## Stars in the link as last shown, to tell a star joining it from one leaving.
 var _selected_count: int = 0
-## Scorpio: where the stars paying a rekindled Sun's dust are, in payout order.
-var _rekindle_positions: Array[Vector2i] = []
 ## Scorpio: the landmark the rekindling Sun lights, for its sunbeam (-1: none).
 var _rekindle_landmark: int = -1
 ## Scorpio: the completion tune waits for the payouts still flying.
@@ -115,8 +112,6 @@ func watch_payouts(payouts: CollectParticles) -> void:
 	_payouts.all_landed.connect(_on_payouts_landed)
 
 
-## Scorpio: the Sun is back at 0; the stars paying its dust shine in turn, StarView.SHINE_STAGGER
-## apart, in the order CollectParticles sends their dust.
 ## Scorpio: the Sun (at `sun`) finished its ignition and releases its light: a sunbeam carries it
 ## to the landmark it lights, which lights as the beam lands.
 func launch_sunbeam(sun: Vector2i) -> void:
@@ -124,18 +119,6 @@ func launch_sunbeam(sun: Vector2i) -> void:
 	if _rekindle_landmark >= 0:
 		sunbeam_launched.emit()
 	_rekindle_landmark = -1
-
-
-func shine_rekindled() -> void:
-	var order: int = 0
-	for at: Vector2i in _rekindle_positions:
-		for id: int in _views:
-			var star: Star = _run.find_star(id)
-			if star != null and star.position == at:
-				_views[id].shine(order * StarView.SHINE_STAGGER)
-				star_shone.emit(order)
-		order += 1
-	_rekindle_positions = []
 
 
 func star_count() -> int:
@@ -210,7 +193,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"string_built":
 			_constellation.flash_string(event.args[0])
 		&"sun_rekindled":
-			_rekindle_positions = event.args[2]
 			_rekindle_landmark = event.args[0]
 		&"sky_cleared":
 			_explode(event.args[0])
@@ -401,7 +383,8 @@ func _decoys(burst: Vector2i) -> Array[Star]:
 	return decoys
 
 
-## Scorpio's completion: the stars left burst in turn, lowest first, and the tune waits for them.
+## Scorpio's rekindle or completion: the stars left burst in turn, lowest first, and what follows
+## (the tune) waits for them.
 func _explode(stars: Array[Star]) -> void:
 	var views: Array[StarView] = []
 	for star: Star in stars:

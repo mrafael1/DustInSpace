@@ -19,7 +19,7 @@ func before_each() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
 	data["packs"]["red"]["big_bang_chance"] = 0.0
-	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1}
+	data["scorpio"] = {"enabled": true}
 	assert_true(main.start_run(Balance.from_dict(data)))
 	run = main.run
 	sky = main.get_node("Sky")
@@ -126,40 +126,43 @@ func test_every_lit_landmark_is_the_same_gold() -> void:
 			assert_true(c in [Palette.C0, Palette.C1, Palette.C2, Palette.C3], "gold only: lit reads the same on every size")
 
 
-func test_a_full_sun_ignites_then_starts_again_and_its_stars_shine_their_dust() -> void:
+func test_a_full_sun_ignites_lights_its_landmark_then_bursts_the_stars_left() -> void:
 	run.light = 95
-	var payer: Star = _star(Star.Size.SMALL, Vector2i(150, 240))
+	var left: Star = _star(Star.Size.SMALL, Vector2i(150, 240))
 	var ids: Array[int] = []
 	for x: int in [20, 40, 60]:
 		ids.append(_star(Star.Size.BIG, Vector2i(x, 100)).id)
-	var shone: Array[int] = []
-	sky.star_shone.connect(func(order: int) -> void: shone.append(order))
+	var target: int = run.rekindle_target()
+	var burst: Array[Vector2i] = []
+	sky.star_exploded.connect(func(at: Vector2i) -> void: burst.append(at))
 	run.link(ids)
 	var sun: SunView = main.get_node("Sun")
 	var particles: CollectParticles = main.get_node("CollectParticles")
-	var view: StarView = sky.star_view(payer.id)
+	var view: StarView = sky.star_view(left.id)
 	view.set_process(false)
+	var dust_before: int = run.dust
 	sequencer.advance(0.0)
 	for i: int in 60:
-		_tick([sequencer, particles, sun], 1.0 / 30.0)
+		_tick([sequencer, particles, sun, constellation, view], 1.0 / 30.0)
 	assert_true(sun.is_igniting(), "the Sun plays its ignition")
+	assert_eq(burst, [] as Array[Vector2i], "the stars wait for it")
 	for i: int in 50:
-		_tick([sequencer, particles, sun], 1.0 / 30.0)
+		_tick([sequencer, particles, sun, constellation, view], 1.0 / 30.0)
 	assert_false(sun.is_igniting())
 	assert_gt(sun.progress(), 0.0, "still shining while its sunbeam flies")
-	for i: int in ceili(ConstellationView.BEAM_TIME * 30.0) + 1:
-		_tick([sequencer, particles, sun], 1.0 / 30.0)
+	assert_eq(burst, [] as Array[Vector2i], "and for the sunbeam")
+	for i: int in ceili(ConstellationView.BEAM_TIME * 30.0) + 2:
+		_tick([sequencer, particles, sun, constellation], 1.0 / 30.0)
+		if is_instance_valid(view):
+			view.advance(1.0 / 30.0)
 	assert_almost_eq(sun.progress(), 0.0, 0.001, "then starts again from 0")
 	assert_eq((main.get_node("HUD/Light") as Label).text, "0/100")
-	assert_eq(shone, [0] as Array[int], "the star paying the dust shines")
-	view.advance(StarView.SHINE_PEAK)
-	assert_true(view.is_shining())
-	assert_eq(particles.in_flight(CollectParticles.Kind.DUST), 1, "one dust from the one star")
+	assert_true(constellation.shows_lit(target), "its landmark lit")
+	assert_eq(burst, [left.position], "then the star left bursts")
+	assert_eq(sky.star_count(), 0, "a clean sky")
 	particles.advance(5.0)
+	assert_eq(run.dust, dust_before, "no dust for it")
 	assert_eq((main.get_node("HUD/Dust") as Label).text, "%d" % run.dust)
-	view.advance(1.0)
-	assert_false(view.is_shining(), "and settles back")
-	assert_not_null(sky.star_view(payer.id), "it stays in the sky")
 
 
 func test_completion_bursts_every_star_left_lowest_first_before_the_tune() -> void:
@@ -513,7 +516,7 @@ func _reach_run() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
 	data["packs"]["red"]["big_bang_chance"] = 0.0
-	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "max_link_distance": 56, "sun_target": 50}
+	data["scorpio"] = {"enabled": true, "max_link_distance": 56, "sun_target": 50}
 	assert_true(main.start_run(Balance.from_dict(data)))
 	run = main.run
 
