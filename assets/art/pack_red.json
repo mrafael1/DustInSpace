@@ -18,7 +18,12 @@
     "grown",
     "grown_bright",
     "hud",
-    "hud_bright",
-    "hud_grey"
+    "hud_grey",
+    "hud_bright_0",
+    "hud_bright_1",
+    "hud_bright_2",
+    "hud_bright_3",
+    "hud_bright_4",
+    "hud_bright_5"
   ]
 }

@@ -4,8 +4,9 @@
                                 the top-left, no outline. Frames: idle_0-idle_5 (the idle spin: the
                                 bands drift a pixel per frame, a full turn in 6), bright, grown,
                                 grown_bright (the tremble: a step up the ramp, then one radius
-                                bigger), hud (r6), hud_bright (r6, a step up: the dust can buy
-                                one), hud_grey (r6 on the land ramp M1-M5: it can't).
+                                bigger), hud (r6), hud_grey (r6 in flat land greys M3-M5: the dust
+                                can't buy one), hud_bright_0-hud_bright_5 (r6, a step up and
+                                spinning like the idle: it can).
   pack_burst.png                the opening's ring: 3 frames growing 5 -> 9 -> 13 px, dithered 50%.
   slingshot.png                 the fork (handle, crescent arms, star gems): 4 pull frames, the
                                 gems warming C3 -> C0 as the pull grows. The bands are drawn in code.
@@ -43,7 +44,7 @@ PAL = {k: hex_rgb(v) for k, v in {
 }.items()}
 BLUE = [hex_rgb(h) for h in ["12245A", "1D4696", "2F78D0", "62B4F0", "B8E6FF"]]
 RED = [hex_rgb(h) for h in ["4A1226", "862032", "C8413A", "F07A4E", "FFC09A"]]
-GREY = [hex_rgb(h) for h in ["121638", "1B2150", "2B3470", "4A5AA8", "9FB0EE"]]
+GREY = [hex_rgb(h) for h in ["2B3470", "4A5AA8", "4A5AA8", "9FB0EE", "9FB0EE"]]
 
 # --- packs (was PackView.pixels) -----------------------------------------------------------
 PACK_RADIUS = {"blue": 8, "red": 6}
@@ -55,7 +56,8 @@ SPIN_FRAMES = 6
 PACK_FRAMES = [(f"idle_{i}", False, False, 0, i, False) for i in range(SPIN_FRAMES)] + [
     ("bright", False, True, 0, 0, False), ("grown", True, False, 0, 0, False),
     ("grown_bright", True, True, 0, 0, False), ("hud", False, False, HUD_RADIUS, 0, False),
-    ("hud_bright", False, True, HUD_RADIUS, 0, False), ("hud_grey", False, False, HUD_RADIUS, 0, True)]
+    ("hud_grey", False, False, HUD_RADIUS, 0, True)] + [
+    (f"hud_bright_{i}", False, True, HUD_RADIUS, i, False) for i in range(SPIN_FRAMES)]
 
 
 def pack_pixels(kind: str, grown: bool, bright: bool, radius: int, spin: int = 0, grey: bool = False) -> dict:

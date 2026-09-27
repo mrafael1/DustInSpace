@@ -28,8 +28,17 @@ static func named(name: String) -> ArtStrip:
 		strip.origin = Vector2i(int(data["origin"][0]), int(data["origin"][1]))
 		for frame: String in data["frames"]:
 			strip.frames.append(frame)
+		if not strip.fits_texture():
+			push_error("%s%s.png is %s but its sidecar lists %d frames of %s: re-import the art (open the editor, or godot --headless --path . --import)"
+				% [ART_DIR, name, strip.texture.get_size(), strip.frames.size(), strip.frame_size])
 		_loaded[name] = strip
 	return _loaded[name]
+
+
+## Whether the texture holds every frame the sidecar lists. A stale import (a PNG that grew but
+## wasn't re-imported) doesn't, and its missing frames would draw nothing.
+func fits_texture() -> bool:
+	return texture != null and texture.get_size() == Vector2(frame_size.x * frames.size(), frame_size.y)
 
 
 func has_frame(frame: String) -> bool:

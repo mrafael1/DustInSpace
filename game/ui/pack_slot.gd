@@ -1,7 +1,7 @@
 class_name PackSlot
 extends Node2D
 ## One pack in the HUD: its icon (r6) with "×count", and "◆cost" below.
-## The icon is lit when the dust can buy one and grey when it can't.
+## The icon is grey and still when the dust can't buy one; lit, spinning and hopping when it can.
 ## Two tap targets (docs/design.md, Packs): the icon loads the pack if owned, or buys it if none
 ## is owned; the cost buys one more. The Hud decides what a tap does; this only shows the slot.
 ## Centred on the icon. Numbers are Labels in the 3x5 font; nothing is baked into art.
@@ -14,6 +14,9 @@ const COST_TARGET := Rect2i(-12, 11, 24, 17)
 ## A refused tap nudges the icon (never the numbers) by whole pixels.
 const NUDGE: Array[int] = [1, -1, 1, -1, 0]
 const NUDGE_STEP: float = 0.04
+## A buyable icon spins (PackView) and hops 1 px for HOP_TIME every HOP_PERIOD, starting at once.
+const HOP_PERIOD: float = 1.5
+const HOP_TIME: float = 0.16
 
 var kind: String = "":
 	set(value):
@@ -22,6 +25,8 @@ var kind: String = "":
 			_icon.kind = value
 
 var _loaded: bool = false
+var _affordable: bool = false
+var _hop_time: float = 0.0
 var _nudge_time: float = -1.0
 
 @onready var _icon: PackView = $Icon
@@ -54,6 +59,9 @@ func show_pack(count: int, cost: int, affordable: bool, loaded: bool) -> void:
 	# The planet too: lit one step up its ramp when a buy would work, grey when it wouldn't.
 	_icon.bright = affordable
 	_icon.greyed = not affordable
+	if affordable and not _affordable:
+		_hop_time = 0.0
+	_affordable = affordable
 	_loaded = loaded
 	queue_redraw()
 
@@ -79,9 +87,16 @@ func is_nudging() -> bool:
 	return _nudge_time >= 0.0
 
 
-## Moves the nudge forward. Driven by `_process`; tests call it directly.
+func is_hopping() -> bool:
+	return _icon.position.y < 0.0
+
+
+## Moves the nudge and the buyable hop forward. Driven by `_process`; tests call it directly.
+## A nudge wins over the hop.
 func advance(delta: float) -> void:
+	_hop_time = fmod(_hop_time + delta, HOP_PERIOD)
 	if _nudge_time < 0.0:
+		_icon.position = Vector2(0, -1 if _affordable and _hop_time < HOP_TIME else 0)
 		return
 	_nudge_time += delta
 	var step: int = int(_nudge_time / NUDGE_STEP)
