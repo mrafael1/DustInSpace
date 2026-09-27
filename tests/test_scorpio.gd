@@ -111,6 +111,49 @@ func test_lighting_every_landmark_wins() -> void:
 	assert_eq(run.outcome, RunState.Outcome.WON, "the constellation is the objective")
 
 
+func test_completing_the_constellation_clears_the_sky_for_nothing() -> void:
+	for index: int in range(2, Scorpio.LANDMARKS.size() - 1):
+		_light(index)
+	var left: Array[int] = []
+	for x: int in [40, 60, 80]:
+		left.append(run.add_star(SMALL, Vector2i(x, 120)).id)
+	var dust: int = run.dust
+	var light: int = run.light
+	var order: Array[String] = []
+	var cleared: Array[int] = []
+	run.sky_cleared.connect(func(stars: Array[Star]) -> void:
+		order.append("cleared")
+		for star: Star in stars:
+			cleared.append(star.id))
+	run.constellation_completed.connect(func() -> void: order.append("completed"))
+	run.run_won.connect(func() -> void: order.append("won"))
+	_light(Scorpio.LANDMARKS.size() - 1)
+	assert_eq(cleared, left, "every star still in the sky goes")
+	assert_eq(run.stars.size(), 0, "a clean sky")
+	assert_eq(order, ["cleared", "completed", "won"] as Array[String])
+	var reward: Balance.ComboReward = run.balance.combos["big_triple"]
+	assert_eq([run.dust, run.light], [dust + reward.dust, light + reward.light], "only the last combo pays")
+
+
+func test_an_empty_sky_isnt_cleared() -> void:
+	for index: int in range(2, Scorpio.LANDMARKS.size() - 1):
+		_light(index)
+	var cleared: Array[bool] = []
+	run.sky_cleared.connect(func(_s: Array[Star]) -> void: cleared.append(true))
+	_light(Scorpio.LANDMARKS.size() - 1)
+	assert_eq(cleared, [] as Array[bool], "nothing to clear, no event")
+	assert_eq(run.outcome, RunState.Outcome.WON)
+
+
+func test_lighting_a_landmark_short_of_the_end_keeps_the_sky() -> void:
+	var near: Star = run.add_star(BIG, Vector2i(40, 120))
+	var cleared: Array[bool] = []
+	run.sky_cleared.connect(func(_s: Array[Star]) -> void: cleared.append(true))
+	_light(2)
+	assert_eq(cleared, [] as Array[bool])
+	assert_not_null(run.find_star(near.id))
+
+
 func test_a_full_sun_rekindles_lights_a_landmark_and_pays_for_the_sky() -> void:
 	run.light = 90
 	var rekindled: Array = []
