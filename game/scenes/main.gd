@@ -23,10 +23,13 @@ var run: RunState
 @onready var _launcher: Launcher = $Launcher
 @onready var _sky: SkyView = $Sky
 @onready var _big_bang: BigBangSequence = $BigBang
+@onready var _sound_toggle: SoundToggle = $SoundToggle
 
 
 func _ready() -> void:
-	assert(_sequencer.get_index() == get_child_count() - 1, "EventSequencer must be Main's last child to lock input")
+	# _input runs from the last child up: the speaker first, then the sequencer's input lock.
+	assert(_sound_toggle.get_index() == get_child_count() - 1, "SoundToggle must be Main's last child")
+	assert(_sequencer.get_index() == get_child_count() - 2, "EventSequencer must come right before it to lock input")
 	# Payouts travel: the counters tick up as the collect particles land on them.
 	_collect.dust_arrived.connect(_hud.receive_dust)
 	_collect.light_arrived.connect(_hud.receive_light)
@@ -69,7 +72,7 @@ func _wire_sound() -> void:
 	_launcher.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
 	_sky.star_selected.connect(_sfx.on_star_selected)
 	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
-	_hud.sound_toggled.connect(_sfx.cycle_level)
+	_sound_toggle.toggled.connect(_sfx.cycle_level)
 	_sfx.level_changed.connect(_hud.show_sound_level)
 	_hud.show_sound_level(_sfx.level)
 	_big_bang.collapse_started.connect(_sfx.play.bind(&"big_bang_collapse", 1.0))

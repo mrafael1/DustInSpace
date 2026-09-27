@@ -11,16 +11,14 @@ extends CanvasLayer
 ## by Main): the counter ticks up and hops a pixel. Until then that amount is "in flight". The core
 ## has already credited it, so a purchase may spend it: that part becomes a debt the next landings
 ## pay first, the counter never drops below 0, and it always ends on the run's total.
-## The speaker in the top-left corner asks for the next sound level (sound_toggled); Main wires
-## it to Sfx, which answers through show_sound_level().
+## The speaker in the top-left corner only shows the sound level (show_sound_level); its taps go
+## to SoundToggle, ahead of the gameplay input gates.
 ## Costs light up against the shown counter: as the dust lands, the pack reacts (its one-off cue
 ## plays on the crossing). Buying works on the dust owned (shown + in flight - debt), which is never
 ## less, so a lit cost always buys; right after a collect, a grey one may buy too.
 
 ## A pack tap the run refused (the icon nudges). Feedback only (sound).
 signal tap_refused(kind: String)
-## The speaker was tapped.
-signal sound_toggled
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -132,6 +130,11 @@ func sound_level() -> int:
 	return _sound.level
 
 
+## The speaker's tap target on screen (SoundToggle takes the taps).
+func sound_target() -> Rect2i:
+	return Rect2i(SoundIcon.TARGET.position + Vector2i(_sound.position), SoundIcon.TARGET.size)
+
+
 func slot(kind: String) -> PackSlot:
 	return _slots.get(kind)
 
@@ -157,11 +160,8 @@ func handle_pointer(event: InputEvent) -> bool:
 	return true
 
 
-## The tap target under a screen point, as [kind, &"icon" or &"cost"], ["", &"sound"] for the
-## speaker, or [] for none.
+## The tap target under a screen point, as [kind, &"icon" or &"cost"], or [] for none.
 func target_at(point: Vector2i) -> Array:
-	if SoundIcon.TARGET.has_point(point - Vector2i(_sound.position)):
-		return ["", &"sound"]
 	for kind: String in _slots:
 		var part: StringName = _slots[kind].target_at(point - Vector2i(_slots[kind].position))
 		if part != &"":
@@ -170,9 +170,6 @@ func target_at(point: Vector2i) -> Array:
 
 
 func _tap(kind: String, part: StringName) -> void:
-	if part == &"sound":
-		sound_toggled.emit()
-		return
 	var done: bool
 	if part == &"icon":
 		done = _run.load_pack(kind) or _run.buy(kind)
