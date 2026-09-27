@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://game/scenes/event_sequencer.gd" id="2_sequencer"]
@@ -12,6 +12,8 @@
 [ext_resource type="PackedScene" path="res://game/fx/big_bang.tscn" id="10_big_bang"]
 [ext_resource type="PackedScene" path="res://game/ui/end_screen.tscn" id="11_end"]
 [ext_resource type="Texture2D" path="res://assets/art/background.png" id="12_background"]
+[ext_resource type="Script" path="res://game/fx/sfx.gd" id="13_sfx"]
+[ext_resource type="Script" path="res://game/ui/sound_toggle.gd" id="14_sound_toggle"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -39,6 +41,9 @@ script = ExtResource("9_collect")
 
 [node name="EndScreen" parent="." instance=ExtResource("11_end")]
 
+[node name="Sfx" type="Node" parent="."]
+script = ExtResource("13_sfx")
+
 [node name="DebugKeys" type="Node" parent="."]
 script = ExtResource("4_debug_keys")
 
@@ -57,3 +62,6 @@ autowrap_mode = 3
 
 [node name="EventSequencer" type="Node" parent="."]
 script = ExtResource("2_sequencer")
+
+[node name="SoundToggle" type="Node" parent="."]
+script = ExtResource("14_sound_toggle")

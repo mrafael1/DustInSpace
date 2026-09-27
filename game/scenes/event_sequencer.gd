@@ -5,7 +5,8 @@ extends Node
 ## animation speed. Views listen to `event_played` and call `hold()` for however long
 ## their animation for that event takes. The next event plays when the longest hold ends.
 ## Pointer input is swallowed while a sequence plays. For that to work this node must be
-## the last child of Main: `_input` runs on the last node in tree order first.
+## after every view in Main (only SoundToggle, which takes speaker taps alone, comes after it):
+## `_input` runs on the last node in tree order first.
 
 signal sequence_started
 signal event_played(event: RunEvent)

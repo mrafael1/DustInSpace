@@ -10,6 +10,9 @@ extends Node2D
 ## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
 
+## A star joined the link being traced; `count` stars are in it now. Feedback only (sound).
+signal star_selected(count: int)
+
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
 ## Each star of a burst leaves a little after the previous one.
@@ -28,6 +31,8 @@ var _launched_kind: String = ""
 var _decoy_rng := RandomNumberGenerator.new()
 ## Where the pointer is, for the line that follows a drag.
 var _finger: Vector2i = Vector2i.ZERO
+## Stars in the link as last shown, to tell a star joining it from one leaving.
+var _selected_count: int = 0
 
 @onready var _halo_layer: Node2D = $HaloLayer
 @onready var _link_layer: LinkLayer = $LinkLayer
@@ -143,6 +148,9 @@ func _on_touch(touch: InputEventScreenTouch) -> bool:
 func _on_selection_changed(ids: Array[int]) -> void:
 	for id: int in _views:
 		_views[id].selected = ids.has(id)
+	if ids.size() > _selected_count:
+		star_selected.emit(ids.size())
+	_selected_count = ids.size()
 	_show_link()
 
 

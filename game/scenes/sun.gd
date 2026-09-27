@@ -14,6 +14,9 @@ extends Node2D
 ## Every pixel is a palette colour at an integer offset from the centre; the node sits on whole pixels.
 
 ## Sun art: an r17 disc and 12 rays (art-direction.md).
+## The ignition started: the last light landed on a won run. Feedback only (sound).
+signal ignited
+
 const RADIUS: int = 17
 const DISC_ROWS: int = 2 * RADIUS + 1
 const RAYS: int = 12
@@ -206,6 +209,7 @@ func _ignite() -> void:
 	_ignite_time = 0.0
 	_pulse_left = PULSE_TIME
 	_sequencer.hold(IGNITE_TIME)
+	ignited.emit()
 	queue_redraw()
 
 

@@ -5,6 +5,14 @@ extends Node2D
 ## contents are rolled by the core. Then the pack flies, trembles and bursts as the events play.
 ## Owns no rules: which pack is loaded comes from pack_loaded / pack_bought / pack_launched events.
 ## Works in its own coordinates: the pack rests at (0, 0), which is where this node sits.
+## Its signals are for feedback only (sound): the pull and the tremble aren't run events.
+
+signal pull_started
+## The pull reached a new gem frame, 1 to PULL_FRAMES - 1 (only as it grows).
+signal pull_stepped(frame: int)
+## The player let go too short, or the touch was cancelled: the pack snapped back.
+signal pull_cancelled
+signal tremble_started
 
 enum Flight { NONE, FLYING, TREMBLING }
 
@@ -118,7 +126,10 @@ func handle_pointer(event: InputEvent) -> bool:
 			return _start_pull(point)
 		return _end_pull(true)
 	if event is InputEventScreenDrag and (event as InputEventScreenDrag).index == 0 and _pulling:
+		var frame: int = pull_frame()
 		_pull = clamp_pull((event as InputEventScreenDrag).position)
+		if pull_frame() > frame:
+			pull_stepped.emit(pull_frame())
 		_rest_pack.position = Vector2(pull_pixel())
 		queue_redraw()
 		return true
@@ -144,6 +155,7 @@ func advance(delta: float) -> void:
 		if _flight == Flight.FLYING and _flight_time >= FLIGHT_TIME:
 			_flight = Flight.TREMBLING
 			_flight_time -= FLIGHT_TIME
+			tremble_started.emit()
 	if _burst_time >= 0.0:
 		_burst_time += delta
 		if _burst_time >= BURST_RADII.size() * BURST_FRAME_TIME:
@@ -196,6 +208,7 @@ func _start_pull(point: Vector2i) -> bool:
 	_pulling = true
 	_pull = Vector2.ZERO
 	queue_redraw()
+	pull_started.emit()
 	return true
 
 
@@ -207,6 +220,8 @@ func _end_pull(release: bool) -> bool:
 	cancel_pull()
 	if release and pull.length() >= MIN_PULL:
 		_run.launch(aim_target(origin(), pull))
+	else:
+		pull_cancelled.emit()
 	return true
 
 

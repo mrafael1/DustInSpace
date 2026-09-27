@@ -10,6 +10,8 @@ extends CanvasLayer
 ## N6 border with clipped corners, like the reward plaque. The button is warm: it's interactive.
 
 signal restart_requested
+## The plaque appeared. Feedback only (sound).
+signal shown(won: bool)
 
 const WIDTH: int = 140
 const CENTRE_X: int = 90
@@ -144,6 +146,7 @@ func _show_end() -> void:
 	_pressed = false
 	visible = true
 	_canvas.queue_redraw()
+	shown.emit(_run.outcome == RunState.Outcome.WON)
 
 
 ## Detaches the last ending's rows before freeing them: queue_free alone leaves them counted as

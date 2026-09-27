@@ -11,9 +11,16 @@ extends CanvasLayer
 ## by Main): the counter ticks up and hops a pixel. Until then that amount is "in flight". The core
 ## has already credited it, so a purchase may spend it: that part becomes a debt the next landings
 ## pay first, the counter never drops below 0, and it always ends on the run's total.
+## The speaker in the top-left corner only shows the sound level (show_sound_level); its taps go
+## to SoundToggle, ahead of the gameplay input gates.
 ## Costs light up against the shown counter: as the dust lands, the pack reacts (its one-off cue
 ## plays on the crossing). Buying works on the dust owned (shown + in flight - debt), which is never
 ## less, so a lit cost always buys; right after a collect, a grey one may buy too.
+
+## A pack tap the run refused (the icon nudges). Feedback only (sound).
+signal tap_refused(kind: String)
+## A pack became buyable as the dust landed (its slot's cue). Feedback only (sound).
+signal pack_ready(kind: String)
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -47,6 +54,7 @@ var _rest: Dictionary[Label, Vector2] = {}
 @onready var _dust: Label = $Dust
 @onready var _light: Label = $Light
 @onready var _slot_layer: Node2D = $Slots
+@onready var _sound: SoundIcon = $SoundIcon
 
 
 func _ready() -> void:
@@ -115,6 +123,20 @@ func advance(delta: float) -> void:
 		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
 
 
+## Shows the sound level (Sfx.Level) on the speaker.
+func show_sound_level(level: int) -> void:
+	_sound.level = level
+
+
+func sound_level() -> int:
+	return _sound.level
+
+
+## The speaker's tap target on screen (SoundToggle takes the taps).
+func sound_target() -> Rect2i:
+	return Rect2i(SoundIcon.TARGET.position + Vector2i(_sound.position), SoundIcon.TARGET.size)
+
+
 func slot(kind: String) -> PackSlot:
 	return _slots.get(kind)
 
@@ -157,6 +179,7 @@ func _tap(kind: String, part: StringName) -> void:
 		done = _run.buy(kind)
 	if not done:
 		_slots[kind].nudge()
+		tap_refused.emit(kind)
 
 
 func _on_event_played(event: EventSequencer.RunEvent) -> void:
@@ -211,4 +234,5 @@ func _build_slots(kinds: Array[String]) -> void:
 		pack_slot.kind = kinds[i]
 		pack_slot.position = Vector2(LAST_SLOT_X - SLOT_SPACING * (kinds.size() - 1 - i), SLOT_Y)
 		_slot_layer.add_child(pack_slot)
+		pack_slot.cue_started.connect(pack_ready.emit)
 		_slots[kinds[i]] = pack_slot
