@@ -45,6 +45,7 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 - Buying a pack loads it into the launcher. The player chooses which owned pack to load.
 - In the HUD, tapping a pack's icon **loads** it if the player owns one (free, never a purchase), or **buys** it if they own none and can afford it.
 - Under each icon, a **buy button** ("+◆cost") always buys one more, however many are owned. It's drawn as a small plate with a "+", so it reads as a button without being explained. Its border is warm when the dust is there and cool when it isn't. It lightens while pressed, flashes when the buy plays, and turns red with a refused tap (the icon nudges too). A buy charges the cost once, adds one pack and loads it.
+- The icon is lit and spinning while tapping it does something: at least one is owned, or the dust buys the first. It's grey and still only when none is owned and none is affordable. It hops now and then while the dust can buy one.
 - Tap targets are 44 pt (22 native px) each: the icon's reaches up into the land strip, the button's runs to the bottom of the screen.
 
 ### Legendary opening: Big Bang

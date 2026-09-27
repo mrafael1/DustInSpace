@@ -140,7 +140,7 @@ func test_a_grey_pack_still_buys_with_dust_that_is_flying() -> void:
 	hud.refresh()
 	_link_small_triple()
 	sequencer.advance(0.0)
-	assert_true(_icon("blue").greyed, "the counter still reads 2")
+	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "the counter still reads 2")
 	var owned: int = run.owned_packs["blue"]
 	_tap_part("blue", &"cost")
 	assert_eq(run.owned_packs["blue"], owned + 1, "the core owns the dust: buying is unchanged")
@@ -256,16 +256,21 @@ func test_blue_and_red_cue_on_their_own_costs() -> void:
 	assert_false(blue.is_cueing(), "blue was buyable all along")
 
 
-func test_a_pack_icon_is_lit_when_affordable_and_grey_when_not() -> void:
+func test_a_pack_icon_is_lit_while_owned_or_affordable_and_grey_otherwise() -> void:
+	run.owned_packs["blue"] = 0
+	run.owned_packs["red"] = 0
 	run.dust = 5
 	hud.refresh()
-	assert_true(_icon("blue").bright, "5 dust buys a blue")
+	assert_true(_icon("blue").bright, "none owned, but 5 dust buys a blue")
 	assert_false(_icon("blue").greyed)
-	assert_true(_icon("red").greyed, "but not a red")
+	assert_true(_icon("red").greyed, "none owned and 7 is out of reach")
 	assert_false(_icon("red").bright)
 	run.dust = 0
+	run.owned_packs["red"] = 1
 	hud.refresh()
-	assert_true(_icon("blue").greyed, "grey even while one is still owned")
+	assert_true(_icon("red").bright, "owned: lit and spinning even with no dust")
+	assert_false(_icon("red").greyed)
+	assert_true(_icon("blue").greyed, "none owned, none affordable: grey")
 
 
 func test_a_buyable_icon_spins_and_a_grey_one_stays_still() -> void:
