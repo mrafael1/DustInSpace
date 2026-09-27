@@ -11,6 +11,19 @@ const HUD := Rect2i(0, 284, 180, 36)
 ## the view to fill the window at a whole-number scale, fill_size): the game sits at the bottom,
 ## centred across, and the Backdrop fills the rest (mostly sky above).
 const SCREEN := Vector2i(180, 320)
+## The Sun's centre on a 9:16 screen. On a taller one it rises by the extra height (sun_centre),
+## to the top of the screen, and the play sky grows up into the space it leaves (play_sky).
+const SUN_CENTRE := Vector2i(90, 39)
+
+
+## The play sky when the screen shows `extra` more rows above the game's 180x320.
+static func play_sky(extra: int) -> Rect2i:
+	return Rect2i(SKY.position.x, SKY.position.y - extra, SKY.size.x, SKY.size.y + extra)
+
+
+## The Sun's centre when the screen shows `extra` more rows above the game's 180x320.
+static func sun_centre(extra: int) -> Vector2i:
+	return SUN_CENTRE - Vector2i(0, extra)
 
 
 ## The largest whole-number scale at which the game's screen fits in a window of `window` px.

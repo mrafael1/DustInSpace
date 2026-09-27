@@ -161,7 +161,7 @@ func star_at(point: Vector2i) -> int:
 		for i: int in Scorpio.LANDMARKS.size():
 			if _run.scorpio.is_lit(i):
 				continue
-			var dist_sq: int = (Scorpio.LANDMARKS[i] - point).length_squared()
+			var dist_sq: int = (_run.scorpio.landmark_position(i) - point).length_squared()
 			if dist_sq < best_dist_sq:
 				best_dist_sq = dist_sq
 				best_id = Scorpio.landmark_id(i)
@@ -337,7 +337,7 @@ func _positions_of_ids(ids: Array[int]) -> Array[Vector2i]:
 	var points: Array[Vector2i] = []
 	for id: int in ids:
 		if _run.scorpio != null and Scorpio.is_landmark_id(id):
-			points.append(Scorpio.LANDMARKS[Scorpio.landmark_index(id)])
+			points.append(_run.scorpio.landmark_position(Scorpio.landmark_index(id)))
 			continue
 		var star: Star = _run.find_star(id)
 		if star != null:

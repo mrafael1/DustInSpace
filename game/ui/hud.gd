@@ -33,6 +33,7 @@ const SLOT_Y: int = 290
 const SOUND_AT := Vector2i(4, 4)
 const DUST_ICON_AT := Vector2i(12, 300)
 const DUST_AT := Vector2i(20, 297)
+const LIGHT_AT := Vector2i(60, 66)
 ## A counter hops 1 px up for this long when a particle lands on it.
 const HOP_TIME: float = 0.1
 
@@ -75,7 +76,7 @@ func _process(delta: float) -> void:
 
 ## Anchors the HUD to the real screen, `screen` in game coordinates (on a 9:16 screen, the game's
 ## own 0,0 180x320): the speaker in its top-left corner, the dust counter on its bottom-left, the
-## pack slots on its bottom-right. The Sun's light counter stays under the Sun.
+## pack slots on its bottom-right. The Sun's light counter stays under the Sun (at the top).
 func fit_screen(screen: Rect2i) -> void:
 	var bottom: int = screen.end.y - ScreenZones.SCREEN.y
 	_sound.position = Vector2(SOUND_AT + screen.position)
@@ -83,6 +84,9 @@ func fit_screen(screen: Rect2i) -> void:
 	_rest[_dust] = Vector2(DUST_AT + Vector2i(screen.position.x, bottom))
 	_dust.position = _rest[_dust]
 	_slot_layer.position = Vector2(screen.end.x - ScreenZones.SCREEN.x, bottom)
+	# The light counter stays under the Sun, which rises to the top of the screen.
+	_rest[_light] = Vector2(LIGHT_AT + Vector2i(0, screen.position.y))
+	_light.position = _rest[_light]
 
 
 func _unhandled_input(event: InputEvent) -> void:

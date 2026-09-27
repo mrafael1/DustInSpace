@@ -80,7 +80,7 @@ func _draw() -> void:
 	if frame > 0:
 		if not _glow_textures.has(frame):
 			_glow_textures[frame] = ImageTexture.create_from_image(sky_glow(frame, Vector2i(global_position)))
-		draw_texture(_glow_textures[frame], -global_position)
+		draw_texture(_glow_textures[frame], Vector2(0, glow_top(Vector2i(global_position))) - global_position)
 	var lit: bool = frame > 0
 	var dots: Dictionary[Vector2i, Color] = pixels(
 		DISC_ROWS if lit else fill_rows(), RAYS if lit else lit_rays(), lit, is_pulsing(), _ripple)
@@ -188,20 +188,28 @@ static func pixels(p_fill_rows: int, p_lit_rays: int, p_ignited: bool, p_lifted:
 	return dots
 
 
-## The warm glow over the sky while the Sun ignites, in screen pixels down to the sky's bottom
-## edge: dithered C4 then C5 bands whose reach grows with the frame. Halo colours only.
+## Where the sky glow starts: the top of the screen above a Sun at `centre` (0 on a 9:16 screen;
+## a Sun risen on a taller screen takes the glow up with it).
+static func glow_top(centre: Vector2i) -> int:
+	return mini(0, centre.y - ScreenZones.SUN_CENTRE.y)
+
+
+## The warm glow over the sky while the Sun ignites, in game pixels from the top of the screen
+## (glow_top) down to the sky's bottom edge: dithered C4 then C5 bands whose reach grows with the
+## frame. Halo colours only.
 static func sky_glow(frame: int, centre: Vector2i) -> Image:
-	var size := Vector2i(ScreenZones.SKY.end.x, ScreenZones.SKY.end.y)
+	var top: int = glow_top(centre)
+	var size := Vector2i(ScreenZones.SKY.end.x, ScreenZones.SKY.end.y - top)
 	var image := Image.create_empty(size.x, size.y, false, Image.FORMAT_RGBA8)
 	var reach: float = lerpf(RADIUS + 13, GLOW_REACH, float(frame) / IGNITE_FRAMES)
 	for y: int in size.y:
 		for x: int in size.x:
-			var d: float = Vector2(x - centre.x, y - centre.y).length()
+			var d: float = Vector2(x - centre.x, y + top - centre.y).length()
 			if d <= RADIUS + 13 or d >= reach:
 				continue
 			var colour: Color = Palette.C4 if d < 60 else Palette.C5
 			var density: float = 0.125 if d >= 120 else 0.25
-			if _bayer(x, y) < density:
+			if _bayer(x, y + top) < density:
 				image.set_pixel(x, y, colour)
 	return image
 

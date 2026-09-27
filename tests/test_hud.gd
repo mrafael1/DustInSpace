@@ -652,4 +652,4 @@ func test_the_hud_anchors_to_a_taller_phone_screens_corners() -> void:
 	assert_eq(Vector2i((hud.get_node("DustIcon") as Node2D).position), Hud.DUST_ICON_AT + Vector2i(-7, 0))
 	var blue_at: Vector2i = blue_before + Vector2i(phone.end.x - ScreenZones.SCREEN.x, 0)
 	assert_eq(hud.target_at(blue_at + PackSlot.COST_TARGET.get_center()), ["blue", &"cost"], "the slots on its right edge, taps follow")
-	assert_eq(Vector2i((hud.get_node("Light") as Label).position), Vector2i(60, 66), "the light counter stays under the Sun")
+	assert_eq(Vector2i((hud.get_node("Light") as Label).position), Hud.LIGHT_AT + Vector2i(0, -102), "the light counter rises with the Sun")

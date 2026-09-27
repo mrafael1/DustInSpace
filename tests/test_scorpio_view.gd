@@ -511,6 +511,27 @@ func test_the_hud_shows_scorpios_sun_target() -> void:
 	assert_eq((main.get_node("HUD/Light") as Label).text, "0/50")
 
 
+func test_on_a_taller_sky_the_constellation_is_drawn_and_picked_where_it_moved() -> void:
+	var data: Dictionary = Fixtures.balance_dict()
+	data["packs"]["blue"]["big_bang_chance"] = 0.0
+	data["packs"]["red"]["big_bang_chance"] = 0.0
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1}
+	var tall := RunState.new(Balance.from_dict(data), Fixtures.rng(), ScreenZones.play_sky(102))
+	sky.setup(tall, sequencer)
+	assert_eq(constellation.position, Vector2(0, -51), "the whole map view moves with it")
+	assert_eq(sky.star_at(tall.scorpio.landmark_position(2)), Scorpio.landmark_id(2), "picked where it is now")
+	assert_eq(sky.star_at(Scorpio.LANDMARKS[2]), 0, "not at its home spot")
+
+
+func test_the_sun_glow_reaches_the_top_of_a_taller_screen() -> void:
+	assert_eq(SunView.glow_top(ScreenZones.SUN_CENTRE), 0, "9:16: from the game's top")
+	var risen: Vector2i = ScreenZones.sun_centre(102)
+	assert_eq(risen, Vector2i(90, -63))
+	assert_eq(SunView.glow_top(risen), -102)
+	var glow: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, risen)
+	assert_eq(glow.get_size(), Vector2i(180, ScreenZones.SKY.end.y + 102), "down to the sky's bottom")
+
+
 func test_a_normal_run_draws_no_constellation() -> void:
 	main.start_run(Fixtures.balance())
 	var ids: Array[int] = []

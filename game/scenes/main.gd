@@ -12,6 +12,9 @@ signal run_started(run: RunState)
 @export_file("*.json") var balance_path: String = Balance.DEFAULT_PATH
 
 var run: RunState
+## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
+## the next run's play sky grows by it.
+var _extra: int = 0
 
 @onready var _sequencer: EventSequencer = $EventSequencer
 @onready var _balance_errors: Label = $DebugLayer/BalanceErrors
@@ -55,7 +58,7 @@ func start_run(balance: Balance) -> bool:
 		_report_balance_errors(balance.errors)
 		return false
 	_balance_errors.visible = false
-	run = RunState.new(balance, _new_rng(), ScreenZones.SKY)
+	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra))
 	_sequencer.bind(run)
 	for child: Node in get_children():
 		if child.has_method("setup"):
@@ -84,6 +87,11 @@ func fit_screen() -> void:
 	_hud.fit_screen(screen)
 	_sound_toggle.target = _hud.sound_target()
 	_end_screen.fit_screen(screen)
+	# The Sun rises to the top of the screen; its light follows it. A run already in play keeps its
+	# sky: the next one (RESTART) takes the new size.
+	_extra = offset.y
+	_sun.position = Vector2(ScreenZones.sun_centre(_extra))
+	_collect.light_target = ScreenZones.sun_centre(_extra)
 
 
 ## A fresh run on the current run's balance (the end screen's RESTART).
