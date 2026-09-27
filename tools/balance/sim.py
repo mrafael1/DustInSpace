@@ -12,7 +12,10 @@ so real players will do slightly worse than these numbers.
 Scorpio (#40): when balance.json has scorpio.enabled, the objective is the constellation:
 lighting every landmark wins. A combo may use unlit landmarks as stars (at least one sky star in
 it) and lights them; the bots always prefer a combo that lights the most landmarks. A full Sun
-rekindles: back to 0 light, lights one landmark and pays dust per sky star.
+rekindles: back to 0 light, lights one landmark and pays dust per sky star. The Sun fills at
+scorpio.sun_target there (sun_target without it).
+Not modelled: where stars are. The bots link any stars in the sky, so scorpio.max_link_distance
+(each step of a link must be at most that long) is ignored: real Scorpio runs can only do worse.
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
 """
@@ -85,6 +88,7 @@ def run(cfg, policy, lighting_pays="all"):
     scorpio = cfg.get("scorpio", {})
     on = scorpio.get("enabled", False)
     unlit = [size for i, size in enumerate(LANDMARK_SIZES) if i not in STARTING_LIT] if on else []
+    sun_full = scorpio.get("sun_target", cfg["sun_target"]) if on else cfg["sun_target"]
     dust, light = cfg["start_dust"], 0
     packs = ["blue"] * cfg["start_packs"]["blue"] + ["red"] * cfg["start_packs"]["red"]
     sky, opened, big_bangs = [], 0, 0
@@ -122,7 +126,7 @@ def run(cfg, policy, lighting_pays="all"):
             if not lights or lighting_pays in ("all", "light"):
                 light += reward["light"]
             if on:
-                if light >= cfg["sun_target"]:
+                if light >= sun_full:
                     light = 0
                     dust += scorpio["sun_dust_per_star"] * len(sky)
                     if unlit:
@@ -174,8 +178,12 @@ def main():
     cfg = load(a.set)
     print(f"{a.runs} runs per policy{' with ' + ', '.join(a.set) if a.set else ''}")
     print(f"{'policy':<30}{'win %':>7}{'packs to win':>14}{'runs w/ Big Bang':>18}")
-    if cfg.get("scorpio", {}).get("enabled"):
-        print(f"scorpio on (the constellation wins), lighting pays {a.lighting_pays}")
+    scorpio = cfg.get("scorpio", {})
+    if scorpio.get("enabled"):
+        print(f"scorpio on (the constellation wins), lighting pays {a.lighting_pays}, "
+              f"Sun full at {scorpio.get('sun_target', cfg['sun_target'])}")
+        if scorpio.get("max_link_distance"):
+            print(f"  not modelled: max_link_distance {scorpio['max_link_distance']} (the bots ignore where stars are)")
     for name, pol in POLICIES.items():
         res = [run(cfg, pol, a.lighting_pays) for _ in range(a.runs)]
         wins = [r for r in res if r[0]]

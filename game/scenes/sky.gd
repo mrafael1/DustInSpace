@@ -10,7 +10,9 @@ extends Node2D
 ## Scorpio (#40): the ConstellationLayer, under everything, draws the landmarks and the outline.
 ## Unlit landmarks can be picked like stars (their ids are negative, Scorpio.landmark_id); the
 ## combo and the strings a link would form come from RunState. When the Sun rekindles, the stars
-## that pay its dust shine one after another (shine_rekindled, wired by Main).
+## that pay its dust shine one after another (shine_rekindled, wired by Main). Each step of a link
+## has a reach (RunState.link_reach): while tracing, the LinkLayer shows it as a ring around the
+## last star picked, and a star out of reach can't join (its step shakes ember; the link stays).
 ## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
 
@@ -20,6 +22,8 @@ signal star_selected(count: int)
 signal star_shone(order: int)
 ## Scorpio: a second landmark was picked for one link; the link was dropped at once. Feedback only.
 signal link_refused
+## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
+signal step_refused
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -59,6 +63,8 @@ func _ready() -> void:
 	_halo_layer.draw.connect(_draw_halos)
 	_gesture.selection_changed.connect(_on_selection_changed)
 	_gesture.link_requested.connect(_on_link_requested)
+	_gesture.can_join = _can_join
+	_gesture.join_refused.connect(_on_join_refused)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -235,12 +241,34 @@ func _on_link_requested(ids: Array[int]) -> void:
 	_run.link(ids)
 
 
+## A star may join the link only within reach of the last one picked (RunState rules the same).
+func _can_join(ids: Array[int], id: int) -> bool:
+	if ids.is_empty() or _run == null:
+		return true
+	var ends: Array[Vector2i] = _positions_of_ids([ids[-1], id] as Array[int])
+	return ends.size() < 2 or _run.in_reach(ends[0], ends[1])
+
+
+func _on_join_refused(ids: Array[int], id: int) -> void:
+	if ids.is_empty():
+		return
+	_link_layer.flash_rejected(_positions_of_ids([ids[-1], id] as Array[int]))
+	step_refused.emit()
+
+
 ## Line through the selected stars (and to the finger while dragging), plus the reward preview.
+## With a reach, the ring around the last star picked shows how far the next step can go, and the
+## line to the finger goes loose past it.
 func _show_link() -> void:
 	var points: Array[Vector2i] = _positions_of_ids(_gesture.selected)
+	var open: bool = not points.is_empty() and points.size() < Combos.LINK_LENGTH
+	var loose: bool = false
 	if _gesture.is_dragging() and points.size() < Combos.LINK_LENGTH:
+		loose = not points.is_empty() and not _run.in_reach(points[-1], _finger)
 		points.append(_finger)
-	_link_layer.show_path(points)
+	_link_layer.show_path(points, loose)
+	var reach: int = _run.link_reach() if _run != null else 0
+	_link_layer.show_reach(points[_gesture.selected.size() - 1] if open else Vector2i.ZERO, reach if open else 0)
 	_show_preview()
 
 

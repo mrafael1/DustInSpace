@@ -34,6 +34,11 @@ var big_bang_dust_per_cleared_star: int = 0
 var scorpio_enabled: bool = false
 ## Dust per star in the sky when a full Sun rekindles.
 var scorpio_sun_dust_per_star: int = 0
+## The light that fills the Sun on the Scorpio map (it rekindles there). Optional: 0 = sun_target.
+var scorpio_sun_target: int = 0
+## The longest step (native px) between consecutive stars in a link on the Scorpio map.
+## Optional: 0 = no limit.
+var scorpio_max_link_distance: int = 0
 
 var errors: Array[String] = []
 
@@ -139,6 +144,10 @@ func _parse_scorpio(raw: Dictionary) -> void:
 	else:
 		scorpio_enabled = raw["enabled"]
 	scorpio_sun_dust_per_star = _read_int(raw, "sun_dust_per_star", "scorpio.", 0)
+	if raw.has("sun_target"):
+		scorpio_sun_target = _read_int(raw, "sun_target", "scorpio.", 1)
+	if raw.has("max_link_distance"):
+		scorpio_max_link_distance = _read_int(raw, "max_link_distance", "scorpio.", 1)
 
 
 func _read_dict(data: Dictionary, key: Variant, ctx: String) -> Dictionary:

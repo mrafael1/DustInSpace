@@ -5,7 +5,8 @@ extends RefCounted
 ## On the Scorpio map (#40) the objective is the constellation instead: lighting every landmark
 ## wins. A combo may use unlit landmarks as stars (they light up instead of being used up), and a
 ## full Sun doesn't win: it rekindles (back to 0 light), lights one landmark and pays dust for
-## every star in the sky.
+## every star in the sky. There the Sun fills at scorpio.sun_target, and each step of a link, from
+## one star to the next, must be at most scorpio.max_link_distance long.
 
 signal pack_bought(kind: String, dust_after: int)
 signal pack_loaded(kind: String)
@@ -86,6 +87,37 @@ func can_afford(kind: String) -> bool:
 	return balance.packs.has(kind) and dust >= balance.packs[kind].cost
 
 
+## The light that fills the Sun: its own target on the Scorpio map, else sun_target.
+func light_target() -> int:
+	if scorpio != null and balance.scorpio_sun_target > 0:
+		return balance.scorpio_sun_target
+	return balance.sun_target
+
+
+## The longest step between consecutive stars in a link, in native px; 0 means no limit.
+func link_reach() -> int:
+	return balance.scorpio_max_link_distance if scorpio != null else 0
+
+
+## Whether a link can step from `a` to `b`.
+func in_reach(a: Vector2i, b: Vector2i) -> bool:
+	var reach: int = link_reach()
+	return reach <= 0 or (b - a).length_squared() <= reach * reach
+
+
+## Whether every step of a link, in pick order, is in reach. Unknown ids are skipped.
+func link_in_reach(star_ids: Array[int]) -> bool:
+	var previous: Star = null
+	for id: int in star_ids:
+		var star: Star = _link_star(id)
+		if star == null:
+			continue
+		if previous != null and not in_reach(previous.position, star.position):
+			return false
+		previous = star
+	return true
+
+
 func sky_sizes() -> Array[int]:
 	var sizes: Array[int] = []
 	for star: Star in stars:
@@ -93,22 +125,33 @@ func sky_sizes() -> Array[int]:
 	return sizes
 
 
-## A combo is still possible. On the Scorpio map one unlit landmark may be in it.
+## A combo is still possible. On the Scorpio map one unlit landmark may be in it, and its stars
+## must be linkable within reach.
 func has_remaining_combo() -> bool:
 	if scorpio == null:
 		return Combos.has_any(sky_sizes())
-	var pool: Array[Vector2i] = []
-	for size: int in sky_sizes():
-		pool.append(Vector2i(size, 0))
-	for size: int in scorpio.unlit_sizes():
-		pool.append(Vector2i(size, 1))
+	var pool: Array[Star] = stars.duplicate()
+	for i: int in Scorpio.LANDMARKS.size():
+		if not scorpio.is_lit(i):
+			pool.append(Scorpio.landmark_star(i))
 	for a: int in pool.size():
 		for b: int in range(a + 1, pool.size()):
 			for c: int in range(b + 1, pool.size()):
-				if pool[a].y + pool[b].y + pool[c].y > Scorpio.LANDMARKS_PER_COMBO:
+				var trio: Array[Star] = [pool[a], pool[b], pool[c]]
+				if trio.filter(func(s: Star) -> bool: return Scorpio.is_landmark_id(s.id)).size() > Scorpio.LANDMARKS_PER_COMBO:
 					continue
-				if Combos.evaluate([pool[a].x, pool[b].x, pool[c].x] as Array[int]) != Combos.INVALID:
+				if Combos.evaluate([trio[0].size, trio[1].size, trio[2].size] as Array[int]) != Combos.INVALID and _can_chain(trio):
 					return true
+	return false
+
+
+## Whether three stars can be linked in some order with every step in reach: one of them (the
+## middle of the link) must reach both others.
+func _can_chain(trio: Array[Star]) -> bool:
+	for m: int in 3:
+		var mid: Vector2i = trio[m].position
+		if in_reach(mid, trio[(m + 1) % 3].position) and in_reach(mid, trio[(m + 2) % 3].position):
+			return true
 	return false
 
 
@@ -172,7 +215,8 @@ func launch(target: Vector2i) -> bool:
 	return true
 
 
-## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up.
+## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up. On the Scorpio map
+## a step between consecutive stars longer than the reach makes the link invalid.
 ## On the Scorpio map one unlit landmark can be in it too: the combo pays as usual and the
 ## landmark lights up instead of being used up. A full Sun then rekindles.
 ## Returns the combo key, or Combos.INVALID.
@@ -181,7 +225,7 @@ func link(star_ids: Array[int]) -> String:
 	var sizes: Array[int] = []
 	for star: Star in linked:
 		sizes.append(star.size)
-	var combo: String = Combos.INVALID if is_over() else Combos.evaluate(sizes)
+	var combo: String = Combos.INVALID if is_over() or not link_in_reach(star_ids) else Combos.evaluate(sizes)
 	if combo == Combos.INVALID:
 		link_rejected.emit(star_ids)
 		return Combos.INVALID
@@ -206,6 +250,8 @@ func link(star_ids: Array[int]) -> String:
 
 ## The combo a link would make (Combos.INVALID if none), without making it. For previews.
 func combo_for(star_ids: Array[int]) -> String:
+	if not link_in_reach(star_ids):
+		return Combos.INVALID
 	var linked: Array[Star] = _stars_for_link(star_ids)
 	var sizes: Array[int] = []
 	for star: Star in linked:
@@ -237,10 +283,10 @@ func _light_landmark(index: int) -> void:
 		string_built.emit(segment)
 
 
-## Scorpio: a full Sun rekindles at 0, lights the first unlit landmark next to a lit one (else the
-## first unlit), and pays sun_dust_per_star for every star in the sky.
+## Scorpio: a full Sun (light_target) rekindles at 0, lights the first unlit landmark next to a
+## lit one (else the first unlit), and pays sun_dust_per_star for every star in the sky.
 func _rekindle_if_full() -> void:
-	if light < balance.sun_target:
+	if light < light_target():
 		return
 	light = 0
 	var index: int = rekindle_target()
@@ -344,7 +390,7 @@ func _auto_load() -> void:
 func _check_end() -> void:
 	if is_over():
 		return
-	if scorpio.is_complete() if scorpio != null else light >= balance.sun_target:
+	if scorpio.is_complete() if scorpio != null else light >= light_target():
 		outcome = Outcome.WON
 		run_won.emit()
 		return

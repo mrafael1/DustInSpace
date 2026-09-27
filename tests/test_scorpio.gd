@@ -5,6 +5,9 @@ extends GutTest
 const Fixtures := preload("res://tests/fixtures.gd")
 
 const SCORPIO := {"enabled": true, "sun_dust_per_star": 1}
+## With a reach and the Sun's own target, as the shipped balance has them.
+const REACH := 56
+const SCORPIO_REACH := {"enabled": true, "sun_dust_per_star": 1, "max_link_distance": REACH, "sun_target": 50}
 const SMALL := Star.Size.SMALL
 const MEDIUM := Star.Size.MEDIUM
 const BIG := Star.Size.BIG
@@ -204,6 +207,133 @@ func test_bursts_keep_stars_off_the_landmarks() -> void:
 			for other: Vector2i in Scorpio.LANDMARKS:
 				assert_gte(Vector2(star.position).distance_to(Vector2(other)), StarScatter.LANDMARK_SPACING - 1.0,
 					"a burst on %s lands clear of %s" % [landmark, other])
+
+
+func test_the_shipped_balance_sets_scorpios_reach_and_sun() -> void:
+	var balance: Balance = Balance.load_file()
+	assert_eq(balance.scorpio_max_link_distance, REACH, "each step of a link at most 56 px")
+	assert_eq(balance.scorpio_sun_target, 50, "Scorpio's Sun fills at 50")
+	assert_eq(balance.sun_target, 100, "the plain stage keeps its 100")
+
+
+func test_reach_and_sun_target_must_be_positive_whole_numbers() -> void:
+	var data: Dictionary = Fixtures.balance_dict()
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "max_link_distance": 0, "sun_target": 12.5}
+	var balance: Balance = Balance.from_dict(data)
+	assert_eq(balance.errors.size(), 2, str(balance.errors))
+
+
+func test_without_them_there_is_no_reach_and_the_sun_fills_at_sun_target() -> void:
+	assert_eq(run.link_reach(), 0)
+	assert_eq(run.light_target(), 100)
+	var normal: RunState = Fixtures.run()
+	assert_eq(normal.link_reach(), 0, "the plain stage has no reach")
+	assert_eq(normal.light_target(), normal.balance.sun_target)
+
+
+func test_a_link_just_inside_the_reach_is_made() -> void:
+	var near: RunState = _scorpio_run(SCORPIO_REACH)
+	# Each step exactly 56 px; the whole link is 112 px: the reach is per step, not in total.
+	var ids: Array[int] = _row(near, SMALL, [20, 20 + REACH, 20 + 2 * REACH], 100)
+	assert_eq(near.link(ids), "small_triple")
+	assert_eq(near.stars.size(), 0)
+
+
+func test_a_link_just_outside_the_reach_uses_nothing() -> void:
+	var far: RunState = _scorpio_run(SCORPIO_REACH)
+	var rejected: Array = []
+	far.link_rejected.connect(func(ids: Array[int]) -> void: rejected.append(ids))
+	var ids: Array[int] = _row(far, SMALL, [20, 20 + REACH, 21 + 2 * REACH], 100)
+	assert_eq(far.combo_for(ids), Combos.INVALID, "the preview says no combo")
+	assert_eq(far.link(ids), Combos.INVALID, "the second step is 57 px")
+	assert_eq(rejected, [ids])
+	assert_eq(far.stars.size(), 3, "no star used up")
+	assert_eq([far.dust, far.light], [0, 0], "no dust, no light")
+
+
+func test_the_reach_follows_the_order_the_stars_were_picked() -> void:
+	var r: RunState = _scorpio_run(SCORPIO_REACH)
+	var ids: Array[int] = _row(r, SMALL, [20, 60, 100], 100)
+	# 20 -> 100 is 80 px: out of reach, though 20 -> 60 -> 100 is fine.
+	assert_eq(r.link([ids[0], ids[2], ids[1]] as Array[int]), Combos.INVALID)
+	assert_eq(r.link(ids), "small_triple")
+
+
+func test_a_landmark_across_the_map_is_out_of_reach() -> void:
+	var r: RunState = _scorpio_run(SCORPIO_REACH)
+	# Two bigs by the head; the stinger (big, landmark 7 at 24,206) is across the sky.
+	var ids: Array[int] = _row(r, BIG, [150, 170], 90)
+	var link: Array[int] = [ids[0], ids[1], Scorpio.landmark_id(7)]
+	assert_eq(r.link(link), Combos.INVALID)
+	assert_false(r.scorpio.is_lit(7), "nothing lit")
+	assert_eq(r.stars.size(), 2, "nothing used up")
+	# Bigs by the stinger reach it.
+	var close: Array[int] = _row(r, BIG, [30, 50], 180)
+	assert_eq(r.link([close[0], close[1], Scorpio.landmark_id(7)] as Array[int]), "big_triple")
+	assert_true(r.scorpio.is_lit(7))
+
+
+func test_the_loss_check_only_counts_combos_in_reach() -> void:
+	var r: RunState = _scorpio_run(SCORPIO_REACH)
+	for kind: String in r.owned_packs.keys():
+		r.owned_packs[kind] = 0
+	r.loaded_pack = ""
+	# Three smalls, each 80 px from the next: a combo by size, but no step order reaches.
+	_row(r, SMALL, [10, 90, 170], 90)
+	assert_true(Combos.has_any(r.sky_sizes()))
+	assert_false(r.has_remaining_combo(), "no link can be made")
+	# One more small in the middle of the first two: 10 -> 50 -> 90 reaches.
+	r.add_star(SMALL, Vector2i(50, 90))
+	assert_true(r.has_remaining_combo())
+
+
+func test_the_loss_check_counts_a_landmark_in_reach() -> void:
+	var r: RunState = _scorpio_run(SCORPIO_REACH)
+	for kind: String in r.owned_packs.keys():
+		r.owned_packs[kind] = 0
+	r.loaded_pack = ""
+	# Two smalls far from every small landmark (2, 4, 6).
+	_row(r, SMALL, [150, 170], 250)
+	assert_false(r.has_remaining_combo(), "the small landmarks are out of reach")
+	var fresh: RunState = _scorpio_run(SCORPIO_REACH)
+	# Two smalls by landmark 2 (110, 154).
+	_row(fresh, SMALL, [90, 130], 154)
+	assert_true(fresh.has_remaining_combo())
+
+
+func test_scorpios_sun_rekindles_at_its_own_target() -> void:
+	var r: RunState = _scorpio_run(SCORPIO_REACH)
+	assert_eq(r.light_target(), 50)
+	var rekindled: Array[int] = []
+	r.sun_rekindled.connect(func(i: int, _d: int, _p: Array[Vector2i]) -> void: rekindled.append(i))
+	r.light = 44
+	r.link(_row(r, SMALL, [20, 40, 60], 100))
+	assert_eq(r.light, 49, "one short: no rekindle")
+	assert_eq(rekindled, [] as Array[int])
+	r.link(_row(r, SMALL, [20, 40, 60], 100))
+	assert_eq(rekindled, [2], "full at 50: it rekindles and lights landmark 2")
+	assert_eq(r.light, 0)
+
+
+func test_scorpio_completes_with_the_suns_new_target() -> void:
+	var r: RunState = _scorpio_run(SCORPIO_REACH)
+	# Only small triples (5 light each), far from the landmarks: every 10 of them fill the Sun,
+	# and each rekindle lights a landmark. 6 are unlit, so 60 small triples finish the map.
+	var triples: int = 0
+	while r.outcome == RunState.Outcome.PLAYING and triples < 100:
+		r.link(_row(r, SMALL, [10, 30, 50], 90))
+		triples += 1
+	assert_eq(r.outcome, RunState.Outcome.WON)
+	assert_true(r.scorpio.is_complete())
+	assert_eq(triples, 60, "6 rekindles of 50 light each")
+
+
+## Stars of `size` along row `y`, at the given x, in that order. Returns their ids.
+func _row(r: RunState, size: int, xs: Array, y: int) -> Array[int]:
+	var ids: Array[int] = []
+	for x: int in xs:
+		ids.append(r.add_star(size as Star.Size, Vector2i(x, y)).id)
+	return ids
 
 
 func _scorpio_run(scorpio: Dictionary = SCORPIO) -> RunState:
