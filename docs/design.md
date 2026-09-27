@@ -75,7 +75,7 @@ An experiment to learn whether building a constellation makes the loop more fun 
 - **Loss:** the usual check (no packs, no dust for one, no combo), where a combo may use one unlit landmark.
 - **Big Bang:** clears the sky stars as usual; lit landmarks stay lit.
 
-Simulator (no geometry is needed now): with combos that light a landmark paying as usual, Scorpio is won in every run, in about 4.5 packs (blue only) or 4.1 (red when affordable), against about 88% / 87% in 8 / 6 packs on the plain stage. It's much easier; the playtest decides whether that's a problem. `--lighting-pays` shows what-ifs: half the dust and no light gives about 72%, dust only about 100%, light only about 17%, nothing about 3%.
+Simulator (it doesn't model where stars are, so it ignores the reach): with the Sun full at 50 it's about 3.9 packs (blue only) or 3.8 (red when affordable); the rest of this paragraph is for the Sun at 100. With combos that light a landmark paying as usual, Scorpio is won in every run, in about 4.5 packs (blue only) or 4.1 (red when affordable), against about 88% / 87% in 8 / 6 packs on the plain stage. It's much easier; the playtest decides whether that's a problem. `--lighting-pays` shows what-ifs: half the dust and no light gives about 72%, dust only about 100%, light only about 17%, nothing about 3%. A one-off bot on the real core with real burst geometry (aiming each pack at the next landmark to light, up to 12 or 40 px off) also won every run: 4.3 packs with no reach and the Sun at 100; 4.1–4.2 with the 56 px reach and the Sun at 50 (4.3–4.4 at 48 px). The reach costs about 0.3 packs and the smaller Sun saves about 0.5, so Scorpio stays much easier than the plain stage.
 
 ### Sound
 
