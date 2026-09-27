@@ -32,6 +32,8 @@ var big_bang_base_dust: int = 0
 var big_bang_dust_per_cleared_star: int = 0
 ## The Scorpio map (#40, a prototype). Optional in the file: without a "scorpio" block it's off.
 var scorpio_enabled: bool = false
+## Dust per star a rekindled Sun bursts.
+var scorpio_sun_dust_per_star: int = 0
 ## The light that fills the Sun on the Scorpio map (it rekindles there). Optional: 0 = sun_target.
 var scorpio_sun_target: int = 0
 ## The longest step (native px) between consecutive stars in a link on the Scorpio map.
@@ -141,6 +143,7 @@ func _parse_scorpio(raw: Dictionary) -> void:
 		errors.append("scorpio.enabled: must be true or false")
 	else:
 		scorpio_enabled = raw["enabled"]
+	scorpio_sun_dust_per_star = _read_int(raw, "sun_dust_per_star", "scorpio.", 0)
 	if raw.has("sun_target"):
 		scorpio_sun_target = _read_int(raw, "sun_target", "scorpio.", 1)
 	if raw.has("max_link_distance"):

@@ -4,10 +4,10 @@ extends GutTest
 
 const Fixtures := preload("res://tests/fixtures.gd")
 
-const SCORPIO := {"enabled": true}
+const SCORPIO := {"enabled": true, "sun_dust_per_star": 1}
 ## With a reach and the Sun's own target, as the shipped balance has them.
 const REACH := 56
-const SCORPIO_REACH := {"enabled": true, "max_link_distance": REACH, "sun_target": 50}
+const SCORPIO_REACH := {"enabled": true, "sun_dust_per_star": 1, "max_link_distance": REACH, "sun_target": 50}
 const SMALL := Star.Size.SMALL
 const MEDIUM := Star.Size.MEDIUM
 const BIG := Star.Size.BIG
@@ -31,7 +31,7 @@ func test_a_bad_scorpio_block_is_a_balance_error() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["scorpio"] = {"enabled": "yes"}
 	var balance: Balance = Balance.from_dict(data)
-	assert_eq(balance.errors.size(), 1, str(balance.errors))
+	assert_eq(balance.errors.size(), 2, str(balance.errors))
 
 
 func test_the_shipped_balance_turns_scorpio_on() -> void:
@@ -121,7 +121,7 @@ func test_completing_the_constellation_clears_the_sky_for_nothing() -> void:
 	var light: int = run.light
 	var order: Array[String] = []
 	var cleared: Array[int] = []
-	run.sky_cleared.connect(func(stars: Array[Star]) -> void:
+	run.sky_cleared.connect(func(stars: Array[Star], _d: int) -> void:
 		order.append("cleared")
 		for star: Star in stars:
 			cleared.append(star.id))
@@ -135,7 +135,7 @@ func test_completing_the_constellation_clears_the_sky_for_nothing() -> void:
 	assert_eq([run.dust, run.light], [dust + reward.dust, light + reward.light], "only the last combo pays")
 
 
-func test_a_sun_that_lights_the_last_landmark_completes_and_clears_for_nothing() -> void:
+func test_a_sun_that_lights_the_last_landmark_completes_and_bursts_the_sky_for_dust() -> void:
 	for index: int in range(2, Scorpio.LANDMARKS.size() - 1):
 		_light(index)
 	var left: Star = run.add_star(MEDIUM, Vector2i(150, 120))
@@ -146,7 +146,7 @@ func test_a_sun_that_lights_the_last_landmark_completes_and_clears_for_nothing()
 		order.append("rekindled")
 		rekindle.append(i))
 	run.landmark_lit.connect(func(_i: int) -> void: order.append("lit"))
-	run.sky_cleared.connect(func(_s: Array[Star]) -> void: order.append("cleared"))
+	run.sky_cleared.connect(func(_s: Array[Star], _d: int) -> void: order.append("cleared"))
 	run.constellation_completed.connect(func() -> void: order.append("completed"))
 	run.run_won.connect(func() -> void: order.append("won"))
 	var dust: int = run.dust
@@ -156,7 +156,7 @@ func test_a_sun_that_lights_the_last_landmark_completes_and_clears_for_nothing()
 	run.link(ids)
 	assert_eq(order, ["rekindled", "lit", "cleared", "completed", "won"] as Array[String])
 	assert_eq(rekindle, [Scorpio.LANDMARKS.size() - 1] as Array[int], "the Sun lights the last landmark")
-	assert_eq(run.dust, dust + run.balance.combos["small_triple"].dust)
+	assert_eq(run.dust, dust + run.balance.combos["small_triple"].dust + 1, "the combo, and 1 for the star the Sun burst")
 	assert_null(run.find_star(left.id))
 	assert_eq(run.outcome, RunState.Outcome.WON)
 
@@ -165,7 +165,7 @@ func test_an_empty_sky_isnt_cleared() -> void:
 	for index: int in range(2, Scorpio.LANDMARKS.size() - 1):
 		_light(index)
 	var cleared: Array[bool] = []
-	run.sky_cleared.connect(func(_s: Array[Star]) -> void: cleared.append(true))
+	run.sky_cleared.connect(func(_s: Array[Star], _d: int) -> void: cleared.append(true))
 	_light(Scorpio.LANDMARKS.size() - 1)
 	assert_eq(cleared, [] as Array[bool], "nothing to clear, no event")
 	assert_eq(run.outcome, RunState.Outcome.WON)
@@ -174,21 +174,21 @@ func test_an_empty_sky_isnt_cleared() -> void:
 func test_lighting_a_landmark_short_of_the_end_keeps_the_sky() -> void:
 	var near: Star = run.add_star(BIG, Vector2i(40, 120))
 	var cleared: Array[bool] = []
-	run.sky_cleared.connect(func(_s: Array[Star]) -> void: cleared.append(true))
+	run.sky_cleared.connect(func(_s: Array[Star], _d: int) -> void: cleared.append(true))
 	_light(2)
 	assert_eq(cleared, [] as Array[bool])
 	assert_not_null(run.find_star(near.id))
 
 
-func test_a_full_sun_rekindles_lights_a_landmark_and_clears_the_sky_for_nothing() -> void:
+func test_a_full_sun_rekindles_lights_a_landmark_and_bursts_the_sky_for_dust() -> void:
 	run.light = 90
 	var order: Array[String] = []
 	run.sun_rekindled.connect(func(i: int) -> void: order.append("rekindled %d" % i))
 	run.landmark_lit.connect(func(i: int) -> void: order.append("lit %d" % i))
-	var cleared: Array[int] = []
-	run.sky_cleared.connect(func(stars: Array[Star]) -> void:
+	var cleared: Array = []
+	run.sky_cleared.connect(func(stars: Array[Star], d: int) -> void:
 		order.append("cleared")
-		cleared.append(stars.size()))
+		cleared.append([stars.size(), d]))
 	for x: int in [120, 150]:
 		run.add_star(SMALL, Vector2i(x, 240))
 	var ids: Array[int] = []
@@ -196,9 +196,9 @@ func test_a_full_sun_rekindles_lights_a_landmark_and_clears_the_sky_for_nothing(
 		ids.append(run.add_star(BIG, Vector2i(x, 100)).id)
 	run.link(ids)
 	assert_eq(order, ["rekindled 2", "lit 2", "cleared"] as Array[String], "landmark 2 grows the lit head, then the sky clears")
-	assert_eq(cleared, [2] as Array[int], "both stars left in the sky")
+	assert_eq(cleared, [[2, 2]], "both stars left in the sky, 1 dust each")
 	assert_eq(run.light, 0, "back at 0")
-	assert_eq(run.dust, 6, "only the combo's dust: the cleared stars pay nothing")
+	assert_eq(run.dust, 6 + 2, "the combo's dust, and 1 for each of the 2 stars the Sun burst")
 	assert_eq(run.stars.size(), 0, "a clean sky")
 	assert_eq(run.outcome, RunState.Outcome.PLAYING, "a full Sun doesn't win here")
 
@@ -206,7 +206,7 @@ func test_a_full_sun_rekindles_lights_a_landmark_and_clears_the_sky_for_nothing(
 func test_a_rekindle_on_an_empty_sky_clears_nothing() -> void:
 	run.light = 90
 	var cleared: Array[bool] = []
-	run.sky_cleared.connect(func(_s: Array[Star]) -> void: cleared.append(true))
+	run.sky_cleared.connect(func(_s: Array[Star], _d: int) -> void: cleared.append(true))
 	var ids: Array[int] = []
 	for x: int in [20, 40, 60]:
 		ids.append(run.add_star(BIG, Vector2i(x, 100)).id)
@@ -304,7 +304,7 @@ func test_the_shipped_balance_sets_scorpios_reach_and_sun() -> void:
 
 func test_reach_and_sun_target_must_be_positive_whole_numbers() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
-	data["scorpio"] = {"enabled": true, "max_link_distance": 0, "sun_target": 12.5}
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "max_link_distance": 0, "sun_target": 12.5}
 	var balance: Balance = Balance.from_dict(data)
 	assert_eq(balance.errors.size(), 2, str(balance.errors))
 
