@@ -137,6 +137,42 @@ func test_a_pack_icon_is_lit_when_affordable_and_grey_when_not() -> void:
 	assert_true(_icon("blue").greyed, "grey even while one is still owned")
 
 
+func test_a_buyable_icon_spins_and_a_grey_one_stays_still() -> void:
+	for spin: int in PackView.SPIN_FRAMES:
+		assert_eq(PackView.frame_name(false, false, PackView.HUD_RADIUS, spin, true), "hud_grey")
+		var frame: String = PackView.frame_name(false, true, PackView.HUD_RADIUS, spin)
+		assert_eq(frame, "hud_bright_%d" % spin)
+		if spin > 0:
+			assert_ne(ArtStrip.named("pack_blue").pixels(frame),
+				ArtStrip.named("pack_blue").pixels("hud_bright_%d" % (spin - 1)), "the bands move")
+
+
+func test_a_buyable_icon_hops_a_pixel_now_and_then() -> void:
+	run.dust = 5
+	hud.refresh()
+	var blue: PackSlot = hud.slot("blue")
+	var red: PackSlot = hud.slot("red")
+	blue.set_process(false)
+	red.set_process(false)
+	blue.advance(0.0)
+	red.advance(0.0)
+	assert_true(blue.is_hopping(), "it hops as soon as it's buyable")
+	assert_false(red.is_hopping(), "a grey icon never does")
+	blue.advance(PackSlot.HOP_TIME * 1.1)
+	assert_false(blue.is_hopping())
+	assert_eq(blue.get_node("Icon").position, Vector2.ZERO, "back on the grid")
+	blue.advance(PackSlot.HOP_PERIOD - PackSlot.HOP_TIME * 1.05)
+	assert_true(blue.is_hopping(), "and again each period")
+	blue.nudge()
+	blue.advance(0.01)
+	assert_eq(blue.get_node("Icon").position.y, 0.0, "a nudge wins over the hop")
+	run.dust = 0
+	hud.refresh()
+	for i: int in 20:
+		blue.advance(0.1)
+		assert_false(blue.is_hopping(), "no hop once it's grey")
+
+
 func test_a_greyed_pack_is_drawn_on_the_land_ramp_only() -> void:
 	for kind: String in ["blue", "red"]:
 		var dots: Dictionary[Vector2i, Color] = PackView.pixels(kind, false, false, 6, true)

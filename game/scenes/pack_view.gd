@@ -3,8 +3,8 @@ extends Node2D
 ## One star pack, drawn from its art (assets/art/pack_<kind>.png, tools/art/build_ui_art.py).
 ## Blue: a banded planet, r8. Red: a smaller planet with a ring. Lit from the top-left, no outline.
 ## Tremble frames are drawn, never scaled: `grown` is the next radius up, `bright` is every pixel
-## one step up its ramp. The HUD shows the r6 frame, still: lit a step up when the dust can buy
-## one, `greyed` (on the land ramp) when it can't.
+## one step up its ramp. The HUD shows the r6 frame: `greyed` (on the land ramp) and still when
+## the dust can't buy one; `bright` and spinning when it can.
 ## Idle, the planet spins: its bands drift through SPIN_FRAMES frames, one every SPIN_STEP.
 
 const RADIUS: Dictionary[String, int] = {"blue": 8, "red": 6}
@@ -69,18 +69,19 @@ func advance(delta: float) -> void:
 	_spin_time += delta
 	var spin: int = floori(_spin_time / SPIN_STEP) % SPIN_FRAMES
 	if spin != _spin:
+		var shown: String = frame_name(grown, bright, radius_override, _spin, greyed)
 		_spin = spin
-		if not grown and not bright and radius_override == 0:
+		if frame_name(grown, bright, radius_override, _spin, greyed) != shown:
 			queue_redraw()
 
 
-## The art frame for a state: the HUD's r6 icon (still; lit or grey), the tremble's grown and
-## bright steps, or the idle spin's frame `spin`. Only the HUD's icon has a grey frame.
+## The art frame for a state: the HUD's r6 icon (grey and still, or lit and spinning), the
+## tremble's grown and bright steps, or the idle spin's frame `spin`. Only the HUD's icon greys.
 static func frame_name(p_grown: bool, p_bright: bool, p_radius: int, spin: int = 0, p_greyed: bool = false) -> String:
 	if p_radius == HUD_RADIUS:
 		if p_greyed:
 			return "hud_grey"
-		return "hud_bright" if p_bright else "hud"
+		return "hud_bright_%d" % posmod(spin, SPIN_FRAMES) if p_bright else "hud"
 	assert(not p_greyed, "only the HUD's r%d icon greys out" % HUD_RADIUS)
 	assert(p_radius == 0, "pack art has the kind's own radius and the HUD's r%d only" % HUD_RADIUS)
 	if p_grown:
