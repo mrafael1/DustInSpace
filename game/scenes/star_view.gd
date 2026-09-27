@@ -46,7 +46,8 @@ const RING_SHEETS: Array[Texture2D] = [
 	preload("res://assets/art/selection_ring_medium.png"),
 	preload("res://assets/art/selection_ring_big.png"),
 ]
-const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flare_core", &"fade_core", &"fade_dot", &"dim", &"dim_core"]
+## "gold" and "unlit" are Scorpio's landmarks (ConstellationView); sky stars never show them.
+const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flare_core", &"fade_core", &"fade_dot", &"dim", &"dim_core", &"gold", &"unlit"]
 ## Which dissolve and collapse frames play, in order.
 const DISSOLVE_SEQUENCE: Array[StringName] = [&"flare", &"flare_core", &"fade_core", &"fade_dot"]
 const COLLAPSE_SEQUENCE: Array[StringName] = [&"glint", &"dim", &"dim_core"]
