@@ -54,6 +54,15 @@ const HALO_RADIUS: Array[int] = [4, 8, 11]
 ## Halo colours per size, near then far: warm around the orange and gold stars, cool around the
 ## blue-white big star so its colour stays clean.
 const HALO_COLOURS: Array = [[Palette.C4, Palette.C5], [Palette.C4, Palette.C5], [Palette.M4, Palette.M3]]
+## Scorpio's rekindle: a star paying dust shines, flaring up and back without dissolving.
+const SHINE_SEQUENCE: Array[StringName] = [&"glint", &"spark", &"flare", &"flare_core", &"flare", &"spark", &"glint", &"glint"]
+const SHINE_STEP: float = 0.05
+## Stars shine this far apart, and each one's dust leaves at the flare's peak.
+const SHINE_STAGGER: float = 0.07
+const SHINE_PEAK: float = SHINE_STEP * 3
+## From the peak, a 1 px ring grows out of the shining star, a step per SHINE_STEP, cooling.
+const SHINE_RING_COLOURS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+const SHINE_RING_GROWTH: int = 3
 ## Ordered-dither thresholds (0-15) for the halo.
 const BAYER: Array[int] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
 
@@ -80,6 +89,8 @@ static var _masks: Dictionary = {}
 ## Turns the star swirls around the point while it falls in, and how far out it hangs.
 var _collapse_swirl: float = 0.0
 var _collapse_hover: int = 0
+## Seconds into a shine (negative while it waits to start), or -INF when not shining.
+var _shine_time: float = -INF
 
 
 func _process(delta: float) -> void:
@@ -142,6 +153,16 @@ func collapse_to(point: Vector2i, delay: float, duration: float, swirl: float = 
 		_start_collapse()
 
 
+## Flares up and back down after `delay`, staying in the sky (a rekindled Sun's payout).
+func shine(delay: float = 0.0) -> void:
+	_shine_time = -delay
+	_redraw_on_new_frame()
+
+
+func is_shining() -> bool:
+	return _shine_time > -INF and _shine_time >= 0.0
+
+
 func is_collapsing() -> bool:
 	return state == State.COLLAPSING or _collapse_wait >= 0.0
 
@@ -157,6 +178,10 @@ func advance(delta: float) -> void:
 			_start_collapse()
 			delta = overshoot
 	_time += delta
+	if _shine_time > -INF:
+		_shine_time += delta
+		if _shine_time >= SHINE_STEP * SHINE_SEQUENCE.size():
+			_shine_time = -INF
 	match state:
 		State.SETTLING:
 			_advance_flight()
@@ -276,6 +301,8 @@ func _current_frame_key() -> int:
 			return _dissolve_frame()
 		State.COLLAPSING:
 			return _redshift()
+	if is_shining():
+		return 100 + int(_shine_time / SHINE_STEP)
 	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0)
 
 
@@ -315,6 +342,11 @@ func _draw_settling() -> void:
 
 
 func _draw_idle() -> void:
+	if is_shining():
+		var step: int = mini(int(_shine_time / SHINE_STEP), SHINE_SEQUENCE.size() - 1)
+		_draw_frame(SHINE_SEQUENCE[step])
+		_draw_shine_ring(step - 3)
+		return
 	# A glint lifts every step one notch brighter for a moment.
 	_draw_frame(&"glint" if _is_glinting() else &"idle")
 	if selected:
@@ -336,6 +368,17 @@ func _draw_frame(frame: StringName) -> void:
 	var w: int = sheet.get_height()
 	var i: int = FRAMES.find(frame)
 	draw_texture_rect_region(sheet, Rect2(Vector2(-(w >> 1), -(w >> 1)), Vector2(w, w)), Rect2(i * w, 0, w, w))
+
+
+## The shine's ring, `k` steps after the peak (nothing before it): whole pixels on a circle.
+func _draw_shine_ring(k: int) -> void:
+	if k < 0 or k >= SHINE_RING_COLOURS.size():
+		return
+	var radius: int = _half_extent() + 2 + k * SHINE_RING_GROWTH
+	var dots: int = maxi(roundi(TAU * radius), 8)
+	for i: int in dots:
+		var p := Vector2i((Vector2.from_angle(TAU * i / dots) * radius).round())
+		draw_rect(Rect2(Vector2(p), Vector2.ONE), SHINE_RING_COLOURS[k])
 
 
 ## The dashed C1 selection ring; its dashes swap every RING_FRAME_TIME.

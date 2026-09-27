@@ -108,6 +108,12 @@ func receive_dust(amount: int) -> void:
 	_show()
 
 
+## Scorpio: the Sun rekindled and is back at 0 (Main wires SunView.rekindled).
+func reset_light() -> void:
+	_shown_light = 0
+	_show()
+
+
 ## A light particle landed in the Sun, whose counter this is.
 func receive_light(amount: int) -> void:
 	_shown_light += amount
@@ -210,6 +216,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			_light_in_flight += event.args[3]
+		&"sun_rekindled":
+			_dust_in_flight += event.args[1]
 		_:
 			return
 	_show()
@@ -220,7 +228,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 ## `announce` false (a refresh) updates the slots without playing their cue.
 func _show(announce: bool = true) -> void:
 	_dust.text = "%d" % _shown_dust
-	_light.text = "%d/%d" % [_shown_light, _run.balance.sun_target]
+	_light.text = "%d/%d" % [_shown_light, _run.light_target()]
 	for kind: String in _slots:
 		var count: int = _shown_packs.get(kind, 0)
 		var cost: int = _run.balance.packs[kind].cost
