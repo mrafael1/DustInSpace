@@ -12,6 +12,11 @@ signal dust_arrived(amount: int)
 signal light_arrived(amount: int)
 ## The last particle in the air has landed.
 signal all_landed
+## A combo's dust set off: `payout` numbers it, `stars` are the linked stars in link order.
+## Feedback only (the floating payout): the dust itself arrives through dust_arrived.
+signal dust_payout_launched(payout: int, amount: int, stars: Array[Vector2i])
+## The last dust particle of combo payout `payout` landed.
+signal dust_payout_landed(payout: int)
 
 enum Kind { DUST, LIGHT }
 
@@ -51,6 +56,8 @@ class Particle:
 	var delay: float
 	var duration: float
 	var age: float = 0.0
+	## The combo payout it belongs to, or 0 (a Big Bang's or the Sun's dust).
+	var payout: int = 0
 
 	func progress() -> float:
 		return clampf((age - delay) / duration, 0.0, 1.0)
@@ -64,6 +71,8 @@ class Particle:
 var _sequencer: EventSequencer
 var _particles: Array[Particle] = []
 var _rng := RandomNumberGenerator.new()
+## The last combo payout's number.
+var _payouts: int = 0
 
 
 func _ready() -> void:
@@ -122,6 +131,8 @@ func advance(delta: float) -> void:
 		_particles.erase(p)
 		if p.kind == Kind.DUST:
 			dust_arrived.emit(p.amount)
+			if p.payout > 0 and not _payout_in_flight(p.payout):
+				dust_payout_landed.emit(p.payout)
 		else:
 			light_arrived.emit(p.amount)
 	if not landed.is_empty() and _particles.is_empty():
@@ -164,10 +175,23 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		return
 	var n: int = _particles.size()
 	_launch(Kind.DUST, event.args[2], sources, dust_target)
+	var dust_end: int = _particles.size()
 	_launch(Kind.LIGHT, event.args[3], sources, light_target)
 	# Stagger dust and light together, in launch order, from this combo's first particle.
 	for i: int in range(n, _particles.size()):
 		_particles[i].delay = LAUNCH_DELAY + STAGGER * (i - n)
+	if dust_end > n:
+		_payouts += 1
+		for i: int in range(n, dust_end):
+			_particles[i].payout = _payouts
+		dust_payout_launched.emit(_payouts, event.args[2], sources)
+
+
+func _payout_in_flight(payout: int) -> bool:
+	for p: Particle in _particles:
+		if p.payout == payout:
+			return true
+	return false
 
 
 ## Launches like a combo's payout, staggered from now.
