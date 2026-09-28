@@ -30,29 +30,30 @@ func before_each() -> void:
 
 
 func test_unlit_landmarks_are_picked_like_stars_and_lit_ones_arent() -> void:
-	assert_eq(sky.star_at(Scorpio.LANDMARKS[2] + Vector2i(3, 2)), Scorpio.landmark_id(2))
+	assert_eq(sky.star_at(Scorpio.LANDMARKS[3] + Vector2i(3, 2)), Scorpio.landmark_id(3))
 	assert_eq(sky.star_at(Scorpio.LANDMARKS[1]), 0, "landmark 1 starts lit: done")
 	main.start_run(Fixtures.balance())
-	assert_eq(sky.star_at(Scorpio.LANDMARKS[2]), 0, "no landmarks without the map")
+	assert_eq(sky.star_at(Scorpio.LANDMARKS[3]), 0, "no landmarks without the map")
 
 
 func test_tapping_two_stars_and_a_landmark_lights_it() -> void:
-	var a: Star = _star(Star.Size.SMALL, Vector2i(30, 100))
-	var b: Star = _star(Star.Size.SMALL, Vector2i(50, 100))
-	for point: Vector2i in [a.position, Scorpio.LANDMARKS[2], b.position]:
+	# Two smalls either side of sigma (landmark 3, small), in reach.
+	var a: Star = _star(Star.Size.SMALL, Vector2i(116, 104))
+	var b: Star = _star(Star.Size.SMALL, Vector2i(140, 150))
+	for point: Vector2i in [a.position, Scorpio.LANDMARKS[3], b.position]:
 		_tap(point)
-	assert_true(run.scorpio.is_lit(2))
-	assert_true(run.scorpio.is_built(1))
+	assert_true(run.scorpio.is_lit(3))
+	assert_true(run.scorpio.is_built(2), "the head-sigma string")
 
 
 func test_tracing_shows_the_landmark_lit_and_the_string_it_would_form() -> void:
-	var a: Star = _star(Star.Size.SMALL, Vector2i(30, 100))
-	var b: Star = _star(Star.Size.SMALL, Vector2i(50, 100))
+	var a: Star = _star(Star.Size.SMALL, Vector2i(116, 104))
+	var b: Star = _star(Star.Size.SMALL, Vector2i(140, 150))
 	_tap(a.position)
-	_tap(Scorpio.LANDMARKS[2])
-	assert_eq(constellation.get("_selected"), [2] as Array[int])
+	_tap(Scorpio.LANDMARKS[3])
+	assert_eq(constellation.get("_selected"), [3] as Array[int])
 	_touch(b.position, true)
-	assert_eq(constellation.get("_preview_strings"), [1] as Array[int])
+	assert_eq(constellation.get("_preview_strings"), [2] as Array[int])
 
 
 func test_a_bad_mix_shows_the_no_combo_cross_and_uses_nothing() -> void:
@@ -60,10 +61,10 @@ func test_a_bad_mix_shows_the_no_combo_cross_and_uses_nothing() -> void:
 	var b: Star = _star(Star.Size.SMALL, Vector2i(50, 100))
 	_tap(a.position)
 	_tap(b.position)
-	_touch(Scorpio.LANDMARKS[3], true)
+	_touch(Scorpio.LANDMARKS[6], true)
 	assert_eq(constellation.get("_preview_strings"), [] as Array[int])
-	_touch(Scorpio.LANDMARKS[3], false)
-	assert_false(run.scorpio.is_lit(3), "small, small, medium: no combo")
+	_touch(Scorpio.LANDMARKS[6], false)
+	assert_false(run.scorpio.is_lit(6), "small, small, medium (epsilon): no combo")
 	assert_eq(run.stars.size(), 2)
 
 
@@ -356,7 +357,7 @@ func test_the_sun_lighting_the_last_landmark_plays_the_completion() -> void:
 func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_the_scorpion() -> void:
 	var sung: Array[int] = []
 	constellation.string_sung.connect(func(segment: int, _order: int) -> void: sung.append(segment))
-	for index: int in range(2, Scorpio.LANDMARKS.size()):
+	for index: int in range(3, Scorpio.LANDMARKS.size()):
 		var size: int = Scorpio.SIZES[index]
 		var a: Star = run.add_star(size as Star.Size, Vector2i(170, 90))
 		var b: Star = run.add_star(size as Star.Size, Vector2i(10, 90))
@@ -398,7 +399,7 @@ func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_th
 	assert_false(sun.is_igniting() or sun.is_ignited(), "no Sun ignition for this win")
 	var end: EndScreen = main.get_node("EndScreen")
 	assert_true(end.is_showing())
-	assert_eq(end.lines(), ["SCORPIO COMPLETE", "STRINGS 7/7"] as Array[String])
+	assert_eq(end.lines(), ["SCORPIO COMPLETE", "STRINGS 13/13"] as Array[String])
 
 
 func test_the_scorpion_drawing_stays_in_the_sky_and_off_the_stars() -> void:
@@ -415,16 +416,16 @@ func test_the_scorpion_drawing_stays_in_the_sky_and_off_the_stars() -> void:
 
 func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:
 	assert_false(constellation.shows_cue(0), "the head is lit: its ring, no cue")
-	assert_true(constellation.shows_cue(2), "unlit: it can be picked")
-	var a: Star = _star(Star.Size.SMALL, Vector2i(90, 150))
+	assert_true(constellation.shows_cue(3), "unlit: it can be picked")
+	var a: Star = _star(Star.Size.SMALL, Vector2i(116, 104))
 	_tap(a.position)
-	_tap(Scorpio.LANDMARKS[2])
-	assert_false(constellation.shows_cue(2), "in the link it shows lit instead")
+	_tap(Scorpio.LANDMARKS[3])
+	assert_false(constellation.shows_cue(3), "in the link it shows lit instead")
 	_tap(Vector2i(170, 240))
-	run.scorpio.lit[2] = true
-	assert_true(constellation.shows_cue(2), "lit in the core only: not shown until its event plays")
-	constellation.flash_landmark(2)
-	assert_false(constellation.shows_cue(2), "lit: no cue")
+	run.scorpio.lit[3] = true
+	assert_true(constellation.shows_cue(3), "lit in the core only: not shown until its event plays")
+	constellation.flash_landmark(3)
+	assert_false(constellation.shows_cue(3), "lit: no cue")
 
 
 func test_the_cue_is_four_quiet_brackets_off_the_star_art() -> void:
@@ -518,8 +519,8 @@ func test_on_a_taller_sky_the_constellation_is_drawn_and_picked_where_it_moved()
 	var tall := RunState.new(Balance.from_dict(data), Fixtures.rng(), ScreenZones.play_sky(102))
 	sky.setup(tall, sequencer)
 	assert_eq(constellation.position, Vector2(0, -51), "the whole map view moves with it")
-	assert_eq(sky.star_at(tall.scorpio.landmark_position(2)), Scorpio.landmark_id(2), "picked where it is now")
-	assert_eq(sky.star_at(Scorpio.LANDMARKS[2]), 0, "not at its home spot")
+	assert_eq(sky.star_at(tall.scorpio.landmark_position(3)), Scorpio.landmark_id(3), "picked where it is now")
+	assert_eq(sky.star_at(Scorpio.LANDMARKS[3]), 0, "not at its home spot")
 
 
 func test_the_sun_glow_reaches_the_top_of_a_taller_screen() -> void:
