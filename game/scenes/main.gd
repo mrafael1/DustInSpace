@@ -95,6 +95,7 @@ func fit_screen() -> void:
 	_hud.fit_screen(screen)
 	_sound_toggle.target = _hud.sound_target()
 	_end_screen.fit_screen(screen)
+	_sun.fit_screen(screen)
 	# The Sun rises to the top of the screen; its light follows it. A run already in play keeps its
 	# sky: the next one (RESTART) takes the new size.
 	_extra = offset.y
