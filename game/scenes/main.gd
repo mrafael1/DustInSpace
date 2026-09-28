@@ -165,6 +165,7 @@ func _wire_sound() -> void:
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)
+	(_sky.get_node("OrionLayer") as OrionView).arrow_loosed.connect(_sfx.play.bind(&"launch", 2.0))
 	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
 	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
 	_sound_toggle.toggled.connect(_sfx.cycle_level)

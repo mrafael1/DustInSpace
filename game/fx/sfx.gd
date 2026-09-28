@@ -238,6 +238,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"star_select", 1.5)
 		&"string_built":
 			play(&"pack_ready")
+		&"star_marked":
+			play(&"link_reject", 0.6)
 
 
 

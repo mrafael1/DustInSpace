@@ -46,6 +46,9 @@ const HOP_TIME: float = 0.1
 ## The message line (show_message), on the land above the HUD row, and how long a message stays.
 const MESSAGE_Y: int = 262
 const MESSAGE_TIME: float = 1.6
+## Orion's first mark of a run (#64) says what it means, a little longer.
+const ORION_MESSAGE: String = "LINK IT BEFORE ORION SHOOTS"
+const ORION_MESSAGE_TIME: float = 3.0
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -65,6 +68,8 @@ var _dust_debt: int = 0
 var _hops: Dictionary[Label, float] = {}
 var _rest: Dictionary[Label, Vector2] = {}
 var _message_left: float = 0.0
+## Orion's first mark has been explained this run.
+var _orion_told: bool = false
 
 @onready var _dust: Label = $Dust
 @onready var _slot_layer: Node2D = $Slots
@@ -112,6 +117,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer = sequencer
 		_sequencer.event_played.connect(_on_event_played)
 	_build_slots(run.balance.pack_kinds())
+	_orion_told = false
 	_press([])
 	refresh()
 
@@ -147,10 +153,10 @@ func advance(delta: float) -> void:
 		_message.visible = _message_left > 0.0
 
 
-## Shows a short message above the launcher for MESSAGE_TIME ("" clears it).
-func show_message(text: String) -> void:
+## Shows a short message above the launcher for `seconds` ("" clears it).
+func show_message(text: String, seconds: float = MESSAGE_TIME) -> void:
 	_message.text = text
-	_message_left = MESSAGE_TIME if text != "" else 0.0
+	_message_left = seconds if text != "" else 0.0
 	_message.visible = text != ""
 
 
@@ -269,6 +275,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_dust_in_flight += event.args[1]
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
+		&"star_marked":
+			if not _orion_told:
+				_orion_told = true
+				show_message(ORION_MESSAGE, ORION_MESSAGE_TIME)
+			return
 		_:
 			return
 	_show()

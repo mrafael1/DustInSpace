@@ -285,7 +285,8 @@ static func vibration(i: int, count: int, age: float) -> int:
 ## the map's Drawing style. The whole scorpion: a pincer at each claw star (beta and pi, opening
 ## forward), the body's sides from the head to mu, three pairs of legs, the tail's bulbs and the
 ## stinger's hook. A stinger (#62): a bulb on each tail string and the sting's hook past the last
-## star. A tail (#64): a tapering bulb on each string. Whole pixels, in order, no repeats, clear of the landmarks.
+## star. A tail (#64): a tapering bulb on each string. Whole pixels, in order, no repeats, clear
+## of the landmarks.
 static func scorpion_drawing(map: StarMap = null) -> Array[Vector2i]:
 	var m: StarMap = _or_full(map)
 	var strokes: Array
