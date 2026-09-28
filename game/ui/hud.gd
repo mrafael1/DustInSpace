@@ -1,14 +1,14 @@
 class_name Hud
 extends CanvasLayer
-## The HUD: dust on the left and one PackSlot per pack kind on the right (y 284-320, no panel),
-## plus the light counter "n/target" under the Sun. Numbers are bitmap-font Labels.
+## The HUD: dust on the left and one PackSlot per pack kind on the right (y 284-320, no panel).
+## Numbers are bitmap-font Labels. The Sun's light has no number (#59): its fill is the progress.
 ## Pack taps follow docs/design.md (Packs): the icon loads an owned pack or buys one if none is
 ## owned; the cost buys one more. The core says whether that works: RunState.load_pack() and
 ## RunState.buy() refuse what isn't allowed, and a refused tap nudges the icon. No rules here.
 ## RunState resolves a whole launch at once, so the HUD keeps its own shown copy of the run and
 ## moves it only as the sequencer plays each event: counters never run ahead of the animation.
-## A combo's dust and light arrive later, as particles land (receive_dust / receive_light, wired
-## by Main): the counter ticks up and hops a pixel. Until then that amount is "in flight". The core
+## A combo's dust arrives later, as particles land (receive_dust, wired by Main): the counter
+## ticks up and hops a pixel. Until then that amount is "in flight". The core
 ## has already credited it, so a purchase may spend it: that part becomes a debt the next landings
 ## pay first, the counter never drops below 0, and it always ends on the run's total.
 ## The speaker in the top-left corner only shows the sound level (show_sound_level); its taps go
@@ -37,7 +37,6 @@ const SLOT_Y: int = 290
 const SOUND_AT := Vector2i(10, 10)
 const DUST_ICON_AT := Vector2i(12, 300)
 const DUST_AT := Vector2i(20, 297)
-const LIGHT_AT := Vector2i(60, 66)
 ## A counter hops 1 px up for this long when a particle lands on it.
 const HOP_TIME: float = 0.1
 ## The message line (show_message), on the land above the HUD row, and how long a message stays.
@@ -52,21 +51,18 @@ var _slots: Dictionary[String, PackSlot] = {}
 var _pressed: Array = []
 ## The run as the events played so far have shown it.
 var _shown_dust: int = 0
-var _shown_light: int = 0
 var _shown_packs: Dictionary[String, int] = {}
 var _shown_loaded: String = ""
 ## Rewards whose event has played but whose particles haven't landed yet.
 var _dust_in_flight: int = 0
 ## The part of the dust in flight that a purchase already spent.
 var _dust_debt: int = 0
-var _light_in_flight: int = 0
 ## Seconds of hop left per counter, and where each counter rests.
 var _hops: Dictionary[Label, float] = {}
 var _rest: Dictionary[Label, Vector2] = {}
 var _message_left: float = 0.0
 
 @onready var _dust: Label = $Dust
-@onready var _light: Label = $Light
 @onready var _slot_layer: Node2D = $Slots
 @onready var _sound: SoundIcon = $SoundIcon
 @onready var _message: Label = $Message
@@ -74,9 +70,7 @@ var _message_left: float = 0.0
 
 func _ready() -> void:
 	_dust.label_settings = HudText.primary(Palette.D0)
-	_light.label_settings = HudText.secondary(Palette.C1)
-	for label: Label in [_dust, _light]:
-		_rest[label] = label.position
+	_rest[_dust] = _dust.position
 	_message.label_settings = HudText.primary(Palette.C1)
 	_message.position = Vector2(0, MESSAGE_Y)
 	_message.visible = false
@@ -88,7 +82,7 @@ func _process(delta: float) -> void:
 
 ## Anchors the HUD to the real screen, `screen` in game coordinates (on a 9:16 screen, the game's
 ## own 0,0 180x320): the speaker in its top-left corner, the dust counter on its bottom-left, the
-## pack slots on its bottom-right. The Sun's light counter stays under the Sun (at the top).
+## pack slots on its bottom-right.
 func fit_screen(screen: Rect2i) -> void:
 	var bottom: int = screen.end.y - ScreenZones.SCREEN.y
 	_sound.position = Vector2(SOUND_AT + screen.position)
@@ -96,9 +90,6 @@ func fit_screen(screen: Rect2i) -> void:
 	_rest[_dust] = Vector2(DUST_AT + Vector2i(screen.position.x, bottom))
 	_dust.position = _rest[_dust]
 	_slot_layer.position = Vector2(screen.end.x - ScreenZones.SCREEN.x, bottom)
-	# The light counter stays under the Sun, which rises to the top of the screen.
-	_rest[_light] = Vector2(LIGHT_AT + Vector2i(0, screen.position.y))
-	_light.position = _rest[_light]
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -118,15 +109,13 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	refresh()
 
 
-## Catches up with the run as it stands: dust, light, and each pack's count, cost and state.
+## Catches up with the run as it stands: dust, and each pack's count, cost and state.
 func refresh() -> void:
 	_shown_dust = _run.dust
-	_shown_light = _run.light
 	_shown_packs = _run.owned_packs.duplicate()
 	_shown_loaded = _run.loaded_pack
 	_dust_in_flight = 0
 	_dust_debt = 0
-	_light_in_flight = 0
 	_show(false)
 
 
@@ -138,20 +127,6 @@ func receive_dust(amount: int) -> void:
 	_shown_dust += amount - repaid
 	if amount > repaid:
 		_hop(_dust)
-	_show()
-
-
-## Scorpio: the Sun rekindled and is back at 0 (Main wires SunView.rekindled).
-func reset_light() -> void:
-	_shown_light = 0
-	_show()
-
-
-## A light particle landed in the Sun, whose counter this is.
-func receive_light(amount: int) -> void:
-	_shown_light += amount
-	_light_in_flight = maxi(_light_in_flight - amount, 0)
-	_hop(_light)
 	_show()
 
 
@@ -268,7 +243,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_dust_in_flight += event.args[1]
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
-			_light_in_flight += event.args[3]
 		_:
 			return
 	_show()
@@ -279,7 +253,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 ## `announce` false (a refresh) updates the slots without playing their cue.
 func _show(announce: bool = true) -> void:
 	_dust.text = "%d" % _shown_dust
-	_light.text = "%d/%d" % [_shown_light, _run.light_target()]
 	for kind: String in _slots:
 		var count: int = _shown_packs.get(kind, 0)
 		var cost: int = _run.balance.packs[kind].cost

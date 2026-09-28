@@ -129,47 +129,12 @@ func test_empty_taps_with_nothing_selected_are_left_for_others() -> void:
 	assert_false(_tap(Vector2i(90, 300)), "HUD taps are not the sky's")
 
 
-func test_the_plaque_previews_the_reward_while_three_are_selected() -> void:
+func test_no_boxed_preview_while_tracing() -> void:
 	var ids: Array[int] = _seed_sky([B, S, M])
-	var plaque: RewardPlaque = sky.get_node("UILayer/RewardPlaque")
-	_tap(run.find_star(ids[0]).position)
-	_tap(run.find_star(ids[1]).position)
-	assert_false(plaque.visible, "no preview before the third star")
-	var last: Vector2i = run.find_star(ids[2]).position
-	_touch(last, true)
-	assert_true(plaque.visible)
-	var reward: Balance.ComboReward = run.balance.combos[Combos.SEQUENCE]
-	assert_eq((plaque.get_node("Dust") as Label).text, "+%d" % reward.dust)
-	assert_eq((plaque.get_node("Light") as Label).text, "+%d" % reward.light)
-	assert_eq(plaque.position, plaque.position.round(), "whole pixels")
-	_touch(last, false)
-	assert_false(plaque.visible, "gone once the link resolves")
-
-
-func test_the_plaque_follows_the_sky_when_it_moves() -> void:
-	var ids: Array[int] = _seed_sky([S, M, B])
-	var plaque: RewardPlaque = sky.get_node("UILayer/RewardPlaque")
-	var last: Vector2i = run.find_star(ids[2]).position
-	_tap(run.find_star(ids[0]).position)
-	_tap(run.find_star(ids[1]).position)
-	_touch(last, true)
-	var still: Vector2 = plaque.position
-	_touch(last, false)
-	ids = _seed_sky([S, M, B])
-	sky.position = Vector2(2, -1)  # e.g. a screen shake
-	_tap(run.find_star(ids[0]).position)
-	_tap(run.find_star(ids[1]).position)
-	_touch(last, true)
-	assert_eq(plaque.position, still + Vector2(2, -1), "the plaque stays by its star")
-
-
-func test_the_plaque_says_when_three_stars_are_no_combo() -> void:
-	var ids: Array[int] = _seed_sky([S, S, B])
-	var plaque: RewardPlaque = sky.get_node("UILayer/RewardPlaque")
 	_tap(run.find_star(ids[0]).position)
 	_tap(run.find_star(ids[1]).position)
 	_touch(run.find_star(ids[2]).position, true)
-	assert_true((plaque.get_node("NoCombo") as Label).visible)
+	assert_null(sky.get_node_or_null("UILayer"), "the payout floats up once collected instead (#59)")
 
 
 func test_a_sequence_starting_drops_a_link_in_progress() -> void:

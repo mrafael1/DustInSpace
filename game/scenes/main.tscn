@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://game/scenes/event_sequencer.gd" id="2_sequencer"]
@@ -16,6 +16,7 @@
 [ext_resource type="Script" path="res://game/ui/sound_toggle.gd" id="14_sound_toggle"]
 [ext_resource type="Script" path="res://game/scenes/backdrop.gd" id="20_backdrop"]
 [ext_resource type="PackedScene" path="res://game/scenes/telescope.tscn" id="21_telescope"]
+[ext_resource type="Script" path="res://game/ui/payout_popups.gd" id="22_payouts"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -44,6 +45,10 @@ script = ExtResource("8_sparks")
 
 [node name="CollectParticles" type="Node2D" parent="."]
 script = ExtResource("9_collect")
+
+[node name="Payouts" type="CanvasLayer" parent="."]
+layer = 4
+script = ExtResource("22_payouts")
 
 [node name="HUD" parent="." instance=ExtResource("6_hud")]
 

@@ -5,8 +5,8 @@ extends Node2D
 ## takes their stars. Owns no rules; it only follows the events the sequencer plays, so a
 ## star added to the run without an event (RunState.add_star) gets no view until the next setup.
 ## Halos are painted on the HaloLayer, under every star, so no halo covers another star.
-## Linking: pointer input goes through a LinkGesture; the traced line is on the LinkLayer and
-## the reward preview on the RewardPlaque. The link itself is RunState.link()'s call.
+## Linking: pointer input goes through a LinkGesture; the traced line is on the LinkLayer. The
+## link itself is RunState.link()'s call; its payout floats up from it (PayoutPopups, #59).
 ## Scorpio (#40): the ConstellationLayer, under everything, draws the landmarks and the outline.
 ## Unlit landmarks can be picked like stars (their ids are negative, Scorpio.landmark_id); the
 ## combo and the strings a link would form come from RunState. When the Sun rekindles, a sunbeam
@@ -64,7 +64,6 @@ var _completion_waiting: bool = false
 @onready var _halo_layer: Node2D = $HaloLayer
 @onready var _link_layer: LinkLayer = $LinkLayer
 @onready var _star_layer: Node2D = $StarLayer
-@onready var _plaque: RewardPlaque = $UILayer/RewardPlaque
 
 
 func _ready() -> void:
@@ -280,38 +279,17 @@ func _show_link() -> void:
 	_show_preview()
 
 
-## Reads the combo and its reward; the plaque only displays them. On the Scorpio map it also
-## previews the landmarks in the link, the strings it would form, and where it would sting.
+## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it
+## would sting. (The boxed reward preview is gone, #59: the payout floats up once collected.)
 func _show_preview() -> void:
-	var ids: Array[int] = _gesture.selected
-	if _run.scorpio != null:
-		var landmarks: Array[int] = []
-		for id: int in ids:
-			if Scorpio.is_landmark_id(id):
-				landmarks.append(Scorpio.landmark_index(id))
-		_constellation.show_link_preview(landmarks, _run.strings_for(ids))
-	if ids.size() != Combos.LINK_LENGTH:
-		_plaque.visible = false
+	if _run.scorpio == null:
 		return
-	var last_at: Vector2i = _positions_of_ids([ids[-1]] as Array[int])[0]
-	var half: int = StarView.half_extent(_size_of(ids[-1]))
-	# The plaque is on a CanvasLayer, which ignores this node's transform (e.g. screen shake),
-	# so hand it screen coordinates. Only whole-pixel translation is allowed on the grid.
-	var offset := Vector2i(get_global_transform_with_canvas().origin.round())
-	var anchor: Vector2i = last_at + offset
-	var bounds := Rect2i(_run.sky_rect.position + offset, _run.sky_rect.size)
-	var combo: String = _run.combo_for(ids)
-	if combo == Combos.INVALID:
-		_plaque.show_no_combo(anchor, half, bounds)
-	else:
-		var reward: Balance.ComboReward = _run.balance.combos[combo]
-		_plaque.show_reward(reward.dust, reward.light, anchor, half, bounds)
-
-
-func _size_of(id: int) -> Star.Size:
-	if Scorpio.is_landmark_id(id):
-		return Scorpio.SIZES[Scorpio.landmark_index(id)] as Star.Size
-	return _run.find_star(id).size
+	var ids: Array[int] = _gesture.selected
+	var landmarks: Array[int] = []
+	for id: int in ids:
+		if Scorpio.is_landmark_id(id):
+			landmarks.append(Scorpio.landmark_index(id))
+	_constellation.show_link_preview(landmarks, _run.strings_for(ids))
 
 
 func _on_payouts_landed() -> void:

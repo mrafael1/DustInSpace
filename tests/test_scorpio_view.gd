@@ -53,8 +53,6 @@ func test_tracing_shows_the_landmark_lit_and_the_string_it_would_form() -> void:
 	assert_eq(constellation.get("_selected"), [2] as Array[int])
 	_touch(b.position, true)
 	assert_eq(constellation.get("_preview_strings"), [1] as Array[int])
-	var plaque: RewardPlaque = main.get_node("Sky/UILayer/RewardPlaque")
-	assert_true(plaque.visible, "the combo's reward shows as usual")
 
 
 func test_a_bad_mix_shows_the_no_combo_cross_and_uses_nothing() -> void:
@@ -156,7 +154,6 @@ func test_a_full_sun_ignites_lights_its_landmark_then_bursts_the_stars_left_for_
 		if is_instance_valid(view):
 			view.advance(1.0 / 30.0)
 	assert_almost_eq(sun.progress(), 0.0, 0.001, "then starts again from 0")
-	assert_eq((main.get_node("HUD/Light") as Label).text, "0/100")
 	assert_true(constellation.shows_lit(target), "its landmark lit")
 	assert_eq(burst, [left.position], "then the star left bursts")
 	assert_eq(sky.star_count(), 0, "a clean sky")
@@ -506,9 +503,11 @@ func test_a_link_in_reach_is_made_by_tap_and_by_drag() -> void:
 	assert_eq(run.stars.size(), 0, "a drag through them links too")
 
 
-func test_the_hud_shows_scorpios_sun_target() -> void:
+func test_the_sun_fills_toward_scorpios_own_target() -> void:
 	_reach_run()
-	assert_eq((main.get_node("HUD/Light") as Label).text, "0/50")
+	assert_eq(main.run.light_target(), 50, "Scorpio's sun_target, not the plain stage's")
+	(main.get_node("Sun") as SunView).receive_light(25)
+	assert_almost_eq((main.get_node("Sun") as SunView).progress(), 0.5, 0.001, "its fill shows it: no number (#59)")
 
 
 func test_on_a_taller_sky_the_constellation_is_drawn_and_picked_where_it_moved() -> void:

@@ -100,7 +100,6 @@ func test_landing_particles_tick_the_hud_and_the_sun() -> void:
 	fx.dust_arrived.emit(2)
 	fx.light_arrived.emit(10)
 	assert_eq((hud.get_node("Dust") as Label).text, "%d" % (main.run.dust + 2))
-	assert_string_starts_with((hud.get_node("Light") as Label).text, "10/")
 	assert_eq(sun.progress(), 10.0 / main.run.light_target(), "the Sun fills toward the run's target")
 
 

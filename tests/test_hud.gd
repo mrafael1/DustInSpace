@@ -21,7 +21,7 @@ func before_each() -> void:
 
 func test_counters_show_the_run() -> void:
 	assert_eq(_label("Dust").text, "0")
-	assert_eq(_label("Light").text, "0/100", "light over the Sun's target")
+	assert_null(hud.get_node_or_null("Light"), "no light number: the Sun's fill shows it (#59)")
 	assert_eq(_slot_label("blue", "Count").text, "×2")
 	assert_eq(_slot_label("blue", "Cost").text, "4", "cost from balance.json")
 	assert_eq(_slot_label("red", "Count").text, "×1")
@@ -91,7 +91,6 @@ func test_a_combo_ticks_the_counters_up_as_its_particles_land() -> void:
 	_link_small_triple()
 	sequencer.advance(0.0)
 	assert_eq(_label("Dust").text, "0", "the combo played, but its dust is still flying")
-	assert_eq(_label("Light").text, "0/100")
 	var rest: Vector2 = _label("Dust").position
 	hud.receive_dust(1)
 	assert_eq(_label("Dust").text, "1")
@@ -99,9 +98,7 @@ func test_a_combo_ticks_the_counters_up_as_its_particles_land() -> void:
 	hud.advance(Hud.HOP_TIME)
 	assert_eq(_label("Dust").position, rest, "and lands back")
 	hud.receive_dust(2)
-	hud.receive_light(5)
 	assert_eq(_label("Dust").text, "3")
-	assert_eq(_label("Light").text, "5/100")
 	_assert_shows_the_run()
 
 
@@ -117,7 +114,6 @@ func test_a_buy_while_dust_is_flying_lands_on_the_right_total() -> void:
 	hud.receive_dust(3)
 	assert_eq(_label("Dust").text, "6")
 	assert_eq(_label("Dust").text, "%d" % run.dust)
-	hud.receive_light(5)
 	_assert_shows_the_run()
 
 
@@ -164,7 +160,6 @@ func test_a_pack_cues_once_when_the_counter_reaches_its_cost() -> void:
 	assert_true(blue.is_cueing(), "a landing mid-cue doesn't restart it")
 	blue.advance(PackSlot.SPARKLE_STEP * PackSlot.SPARKLE_ARMS.size())
 	assert_false(blue.is_cueing())
-	hud.receive_light(5)
 	_link_small_triple()
 	sequencer.advance(0.0)
 	for i: int in 3:
@@ -233,7 +228,6 @@ func test_spending_below_the_cost_and_earning_it_again_cues_again() -> void:
 	sequencer.advance(0.0)
 	assert_eq(_label("Dust").text, "2", "6 - 4")
 	assert_false(blue.is_cueing(), "grey again")
-	hud.receive_light(5)
 	_link_small_triple()
 	sequencer.advance(0.0)
 	hud.receive_dust(1)
@@ -336,7 +330,6 @@ func test_spending_dust_still_in_flight_never_shows_a_negative_balance() -> void
 	assert_eq(_label("Dust").text, "1", "then the counter meets the run")
 	assert_false(hud.slot("blue").is_cueing(), "the landings only paid back the buy: no crossing")
 	assert_eq(_slot_label("blue", "Cost").label_settings.font_color, Palette.N7, "1 dust can't buy a blue")
-	hud.receive_light(10)
 	_assert_shows_the_run()
 
 
@@ -546,10 +539,9 @@ func test_labels_use_the_bitmap_fonts_with_a_shadow() -> void:
 	assert_eq(dust.font_size, HudText.PRIMARY_FONT.fixed_size, "never scaled")
 	assert_eq(dust.shadow_color, Palette.N0)
 	assert_eq(dust.shadow_offset, Vector2(1, 1))
-	var light: LabelSettings = _label("Light").label_settings
-	assert_eq(light.font, HudText.SECONDARY_FONT)
-	assert_eq(light.font_size, HudText.SECONDARY_FONT.fixed_size)
-	assert_eq(light.font_color, Palette.C1)
+	var count: LabelSettings = _slot_label("blue", "Count").label_settings
+	assert_eq(count.font, HudText.SECONDARY_FONT)
+	assert_eq(count.font_size, HudText.SECONDARY_FONT.fixed_size)
 
 
 func test_glyphs_start_on_the_label_top_pixel() -> void:
@@ -638,7 +630,7 @@ func _assert_shows_the_run() -> void:
 
 
 func _texts() -> Array[String]:
-	var texts: Array[String] = [_label("Dust").text, _label("Light").text]
+	var texts: Array[String] = [_label("Dust").text]
 	for kind: String in ["blue", "red"]:
 		texts.append(_slot_label(kind, "Count").text)
 		texts.append("%s" % _slot_label(kind, "Cost").label_settings.font_color)
@@ -689,4 +681,3 @@ func test_the_hud_anchors_to_a_taller_phone_screens_corners() -> void:
 	assert_eq(Vector2i((hud.get_node("DustIcon") as Node2D).position), Hud.DUST_ICON_AT + Vector2i(-7, 0))
 	var blue_at: Vector2i = blue_before + Vector2i(phone.end.x - ScreenZones.SCREEN.x, 0)
 	assert_eq(hud.target_at(blue_at + PackSlot.COST_TARGET.get_center()), ["blue", &"cost"], "the slots on its right edge, taps follow")
-	assert_eq(Vector2i((hud.get_node("Light") as Label).position), Hud.LIGHT_AT + Vector2i(0, -102), "the light counter rises with the Sun")

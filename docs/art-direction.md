@@ -9,7 +9,7 @@ See `docs/concept/gameplay_mockup_4x.png` and `docs/concept/asset_sheet.png`.
 - **Native resolution:** 180 × 320 (portrait, 9:16). Scale by integers only, with nearest-neighbour filtering.
 - **One pixel size everywhere.** Never scale a sprite by a fraction, rotate it by a non-90° angle, or smooth it. Animate by drawing frames.
 - **Screen zones (native px):** Sun y 0–78 · play sky y 78–250 · horizon and land y 230–284 · HUD y 284–320.
-- **Taller screens:** the view fills the phone at a whole-number scale and the 180×320 game sits on the bottom edge. The UI anchors to the real screen's corners (speaker top-left, dust bottom-left, packs bottom-right), the Sun rises to the top of the screen with its counter, and the play sky grows up into the space it leaves, with the Scorpio map moved up to stay centred in it. The sky above the background fades into N0 space with cool 1 px stars.
+- **Taller screens:** the view fills the phone at a whole-number scale and the 180×320 game sits on the bottom edge. The UI anchors to the real screen's corners (speaker top-left, dust bottom-left, packs bottom-right), the Sun rises to the top of the screen, and the play sky grows up into the space it leaves, with the Scorpio map moved up to stay centred in it. The sky above the background fades into N0 space with cool 1 px stars.
 - **Touch targets** are set in code: at least a 44 pt hit circle per star, independent of sprite size.
 
 ## Palette
@@ -55,7 +55,7 @@ The palette has 40 colours in 7 ramps (the dust ramp reuses N7 and N8). Files: `
 | Red pack | r6 + ring | Ringed planet | same |
 | Slingshot | ~30×36 | Crescent fork with star gems | idle, pull (3–4 frames), release |
 | Dust icon | 9×9 / 5×5 | Faceted diamond | pulse |
-| Reward plaque | 46×11 | N0 fill, N6 border, clipped corners | shown while linking |
+| Floating payout | text + 5×5 dust icon | "+n" in the 5×7 font, D0 (the top combo flashes C0 and hops 1 px) | rises 5 px from a collected link, stays until its dust lands (prototype, #59) |
 
 ## UI text
 
