@@ -23,15 +23,28 @@ const EMPTY_MESSAGE: String = "LOAD A PLANET FIRST"
 const AIM_MESSAGE: String = "TAP THE SKY TO LAUNCH"
 ## The tube turns in this many whole-pixel direction frames around the pivot.
 const DIRECTIONS: int = 16
-## Where the tube pivots on the tripod, and how far the tube reaches behind and in front of it.
-const PIVOT := Vector2i(0, -3)
-const TUBE_BACK: int = 6
-const TUBE_FRONT: int = 16
-## The lens hood at the mouth reaches this far out; the planet sits just past it.
-const HOOD: int = 2
-## Tripod feet, from the pivot down to the land.
-const FEET: Array[Vector2i] = [Vector2i(-7, 9), Vector2i(0, 10), Vector2i(7, 9)]
-## Press areas: around the tripod and tube, and around the planet at the mouth.
+## Where the barrel pivots on the tripod's head. The tripod never moves; only the barrel turns.
+const PIVOT := Vector2i(0, -6)
+## The barrel along its own axis (u, px from the pivot, + towards the mouth), half-widths across:
+## a brass eyepiece behind, the 7 px barrel with two straps, then the wider lens hood.
+const EYEPIECE_BACK: int = -11
+const BARREL_BACK: int = -7
+const HOOD_BACK: int = 15
+const MOUTH: int = 18
+const EYEPIECE_HALF: int = 1
+const BARREL_HALF: int = 3
+const HOOD_HALF: int = 4
+const STRAPS: Array[int] = [-4, 9]
+## The lens opening: the hood's last rows inside its rim. Dark and hollow when empty; the
+## loaded planet shows through it, seated SEAT px deep behind the hood.
+const LENS_DEPTH: int = 2
+const SEAT: int = 4
+## The tripod's head (under the pivot) and its three legs; the middle one is behind.
+const HEAD_TOP: int = -4
+const HEAD_ROWS: int = 3
+const LEGS: Array[Vector2i] = [Vector2i(-9, 10), Vector2i(9, 10)]
+const BACK_LEG := Vector2i(0, 8)
+## Press areas: around the tripod, along the barrel, and around the planet at the mouth.
 const SCOPE_RADIUS: int = 13
 const PACK_REACH: int = 3
 ## The sight line: one dot every SIGHT_STEP px from the mouth, stopping short of the reticle.
@@ -52,6 +65,13 @@ var _scope_pressed: bool = false
 var _sky_pressed: bool = false
 ## The HUD picked a planet: aim once its events have played.
 var _aim_requested: bool = false
+
+
+func _ready() -> void:
+	# The loaded planet sits at the HUD's size, seated in the mouth: the barrel draws over it.
+	_rest_pack.radius_override = PackView.HUD_RADIUS
+	_rest_pack.bright = true
+	_rest_pack.show_behind_parent = true
 
 
 func _draw() -> void:
@@ -101,15 +121,14 @@ func direction() -> Vector2:
 	return Vector2(sin(angle), -cos(angle))
 
 
-## The mouth of the tube, where the planet sits (this node's coordinates).
+## The mouth of the barrel, the hood's rim (this node's coordinates).
 func mouth() -> Vector2i:
-	return PIVOT + Vector2i((direction() * TUBE_FRONT).round())
+	return PIVOT + Vector2i((direction() * MOUTH).round())
 
 
-## Where the loaded planet sits: just past the mouth, touching it.
+## Where the loaded planet sits: seated SEAT px into the mouth, the rest of it out in front.
 func pack_position() -> Vector2i:
-	var radius: int = PackView.RADIUS.get(_rest_pack.kind, 8)
-	return mouth() + Vector2i((direction() * (radius + HOOD + 1)).round())
+	return PIVOT + Vector2i((direction() * (MOUTH + PackView.HUD_RADIUS + 1 - SEAT)).round())
 
 
 ## Starts aiming if the telescope holds a planet; the empty one says so. Returns true if it aims.
@@ -232,7 +251,10 @@ func _on_touch(touch: InputEventScreenTouch) -> bool:
 func on_scope(point: Vector2i) -> bool:
 	if (point - PIVOT).length_squared() <= SCOPE_RADIUS * SCOPE_RADIUS:
 		return true
-	var reach: int = PackView.RADIUS.get(_rest_pack.kind, 8) + PACK_REACH
+	var uv: Vector2i = _barrel_uv(point)
+	if uv.x >= EYEPIECE_BACK and uv.x <= MOUTH and absi(uv.y) <= HOOD_HALF + PACK_REACH:
+		return true
+	var reach: int = PackView.HUD_RADIUS + PACK_REACH
 	return shown_pack() != "" and (point - pack_position()).length_squared() <= reach * reach
 
 
@@ -269,25 +291,89 @@ func _pose() -> void:
 	queue_redraw()
 
 
-## Tripod legs (M4, M5 feet), the tube in its direction frame (M4 body, M6 highlight), a brass
-## eyepiece and mount (C3, warm: it's interactive) and a lens hood at the mouth: C2 at rest, C1
-## lit while aiming. Whole pixels only; the frame is chosen, never rotated.
+## The fixed tripod, then the barrel in its direction frame, then the pivot joint over it.
+## Whole pixels only: each frame's barrel is filled pixel by pixel from its axis, never rotated.
 func _draw_telescope() -> void:
-	for foot: Vector2i in FEET:
-		for p: Vector2i in LinkLayer.line_pixels(PIVOT, foot):
+	_draw_tripod()
+	_draw_barrel()
+	_draw_joint()
+
+
+## Three legs (M4, the back one M3) from a stepped head under the pivot, M5 feet. Never moves.
+func _draw_tripod() -> void:
+	var foot_of_head: int = HEAD_TOP + HEAD_ROWS - 1
+	for p: Vector2i in LinkLayer.line_pixels(Vector2i(0, foot_of_head), BACK_LEG):
+		_dot(p, Palette.M3)
+	for leg: Vector2i in LEGS:
+		for p: Vector2i in LinkLayer.line_pixels(Vector2i(signi(leg.x) * 2, foot_of_head), leg):
 			_dot(p, Palette.M4)
-		_dot(foot, Palette.M5)
+		draw_rect(Rect2(Vector2(leg - Vector2i(1 if leg.x > 0 else 0, 0)), Vector2(2, 1)), Palette.M5)
+	for row: int in HEAD_ROWS:
+		var half: int = 3 - row / 2
+		draw_rect(Rect2(-half, HEAD_TOP + row, 2 * half + 1, 1), Palette.M4 if row == 0 else Palette.M3)
+
+
+## The barrel, lit from the top-left: M5 on its lit edge, M3 on its shadow edge, M4 between, M5
+## straps. A brass eyepiece (C3) behind; the lens hood in front, warm because it's the interactive
+## end (C2 rim, C1 lip; C1 and C0 while aiming). The opening inside the rim is dark and hollow
+## when empty; when loaded it's left open, so the planet seated behind it shows through.
+func _draw_barrel() -> void:
+	var loaded: bool = shown_pack() != ""
+	var reach: int = MOUTH + HOOD_HALF + 1
+	for y: int in range(PIVOT.y - reach, PIVOT.y + reach + 1):
+		for x: int in range(-reach, reach + 1):
+			var p := Vector2i(x, y)
+			var uv: Vector2i = _barrel_uv(p)
+			var colour: Variant = _barrel_colour(uv.x, uv.y * _lit_side(), loaded)
+			if colour != null:
+				_dot(p, colour)
+
+
+## The colour of the barrel at (u, v), v counted towards the light (+ is the lit edge), or null.
+func _barrel_colour(u: int, v: int, loaded: bool) -> Variant:
+	if u < EYEPIECE_BACK or u > MOUTH:
+		return null
+	if u < BARREL_BACK:
+		if absi(v) > EYEPIECE_HALF:
+			return null
+		return Palette.C2 if v == EYEPIECE_HALF else Palette.C3
+	if u < HOOD_BACK:
+		if absi(v) > BARREL_HALF:
+			return null
+		if v == BARREL_HALF or STRAPS.has(u):
+			return Palette.M5
+		return Palette.M3 if v == -BARREL_HALF else Palette.M4
+	if absi(v) > HOOD_HALF:
+		return null
+	if u > MOUTH - LENS_DEPTH and absi(v) < HOOD_HALF:
+		if loaded:
+			return null
+		return Palette.M5 if v == 1 and u == MOUTH else Palette.N0
+	if u == MOUTH:
+		return Palette.C0 if _aiming else Palette.C1
+	return Palette.C1 if _aiming else Palette.C2
+
+
+## The pivot joint: a round M1 hub with an M5 cap and a brass (C3) bolt, over the barrel.
+func _draw_joint() -> void:
+	for p: Vector2i in [Vector2i(-1, -2), Vector2i(0, -2), Vector2i(1, -2), Vector2i(-2, -1), Vector2i(2, -1), Vector2i(-2, 0), Vector2i(2, 0), Vector2i(-2, 1), Vector2i(2, 1), Vector2i(-1, 2), Vector2i(0, 2), Vector2i(1, 2)]:
+		_dot(PIVOT + p, Palette.M1)
+	for p: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1)]:
+		_dot(PIVOT + p, Palette.M5)
+	_dot(PIVOT, Palette.C3)
+
+
+## A point's place on the barrel: u along its axis from the pivot, v across it, on whole pixels.
+func _barrel_uv(point: Vector2i) -> Vector2i:
 	var dir: Vector2 = direction()
-	var back: Vector2i = PIVOT - Vector2i((dir * TUBE_BACK).round())
-	var tube: Array[Vector2i] = LinkLayer.line_pixels(back, mouth())
-	for p: Vector2i in tube:
-		draw_rect(Rect2(Vector2(p - Vector2i.ONE), Vector2(3, 3)), Palette.M4)
-	for p: Vector2i in tube:
-		_dot(p, Palette.M6)
-	draw_rect(Rect2(Vector2(back - Vector2i.ONE), Vector2(3, 3)), Palette.C3)
-	draw_rect(Rect2(Vector2(PIVOT - Vector2i.ONE), Vector2(3, 3)), Palette.C3)
-	draw_rect(Rect2(Vector2(mouth() - Vector2i.ONE * HOOD), Vector2.ONE * (2 * HOOD + 1)), Palette.C1 if _aiming else Palette.C2)
-	draw_rect(Rect2(Vector2(mouth() - Vector2i.ONE), Vector2(3, 3)), Palette.C0 if _aiming else Palette.C1)
+	var rel := Vector2(point - PIVOT)
+	return Vector2i(roundi(rel.dot(dir)), roundi(rel.dot(Vector2(-dir.y, dir.x))))
+
+
+## Which way across the barrel faces the top-left light: +1 or -1 for v.
+func _lit_side() -> int:
+	var dir: Vector2 = direction()
+	return 1 if Vector2(-dir.y, dir.x).dot(Vector2(-1, -1)) >= 0.0 else -1
 
 
 ## A dotted C2 sight line from the planet to the reticle.

@@ -255,6 +255,35 @@ func test_every_direction_frame_keeps_the_tube_on_whole_pixels() -> void:
 	assert_gt(seen.size(), 2, "the tube turns through several frames across the sky (%s)" % pivot)
 
 
+func test_empty_and_loaded_differ_in_shape_not_only_colour() -> void:
+	var lens: int = Telescope.MOUTH
+	assert_null(scope._barrel_colour(lens, 0, true), "loaded: the lens is open and the planet shows through")
+	assert_eq(scope._barrel_colour(lens - 1, 0, false), Palette.N0, "empty: a dark, hollow lens")
+	var pack: PackView = scope.get_node("RestPack")
+	assert_true(pack.show_behind_parent, "the planet is seated behind the hood, not balanced on it")
+	var seated: int = (Vector2(scope.pack_position() - scope.mouth())).length()
+	assert_lt(seated, PackView.HUD_RADIUS + 1, "part of the planet sits inside the mouth")
+
+
+func test_the_barrel_is_wider_than_its_eyepiece_and_the_hood_wider_still() -> void:
+	assert_gt(Telescope.BARREL_HALF, Telescope.EYEPIECE_HALF)
+	assert_gt(Telescope.HOOD_HALF, Telescope.BARREL_HALF)
+	for v: int in range(-Telescope.HOOD_HALF - 1, Telescope.HOOD_HALF + 2):
+		for u: int in range(Telescope.EYEPIECE_BACK - 1, Telescope.MOUTH + 2):
+			var colour: Variant = scope._barrel_colour(u, v, false)
+			if colour != null:
+				assert_true(colour is Color, "(%d, %d)" % [u, v])
+
+
+func test_only_the_barrel_turns_the_tripod_stays() -> void:
+	_tap(SCOPE)
+	var before: int = scope.direction_frame()
+	_hover(Vector2i(170, 200) - ORIGIN)
+	assert_ne(scope.direction_frame(), before)
+	assert_true(scope.on_scope(Telescope.PIVOT + Vector2i(0, 10)), "the tripod is still pressable where it stands")
+	assert_true(scope.on_scope(scope.mouth()), "and so is the barrel's mouth, wherever it points")
+
+
 func _tap(point: Vector2i) -> void:
 	_touch(point, true)
 	_touch(point, false)
