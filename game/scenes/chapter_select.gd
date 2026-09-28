@@ -1,21 +1,22 @@
 class_name ChapterSelect
 extends CanvasLayer
 ## Scorpio's chapter chart (#62): the constellation as a pixel-art star chart over deep space
-## (a stepped sky, a milky way, faint nebulae and cool background stars), each star a stage
-## point, travelled from the tail. Tap a point to select it (a comet travels there along the
-## strings); PLAY starts its stage if it's available or completed. Locked points can be selected to
-## see what they are, never played.
-## Points: completed ones are gold stars; the one to play next has a warm ring that breathes;
-## locked ones are cool and quieter. The selected point wears C0 corner brackets. The path is solid:
-## gold along the route between completed stages, warm from the last one to the stage to play
-## next, and a cool guide elsewhere. Numbers (3x5, UI text) count the route from the tail, so the
-## direction reads without astronomy. The selected stage's name and PLAY sit on their own panel.
-## Back from a won stage (show_progress), the point flashes as it lights, then a comet travels to
-## the point it unlocked. Owns no rules: Chapter says what's completed and available.
+## (a stepped sky, a milky way, faint nebulae and cool background stars). Its stars are grouped
+## into the chapter's part stages (Stinger, Tail, Body, Heart, Claws), travelled from the tail,
+## and a crown point above the figure is the final stage, the full Scorpio. Tap a star to select
+## the stage it belongs to (a comet travels there); PLAY starts it if it's available or completed.
+## Locked stages can be selected to see what they are, never played.
+## A stage's stars are gold once it's won; the stage to play next shows warm, with a breathing
+## ring round its point (its first star from the tail); locked ones are cool and quieter. The
+## selected stage's point wears C0 corner brackets. The path is solid: gold between won stars,
+## warm through and into the stage to play next, a cool guide elsewhere. Numbers (3x5, UI text)
+## count the stages from the tail. The selected stage's name and PLAY sit on their own panel.
+## Back from a won stage (show_progress), its point flashes as its stars light, then a comet
+## travels to the stage it opened. Owns no rules: Chapter says what's won and available.
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
 
-## The player asked to play the stage at route point `point`.
-signal stage_chosen(point: int)
+## The player asked to play stage `stage`.
+signal stage_chosen(stage: int)
 
 ## How a string of the path shows: a cool guide, the way to the stage to play next, or travelled.
 enum Leg { GUIDE, NEXT, LIT }
@@ -55,8 +56,10 @@ const GLINT_ODDS: int = 12
 const STAR_CLEAR: int = 8
 const STAR_COLOURS: Array[Color] = [Palette.N7, Palette.N7, Palette.N8, Palette.M5]
 
-## Where a point's number sits from the point.
+## Where a stage's number sits from its point.
 const NUMBER_OFFSET := Vector2i(8, -12)
+## The final stage's crown point, above the figure.
+const FINAL_AT := Vector2i(90, 66)
 
 var _chapter: Chapter
 var _selected: int = 0
@@ -94,10 +97,10 @@ func _ready() -> void:
 	_subtitle.text = "CHAPTER 1"
 	_centre(_title, TITLE_Y)
 	_centre(_subtitle, SUBTITLE_Y)
-	for point: int in Chapter.point_count():
+	for stage: int in Chapter.stage_count():
 		var number := Label.new()
 		number.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		number.text = "%d" % (point + 1)
+		number.text = "%d" % (stage + 1)
 		add_child(number)
 		_numbers.append(number)
 
@@ -164,11 +167,13 @@ static func space_stars(screen: Rect2i) -> Array[Vector2i]:
 			if _hash(p) % STAR_ODDS != 0 or panel.has_point(p) or title.has_point(p):
 				continue
 			var clear: bool = true
-			for point: int in Chapter.point_count():
-				var number := Rect2i(point_position(point) + NUMBER_OFFSET - Vector2i(2, 2), Vector2i(12, 10))
-				if (point_position(point) - p).length_squared() < STAR_CLEAR * STAR_CLEAR or number.has_point(p):
+			for star: Vector2i in Scorpio.LANDMARKS + [FINAL_AT]:
+				if (star - p).length_squared() < STAR_CLEAR * STAR_CLEAR:
 					clear = false
 					break
+			for stage: int in Chapter.stage_count():
+				if Rect2i(stage_position(stage) + NUMBER_OFFSET - Vector2i(2, 2), Vector2i(12, 10)).has_point(p):
+					clear = false
 			if clear:
 				stars.append(p)
 	return stars
@@ -211,8 +216,8 @@ static func _hash(p: Vector2i) -> int:
 	return absi(h ^ (h >> 16))
 
 
-## Back from a stage: `lit` (a route point just completed, or -1) flashes as it lights, then a
-## comet travels to `unlocked` (the point it opened, or -1) and selects it.
+## Back from a stage: `lit` (a stage just won, or -1) flashes as its stars light, then a comet
+## travels to `unlocked` (the stage it opened, or -1) and selects it.
 func show_progress(lit: int, unlocked: int) -> void:
 	_travel.clear()
 	if lit >= 0:
@@ -237,43 +242,52 @@ func is_lighting() -> bool:
 	return _light_point >= 0
 
 
-## Selects route point `point`; a comet travels there from the point selected before.
-func select(point: int) -> void:
-	if point == _selected:
+## Selects stage `stage`; a comet travels there from the stage selected before.
+func select(stage: int) -> void:
+	if stage == _selected:
 		return
-	_travel = travel_pixels(_selected, point)
+	_travel = travel_pixels(_selected, stage)
 	_travel_time = 0.0
-	_travel_to = point
-	_selected = point
+	_travel_to = stage
+	_selected = stage
 	_refresh()
 
 
-## Whether PLAY shows for the selected point: its stage exists and it's available or done.
+## Whether PLAY shows for the selected stage: its map exists and it's available or done.
 func can_play() -> bool:
 	return _chapter != null and _chapter.state(_selected) != Chapter.PointState.LOCKED
 
 
-## Where route point `point` is drawn (game coordinates).
-static func point_position(point: int) -> Vector2i:
-	return Scorpio.LANDMARKS[Chapter.landmark(point)]
+## Where stage `stage`'s point is drawn (game coordinates): a part's first star from the tail,
+## or the crown point for the final.
+static func stage_position(stage: int) -> Vector2i:
+	if Chapter.is_final(stage):
+		return FINAL_AT
+	return Scorpio.LANDMARKS[Chapter.stars(stage)[0]]
 
 
-## The route point whose press circle holds `at`, the nearest if several do, or -1.
-static func point_at(at: Vector2i) -> int:
+## The stage a tap at `at` picks: the part owning the nearest star in reach, or the final on its
+## crown point, or -1.
+static func stage_at(at: Vector2i) -> int:
 	var best: int = -1
 	var best_d: int = HIT_RADIUS * HIT_RADIUS + 1
-	for point: int in Chapter.point_count():
-		var d: int = (point_position(point) - at).length_squared()
+	for landmark: int in Scorpio.LANDMARKS.size():
+		var d: int = (Scorpio.LANDMARKS[landmark] - at).length_squared()
 		if d < best_d:
 			best_d = d
-			best = point
+			best = Chapter.stage_of(landmark)
+	if (FINAL_AT - at).length_squared() < best_d:
+		best = Chapter.FINAL
 	return best
 
 
-## The pixels a comet follows from one point to another, along the strings.
-static func travel_pixels(from_point: int, to_point: int) -> Array[Vector2i]:
+## The pixels a comet follows from one stage's point to another's: along the strings between
+## parts, straight up to the crown for the final.
+static func travel_pixels(from_stage: int, to_stage: int) -> Array[Vector2i]:
+	if Chapter.is_final(from_stage) or Chapter.is_final(to_stage):
+		return LinkLayer.line_pixels(stage_position(from_stage), stage_position(to_stage))
 	var pixels: Array[Vector2i] = []
-	var marks: Array[int] = Chapter.path(from_point, to_point)
+	var marks: Array[int] = Scorpio.landmark_path(Chapter.stars(from_stage)[0], Chapter.stars(to_stage)[0])
 	for k: int in range(1, marks.size()):
 		var line: Array[Vector2i] = LinkLayer.line_pixels(Scorpio.LANDMARKS[marks[k - 1]], Scorpio.LANDMARKS[marks[k]])
 		if not pixels.is_empty():
@@ -290,7 +304,7 @@ func handle_pointer(event: InputEvent) -> bool:
 	var at := Vector2i(touch.position.floor())
 	if touch.pressed:
 		_pressed_play = can_play() and PLAY.has_point(at)
-		_pressed_point = -1 if _pressed_play else point_at(at)
+		_pressed_point = -1 if _pressed_play else stage_at(at)
 		_chart.queue_redraw()
 		return _pressed_play or _pressed_point >= 0
 	var used: bool = _pressed_play or _pressed_point >= 0
@@ -301,7 +315,7 @@ func handle_pointer(event: InputEvent) -> bool:
 		return used
 	if _pressed_play and PLAY.has_point(at) and can_play():
 		stage_chosen.emit(_selected)
-	elif _pressed_point >= 0 and point_at(at) == _pressed_point and not is_travelling() and not is_lighting():
+	elif _pressed_point >= 0 and stage_at(at) == _pressed_point and not is_travelling() and not is_lighting():
 		select(_pressed_point)
 	_pressed_play = false
 	_pressed_point = -1
@@ -340,15 +354,15 @@ func _ring_frame() -> int:
 func _refresh() -> void:
 	if _chapter == null or _info == null:
 		return
-	for point: int in _numbers.size():
+	for stage: int in _numbers.size():
 		var colour: Color = Palette.N8
-		match _chapter.state(point):
+		match _chapter.state(stage):
 			Chapter.PointState.COMPLETED:
 				colour = Palette.C1
 			Chapter.PointState.AVAILABLE:
 				colour = Palette.C2
-		_numbers[point].label_settings = HudText.secondary(colour)
-		_numbers[point].position = Vector2(point_position(point) + NUMBER_OFFSET)
+		_numbers[stage].label_settings = HudText.secondary(colour)
+		_numbers[stage].position = Vector2(stage_position(stage) + NUMBER_OFFSET)
 	if _chapter.has_stage(_selected):
 		_info.text = Chapter.stage_name(_selected)
 		_info.label_settings.font_color = Palette.C1
@@ -379,41 +393,42 @@ func _draw_chart() -> void:
 		for segment: int in Scorpio.segment_count():
 			if legs[segment] == leg:
 				_draw_string(segment, leg)
-	for point: int in Chapter.point_count():
-		_draw_point(point)
-	_draw_selection(point_position(_selected))
+	for landmark: int in Scorpio.LANDMARKS.size():
+		_draw_star(landmark)
+	_draw_crown()
+	_draw_selection(stage_position(_selected))
 	if _light_point >= 0:
 		var k: float = _light_time / LIGHT_TIME
 		var colour: Color = LIGHT_COLOURS[mini(floori(k * LIGHT_COLOURS.size()), LIGHT_COLOURS.size() - 1)]
 		var radius: int = 4 + roundi(k * LIGHT_GROWTH)
 		for d: Vector2i in ConstellationView.circle_pixels(radius):
-			_dot(point_position(_light_point) + d, colour)
+			_dot(stage_position(_light_point) + d, colour)
 	_draw_comet()
 	_draw_plaque(PANEL, Palette.M1, Palette.N6)
 	if can_play():
 		_draw_plaque(PLAY, Palette.C4 if _pressed_play else Palette.C5, Palette.C2)
 
 
-## How each string shows (Scorpio.SEGMENTS order): LIT along the route between completed stages
-## (following the strings, so the way back through the head to a claw lights too), NEXT from the
-## last completed stage to the stage to play next, GUIDE elsewhere.
+## How each string shows (Scorpio.SEGMENTS order): LIT between two won stars, NEXT through
+## and into the part to play next (from the won stars before it), GUIDE elsewhere.
 func string_legs() -> Array[Leg]:
 	var legs: Array[Leg] = []
 	for segment: int in Scorpio.segment_count():
-		legs.append(Leg.GUIDE)
-	for point: int in range(1, Chapter.point_count()):
-		var leg: Leg = Leg.GUIDE
-		if _chapter.is_completed(point - 1) and _chapter.is_completed(point):
-			leg = Leg.LIT
-		elif _chapter.is_completed(point - 1) and _chapter.is_available(point):
-			leg = Leg.NEXT
-		if leg == Leg.GUIDE:
-			continue
-		var marks: Array[int] = Chapter.path(point - 1, point)
-		for k: int in range(1, marks.size()):
-			var segment: int = _segment_between(marks[k - 1], marks[k])
-			legs[segment] = maxi(legs[segment], leg) as Leg
+		var ends: Array[int] = Scorpio.segment_landmarks(segment)
+		var a: Chapter.PointState = _star_state(ends[0])
+		var b: Chapter.PointState = _star_state(ends[1])
+		if a == Chapter.PointState.COMPLETED and b == Chapter.PointState.COMPLETED:
+			legs.append(Leg.LIT)
+		elif a != Chapter.PointState.LOCKED and b != Chapter.PointState.LOCKED:
+			legs.append(Leg.NEXT)
+		else:
+			legs.append(Leg.GUIDE)
 	return legs
+
+
+## A chart star shows its part stage's state.
+func _star_state(landmark: int) -> Chapter.PointState:
+	return _chapter.state(Chapter.stage_of(landmark))
 
 
 ## A solid 1 px string: C1 when travelled, C3 on the way to the next stage, an N6 guide elsewhere.
@@ -428,32 +443,51 @@ func _draw_string(segment: int, leg: Leg) -> void:
 		_dot(p, colour)
 
 
-static func _segment_between(a: int, b: int) -> int:
-	for segment: int in Scorpio.segment_count():
-		var pair: Vector2i = Scorpio.SEGMENTS[segment]
-		if (pair.x == a and pair.y == b) or (pair.x == b and pair.y == a):
-			return segment
-	return -1
-
-
-func _draw_point(point: int) -> void:
-	var at: Vector2i = point_position(point)
-	match _chapter.state(point):
+## A chart star in its part's state: a gold star once won; warm while its part is the one to
+## play (its first star also wears the breathing ring); cool and quieter while locked.
+func _draw_star(landmark: int) -> void:
+	var at: Vector2i = Scorpio.LANDMARKS[landmark]
+	var stage: int = Chapter.stage_of(landmark)
+	match _chapter.state(stage):
 		Chapter.PointState.COMPLETED:
 			for d: Vector2i in [Vector2i(0, -2), Vector2i(0, 2), Vector2i(-2, 0), Vector2i(2, 0)]:
 				_dot(at + d, Palette.C2)
 			_fill(at, 1, Palette.C1)
 			_dot(at, Palette.C0)
 		Chapter.PointState.AVAILABLE:
-			_fill(at, 1, Palette.C1)
+			_fill(at, 1, Palette.C2)
 			_dot(at, Palette.C0)
-			for d: Vector2i in ConstellationView.circle_pixels(6 + _ring_frame()):
-				_dot(at + d, Palette.C2)
+			if landmark == Chapter.stars(stage)[0]:
+				_ring(at)
 		_:
 			_fill(at, 1, Palette.N0)
 			for d: Vector2i in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
 				_dot(at + d, Palette.N8)
 			_dot(at, Palette.M6)
+
+
+## The final stage's crown point: a star with 3 px arms (gold once won, warm and ringed while
+## playable, cool while locked).
+func _draw_crown() -> void:
+	var state: Chapter.PointState = _chapter.state(Chapter.FINAL)
+	var core: Color = Palette.N8
+	var arms: Color = Palette.N6
+	if state == Chapter.PointState.COMPLETED:
+		core = Palette.C0
+		arms = Palette.C1
+	elif state == Chapter.PointState.AVAILABLE:
+		core = Palette.C1
+		arms = Palette.C2
+		_ring(FINAL_AT)
+	for k: int in range(1, 4):
+		for d: Vector2i in [Vector2i(0, -k), Vector2i(0, k), Vector2i(-k, 0), Vector2i(k, 0)]:
+			_dot(FINAL_AT + d, core if k == 1 else arms)
+	_dot(FINAL_AT, Palette.C0 if state != Chapter.PointState.LOCKED else Palette.M6)
+
+
+func _ring(at: Vector2i) -> void:
+	for d: Vector2i in ConstellationView.circle_pixels(6 + _ring_frame()):
+		_dot(at + d, Palette.C2)
 
 
 ## C0 corner brackets round the selected point (a lighter C1 while it's pressed).

@@ -1,9 +1,9 @@
 class_name App
 extends Node
-## The game's entry (#62): Scorpio's chapter chart first; PLAY on a point opens its stage (Main,
-## in_chapter) and MAP brings the chart back. A stage won counts at once (Main.stage_won): the
-## chapter records it and saves it (ProgressStore), and back on the chart the point lights and a
-## comet travels to the point it unlocked. Owns no rules: Chapter keeps the progress.
+## The game's entry (#62): Scorpio's chapter chart first; PLAY opens the selected stage (Main,
+## in_chapter, playing that stage's StarMap) and MAP brings the chart back. A stage won counts at
+## once (Main.stage_won): the chapter records it and saves it (ProgressStore), and back on the
+## chart its stars light and a comet travels to the stage it opened. Owns no rules: Chapter keeps the progress.
 ## Fills the window like Main (a whole-number scale, the game's screen on the bottom edge).
 
 ## A stage was opened (tests and feedback).
@@ -41,7 +41,7 @@ func stage() -> Main:
 	return _stage
 
 
-## Opens the stage at route point `point` (only one that can be played).
+## Opens stage `point` (only one that can be played).
 func open_stage(point: int) -> void:
 	if _stage != null or chapter.state(point) == Chapter.PointState.LOCKED:
 		return
@@ -50,6 +50,7 @@ func open_stage(point: int) -> void:
 	_unlocked = -1
 	_stage = MainScene.instantiate()
 	_stage.in_chapter = true
+	_stage.star_map = chapter.map_id(point)
 	_stage.stage_won.connect(_on_stage_won)
 	_stage.map_requested.connect(back_to_chart)
 	_show_chart(false)
