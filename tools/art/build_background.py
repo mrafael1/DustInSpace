@@ -6,8 +6,14 @@ One opaque 180x320 image, drawn behind everything (the Sun's sky glow included):
   stars        cool 1 px background stars (never warm, never shaped like a collectible), thin in
                the play sky (y 78-250) so they can't be mistaken for stars to link, none behind the
                Sun, and 3 px glints only in the empty top corners.
-  land         a far range with one snow peak (M3-M6), mid hills (M2), stepped pines (M1) and the
-               dark forest ground (M0) the HUD sits on, from y 230 down.
+  land         a far range with one snow peak (M3-M6), mid hills (M2) and stepped pines (M1), from
+               y 230 down.
+  ground       the forest floor the HUD sits on (y 284-320): a grass line lit M2 along its top with
+               tufts, dark M0 soil with sparse M1 grit, a few half-buried stones, and a flat stone
+               slab the telescope's tripod stands on. Quiet behind the dust counter and the pack
+               controls, so their text reads. Every feature repeats every 180 px across (and none
+               touches the side edges), so the Backdrop can tile the ground into a wider screen's
+               margins without a seam.
 
 Ported from the concept generator (tools/art/build_concept.py) with its own seeded RNG, so a rebuild
 gives the same pixels. The snow peak and pines still want a hand pass in Aseprite: redraw the PNG
@@ -164,10 +170,89 @@ def draw_land(cv: Canvas, rng: random.Random) -> None:
             for i in range(-half, half + 1):
                 cv.put(x + i, base - h + j, "M1")
         x += rng.randint(5, 9)
-    # The forest ground under the HUD: an M1 edge, then M0.
-    for y in range(284, H):
+
+
+GROUND_TOP = 284
+# The soil darkens in steps down from the grass: M1, a checker seam, then M0.
+SOIL_SEAM = (296, 301)
+# Faint strata in the M0 soil: (base y, amplitude), each a broken wavy M1 line.
+STRATA = [(307, 1), (315, 1)]
+# Stones half in the soil: (centre x, top y, half width, rows).
+STONES = [(10, 313, 3, 3), (62, 310, 2, 2), (104, 312, 4, 3), (126, 316, 3, 2), (170, 316, 2, 2), (44, 316, 2, 2)]
+# The telescope's slab: its tripod feet (Telescope at x 80, feet at y 310) stand on its top row.
+SLAB = (66, 311, 94, 315)
+# Keep strata off these (x0, y0, x1, y1): the dust counter, and each pack's icon, count and button.
+QUIET = [(4, 294, 64, 308), (112, 282, 180, 314)]
+
+
+def grass_line(x: int) -> int:
+    # Periods that divide 180, so the line tiles across.
+    return GROUND_TOP + 2 + round(1.2 * math.sin(2 * math.pi * x / 60) + 0.8 * math.sin(2 * math.pi * x / 36 + 1))
+
+
+def quiet(x: int, y: int) -> bool:
+    return any(x0 <= x < x1 and y0 <= y < y1 for x0, y0, x1, y1 in QUIET)
+
+
+def tuft(x: int) -> int:
+    """How tall the grass tuft at column x is (0 for none), on a 180-periodic rhythm."""
+    k = (x * 7) % 30
+    return {0: 3, 1: 2, 13: 2, 14: 1, 22: 1}.get(k, 0)
+
+
+def draw_ground(cv: Canvas) -> None:
+    seam0, seam1 = SOIL_SEAM
+    for x in range(W):
+        top = grass_line(x)
+        for y in range(top, H):
+            if y < seam0:
+                name = "M1"
+            elif y < seam1:
+                name = "M0" if bay(x, y) < (y - seam0 + 1) / (seam1 - seam0 + 1) else "M1"
+            else:
+                name = "M0"
+            cv.put(x, y, name)
+        # The grass bank: a lit M3 rim with an M4 glint on its crests, M2 under it, M3 blades
+        # above it (M4 tips on the tallest).
+        cv.put(x, top, "M3")
+        cv.put(x, top + 1, "M2")
+        cv.put(x, top + 2, "M2" if bay(x, top + 2) < .5 else "M1")
+        if grass_line(x - 1) > top and grass_line(x + 1) >= top:
+            cv.put(x, top, "M4")
+        h = tuft(x)
+        for j in range(1, h + 1):
+            cv.put(x, top - j, "M4" if j == h and h >= 3 else "M3")
+    # Strata: broken wavy M1 lines in the M0 soil, off the HUD's text.
+    for base, amp in STRATA:
         for x in range(W):
-            cv.put(x, y, "M0" if y > 287 else "M1")
+            y = base + round(amp * math.sin(2 * math.pi * x / 45))
+            if (x // 5) % 4 != 3 and not quiet(x, y):
+                cv.put(x, y, "M1")
+    # Half-buried stones: M2 bodies, an M3 lit top edge with an M4 glint, M1 underside.
+    for cx, top, half, rows in STONES:
+        for j in range(rows):
+            w = half - (1 if j == 0 else 0)
+            for i in range(-w, w + 1):
+                cv.put(cx + i, top + j, "M1" if j == rows - 1 else "M2")
+        for i in range(-half + 1, half - 1):
+            cv.put(cx + i, top, "M3")
+        cv.put(cx - half + 1, top, "M4")
+    # The slab under the telescope: an M3 top edge, an M2 face with a crack, an M1 underside and
+    # an M0 shadow; two pebbles beside it.
+    x0, y0, x1, y1 = SLAB
+    for x in range(x0 + 1, x1):
+        cv.put(x, y0, "M4" if x < x0 + 6 else "M3")
+        for y in range(y0 + 1, y1 - 1):
+            cv.put(x, y, "M2")
+        cv.put(x, y1 - 1, "M1")
+    for y in range(y0 + 1, y1 - 1):
+        cv.put(x0, y, "M2")
+        cv.put(x1, y, "M1")
+    cv.put(x0 + 18, y0 + 1, "M1")
+    cv.put(x0 + 19, y0 + 2, "M1")
+    for x, y in ((x0 - 3, y1 - 1), (x1 + 3, y1 - 2)):
+        cv.put(x, y, "M2")
+        cv.put(x + 1, y, "M1")
 
 
 def build() -> None:
@@ -176,6 +261,7 @@ def build() -> None:
     draw_sky(cv)
     draw_stars(cv, rng)
     draw_land(cv, rng)
+    draw_ground(cv)
     cv.image().save(OUT)
     print(f"wrote {OUT.relative_to(ROOT)} ({W}x{H})")
 
