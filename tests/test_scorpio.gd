@@ -52,6 +52,77 @@ func test_the_map_starts_with_the_head_string_and_six_to_build() -> void:
 	assert_eq(Scorpio.segment_count() - run.scorpio.built_count(), 6)
 
 
+## #61: the layout keeps Scorpius's silhouette: the head up on the right with its claw arc, Antares
+## to its left, a body falling steeply, and a tail that curls left along the bottom and hooks back
+## up and to the right at the stinger (not a plain zigzag).
+func test_the_map_keeps_scorpius_hooked_silhouette() -> void:
+	var m: Array[Vector2i] = Scorpio.LANDMARKS
+	for i: int in m.size():
+		assert_lte(m[0].y, m[i].y, "the head is the top")
+		assert_gte(m[0].x, m[i].x, "and the right-most")
+	assert_lt(m[1].x, m[0].x, "Antares left of the head")
+	assert_gt(m[1].y, m[0].y, "and below it")
+	for i: int in range(1, 5):
+		assert_gt(m[i + 1].y, m[i].y, "the body and tail fall from Antares to the tail's bottom (%d)" % i)
+	for i: int in range(2, 5):
+		var step: Vector2i = m[i + 1] - m[i]
+		assert_gt(float(step.y), 1.5 * absi(step.x), "the body falls steeply, near upright (%d)" % i)
+	assert_lt(m[6].x, m[5].x - 30, "the tail runs left along the bottom")
+	assert_lt(m[7].y, m[6].y - 20, "then hooks back up")
+	assert_gt(m[7].x, m[6].x, "and to the right, toward the body")
+	assert_eq(Scorpio.SIZES[1], BIG, "Antares, the heart, is big")
+	assert_eq(Scorpio.SIZES[-1], BIG, "so is the stinger")
+	# The claw stars: one above the head and one below, an arc on the right of the sky.
+	assert_lt(Scorpio.CLAWS[0].y, 0)
+	assert_gt(Scorpio.CLAWS[1].y, 0)
+
+
+## Each landmark can be picked on its own: no two hit circles overlap.
+func test_landmarks_are_far_enough_apart_to_pick() -> void:
+	var m: Array[Vector2i] = Scorpio.LANDMARKS
+	for i: int in m.size():
+		for j: int in range(i + 1, m.size()):
+			assert_gt(Vector2(m[i]).distance_to(Vector2(m[j])), 2.0 * SkyView.HIT_RADIUS, "landmarks %d and %d" % [i, j])
+
+
+## Every landmark still to light can be reached: there is room in the sky for two stars within
+## the link reach of it (and of each other), where bursts may land (clear of every landmark).
+func test_every_unlit_landmark_has_room_for_a_link_in_reach() -> void:
+	var inner: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
+	for i: int in Scorpio.LANDMARKS.size():
+		var room: Array[Vector2i] = []
+		for y: int in range(inner.position.y, inner.end.y, 3):
+			for x: int in range(inner.position.x, inner.end.x, 3):
+				var p := Vector2i(x, y)
+				if Vector2(p).distance_to(Vector2(Scorpio.LANDMARKS[i])) > REACH:
+					continue
+				var clear: bool = true
+				for other: Vector2i in Scorpio.LANDMARKS:
+					if Vector2(p).distance_to(Vector2(other)) < StarScatter.LANDMARK_SPACING:
+						clear = false
+				if clear:
+					room.append(p)
+		var pair: bool = false
+		for a: Vector2i in room:
+			for b: Vector2i in room:
+				var d: float = Vector2(a).distance_to(Vector2(b))
+				if d > 2.0 * SkyView.HIT_RADIUS and d <= REACH:
+					pair = true
+					break
+			if pair:
+				break
+		assert_true(pair, "landmark %d has room for two stars in reach" % i)
+
+
+## The finished drawing (claws, body, legs, tail and stinger) stays inside the play sky, and so on
+## every phone: a taller sky moves the whole map with it.
+func test_the_scorpion_drawing_stays_in_the_sky() -> void:
+	var drawing: Array[Vector2i] = ConstellationView.scorpion_drawing()
+	assert_gt(drawing.size(), 100)
+	for p: Vector2i in drawing:
+		assert_true(Scorpio.HOME_SKY.has_point(p), "%s inside the sky" % p)
+
+
 func test_an_unlit_landmark_stands_in_for_a_star_and_lights_up() -> void:
 	# Landmark 2 is small: two sky smalls and it make a small triple.
 	var a: Star = run.add_star(SMALL, Vector2i(40, 110))

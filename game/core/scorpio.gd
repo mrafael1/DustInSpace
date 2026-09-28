@@ -8,11 +8,18 @@ extends RefCounted
 ## Pure state; RunState owns the rules. Landmark positions and sizes are map layout, not balance.
 
 ## Landmarks, head to stinger, on the 180x320 grid, inside the play sky (y 86-242 once the edge
-## margin is taken off), about 28-30 px apart, with room above the head for the drawing's claws.
+## margin is taken off). Laid out from Scorpius itself (#61: its stars' RA/Dec projected at about
+## 5.9 px a degree, east to the left): the head (Dschubba) up on the right, with room around it
+## for the drawing's claws; Antares, the heart, down to its left; the body (tau, epsilon, mu)
+## falling steeply; the tail curling left along the bottom (zeta/eta, theta/iota) and hooking back
+## up and right to the stinger (Shaula). Each is 25-47 px from the next.
 const LANDMARKS: Array[Vector2i] = [
-	Vector2i(146, 106), Vector2i(128, 130), Vector2i(110, 154), Vector2i(96, 180),
-	Vector2i(88, 208), Vector2i(66, 228), Vector2i(38, 230), Vector2i(24, 206),
+	Vector2i(152, 114), Vector2i(116, 136), Vector2i(104, 158), Vector2i(91, 182),
+	Vector2i(86, 208), Vector2i(72, 234), Vector2i(26, 228), Vector2i(38, 202),
 ]
+## The claws: the real head is an arc of three stars (beta above Dschubba, pi below). The drawing
+## runs an arm from the head to each (offsets from LANDMARKS[0]) and opens a pincer at its end.
+const CLAWS: Array[Vector2i] = [Vector2i(-4, -17), Vector2i(4, 20)]
 ## Each landmark's size (Star.Size): Antares, the heart, is big; so is the stinger.
 const SIZES: Array[int] = [
 	Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM,
