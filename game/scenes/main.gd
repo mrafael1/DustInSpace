@@ -5,6 +5,11 @@ extends Node2D
 ## start, and debug builds list the errors on screen.
 
 signal run_started(run: RunState)
+## In a chapter (#62): the run in play was won. Sent as the core decides it, so the win counts even
+## if the player leaves before the end screen.
+signal stage_won
+## In a chapter: the player asked to go back to the chart (MAP in the HUD or on the end screen).
+signal map_requested
 
 ## Seed for the next run; 0 picks a random one. The seed is printed in debug builds for replays.
 @export var seed_override: int = 0
@@ -13,6 +18,8 @@ signal run_started(run: RunState)
 ## Issue #52's prototype: launch with the telescope (point and tap) instead of the slingshot.
 ## Debug builds switch with T to compare the two.
 @export var use_telescope: bool = true
+## Played from a chapter's chart (App sets it before adding Main): shows the MAP buttons.
+@export var in_chapter: bool = false
 
 var run: RunState
 ## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
@@ -49,6 +56,10 @@ func _ready() -> void:
 	_sun.released.connect(func() -> void: _sky.launch_sunbeam(Vector2i(_sun.position)))
 	_sky.watch_payouts(_collect)
 	_end_screen.restart_requested.connect(restart)
+	_end_screen.map_enabled = in_chapter
+	_end_screen.map_requested.connect(map_requested.emit)
+	_hud.show_map_button(in_chapter)
+	_hud.map_requested.connect(map_requested.emit)
 	_end_screen.watch_payouts(_collect)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
 	_telescope.message_shown.connect(_hud.show_message)
@@ -68,6 +79,7 @@ func start_run(balance: Balance) -> bool:
 		return false
 	_balance_errors.visible = false
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra))
+	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)
 	for child: Node in get_children():
 		if child.has_method("setup"):
