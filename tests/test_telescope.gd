@@ -1,12 +1,13 @@
 extends GutTest
-## The telescope launcher (issue #52): load, aim by pointing, launch exactly one pack, cancel.
+## The telescope launcher (issue #52): starts ready, aims by pointing, launches exactly one pack,
+## reloads and aims again, and a tap on it goes back to linking.
 
 const Fixtures := preload("res://tests/fixtures.gd")
 const TelescopeScene := preload("res://game/scenes/telescope.tscn")
 const HudScene := preload("res://game/ui/hud.tscn")
 const SkyScene := preload("res://game/scenes/sky.tscn")
 const STEP: float = 1.0 / 60.0
-const ORIGIN := Vector2i(90, 270)
+const ORIGIN := Vector2i(80, 300)
 ## The telescope's own press point (its pivot), in its coordinates.
 const SCOPE := Telescope.PIVOT
 
@@ -29,53 +30,107 @@ func before_each() -> void:
 	scope.setup(run, sequencer)
 
 
-func test_it_holds_the_loaded_planet_at_its_mouth() -> void:
-	assert_eq(scope.loaded_pack(), "blue")
-	var pack: PackView = scope.get_node("RestPack")
-	assert_true(pack.visible)
-	assert_eq(Vector2i(pack.position), scope.pack_position())
-	assert_lt(scope.pack_position().y, scope.mouth().y, "above the mouth while it points up")
+func test_a_run_starts_ready_loaded_and_aiming() -> void:
+	assert_eq(scope.shown_pack(), "blue")
+	assert_eq(scope.seated_pack(), "blue", "seated at once: no load animation at the start")
+	assert_true(scope.is_aiming())
+	assert_false((scope.get_node("RestPack") as PackView).visible, "the planet is hidden inside")
+	assert_true(inner.has_point(scope.burst_preview()), "the preview starts in the sky")
 
 
 func test_an_empty_telescope_says_so_and_cannot_launch() -> void:
-	run = Fixtures.run({"start_packs": {"blue": 0, "red": 0}})
-	sequencer.bind(run)
-	scope.setup(run, sequencer)
+	_start({"blue": 0, "red": 0})
+	assert_false(scope.is_aiming())
 	watch_signals(scope)
 	watch_signals(run)
 	_tap(SCOPE)
 	assert_signal_emitted_with_parameters(scope, "message_shown", [Telescope.EMPTY_MESSAGE])
 	assert_signal_emitted(scope, "empty_tapped")
 	assert_false(scope.is_aiming())
-	_tap(Vector2i(0, -120))
+	_tap(Vector2i(0, -150))
 	assert_signal_not_emitted(run, "pack_launched")
 	assert_false(scope.start_aim(), "no aim without a planet")
 
 
-func test_tapping_the_loaded_telescope_aims() -> void:
+func test_tapping_the_telescope_goes_back_to_linking_and_again_aims() -> void:
 	watch_signals(scope)
+	watch_signals(run)
+	_tap(SCOPE)
+	assert_false(scope.is_aiming())
+	assert_signal_emitted(scope, "aim_cancelled")
+	assert_signal_not_emitted(run, "pack_launched")
+	assert_eq(run.owned_packs["blue"], 5, "nothing spent")
+	assert_eq(scope.seated_pack(), "blue", "still loaded")
+	assert_false(_touch(Vector2i(60, 150) - ORIGIN, true), "the sky is the stars' again")
+	_touch(Vector2i(60, 150) - ORIGIN, false)
 	_tap(SCOPE)
 	assert_true(scope.is_aiming())
 	assert_signal_emitted(scope, "aim_started")
-	assert_signal_emitted_with_parameters(scope, "message_shown", [Telescope.AIM_MESSAGE])
-	assert_true(inner.has_point(scope.burst_preview()), "the preview starts in the sky")
 
 
 func test_a_tap_in_the_sky_launches_exactly_one_pack_there() -> void:
-	_tap(SCOPE)
 	watch_signals(run)
 	var target := Vector2i(40, 120)
 	_tap(target - ORIGIN)
 	assert_signal_emit_count(run, "pack_launched", 1)
 	assert_signal_emitted_with_parameters(run, "pack_launched", ["blue", target])
 	assert_eq(run.owned_packs["blue"], 4)
-	assert_false(scope.is_aiming(), "the launch ends the aim")
+	assert_false(scope.is_aiming(), "the launch ends this aim")
 	_tap(target - ORIGIN)
 	assert_signal_emit_count(run, "pack_launched", 1, "a second tap doesn't launch again")
 
 
+func test_after_a_launch_the_next_planet_drops_in_and_it_aims_again() -> void:
+	watch_signals(scope)
+	_tap(Vector2i(40, 120) - ORIGIN)
+	sequencer.advance(0.0)
+	assert_eq(scope.seated_pack(), "", "empty while the pack flies")
+	_play_until_idle()
+	assert_signal_emitted_with_parameters(scope, "planet_seated", ["blue"])
+	assert_eq(scope.seated_pack(), "blue")
+	assert_true(scope.is_aiming(), "aiming again with the next planet")
+	assert_eq(scope.burst_preview(), Vector2i(40, 120), "at the same spot")
+
+
+func test_after_the_last_planet_it_goes_back_to_linking() -> void:
+	_start({"blue": 1, "red": 0})
+	_tap(Vector2i(40, 120) - ORIGIN)
+	_play_until_idle()
+	assert_eq(scope.shown_pack(), "")
+	assert_false(scope.is_aiming())
+	assert_false(_touch(Vector2i(60, 150) - ORIGIN, true), "touches go to the stars")
+
+
+func test_the_planet_drops_into_the_mouth_then_hides() -> void:
+	_start({"blue": 1, "red": 1})
+	run.load_pack("red")
+	sequencer.advance(0.0)
+	assert_true(scope.is_loading())
+	var pack: PackView = scope.get_node("RestPack")
+	assert_true(pack.visible and pack.show_behind_parent, "dropping in, behind the barrel")
+	assert_eq(pack.kind, "red")
+	var start: float = (pack.position - Vector2(Telescope.PIVOT)).length()
+	assert_true(sequencer.is_busy(), "the load holds the sequence")
+	for i: int in 8:
+		sequencer.advance(STEP)
+		scope.advance(STEP)
+	assert_lt((pack.position - Vector2(Telescope.PIVOT)).length(), start, "moving down into the barrel")
+	_play_until_idle()
+	assert_false(pack.visible, "hidden inside")
+	assert_eq(scope.seated_pack(), "red")
+	assert_true(scope.is_aiming())
+
+
+func test_the_seated_planet_shows_in_a_window_on_the_barrel() -> void:
+	var u: int = (Telescope.WINDOW_FROM + Telescope.WINDOW_TO) / 2
+	assert_true(Palette.BLUE_PACK.has(scope._barrel_colour(u, 0, "blue")))
+	assert_true(Palette.RED_PACK.has(scope._barrel_colour(u, 0, "red")))
+	assert_eq(scope._barrel_colour(u, 0, ""), Palette.M4, "empty: plain barrel")
+	assert_eq(scope._barrel_colour(Telescope.MOUTH - 1, 0, "blue"), Palette.N0, "the lens stays a dark opening")
+	assert_eq(scope._barrel_colour(Telescope.MOUTH - 1, 0, ""), Palette.N0)
+
+
 func test_touch_shows_the_aim_drag_adjusts_it_release_launches() -> void:
-	_tap(SCOPE)
 	watch_signals(run)
 	assert_true(_touch(Vector2i(30, 100) - ORIGIN, true))
 	assert_eq(scope.burst_preview(), Vector2i(30, 100), "the press shows the aim")
@@ -87,14 +142,14 @@ func test_touch_shows_the_aim_drag_adjusts_it_release_launches() -> void:
 
 
 func test_mouse_hover_aims_only_while_aiming() -> void:
-	assert_false(_hover(Vector2i(20, 90) - ORIGIN), "hovering is left alone when not aiming")
-	_tap(SCOPE)
 	assert_true(_hover(Vector2i(20, 90) - ORIGIN))
+	assert_eq(scope.burst_preview(), Vector2i(20, 90))
+	_tap(SCOPE)
+	assert_false(_hover(Vector2i(60, 90) - ORIGIN), "hovering is left alone when not aiming")
 	assert_eq(scope.burst_preview(), Vector2i(20, 90))
 
 
 func test_the_aim_is_clamped_into_the_sky_at_every_edge() -> void:
-	_tap(SCOPE)
 	for point: Vector2i in [Vector2i(-50, -50), Vector2i(400, 0), Vector2i(-10, 300), Vector2i(250, 260), Vector2i(90, 10), Vector2i(90, 275)]:
 		_hover(point - ORIGIN)
 		var aim: Vector2i = scope.burst_preview()
@@ -103,10 +158,9 @@ func test_the_aim_is_clamped_into_the_sky_at_every_edge() -> void:
 
 
 func test_every_corner_and_edge_of_the_sky_launches_with_stars_inside() -> void:
-	run.owned_packs["blue"] = 12
-	scope.setup(run, sequencer)
+	_start({"blue": 12, "red": 0})
 	for target: Vector2i in [inner.position, Vector2i(inner.end.x - 1, inner.position.y), Vector2i(inner.position.x, inner.end.y - 1), inner.end - Vector2i.ONE, Vector2i(90, inner.position.y), Vector2i(inner.position.x, 160)]:
-		_tap(SCOPE)
+		assert_true(scope.is_aiming(), "aiming again before %s" % target)
 		watch_signals(run)
 		_tap(target - ORIGIN)
 		assert_signal_emitted_with_parameters(run, "pack_launched", ["blue", target])
@@ -115,23 +169,7 @@ func test_every_corner_and_edge_of_the_sky_launches_with_stars_inside() -> void:
 		_play_until_idle()
 
 
-func test_tapping_the_telescope_again_cancels_and_spends_nothing() -> void:
-	_tap(SCOPE)
-	_hover(Vector2i(60, 120) - ORIGIN)
-	watch_signals(scope)
-	watch_signals(run)
-	_tap(SCOPE)
-	assert_false(scope.is_aiming())
-	assert_signal_emitted(scope, "aim_cancelled")
-	assert_signal_not_emitted(run, "pack_launched")
-	assert_eq(run.owned_packs["blue"], 5, "nothing spent")
-	assert_eq(scope.loaded_pack(), "blue", "still loaded")
-	assert_false(_touch(Vector2i(60, 120) - ORIGIN, true), "the sky is the stars' again")
-
-
-func test_the_tube_points_at_the_target_in_direction_frames() -> void:
-	assert_eq(scope.direction_frame(), 0, "up at rest")
-	_tap(SCOPE)
+func test_the_barrel_points_at_the_target_in_direction_frames() -> void:
 	var pivot: Vector2i = ORIGIN + Telescope.PIVOT
 	_hover(Vector2i(pivot.x, 100) - ORIGIN)
 	assert_eq(scope.direction_frame(), 0, "straight up")
@@ -139,53 +177,41 @@ func test_the_tube_points_at_the_target_in_direction_frames() -> void:
 	assert_eq(scope.direction_frame(), Telescope.DIRECTIONS / 8, "up-right")
 	_hover(Vector2i(pivot.x - 100, pivot.y - 100) - ORIGIN)
 	assert_eq(scope.direction_frame(), Telescope.DIRECTIONS - Telescope.DIRECTIONS / 8, "up-left")
-	var pack: Vector2i = scope.pack_position()
-	assert_lt(pack.x, Telescope.PIVOT.x, "the planet follows the mouth")
+	assert_lt(scope.mouth().x, Telescope.PIVOT.x, "the mouth follows")
 
 
 func test_the_flight_starts_at_the_mouth() -> void:
-	_tap(SCOPE)
-	var from: Vector2i = scope.pack_position()
+	var from: Vector2i = scope.mouth()
 	_tap(Vector2i(90, 120) - ORIGIN)
 	sequencer.advance(0.0)
 	var flying: PackView = scope.get_node("FlyingPack")
 	assert_true(flying.visible)
 	assert_eq(Vector2i(flying.position), from)
-	assert_eq(scope.loaded_pack(), "", "the planet left the telescope")
 
 
-func test_no_aim_while_a_sequence_plays_then_it_aims_when_asked() -> void:
-	run.launch(Vector2i(90, 160))
-	assert_true(sequencer.is_busy())
-	scope.request_aim()
-	scope.advance(0.0)
-	assert_false(scope.is_aiming(), "waits for the sequence")
-	_play_until_idle()
-	assert_true(scope.is_aiming(), "then aims with the next planet")
-
-
-func test_a_sequence_starting_ends_the_aim() -> void:
-	_tap(SCOPE)
+func test_a_sequence_interrupting_the_aim_resumes_it_after() -> void:
 	run.dust = 50
 	run.buy("red")
-	assert_false(scope.is_aiming())
+	assert_false(scope.is_aiming(), "the sequence takes the input")
 	assert_eq(run.owned_packs["blue"], 5)
+	_play_until_idle()
+	assert_true(scope.is_aiming(), "and gives it back")
+	assert_eq(scope.seated_pack(), "red")
 
 
 func test_picking_a_planet_in_the_hud_loads_it_and_aims_with_it() -> void:
-	run = Fixtures.run({"start_packs": {"blue": 1, "red": 1}, "sun_target": 100000})
-	sequencer.bind(run)
-	scope.setup(run, sequencer)
+	_start({"blue": 1, "red": 1})
+	_tap(SCOPE)
+	assert_false(scope.is_aiming(), "linking")
 	var hud: Hud = HudScene.instantiate()
 	add_child_autofree(hud)
 	hud.set_process(false)
 	hud.setup(run, sequencer)
 	hud.planet_chosen.connect(func(_kind: String) -> void: scope.request_aim())
-	var icon: Vector2i = Vector2i(hud.slot("red").position) + PackSlot.ICON_TARGET.get_center()
-	_hud_tap(hud, icon)
+	_hud_tap(hud, Vector2i(hud.slot("red").position) + PackSlot.ICON_TARGET.get_center())
 	assert_eq(run.loaded_pack, "red")
 	_play_until_idle()
-	assert_eq(scope.loaded_pack(), "red", "the telescope holds the picked planet")
+	assert_eq(scope.seated_pack(), "red", "the telescope holds the picked planet")
 	assert_true(scope.is_aiming())
 	watch_signals(run)
 	_tap(Vector2i(90, 120) - ORIGIN)
@@ -193,10 +219,8 @@ func test_picking_a_planet_in_the_hud_loads_it_and_aims_with_it() -> void:
 
 
 func test_a_refused_hud_tap_does_not_aim() -> void:
-	run = Fixtures.run({"start_packs": {"blue": 1, "red": 0}, "sun_target": 100000})
+	_start({"blue": 1, "red": 0})
 	run.dust = 0
-	sequencer.bind(run)
-	scope.setup(run, sequencer)
 	var hud: Hud = HudScene.instantiate()
 	add_child_autofree(hud)
 	hud.set_process(false)
@@ -213,84 +237,71 @@ func test_aiming_takes_every_touch_so_no_star_is_linked() -> void:
 	sky.setup(run, sequencer)
 	run.launch(Vector2i(90, 160))
 	_play_until_idle()
-	var star: Star = run.stars[0]
-	_tap(SCOPE)
-	var local: Vector2i = star.position - ORIGIN
+	assert_true(scope.is_aiming())
+	var local: Vector2i = run.stars[0].position - ORIGIN
 	# The telescope comes first (a later sibling in Main); what it takes never reaches the sky.
-	var press := _touch_event(local, true)
-	assert_true(scope.handle_pointer(press), "the telescope takes the press on a star")
+	assert_true(scope.handle_pointer(_touch_event(local, true)), "the telescope takes the press on a star")
 	assert_true(scope.handle_pointer(_drag_event(local + Vector2i(3, 0))))
 	assert_eq(sky.selected_ids(), [] as Array[int], "no star selected")
-	_play_until_idle()
-
-
-func test_when_not_aiming_touches_in_the_sky_are_left_for_the_stars() -> void:
-	assert_false(_touch(Vector2i(90, 150) - ORIGIN, true))
-	assert_false(_drag(Vector2i(95, 150) - ORIGIN))
-	assert_false(_touch(Vector2i(95, 150) - ORIGIN, false))
-	assert_false(scope.is_aiming())
 
 
 func test_a_press_on_the_telescope_released_elsewhere_does_nothing() -> void:
 	_touch(SCOPE, true)
-	_touch(Vector2i(0, -100), false)
-	assert_false(scope.is_aiming())
+	_touch(Vector2i(0, -150), false)
+	assert_true(scope.is_aiming(), "still aiming")
 
 
 func test_a_run_that_is_over_ignores_the_telescope() -> void:
 	run.outcome = RunState.Outcome.WON
 	assert_false(_touch(SCOPE, true))
-	assert_false(scope.start_aim())
+	assert_false(_touch(Vector2i(0, -150), true))
 
 
-func test_every_direction_frame_keeps_the_tube_on_whole_pixels() -> void:
-	_tap(SCOPE)
-	var pivot: Vector2i = ORIGIN + Telescope.PIVOT
+func test_every_direction_frame_keeps_the_barrel_on_whole_pixels() -> void:
 	var seen: Dictionary[int, bool] = {}
 	for x: int in range(inner.position.x, inner.end.x, 4):
 		_hover(Vector2i(x, inner.position.y) - ORIGIN)
 		seen[scope.direction_frame()] = true
 		assert_eq(Vector2(scope.mouth()), Vector2(scope.mouth()).round())
-		assert_lt(scope.pack_position().y, Telescope.PIVOT.y, "the planet stays above the pivot")
-	assert_gt(seen.size(), 2, "the tube turns through several frames across the sky (%s)" % pivot)
-
-
-func test_empty_and_loaded_differ_in_shape_not_only_colour() -> void:
-	var lens: int = Telescope.MOUTH
-	assert_null(scope._barrel_colour(lens, 0, true), "loaded: the lens is open and the planet shows through")
-	assert_eq(scope._barrel_colour(lens - 1, 0, false), Palette.N0, "empty: a dark, hollow lens")
-	var pack: PackView = scope.get_node("RestPack")
-	assert_true(pack.show_behind_parent, "the planet is seated behind the hood, not balanced on it")
-	var seated: int = (Vector2(scope.pack_position() - scope.mouth())).length()
-	assert_lt(seated, PackView.HUD_RADIUS + 1, "part of the planet sits inside the mouth")
+		assert_lt(scope.mouth().y, Telescope.PIVOT.y, "the mouth stays above the pivot")
+	assert_gt(seen.size(), 2, "the barrel turns through several frames across the sky")
 
 
 func test_the_barrel_is_wider_than_its_eyepiece_and_the_hood_wider_still() -> void:
 	assert_gt(Telescope.BARREL_HALF, Telescope.EYEPIECE_HALF)
 	assert_gt(Telescope.HOOD_HALF, Telescope.BARREL_HALF)
-	for v: int in range(-Telescope.HOOD_HALF - 1, Telescope.HOOD_HALF + 2):
-		for u: int in range(Telescope.EYEPIECE_BACK - 1, Telescope.MOUTH + 2):
-			var colour: Variant = scope._barrel_colour(u, v, false)
-			if colour != null:
-				assert_true(colour is Color, "(%d, %d)" % [u, v])
+	for kind: String in ["", "blue", "red"]:
+		for v: int in range(-Telescope.HOOD_HALF - 1, Telescope.HOOD_HALF + 2):
+			for u: int in range(Telescope.EYEPIECE_BACK - 1, Telescope.MOUTH + 2):
+				var colour: Variant = scope._barrel_colour(u, v, kind)
+				assert_true(colour == null or colour is Color, "(%d, %d)" % [u, v])
 
 
 func test_only_the_barrel_turns_the_tripod_stays() -> void:
-	_tap(SCOPE)
 	var before: int = scope.direction_frame()
-	_hover(Vector2i(170, 200) - ORIGIN)
+	_hover(Vector2i(175, 200) - ORIGIN)
 	assert_ne(scope.direction_frame(), before)
 	assert_true(scope.on_scope(Telescope.PIVOT + Vector2i(0, 10)), "the tripod is still pressable where it stands")
 	assert_true(scope.on_scope(scope.mouth()), "and so is the barrel's mouth, wherever it points")
 
 
-func test_the_planet_sits_deep_in_the_mouth() -> void:
-	var inside: int = PackView.HUD_RADIUS - (Vector2(scope.pack_position() - scope.mouth())).length()
-	assert_gte(inside, PackView.HUD_RADIUS / 2, "at least half the planet is behind the rim")
+func test_the_telescope_sits_in_the_hud_row_clear_of_the_pack_buttons() -> void:
+	var hud: Hud = HudScene.instantiate()
+	add_child_autofree(hud)
+	hud.setup(run, sequencer)
+	for kind: String in ["blue", "red"]:
+		var slot: Vector2i = Vector2i(hud.slot(kind).position)
+		var icon := Rect2i(PackSlot.ICON_TARGET.position + slot, PackSlot.ICON_TARGET.size)
+		for x: int in range(icon.position.x, icon.end.x):
+			for y: int in range(icon.position.y, icon.end.y):
+				assert_false(scope.on_scope(Vector2i(x, y) - ORIGIN), "%s's button stays the HUD's" % kind)
+	assert_true(Rect2i(ScreenZones.HUD.position - Vector2i(0, 10), ScreenZones.HUD.size + Vector2i(0, 10)).has_point(ORIGIN))
 
 
-func test_the_sight_line_starts_clear_of_the_planet() -> void:
-	assert_gt(Telescope.sight_start(), PackView.HUD_RADIUS + 1, "a gap between the planet and the first dot")
+func _start(packs: Dictionary) -> void:
+	run = Fixtures.run({"start_packs": packs, "sun_target": 100000})
+	sequencer.bind(run)
+	scope.setup(run, sequencer)
 
 
 func _tap(point: Vector2i) -> void:
@@ -332,9 +343,10 @@ func _hud_tap(hud: Hud, point: Vector2i) -> void:
 	hud.handle_pointer(_touch_event(point, false))
 
 
+## Plays the events, and the next planet's drop into the telescope, to the end.
 func _play_until_idle() -> void:
 	for i: int in 600:
-		if not sequencer.is_busy():
+		if not sequencer.is_busy() and not scope.is_loading():
 			scope.advance(STEP)
 			return
 		sequencer.advance(STEP)

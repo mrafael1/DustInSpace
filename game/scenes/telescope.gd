@@ -1,12 +1,15 @@
 class_name Telescope
 extends Launcher
-## The telescope launcher (issue #52, a prototype next to the slingshot): it holds the loaded
-## planet at its mouth and launches it wherever the player points in the sky, no pull back.
-## Tap the telescope (or pick a planet in the HUD) to aim: a reticle and a dotted sight line show
-## where the pack will burst, and the tube turns to it in DIRECTIONS steps. Touch the sky to show
-## the aim, slide to adjust, lift to launch (a tap launches straight away); with a mouse, hovering
-## aims and a click launches. Tap the telescope again to cancel. While aiming, every touch is the
-## telescope's: none reaches the stars. An empty telescope says so and never aims.
+## The telescope launcher (issue #52, a prototype next to the slingshot), in the HUD's row: it
+## launches the loaded planet wherever the player points in the sky, no pull back.
+## Loading shows the planet dropping into the mouth; then it's hidden inside and a window on the
+## barrel shows its colour. A loaded telescope aims: at the start of a run, as soon as a planet
+## seats (after a launch, or when one is picked in the HUD), and when its own loaded body is tapped.
+## A reticle and a dotted sight line show where the pack will burst, and the barrel turns to it in
+## DIRECTIONS steps. Touch the sky to show the aim, slide to adjust, lift to launch (a tap launches
+## straight away); with a mouse, hovering aims and a click launches. Tap the telescope to stop
+## aiming and link stars again: nothing is spent. While aiming, every touch is the telescope's:
+## none reaches the stars. An empty telescope says so and never aims.
 ## Owns no rules: it calls the same RunState.launch as the slingshot, and the flight, tremble and
 ## burst are the Launcher's. Messages go out as text for the HUD to show (message_shown).
 
@@ -14,6 +17,8 @@ extends Launcher
 signal aim_started
 ## Aiming ended without a launch: the player tapped the telescope again (feedback: sound).
 signal aim_cancelled
+## A planet dropped into the telescope and clicked into place (feedback: sound).
+signal planet_seated(kind: String)
 ## The empty telescope was tapped: nothing to launch (feedback: sound).
 signal empty_tapped
 ## Text for the HUD's message line, "" to clear it.
@@ -35,23 +40,28 @@ const EYEPIECE_HALF: int = 1
 const BARREL_HALF: int = 3
 const HOOD_HALF: int = 4
 const STRAPS: Array[int] = [-4, 9]
-## The lens opening: the hood's last rows inside its rim. Dark and hollow when empty; the
-## loaded planet shows through it, seated SEAT px deep: the hood and its rim overlap its lower
-## half, so it sits in the mouth rather than on top of it.
+## The lens opening: the hood's last rows inside its rim, dark and hollow.
 const LENS_DEPTH: int = 2
-const SEAT: int = 6
+## The loaded planet's window on the barrel (u from..to, 3 px across), in the pack's own colours.
+const WINDOW_FROM: int = 2
+const WINDOW_TO: int = 6
+## Loading: the planet drops along the barrel from LOAD_FROM px past the mouth to LOAD_TO px inside
+## it (the barrel draws over it), in LOAD_TIME; then it's hidden and the window lights.
+const LOAD_FROM: int = 14
+const LOAD_TO: int = -8
+const LOAD_TIME: float = 0.3
 ## The tripod's head (under the pivot) and its three legs; the middle one is behind.
 const HEAD_TOP: int = -4
 const HEAD_ROWS: int = 3
 const LEGS: Array[Vector2i] = [Vector2i(-9, 10), Vector2i(9, 10)]
 const BACK_LEG := Vector2i(0, 8)
-## Press areas: around the tripod, along the barrel, and around the planet at the mouth.
+## Press areas: around the tripod and along the barrel (REACH px either side of it).
 const SCOPE_RADIUS: int = 13
-const PACK_REACH: int = 3
-## The sight line: one dot every SIGHT_STEP px, starting SIGHT_CLEAR px past the planet's edge
-## (so it doesn't touch the loaded planet) and stopping SIGHT_GAP px short of the reticle.
+const REACH: int = 3
+## The sight line: one dot every SIGHT_STEP px, starting SIGHT_CLEAR px past the mouth and
+## stopping SIGHT_GAP px short of the reticle.
 const SIGHT_STEP: int = 4
-const SIGHT_CLEAR: int = 3
+const SIGHT_CLEAR: int = 4
 const SIGHT_GAP: int = 8
 ## The burst preview: a dotted ring where the stars will scatter (StarScatter.RING_MIN).
 const RING_RADIUS: int = StarScatter.RING_MIN
@@ -66,15 +76,21 @@ var _has_aim: bool = false
 ## A touch that started on the telescope (a tap there aims or cancels), or in the sky while aiming.
 var _scope_pressed: bool = false
 var _sky_pressed: bool = false
-## The HUD picked a planet: aim once its events have played.
+## Aim once the events playing now have played and the planet has seated: a planet picked in
+## the HUD, a launch (the next planet), or a sequence that interrupted the aim.
 var _aim_requested: bool = false
+## The planet seated inside (its window shows), and the one dropping in: seconds into its load, or
+## -1 when none is loading.
+var _seated_kind: String = ""
+var _load_time: float = -1.0
 
 
 func _ready() -> void:
-	# The loaded planet sits at the HUD's size, seated in the mouth: the barrel draws over it.
+	# The planet drops in at the HUD's size, behind the barrel, which draws over it.
 	_rest_pack.radius_override = PackView.HUD_RADIUS
 	_rest_pack.bright = true
 	_rest_pack.show_behind_parent = true
+	_rest_pack.visible = false
 
 
 func _draw() -> void:
@@ -87,10 +103,31 @@ func _draw() -> void:
 		_draw_burst_ring()
 
 
+## A run starts ready: its planet already seated, and aiming.
 func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_aim_requested = false
 	_has_aim = false
+	_seated_kind = ""
+	_load_time = -1.0
 	super.setup(run, sequencer)
+	_seat(shown_pack(), false)
+	message_shown.emit("")
+	if can_process() and shown_pack() != "":
+		start_aim()
+
+
+## The planet in the telescope (seated or still dropping in), or "" when it's empty.
+func shown_pack() -> String:
+	return _rest_pack.kind if _rest_pack != null else ""
+
+
+## The planet seated inside, whose window shows on the barrel ("" while one is still dropping in).
+func seated_pack() -> String:
+	return _seated_kind
+
+
+func is_loading() -> bool:
+	return _load_time >= 0.0
 
 
 func is_aiming() -> bool:
@@ -129,14 +166,11 @@ func mouth() -> Vector2i:
 	return PIVOT + Vector2i((direction() * MOUTH).round())
 
 
-## The sight line's first dot, in pixels along the line from the planet's centre: clear of it.
-static func sight_start() -> int:
-	return PackView.HUD_RADIUS + 1 + SIGHT_CLEAR
-
-
-## Where the loaded planet sits: seated SEAT px into the mouth, the rest of it out in front.
+## Where the dropping planet is: along the barrel's axis, from past the mouth to inside it.
 func pack_position() -> Vector2i:
-	return PIVOT + Vector2i((direction() * (MOUTH + PackView.HUD_RADIUS + 1 - SEAT)).round())
+	var k: float = clampf(_load_time / LOAD_TIME, 0.0, 1.0) if is_loading() else 1.0
+	var eased: float = k * k
+	return PIVOT + Vector2i((direction() * lerpf(MOUTH + LOAD_FROM, MOUTH + LOAD_TO, eased)).round())
 
 
 ## Starts aiming if the telescope holds a planet; the empty one says so. Returns true if it aims.
@@ -153,6 +187,9 @@ func start_aim() -> bool:
 		return false
 	if _aiming:
 		return true
+	if is_loading():
+		_aim_requested = true
+		return false
 	_aiming = true
 	_pose()
 	aim_started.emit()
@@ -175,14 +212,15 @@ func cancel_aim() -> void:
 	aim_cancelled.emit()
 
 
-## A sequence starting takes the input: drop the touch in progress and stop aiming. A planet
-## the HUD just picked still gets aimed once the sequence ends.
+## A sequence starting takes the input: drop the touch in progress and stop aiming until it ends
+## (then aim again, like a planet the HUD just picked).
 func cancel_pull() -> void:
 	super.cancel_pull()
 	_scope_pressed = false
 	_sky_pressed = false
 	if _aiming:
 		_stop_aim()
+		_aim_requested = true
 	_pose()
 
 
@@ -195,7 +233,11 @@ func aim_at(point: Vector2i) -> void:
 
 func advance(delta: float) -> void:
 	super.advance(delta)
-	if _aim_requested and _sequencer != null and not _sequencer.is_busy():
+	if is_loading():
+		_load_time += delta
+		if _load_time >= LOAD_TIME:
+			_seat(shown_pack(), true)
+	if _aim_requested and _sequencer != null and not _sequencer.is_busy() and not is_loading():
 		_aim_requested = false
 		if shown_pack() != "":
 			start_aim()
@@ -255,22 +297,61 @@ func _on_touch(touch: InputEventScreenTouch) -> bool:
 	return _aiming
 
 
-## True if `point` (this node's coordinates) presses the telescope or the planet at its mouth.
+## True if `point` (this node's coordinates) presses the telescope: its tripod or its barrel.
 func on_scope(point: Vector2i) -> bool:
 	if (point - PIVOT).length_squared() <= SCOPE_RADIUS * SCOPE_RADIUS:
 		return true
 	var uv: Vector2i = _barrel_uv(point)
-	if uv.x >= EYEPIECE_BACK and uv.x <= MOUTH and absi(uv.y) <= HOOD_HALF + PACK_REACH:
-		return true
-	var reach: int = PackView.HUD_RADIUS + PACK_REACH
-	return shown_pack() != "" and (point - pack_position()).length_squared() <= reach * reach
+	return uv.x >= EYEPIECE_BACK - REACH and uv.x <= MOUTH + REACH and absi(uv.y) <= HOOD_HALF + REACH
 
 
-## Launches exactly one pack at the aim and stops aiming.
+## Launches exactly one pack at the aim. The next planet, if one loads, is aimed as it seats.
 func _fire() -> void:
 	var target: Vector2i = burst_preview()
 	_stop_aim()
-	_run.launch(target)
+	if _run.launch(target):
+		_aim_requested = true
+
+
+## The shown planet changed with the events: a new one drops in (a launch emptied the telescope, or
+## the HUD loaded another kind), or the telescope is empty.
+func _show_rest_pack() -> void:
+	super._show_rest_pack()
+	if _rest_pack == null:
+		return
+	var kind: String = _rest_pack.kind
+	if kind == "":
+		_seat("", false)
+	elif kind != _seated_kind and not is_loading():
+		_seated_kind = ""
+		_load_time = 0.0
+	_rest_pack.visible = is_loading()
+	_pose()
+
+
+## The planet leaves through the mouth: the telescope is empty until the next one drops in.
+func _launch_view(kind: String, burst: Vector2i) -> void:
+	super._launch_view(kind, burst)
+	_rest_pack.kind = ""
+	_seat("", false)
+
+
+## A pack_loaded event keeps the sequence going while the planet drops in.
+func _on_event_played(event: EventSequencer.RunEvent) -> void:
+	super._on_event_played(event)
+	if event.type == &"pack_loaded" and can_process() and is_loading():
+		_sequencer.hold(LOAD_TIME)
+
+
+## Seats `kind` inside: the dropping planet hides and the window shows it. `click` for feedback.
+func _seat(kind: String, click: bool) -> void:
+	_load_time = -1.0
+	_seated_kind = kind
+	if _rest_pack != null:
+		_rest_pack.visible = false
+	if click and kind != "":
+		planet_seated.emit(kind)
+	queue_redraw()
 
 
 func _stop_aim() -> void:
@@ -287,12 +368,12 @@ func _sky_centre() -> Vector2i:
 	return StarScatter.clamp_to_sky(_run.sky_rect.get_center(), _run.sky_rect)
 
 
-## The flight starts where the planet sits, at the mouth.
+## The flight starts at the mouth.
 func _flight_from() -> Vector2i:
-	return pack_position()
+	return mouth()
 
 
-## The planet sits at the mouth for the tube's current frame.
+## The dropping planet follows the barrel's current frame.
 func _pose() -> void:
 	if _rest_pack != null:
 		_rest_pack.position = Vector2(pack_position())
@@ -323,10 +404,10 @@ func _draw_tripod() -> void:
 
 ## The barrel, lit from the top-left: M5 on its lit edge, M3 on its shadow edge, M4 between, M5
 ## straps. A brass eyepiece (C3) behind; the lens hood in front, warm because it's the interactive
-## end (C2 rim, C1 lip; C1 and C0 while aiming). The opening inside the rim is dark and hollow
-## when empty; when loaded it's left open, so the planet seated behind it shows through.
+## end (C2 rim, C1 lip; C1 and C0 while aiming). The opening inside the rim is dark and hollow.
+## A seated planet shows through a window on the barrel, in its own colours.
 func _draw_barrel() -> void:
-	var loaded: bool = shown_pack() != ""
+	var loaded: String = _seated_kind
 	var reach: int = MOUTH + HOOD_HALF + 1
 	for y: int in range(PIVOT.y - reach, PIVOT.y + reach + 1):
 		for x: int in range(-reach, reach + 1):
@@ -338,7 +419,8 @@ func _draw_barrel() -> void:
 
 
 ## The colour of the barrel at (u, v), v counted towards the light (+ is the lit edge), or null.
-func _barrel_colour(u: int, v: int, loaded: bool) -> Variant:
+## `loaded` is the seated planet's kind, "" for none.
+func _barrel_colour(u: int, v: int, loaded: String) -> Variant:
 	if u < EYEPIECE_BACK or u > MOUTH:
 		return null
 	if u < BARREL_BACK:
@@ -348,14 +430,15 @@ func _barrel_colour(u: int, v: int, loaded: bool) -> Variant:
 	if u < HOOD_BACK:
 		if absi(v) > BARREL_HALF:
 			return null
+		if loaded != "" and u >= WINDOW_FROM and u <= WINDOW_TO and absi(v) <= 1:
+			var ramp: Array[Color] = Palette.RED_PACK if loaded == "red" else Palette.BLUE_PACK
+			return ramp[3 + v] if u > WINDOW_FROM and u < WINDOW_TO else ramp[1]
 		if v == BARREL_HALF or STRAPS.has(u):
 			return Palette.M5
 		return Palette.M3 if v == -BARREL_HALF else Palette.M4
 	if absi(v) > HOOD_HALF:
 		return null
 	if u > MOUTH - LENS_DEPTH and absi(v) < HOOD_HALF:
-		if loaded:
-			return null
 		return Palette.M5 if v == 1 and u == MOUTH else Palette.N0
 	if u == MOUTH:
 		return Palette.C0 if _aiming else Palette.C1
@@ -384,12 +467,10 @@ func _lit_side() -> int:
 	return 1 if Vector2(-dir.y, dir.x).dot(Vector2(-1, -1)) >= 0.0 else -1
 
 
-## A dotted C2 sight line from just past the planet to the reticle.
+## A dotted C2 sight line from just past the mouth to the reticle.
 func _draw_sight() -> void:
-	var from: Vector2i = pack_position()
-	var to: Vector2i = burst_preview() - origin()
-	var line: Array[Vector2i] = LinkLayer.line_pixels(from, to)
-	for i: int in range(sight_start(), line.size() - SIGHT_GAP, SIGHT_STEP):
+	var line: Array[Vector2i] = LinkLayer.line_pixels(mouth(), burst_preview() - origin())
+	for i: int in range(SIGHT_CLEAR, line.size() - SIGHT_GAP, SIGHT_STEP):
 		_dot(line[i], Palette.C2)
 
 
