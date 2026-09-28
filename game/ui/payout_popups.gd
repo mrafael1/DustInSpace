@@ -3,6 +3,7 @@ extends CanvasLayer
 ## Floating dust payouts (#59): a collected link's dust pops out of it as "+3" and a small dust
 ## diamond, rises a few pixels and stays until that payout's last dust particle lands on the
 ## counter (CollectParticles, wired by Main), then goes. The top combo's payout flashes C0 and hops.
+## On the Scorpio map, each star the Sun bursts pops its own dust the same way, as it bursts.
 ## Feedback only: the dust is credited by the core and counted as the particles land; nothing here
 ## holds the sequencer or takes input. Numbers are Labels in the 5x7 font; nothing is baked in.
 ## Placed in game coordinates (Main offsets the layer like the HUD): starting at the link's middle,
@@ -42,9 +43,16 @@ class PayoutPopup:
 	var start: Vector2i
 	var size: Vector2i
 	var top: bool
+	## Seconds before it shows (a star the Sun bursts shows its dust as it bursts).
+	var delay: float = 0.0
+	## Seconds since it was asked for; it shows from `delay` on.
 	var age: float = 0.0
 	## Seconds left once its dust has landed; INF while it's still flying.
 	var leave_in: float = INF
+
+	## Seconds it has been showing (0 while it waits for its delay).
+	func shown_for() -> float:
+		return maxf(age - delay, 0.0)
 
 	func rect() -> Rect2i:
 		return Rect2i(start - Vector2i(0, RISE), size + Vector2i(0, RISE))
@@ -100,12 +108,14 @@ func rects() -> Array[Rect2i]:
 	return shown
 
 
-## A combo's dust set off from `stars` (in link order): show "+amount" for it.
-func show_payout(payout: int, amount: int, stars: Array[Vector2i]) -> void:
+## Dust set off from `stars` (a link's, in link order, or one star the Sun burst): show
+## "+amount" for it, after `delay` seconds.
+func show_payout(payout: int, amount: int, stars: Array[Vector2i], delay: float = 0.0) -> void:
 	if amount <= 0 or stars.is_empty() or _run == null:
 		return
 	var popup := PayoutPopup.new()
 	popup.payout = payout
+	popup.delay = delay
 	popup.top = amount >= _top_dust
 	popup.size = Vector2i(("+%d" % amount).length() * GLYPH_ADVANCE - 1 + ICON_GAP + ICON_SIZE, TEXT_HEIGHT)
 	popup.start = _stack(place(stars, popup.size, bounds()), popup.size)
@@ -128,7 +138,7 @@ func show_payout(payout: int, amount: int, stars: Array[Vector2i]) -> void:
 func release(payout: int) -> void:
 	for popup: PayoutPopup in _popups:
 		if popup.payout == payout and popup.leave_in == INF:
-			popup.leave_in = maxf(LINGER, MIN_TIME - popup.age)
+			popup.leave_in = maxf(LINGER, MIN_TIME - popup.shown_for())
 
 
 ## Moves every popup on. Driven by `_process`; tests call it directly.
@@ -137,7 +147,7 @@ func advance(delta: float) -> void:
 	for popup: PayoutPopup in _popups:
 		popup.age += delta
 		popup.leave_in -= delta
-		if popup.leave_in <= 0.0 or popup.age >= MAX_TIME:
+		if popup.leave_in <= 0.0 or popup.shown_for() >= MAX_TIME:
 			gone.append(popup)
 		else:
 			_pose(popup)
@@ -191,8 +201,10 @@ func _stack(at: Vector2i, size: Vector2i) -> Vector2i:
 
 ## Rise, the top payout's flash and hop, on whole pixels.
 func _pose(popup: PayoutPopup) -> void:
-	var rise: int = mini(int(popup.age / RISE_STEP), RISE)
-	var hop: int = 1 if popup.top and popup.age >= HOP_AT and popup.age < HOP_AT + HOP_TIME else 0
+	var shown: float = popup.shown_for()
+	popup.node.visible = popup.age >= popup.delay
+	var rise: int = mini(int(shown / RISE_STEP), RISE)
+	var hop: int = 1 if popup.top and shown >= HOP_AT and shown < HOP_AT + HOP_TIME else 0
 	popup.node.position = Vector2(popup.start - Vector2i(0, rise + hop))
 	if popup.top:
-		popup.label.label_settings.font_color = Palette.C0 if popup.age < FLASH_TIME else Palette.D0
+		popup.label.label_settings.font_color = Palette.C0 if shown < FLASH_TIME else Palette.D0

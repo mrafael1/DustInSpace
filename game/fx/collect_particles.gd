@@ -12,9 +12,10 @@ signal dust_arrived(amount: int)
 signal light_arrived(amount: int)
 ## The last particle in the air has landed.
 signal all_landed
-## A combo's dust set off: `payout` numbers it, `stars` are the linked stars in link order.
+## Dust set off from stars: a combo's (`stars` are the linked stars in link order) or, on the
+## Scorpio map, one star the Sun burst (after `delay` seconds, as it bursts). `payout` numbers it.
 ## Feedback only (the floating payout): the dust itself arrives through dust_arrived.
-signal dust_payout_launched(payout: int, amount: int, stars: Array[Vector2i])
+signal dust_payout_launched(payout: int, amount: int, stars: Array[Vector2i], delay: float)
 ## The last dust particle of combo payout `payout` landed.
 signal dust_payout_landed(payout: int)
 
@@ -164,7 +165,12 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		var first: int = _particles.size()
 		_launch(Kind.DUST, event.args[1], burst, dust_target, burst.size())
 		for i: int in range(first, _particles.size()):
-			_particles[i].delay = SkyView.EXPLODE_STAGGER * (i - first)
+			var p: Particle = _particles[i]
+			p.delay = SkyView.EXPLODE_STAGGER * (i - first)
+			# Each burst star's dust is its own payout, shown as the star bursts.
+			_payouts += 1
+			p.payout = _payouts
+			dust_payout_launched.emit(_payouts, p.amount, [Vector2i(p.from)] as Array[Vector2i], p.delay)
 		return
 	if event.type != &"combo_collected":
 		return
@@ -184,7 +190,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		_payouts += 1
 		for i: int in range(n, dust_end):
 			_particles[i].payout = _payouts
-		dust_payout_launched.emit(_payouts, event.args[2], sources)
+		dust_payout_launched.emit(_payouts, event.args[2], sources, 0.0)
 
 
 func _payout_in_flight(payout: int) -> bool:

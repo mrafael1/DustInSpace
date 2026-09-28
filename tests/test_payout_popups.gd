@@ -189,6 +189,26 @@ func test_in_main_a_link_pops_its_payout() -> void:
 	assert_null(main.get_node("HUD").get_node_or_null("Light"), "no Sun number")
 
 
+func test_each_star_the_sun_bursts_pops_its_dust_as_it_bursts() -> void:
+	var cleared: Array[Star] = []
+	for x: int in [30, 60, 90, 120]:
+		cleared.append(Star.new(100 + x, Star.Size.SMALL, Vector2i(x, 200)))
+	run.sky_cleared.emit(cleared, cleared.size())
+	sequencer.advance(0.0)
+	assert_eq(popups.count(), cleared.size(), "one per star")
+	assert_eq(popups.texts(), ["+1", "+1", "+1", "+1"] as Array[String])
+	var shown: Array[bool] = []
+	for child: Node in popups.get_children():
+		shown.append((child as Node2D).visible)
+	assert_eq(shown, [true, false, false, false] as Array[bool], "the first bursts at once, the rest wait their turn")
+	popups.advance(SkyView.EXPLODE_STAGGER * 1.5)
+	assert_true((popups.get_child(1) as Node2D).visible, "the second as it bursts")
+	assert_false((popups.get_child(2) as Node2D).visible)
+	_play(4.0)
+	assert_eq(popups.count(), 0, "each goes once its dust lands")
+	assert_eq(dust_landed, cleared.size(), "the dust counted once, as before")
+
+
 func _link(sizes: Array, at: Array[Vector2i]) -> void:
 	var ids: Array[int] = []
 	for i: int in sizes.size():
