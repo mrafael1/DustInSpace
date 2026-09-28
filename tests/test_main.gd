@@ -154,6 +154,45 @@ func test_a_restart_mid_launch_leaves_no_pack_in_the_air() -> void:
 	assert_eq((main.get_node("Launcher") as Launcher).shown_pack(), "blue", "only the new run's pack shows")
 
 
+func test_the_telescope_launches_by_default_and_t_switches_to_the_slingshot() -> void:
+	var telescope: Telescope = main.get_node("Telescope")
+	var slingshot: Launcher = main.get_node("Launcher")
+	assert_true(main.use_telescope)
+	assert_eq(main.launcher(), telescope)
+	assert_true(telescope.visible and telescope.can_process())
+	assert_false(slingshot.visible or slingshot.can_process(), "the slingshot takes no input")
+	(main.get_node("DebugKeys") as DebugKeys).launcher_switch_requested.emit()
+	assert_eq(main.launcher(), slingshot)
+	assert_true(slingshot.visible and slingshot.can_process())
+	assert_false(telescope.visible or telescope.can_process())
+
+
+func test_the_telescope_message_shows_on_the_hud() -> void:
+	var hud: Hud = main.get_node("HUD")
+	(main.get_node("Telescope") as Telescope).message_shown.emit(Telescope.EMPTY_MESSAGE)
+	assert_eq(hud.message(), Telescope.EMPTY_MESSAGE)
+	hud.advance(Hud.MESSAGE_TIME + 0.01)
+	assert_eq(hud.message(), "", "it fades after a moment")
+
+
+func test_a_planet_picked_in_the_hud_aims_the_telescope() -> void:
+	var telescope: Telescope = main.get_node("Telescope")
+	(main.get_node("HUD") as Hud).planet_chosen.emit("blue")
+	_play_until_idle(main.get_node("EventSequencer"))
+	telescope.advance(0.0)
+	assert_ne(telescope.loaded_pack(), "", "a run starts with a planet loaded")
+	assert_true(telescope.is_aiming())
+
+
+func test_both_launchers_follow_a_launch() -> void:
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	main.run.launch(Vector2i(90, 150))
+	_play_until_idle(sequencer)
+	var kind: String = main.run.loaded_pack
+	assert_eq((main.get_node("Telescope") as Telescope).loaded_pack(), kind)
+	assert_eq((main.get_node("Launcher") as Launcher).shown_pack(), kind, "the hidden slingshot keeps up")
+
+
 func _play_until_idle(sequencer: EventSequencer) -> void:
 	var elapsed: float = 0.0
 	sequencer.advance(0.0)
