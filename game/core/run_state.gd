@@ -60,7 +60,9 @@ var _layout_rng := RandomNumberGenerator.new()
 var _next_star_id: int = 1
 
 
-func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i) -> void:
+## `p_map`: the constellation layout when balance.json turns the constellation on (the full
+## Scorpio unless a chapter stage gives its own, #62).
+func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i, p_map: StarMap = null) -> void:
 	assert(p_balance.is_valid(), "RunState needs a valid Balance: %s" % [p_balance.errors])
 	assert(StarScatter.inner_rect(p_sky_rect).has_area(), "sky rect too small for the edge margin")
 	balance = p_balance
@@ -70,7 +72,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i)
 	_layout_rng.seed = p_rng.seed ^ LAYOUT_SEED_SALT
 	dust = balance.start_dust
 	if balance.scorpio_enabled:
-		scorpio = Scorpio.new(p_sky_rect)
+		scorpio = Scorpio.new(p_sky_rect, p_map)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -135,14 +137,14 @@ func has_remaining_combo() -> bool:
 	if scorpio == null:
 		return Combos.has_any(sky_sizes())
 	var pool: Array[Star] = stars.duplicate()
-	for i: int in Scorpio.LANDMARKS.size():
+	for i: int in scorpio.map.count():
 		if not scorpio.is_lit(i):
 			pool.append(scorpio.landmark_star(i))
 	for a: int in pool.size():
 		for b: int in range(a + 1, pool.size()):
 			for c: int in range(b + 1, pool.size()):
 				var trio: Array[Star] = [pool[a], pool[b], pool[c]]
-				if trio.filter(func(s: Star) -> bool: return Scorpio.is_landmark_id(s.id)).size() > Scorpio.LANDMARKS_PER_COMBO:
+				if trio.filter(func(s: Star) -> bool: return scorpio.is_landmark(s.id)).size() > Scorpio.LANDMARKS_PER_COMBO:
 					continue
 				if Combos.evaluate([trio[0].size, trio[1].size, trio[2].size] as Array[int]) != Combos.INVALID and _can_chain(trio):
 					return true
@@ -241,7 +243,7 @@ func link(star_ids: Array[int]) -> String:
 	combo_collected.emit(combo, linked, reward.dust, reward.light)
 	if scorpio != null:
 		for star: Star in linked:
-			if Scorpio.is_landmark_id(star.id):
+			if scorpio.is_landmark(star.id):
 				_light_landmark(Scorpio.landmark_index(star.id))
 		# The last landmark lit is the win: no rekindle on top of it.
 		var rekindled: bool = not scorpio.is_complete() and _rekindle_if_full()
@@ -274,10 +276,10 @@ func strings_for(star_ids: Array[int]) -> Array[int]:
 		return formed
 	var lit: Array[bool] = scorpio.lit.duplicate()
 	for id: int in star_ids:
-		if Scorpio.is_landmark_id(id):
+		if scorpio.is_landmark(id):
 			lit[Scorpio.landmark_index(id)] = true
-	for segment: int in Scorpio.segment_count():
-		var ends: Array[int] = Scorpio.segment_landmarks(segment)
+	for segment: int in scorpio.map.segment_count():
+		var ends: Array[int] = scorpio.map.segment_landmarks(segment)
 		if lit[ends[0]] and lit[ends[1]] and not scorpio.is_built(segment):
 			formed.append(segment)
 	return formed
@@ -308,10 +310,10 @@ func _rekindle_if_full() -> bool:
 ## Scorpio: the landmark a rekindled Sun would light, or -1 when all are lit.
 func rekindle_target() -> int:
 	var first: int = -1
-	for i: int in Scorpio.LANDMARKS.size():
+	for i: int in scorpio.map.count():
 		if scorpio.is_lit(i):
 			continue
-		for n: int in Scorpio.neighbours(i):
+		for n: int in scorpio.map.neighbours(i):
 			if scorpio.is_lit(n):
 				return i
 		if first < 0:
@@ -374,7 +376,7 @@ func _stars_for_link(star_ids: Array[int]) -> Array[Star]:
 		if star == null or linked.any(func(s: Star) -> bool: return s.id == star.id):
 			linked.clear()
 			return linked
-		if Scorpio.is_landmark_id(id):
+		if scorpio != null and scorpio.is_landmark(id):
 			landmark_count += 1
 		else:
 			sky_count += 1
@@ -386,7 +388,7 @@ func _stars_for_link(star_ids: Array[int]) -> Array[Star]:
 
 ## A sky star, or an unlit landmark on the Scorpio map, by link id. Null otherwise.
 func _link_star(id: int) -> Star:
-	if scorpio != null and Scorpio.is_landmark_id(id):
+	if scorpio != null and scorpio.is_landmark(id):
 		var index: int = Scorpio.landmark_index(id)
 		return null if scorpio.is_lit(index) else scorpio.landmark_star(index)
 	return find_star(id)

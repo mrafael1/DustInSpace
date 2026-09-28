@@ -1,11 +1,13 @@
 class_name Scorpio
 extends RefCounted
-## The Scorpio constellation map (#40, a prototype). Fixed landmark stars, each small, medium or
-## big, trace Scorpio from its head to its stinger. One unlit landmark can stand in for a star in
+## A constellation map in play (#40): the full Scorpio, or one of its chapter's part stages
+## (`map`, a StarMap: #62). Its landmark stars, each small, medium or big, trace the figure. One unlit landmark can stand in for a star in
 ## a combo: the combo pays as usual and the landmark lights up instead of being used up. When the
 ## two landmarks a string joins (SEGMENTS) are both lit, that string forms. Lighting every landmark
 ## completes the constellation, which is the map's objective.
 ## Pure state; RunState owns the rules. Landmark positions and sizes are map layout, not balance.
+## The constants below are the full Scorpio's layout (StarMap.scorpio); the static helpers answer
+## for it (the chapter chart draws it). A run asks its own instance (`map`) instead.
 
 ## Landmarks: the 14 stars of Scorpius's usual figure (#61), on the 180x320 grid, inside the play
 ## sky (y 86-242 once the edge margin is taken off). Their real layout (RA/Dec, east to the left)
@@ -50,101 +52,41 @@ const HOME_SKY := Rect2i(0, 78, 180, 172)
 var lit: Array[bool] = []
 ## How far the map sits from its home layout in this run's sky (whole pixels, vertical only).
 var shift: Vector2i = Vector2i.ZERO
+## The layout in play.
+var map: StarMap
 
 
-## `sky`: the run's play sky; the map is centred in it as it is in HOME_SKY.
-func _init(sky: Rect2i = HOME_SKY) -> void:
-	for i: int in LANDMARKS.size():
-		lit.append(STARTING_LIT.has(i))
+## `sky`: the run's play sky; the map is centred in it as it is in HOME_SKY. `p_map`: the layout
+## (the full Scorpio unless a stage says otherwise).
+func _init(sky: Rect2i = HOME_SKY, p_map: StarMap = null) -> void:
+	map = p_map if p_map != null else StarMap.scorpio()
+	for i: int in map.count():
+		lit.append(map.starting_lit.has(i))
 	shift = Vector2i(0, (sky.get_center().y - HOME_SKY.get_center().y))
 
 
 ## Landmark `index`'s position in this run's sky.
 func landmark_position(index: int) -> Vector2i:
-	return LANDMARKS[index] + shift
+	return map.landmarks[index] + shift
 
 
-## Every landmark's position in this run's sky, head to stinger.
+## Every landmark's position in this run's sky.
 func landmark_positions() -> Array[Vector2i]:
 	var positions: Array[Vector2i] = []
-	for i: int in LANDMARKS.size():
+	for i: int in map.count():
 		positions.append(landmark_position(i))
 	return positions
 
 
-static func segment_count() -> int:
-	return SEGMENTS.size()
-
-
-## The landmarks string `segment` joins, as indices.
-static func segment_landmarks(segment: int) -> Array[int]:
-	return [SEGMENTS[segment].x, SEGMENTS[segment].y]
-
-
-## The landmarks a string joins to landmark `index`.
-static func neighbours(index: int) -> Array[int]:
-	var found: Array[int] = []
-	for pair: Vector2i in SEGMENTS:
-		if pair.x == index:
-			found.append(pair.y)
-		elif pair.y == index:
-			found.append(pair.x)
-	return found
-
-
-## The landmarks from `from` to `to` along the strings, both ends included (the strings form a
-## tree, so there is one way).
-static func landmark_path(from: int, to: int) -> Array[int]:
-	var came_from: Dictionary = {from: -1}
-	var queue: Array[int] = [from]
-	while not queue.is_empty():
-		var at: int = queue.pop_front()
-		if at == to:
-			break
-		for n: int in neighbours(at):
-			if not came_from.has(n):
-				came_from[n] = at
-				queue.append(n)
-	var route: Array[int] = []
-	if not came_from.has(to):
-		return route
-	var step: int = to
-	while step != -1:
-		route.push_front(step)
-		step = came_from[step]
-	return route
-
-
-## The strings that end at landmark `index`, in order.
-static func segments_of(index: int) -> Array[int]:
-	var found: Array[int] = []
-	for segment: int in SEGMENTS.size():
-		if SEGMENTS[segment].x == index or SEGMENTS[segment].y == index:
-			found.append(segment)
-	return found
-
-
-## Landmarks use negative ids in a link so they never collide with star ids: landmark i is -(i + 1).
-static func landmark_id(index: int) -> int:
-	return -(index + 1)
-
-
-static func landmark_index(id: int) -> int:
-	return -id - 1
-
-
-static func is_landmark_id(id: int) -> bool:
-	return id < 0 and landmark_index(id) < LANDMARKS.size()
-
-
-static func segment_ends(segment: int) -> Array[Vector2i]:
-	return [LANDMARKS[SEGMENTS[segment].x], LANDMARKS[SEGMENTS[segment].y]]
+## True if `id` is one of this map's landmarks in a link.
+func is_landmark(id: int) -> bool:
+	return id < 0 and landmark_index(id) < map.count()
 
 
 ## A landmark as a star, for links and combos, where it sits in this run's sky. Its id is its
 ## landmark id.
 func landmark_star(index: int) -> Star:
-	return Star.new(landmark_id(index), SIZES[index] as Star.Size, landmark_position(index))
+	return Star.new(landmark_id(index), map.sizes[index] as Star.Size, landmark_position(index))
 
 
 func is_lit(index: int) -> bool:
@@ -153,12 +95,12 @@ func is_lit(index: int) -> bool:
 
 ## String `segment` forms once both the landmarks it joins are lit.
 func is_built(segment: int) -> bool:
-	return lit[SEGMENTS[segment].x] and lit[SEGMENTS[segment].y]
+	return lit[map.segments[segment].x] and lit[map.segments[segment].y]
 
 
 func built_count() -> int:
 	var count: int = 0
-	for segment: int in segment_count():
+	for segment: int in map.segment_count():
 		if is_built(segment):
 			count += 1
 	return count
@@ -174,7 +116,7 @@ func light(index: int) -> Array[int]:
 	if lit[index]:
 		return formed
 	lit[index] = true
-	for segment: int in segments_of(index):
+	for segment: int in map.segments_of(index):
 		if is_built(segment):
 			formed.append(segment)
 	return formed
@@ -183,7 +125,50 @@ func light(index: int) -> Array[int]:
 ## Sizes of the landmarks still unlit.
 func unlit_sizes() -> Array[int]:
 	var sizes: Array[int] = []
-	for i: int in LANDMARKS.size():
+	for i: int in map.count():
 		if not lit[i]:
-			sizes.append(SIZES[i])
+			sizes.append(map.sizes[i])
 	return sizes
+
+
+## Landmarks use negative ids in a link so they never collide with star ids: landmark i is -(i + 1).
+static func landmark_id(index: int) -> int:
+	return -(index + 1)
+
+
+static func landmark_index(id: int) -> int:
+	return -id - 1
+
+
+# The full Scorpio's layout, for the chapter chart and tests.
+
+static func segment_count() -> int:
+	return SEGMENTS.size()
+
+
+static func segment_landmarks(segment: int) -> Array[int]:
+	return [SEGMENTS[segment].x, SEGMENTS[segment].y]
+
+
+static func segment_ends(segment: int) -> Array[Vector2i]:
+	return [LANDMARKS[SEGMENTS[segment].x], LANDMARKS[SEGMENTS[segment].y]]
+
+
+static func neighbours(index: int) -> Array[int]:
+	return _full().neighbours(index)
+
+
+static func segments_of(index: int) -> Array[int]:
+	return _full().segments_of(index)
+
+
+static func landmark_path(from: int, to: int) -> Array[int]:
+	return _full().path(from, to)
+
+
+static func is_landmark_id(id: int) -> bool:
+	return id < 0 and landmark_index(id) < LANDMARKS.size()
+
+
+static func _full() -> StarMap:
+	return StarMap.scorpio()
