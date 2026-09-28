@@ -524,11 +524,12 @@ func test_on_a_taller_sky_the_constellation_is_drawn_and_picked_where_it_moved()
 
 
 func test_the_sun_glow_reaches_the_top_of_a_taller_screen() -> void:
-	assert_eq(SunView.glow_top(ScreenZones.SUN_CENTRE), 0, "9:16: from the game's top")
+	assert_eq(SunView.glow_area(Rect2i(0, 0, 180, 320)), Rect2i(0, 0, 180, ScreenZones.SKY.end.y), "9:16: from the game's top")
 	var risen: Vector2i = ScreenZones.sun_centre(102)
 	assert_eq(risen, Vector2i(90, -63))
-	assert_eq(SunView.glow_top(risen), -102)
-	var glow: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, risen)
+	var area: Rect2i = SunView.glow_area(Rect2i(0, -102, 180, 422))
+	assert_eq(area.position.y, -102)
+	var glow: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, risen, area)
 	assert_eq(glow.get_size(), Vector2i(180, ScreenZones.SKY.end.y + 102), "down to the sky's bottom")
 
 
