@@ -49,8 +49,10 @@ const BEAM_RAMP: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
 const SUN_RIM: int = 20
 ## Completion: one string every STRING_STEP, bottom to top; then the drawing is traced over
 ## REVEAL_TIME; then CODA_TIME with everything shown.
-const STRING_STEP: float = 0.24
-const TUNE_TIME: float = STRING_STEP * 7
+## 13 strings (Scorpio.SEGMENTS, checked by a test) in about the tune's old 1.7 s.
+const STRING_COUNT: int = 13
+const STRING_STEP: float = 0.13
+const TUNE_TIME: float = STRING_STEP * STRING_COUNT
 const REVEAL_TIME: float = 1.2
 const CODA_TIME: float = 0.6
 const COMPLETION_TIME: float = TUNE_TIME + REVEAL_TIME + CODA_TIME
@@ -262,45 +264,48 @@ static func vibration(i: int, count: int, age: float) -> int:
 	return roundi(envelope * swing * sin(PI * i / (count - 1)))
 
 
-## The scorpion drawn around the landmarks, as the pen traces it: pincers, then the body's sides,
-## the legs, the tail's bulbs and the stinger's hook. Whole pixels, in order, no repeats.
+## The scorpion drawn around the landmarks, as the pen traces it: a pincer at each claw star
+## (beta and pi, opening forward), the body's sides from the head to mu, three pairs of legs, the
+## tail's bulbs and the stinger's hook. Whole pixels, in order, no repeats.
 static func scorpion_drawing() -> Array[Vector2i]:
 	var marks: Array[Vector2i] = Scorpio.LANDMARKS
+	var spine: Array[int] = _spine()
 	var strokes: Array = []
-	var head := Vector2(marks[0])
-	var forward: Vector2 = (head - Vector2(marks[1])).normalized()
-	var across: Vector2 = forward.orthogonal()
-	for side: float in [-1.0, 1.0]:
-		# An arm swings out from the head and bends forward to a claw: an open C, gap to the front.
-		var shoulder: Vector2 = head + across * side * 7.0 + forward * 2.0
-		var elbow: Vector2 = shoulder + forward * 7.0 + across * side * 3.0
-		var claw: Vector2 = elbow + forward * 5.0
-		strokes.append([head, shoulder, elbow])
+	var heart := Vector2(marks[Scorpio.ANTARES])
+	for claw: int in Scorpio.neighbours(Scorpio.HEAD):
+		if claw == spine[1]:
+			continue
+		# An open C at the claw star, its gap facing away from the heart.
+		var forward: Vector2 = (Vector2(marks[claw]) - heart).normalized()
+		var centre: Vector2 = Vector2(marks[claw]) + forward * 6.0
 		var arc: Array = []
 		for k: int in 9:
 			var angle: float = forward.angle() + 0.7 + (TAU - 1.4) * k / 8.0
-			arc.append(claw + Vector2.from_angle(angle) * 4.0)
+			arc.append(centre + Vector2.from_angle(angle) * 4.0)
 		strokes.append(arc)
-	var widths: Array[float] = [4.0, 7.0, 6.0, 5.0, 3.0]
+	# The body: from the head down to mu (spine positions 0-5), widest at the heart.
+	var widths: Array[float] = [4.0, 6.0, 8.0, 7.0, 6.0, 4.0]
 	for side: float in [-1.0, 1.0]:
 		var edge: Array = []
-		for i: int in widths.size():
-			edge.append(Vector2(marks[i]) + _body_normal(i) * widths[i] * side)
+		for k: int in widths.size():
+			edge.append(Vector2(marks[spine[k]]) + _body_normal(k) * widths[k] * side)
 		strokes.append(edge)
-	for i: int in [1, 2, 3]:
+	for k: int in [2, 3, 4]:
 		for side: float in [-1.0, 1.0]:
-			var root: Vector2 = Vector2(marks[i]) + _body_normal(i) * widths[i] * side
-			var knee: Vector2 = root + _body_normal(i) * 6.0 * side
-			var back: Vector2 = (Vector2(marks[i + 1]) - Vector2(marks[i])).normalized()
-			strokes.append([root, knee, knee + back * 5.0 + _body_normal(i) * 3.0 * side])
-	for i: int in range(4, marks.size() - 1):
-		strokes.append(_circle((Vector2(marks[i]) + Vector2(marks[i + 1])) / 2.0, 4.0))
-	var tail: Vector2 = (Vector2(marks[-1]) - Vector2(marks[-2])).normalized()
-	var sting: Vector2 = Vector2(marks[-1]) + tail * 7.0
+			var root: Vector2 = Vector2(marks[spine[k]]) + _body_normal(k) * widths[k] * side
+			var knee: Vector2 = root + _body_normal(k) * 6.0 * side
+			var back: Vector2 = (Vector2(marks[spine[k + 1]]) - Vector2(marks[spine[k]])).normalized()
+			strokes.append([root, knee, knee + back * 5.0 + _body_normal(k) * 3.0 * side])
+	# The tail: a bulb on each string from mu to the stinger.
+	for k: int in range(widths.size() - 1, spine.size() - 1):
+		strokes.append(_circle((Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0, 4.0))
+	var tip := Vector2(marks[spine[-1]])
+	var tail: Vector2 = (tip - Vector2(marks[spine[-2]])).normalized()
+	var sting: Vector2 = tip + tail * 7.0
 	var hook_side: Vector2 = tail.orthogonal()
-	if hook_side.dot(head - Vector2(marks[-1])) < 0.0:
+	if hook_side.dot(heart - tip) < 0.0:
 		hook_side = -hook_side
-	strokes.append([Vector2(marks[-1]) + tail * 4.0, sting, sting + tail * 3.0 + hook_side * 4.0, sting + hook_side * 7.0])
+	strokes.append([tip + tail * 4.0, sting, sting + tail * 3.0 + hook_side * 4.0, sting + hook_side * 7.0])
 	var pixels: Array[Vector2i] = []
 	var seen: Dictionary = {}
 	for stroke: Array in strokes:
@@ -312,11 +317,36 @@ static func scorpion_drawing() -> Array[Vector2i]:
 	return pixels
 
 
-## The body's sideways direction at landmark `i`, averaged over its neighbouring strings.
-static func _body_normal(i: int) -> Vector2:
+## The scorpion's spine, head to stinger: the head, then every landmark down the strings that
+## don't lead to a claw (the head's first string past the claws, then one line).
+static func _spine() -> Array[int]:
+	var spine: Array[int] = [Scorpio.HEAD]
+	var previous: int = -1
+	var current: int = Scorpio.HEAD
+	while true:
+		var next: int = -1
+		for n: int in Scorpio.neighbours(current):
+			if n == previous or spine.has(n):
+				continue
+			# From the head, follow the string toward the heart; past it there is only one way on.
+			if current == Scorpio.HEAD and Scorpio.neighbours(n).size() < 2:
+				continue
+			next = n
+			break
+		if next < 0:
+			return spine
+		spine.append(next)
+		previous = current
+		current = next
+	return spine
+
+
+## The body's sideways direction at spine position `k`, averaged over its neighbouring strings.
+static func _body_normal(k: int) -> Vector2:
 	var marks: Array[Vector2i] = Scorpio.LANDMARKS
-	var a: Vector2 = Vector2(marks[maxi(i - 1, 0)])
-	var b: Vector2 = Vector2(marks[mini(i + 1, marks.size() - 1)])
+	var spine: Array[int] = _spine()
+	var a: Vector2 = Vector2(marks[spine[maxi(k - 1, 0)]])
+	var b: Vector2 = Vector2(marks[spine[mini(k + 1, spine.size() - 1)]])
 	return (b - a).normalized().orthogonal()
 
 
@@ -443,7 +473,8 @@ func shows_lit(index: int) -> bool:
 
 ## Whether string `segment` shows formed: both its landmarks show lit.
 func shows_built(segment: int) -> bool:
-	return shows_lit(segment) and shows_lit(segment + 1)
+	var ends: Array[int] = Scorpio.segment_landmarks(segment)
+	return shows_lit(ends[0]) and shows_lit(ends[1])
 
 
 ## Which of the cue's two colours shows now: 0 (C5) or 1 (C4).
@@ -476,7 +507,7 @@ func _draw_completion() -> void:
 	var played: int = mini(floori(_completion_time / STRING_STEP) + 1, order.size())
 	for k: int in played:
 		var segment: int = order[k]
-		for index: int in [segment, segment + 1]:
+		for index: int in Scorpio.segment_landmarks(segment):
 			var dots: Dictionary = _art[Scorpio.SIZES[index]][1]
 			for d: Vector2i in dots:
 				_dot(Scorpio.LANDMARKS[index] + d, Palette.C0 if dots[d] != Palette.C3 else Palette.C1)

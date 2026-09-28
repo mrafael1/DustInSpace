@@ -277,7 +277,8 @@ func strings_for(star_ids: Array[int]) -> Array[int]:
 		if Scorpio.is_landmark_id(id):
 			lit[Scorpio.landmark_index(id)] = true
 	for segment: int in Scorpio.segment_count():
-		if lit[segment] and lit[segment + 1] and not scorpio.is_built(segment):
+		var ends: Array[int] = Scorpio.segment_landmarks(segment)
+		if lit[ends[0]] and lit[ends[1]] and not scorpio.is_built(segment):
 			formed.append(segment)
 	return formed
 
@@ -310,8 +311,9 @@ func rekindle_target() -> int:
 	for i: int in Scorpio.LANDMARKS.size():
 		if scorpio.is_lit(i):
 			continue
-		if (i > 0 and scorpio.is_lit(i - 1)) or (i + 1 < Scorpio.LANDMARKS.size() and scorpio.is_lit(i + 1)):
-			return i
+		for n: int in Scorpio.neighbours(i):
+			if scorpio.is_lit(n):
+				return i
 		if first < 0:
 			first = i
 	return first

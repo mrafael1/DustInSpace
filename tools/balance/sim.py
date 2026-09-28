@@ -26,8 +26,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 SIZES = ("small", "medium", "big")
 TRIPLE = {"small": "small_triple", "medium": "medium_triple", "big": "big_triple"}
 # Scorpio's landmark sizes, head to stinger, and the ones lit from the start (game/core/scorpio.gd).
-LANDMARK_SIZES = ("medium", "big", "small", "medium", "small", "medium", "small", "big")
-STARTING_LIT = (0, 1)
+LANDMARK_SIZES = ("medium", "medium", "small", "small", "big", "small", "medium", "small",
+                  "small", "small", "big", "small", "medium", "big")
+STARTING_LIT = (0, 1, 2)
 MAX_LANDMARKS_PER_COMBO = 1
 
 
