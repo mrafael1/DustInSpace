@@ -62,13 +62,14 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 
 ### Scorpio chapter chart (#62)
 
-The game opens on Scorpio's chart: the constellation drawn as a pixel-art star chart, each of its 14 stars a stage point. The route starts at the stinger (Shaula, point 1), climbs the tail and body to the head, then visits the two claws. Numbers count the route and small chevrons on the strings point the way on.
+The game opens on Scorpio's chart: the constellation drawn as a pixel-art star chart over deep space. Its stars are split into five part stages, travelled from the tail: **Stinger** (Shaula, kappa, iota), **Tail** (theta, eta, zeta), **Body** (mu, epsilon, tau), **Heart** (Antares, sigma) and **Claws** (Dschubba, beta, pi). A crown point above the figure is the **final stage, the full Scorpio**.
 
-- **States:** completed points are gold stars and the strings between them glow; the point to play next has a warm ring that breathes; locked points are dim. The selected point wears corner brackets.
-- **Travel:** selecting a point sends a small comet along the strings to it. Back from a won stage, its point lights with a ring, then the comet travels to the stage it unlocked.
-- **Playing:** PLAY (REPLAY once done) opens the selected stage. Locked points can be selected to see "COMING SOON" but never played. In a stage, MAP (top-right, and on the end screen) goes back to the chart.
-- **Progression:** a stage counts as won as soon as the core decides it, and unlocks the next point if its stage is built. Progress is saved on the device (`user://progress.json`) and survives restarts. The chart's progress is separate from the constellation built inside a stage.
-- **Stages built:** only stage 1, the current map (#63). Stage 2, Orion's marks (#64), is next. The other points show "COMING SOON" rather than empty stages. No upgrades, currencies or buffs.
+- **Part stages are their own maps:** each is a small "false constellation" shaped like that part (a `StarMap`), with its own finished drawing. Winning one lights its stars and the strings between them on the chart. The **Stinger** is six stars running along the bottom of the sky, rising to the telson and hooking back into the sting. The first joint starts lit, leaving five to light (about 3.8 packs, all won).
+- **The final** plays the full 14-star Scorpio (#61). While the parts are being built it's open for playtesting (`Chapter.FINAL_OPEN`); after that it opens once every part is won.
+- **States:** a won part's stars are gold; the part to play next is warm, with a breathing ring round its point (its first star from the tail); locked parts are cool. Numbers count the stages from the tail. The path is gold between won stars, warm through the part to play next, and a cool guide elsewhere. Tapping any star selects its part, and a comet travels there. Back from a win, the stage's point flashes as its stars light, then the comet travels to the stage it opened.
+- **Playing:** PLAY (REPLAY once won) opens the selected stage. Parts not built yet say "COMING SOON". In a stage, MAP (top-right, and on the end screen) goes back to the chart, and the end screen names the map ("STINGER COMPLETE").
+- **Progression:** a stage counts as won as soon as the core decides it, and is saved on the device (`user://progress.json`). The chart's progress is separate from the constellation built inside a stage. No upgrades, currencies or buffs.
+- **Built so far:** the Stinger and the final. Tail, Body, Heart and Claws come next, each with its own map.
 
 ### Scorpio constellation (prototype, #40)
 

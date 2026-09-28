@@ -20,33 +20,34 @@ func after_each() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(store_path))
 
 
-func test_it_opens_on_the_tail_with_stage_1_ready_to_play() -> void:
+func test_it_opens_on_the_stinger_ready_to_play() -> void:
 	chart.setup(Chapter.new())
 	assert_eq(chart.selected(), 0)
-	assert_eq(ChapterSelect.point_position(0), Scorpio.LANDMARKS[13], "at the stinger")
+	assert_eq(ChapterSelect.stage_position(0), Scorpio.LANDMARKS[13], "its point is Shaula, the tail's tip")
 	assert_true(chart.can_play())
-	assert_eq(_label("Info").text, "STAGE 1")
+	assert_eq(_label("Info").text, "STINGER")
 	assert_eq(_label("Play").text, "PLAY")
 
 
-func test_each_point_can_be_tapped_on_its_own() -> void:
-	for point: int in Chapter.point_count():
-		assert_eq(ChapterSelect.point_at(ChapterSelect.point_position(point) + Vector2i(4, -4)), point)
-	assert_eq(ChapterSelect.point_at(Vector2i(90, 40)), -1, "the title isn't a point")
+func test_tapping_any_star_picks_the_part_it_belongs_to() -> void:
+	for landmark: int in Scorpio.LANDMARKS.size():
+		assert_eq(ChapterSelect.stage_at(Scorpio.LANDMARKS[landmark] + Vector2i(3, -3)), Chapter.stage_of(landmark))
+	assert_eq(ChapterSelect.stage_at(ChapterSelect.FINAL_AT), Chapter.FINAL, "the crown is the final")
+	assert_eq(ChapterSelect.stage_at(Vector2i(90, 30)), -1, "the title isn't a stage")
 
 
-func test_play_on_an_available_point_opens_its_stage() -> void:
+func test_play_on_an_available_stage_opens_it() -> void:
 	chart.setup(Chapter.new())
 	watch_signals(chart)
 	_tap(ChapterSelect.PLAY.get_center())
 	assert_signal_emitted_with_parameters(chart, "stage_chosen", [0])
 
 
-func test_a_locked_point_can_be_looked_at_but_never_played() -> void:
+func test_an_unbuilt_part_can_be_looked_at_but_never_played() -> void:
 	chart.setup(Chapter.new())
 	watch_signals(chart)
-	_tap(ChapterSelect.point_position(3))
-	assert_eq(chart.selected(), 3)
+	_tap(Scorpio.LANDMARKS[Scorpio.ANTARES])
+	assert_eq(chart.selected(), 3, "the Heart")
 	assert_false(chart.can_play())
 	assert_false(_label("Play").visible, "no PLAY")
 	assert_eq(_label("Info").text, "COMING SOON")
@@ -54,33 +55,48 @@ func test_a_locked_point_can_be_looked_at_but_never_played() -> void:
 	assert_signal_not_emitted(chart, "stage_chosen")
 
 
-func test_a_completed_point_can_be_replayed() -> void:
+func test_the_final_is_playable_from_its_crown_point() -> void:
+	chart.setup(Chapter.new())
+	_tap(ChapterSelect.FINAL_AT)
+	assert_eq(chart.selected(), Chapter.FINAL)
+	assert_eq(_label("Info").text, "SCORPIO")
+	assert_true(chart.can_play(), "open for playtesting")
+	watch_signals(chart)
+	_tap(ChapterSelect.PLAY.get_center())
+	assert_signal_emitted_with_parameters(chart, "stage_chosen", [Chapter.FINAL])
+
+
+func test_a_won_stage_can_be_replayed() -> void:
 	var chapter := Chapter.new()
 	chapter.complete(0)
+	chapter.complete(Chapter.FINAL)
 	chart.setup(chapter)
-	assert_eq(chart.selected(), 0)
+	assert_eq(chart.selected(), Chapter.FINAL, "all built stages won: the last one")
 	assert_eq(_label("Play").text, "REPLAY")
 	watch_signals(chart)
 	_tap(ChapterSelect.PLAY.get_center())
-	assert_signal_emitted_with_parameters(chart, "stage_chosen", [0])
+	assert_signal_emitted_with_parameters(chart, "stage_chosen", [Chapter.FINAL])
 
 
-func test_selecting_a_point_sends_a_comet_along_the_strings() -> void:
+func test_selecting_a_stage_sends_a_comet_there() -> void:
 	chart.setup(Chapter.new())
-	_tap(ChapterSelect.point_position(2))
+	_tap(Scorpio.LANDMARKS[8])
+	assert_eq(chart.selected(), 1, "the Tail")
 	assert_true(chart.is_travelling())
-	var pixels: Array[Vector2i] = ChapterSelect.travel_pixels(0, 2)
-	assert_eq(pixels[0], ChapterSelect.point_position(0))
-	assert_eq(pixels[-1], ChapterSelect.point_position(2))
-	for i: int in range(1, pixels.size()):
-		assert_lte(maxi(absi(pixels[i].x - pixels[i - 1].x), absi(pixels[i].y - pixels[i - 1].y)), 1, "a whole-pixel path, no gaps")
+	for pair: Array in [[0, 2], [0, Chapter.FINAL]]:
+		var pixels: Array[Vector2i] = ChapterSelect.travel_pixels(pair[0], pair[1])
+		assert_eq(pixels[0], ChapterSelect.stage_position(pair[0]))
+		assert_eq(pixels[-1], ChapterSelect.stage_position(pair[1]))
+		for i: int in range(1, pixels.size()):
+			assert_lte(maxi(absi(pixels[i].x - pixels[i - 1].x), absi(pixels[i].y - pixels[i - 1].y)), 1, "a whole-pixel path, no gaps")
 	for i: int in 120:
 		chart.advance(STEP)
 	assert_false(chart.is_travelling(), "it arrives")
 
 
-func test_back_from_a_win_the_point_lights_then_the_comet_travels_to_the_next() -> void:
-	var chapter := Chapter.new(2)
+func test_back_from_a_win_its_stars_light_then_the_comet_travels_to_the_next() -> void:
+	var chapter := Chapter.new()
+	chapter.set_built(1, true)
 	chart.setup(chapter)
 	var unlocked: int = chapter.complete(0)
 	chart.show_progress(0, unlocked)
@@ -89,11 +105,11 @@ func test_back_from_a_win_the_point_lights_then_the_comet_travels_to_the_next() 
 	chart.advance(ChapterSelect.LIGHT_TIME + 0.01)
 	assert_false(chart.is_lighting())
 	assert_true(chart.is_travelling(), "then travels on")
-	assert_eq(chart.selected(), 1, "to the stage it unlocked")
+	assert_eq(chart.selected(), 1, "to the part it opened")
 	assert_true(chart.can_play())
 
 
-func test_back_without_a_new_win_it_just_selects_the_point_to_play() -> void:
+func test_back_without_a_new_win_it_just_selects_the_stage_to_play() -> void:
 	var chapter := Chapter.new()
 	chart.setup(chapter)
 	chart.show_progress(-1, -1)
@@ -108,32 +124,33 @@ func test_the_chart_draws_only_palette_colours() -> void:
 		assert_true(colour in [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.C4])
 
 
-## Feedback on #66: finished stages light the path between them; the way to the next stage is
-## warm; the rest is a solid cool guide.
-func test_the_path_lights_between_finished_stages_and_warms_toward_the_next() -> void:
-	var chapter := Chapter.new(3)
+## A won part lights its stars and the strings among them; the part to play next is warm; the
+## rest is a solid cool guide.
+func test_a_won_part_lights_its_strings_and_the_next_part_warms() -> void:
+	var chapter := Chapter.new()
+	chapter.set_built(1, true)
 	chart.setup(chapter)
-	var tail: int = _segment(13, 12)
-	var next: int = _segment(12, 11)
-	assert_eq(chart.string_legs()[tail], ChapterSelect.Leg.GUIDE, "nothing done yet")
+	var inside: int = _segment(13, 12)
+	var joint: int = _segment(11, 10)
+	var beyond: int = _segment(9, 8)
+	assert_eq(chart.string_legs()[inside], ChapterSelect.Leg.NEXT, "the Stinger to play: warm")
+	assert_eq(chart.string_legs()[beyond], ChapterSelect.Leg.GUIDE)
 	chapter.complete(0)
 	chart.setup(chapter)
-	assert_eq(chart.string_legs()[tail], ChapterSelect.Leg.NEXT, "the way from stage 1 to stage 2")
-	chapter.complete(1)
-	chart.setup(chapter)
 	var legs: Array = chart.string_legs()
-	assert_eq(legs[tail], ChapterSelect.Leg.LIT, "stages 1 and 2 done: the path between them lights")
-	assert_eq(legs[next], ChapterSelect.Leg.NEXT, "and warms on to stage 3")
-	assert_eq(legs.count(ChapterSelect.Leg.LIT), 1)
+	assert_eq(legs[inside], ChapterSelect.Leg.LIT, "the Stinger won: its strings light")
+	assert_eq(legs[joint], ChapterSelect.Leg.NEXT, "the way on into the Tail")
+	assert_eq(legs[beyond], ChapterSelect.Leg.NEXT, "and through it")
 
 
-func test_a_claw_reached_back_through_the_head_lights_both_strings() -> void:
-	var chapter := Chapter.new(Chapter.point_count())
-	for point: int in Chapter.point_count():
-		chapter.complete(point)
+func test_every_part_won_lights_the_whole_figure() -> void:
+	var chapter := Chapter.new()
+	for stage: int in Chapter.stage_count():
+		chapter.set_built(stage, true)
+		chapter.complete(stage)
 	chart.setup(chapter)
 	for leg: ChapterSelect.Leg in chart.string_legs():
-		assert_eq(leg, ChapterSelect.Leg.LIT, "every string on the route lights")
+		assert_eq(leg, ChapterSelect.Leg.LIT, "every string lights, the claws' through the head too")
 
 
 func test_the_stage_panel_holds_the_name_and_play() -> void:
@@ -164,8 +181,8 @@ func test_the_space_background_is_cool_opaque_and_clear_of_the_chart() -> void:
 	assert_gt(stars.size(), 100, "a starry sky")
 	for star: Vector2i in stars:
 		assert_false(ChapterSelect.PANEL.has_point(star), "off the stage panel")
-		for point: int in Chapter.point_count():
-			assert_gte((ChapterSelect.point_position(point) - star).length(), float(ChapterSelect.STAR_CLEAR), "clear of point %d" % point)
+		for point: Vector2i in Scorpio.LANDMARKS + [ChapterSelect.FINAL_AT]:
+			assert_gte((point - star).length(), float(ChapterSelect.STAR_CLEAR), "clear of %s" % point)
 
 
 func test_app_opens_on_the_chart_then_stage_1_then_back() -> void:
@@ -175,8 +192,9 @@ func test_app_opens_on_the_chart_then_stage_1_then_back() -> void:
 	assert_null(app.stage())
 	app.open_stage(0)
 	var stage: Main = app.stage()
-	assert_not_null(stage, "stage 1 opens from the tail point")
+	assert_not_null(stage, "the Stinger opens from the tail")
 	assert_true(stage.in_chapter)
+	assert_eq(stage.run.scorpio.map.id, "stinger", "playing its own map")
 	assert_false(app_chart.visible)
 	assert_true((stage.get_node("HUD") as Hud).is_map_button_shown(), "with a way back")
 	stage.map_requested.emit()
@@ -184,10 +202,17 @@ func test_app_opens_on_the_chart_then_stage_1_then_back() -> void:
 	assert_true(app_chart.visible, "back on the chart")
 
 
-func test_a_locked_point_never_opens_a_stage() -> void:
+func test_a_locked_stage_never_opens() -> void:
 	var app: App = _app()
 	app.open_stage(1)
 	assert_null(app.stage())
+
+
+func test_the_final_plays_the_full_scorpio() -> void:
+	var app: App = _app()
+	app.open_stage(Chapter.FINAL)
+	assert_eq(app.stage().run.scorpio.map.id, "scorpio")
+	assert_eq(app.stage().run.scorpio.map.count(), 14)
 
 
 func test_a_win_lights_the_point_and_survives_a_restart() -> void:
@@ -197,12 +222,12 @@ func test_a_win_lights_the_point_and_survives_a_restart() -> void:
 	app.back_to_chart()
 	var app_chart: ChapterSelect = app.get_node("ChapterSelect")
 	assert_true(app.chapter.is_completed(0))
-	assert_true(app_chart.is_lighting(), "the point lights as the chart comes back")
+	assert_true(app_chart.is_lighting(), "its stars light as the chart comes back")
 	app.queue_free()
 	await get_tree().process_frame
 	var again: App = _app()
 	assert_true(again.chapter.is_completed(0), "the app restarted with the progress kept")
-	assert_eq((again.get_node("ChapterSelect") as ChapterSelect).selected(), 0, "all built stages done: the last one")
+	assert_eq((again.get_node("ChapterSelect") as ChapterSelect).selected(), Chapter.FINAL, "the final is next")
 
 
 func test_a_loss_changes_nothing() -> void:

@@ -47,12 +47,9 @@ const BEAM_TIME: float = 0.5
 const BEAM_TRAIL: int = 14
 const BEAM_RAMP: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
 const SUN_RIM: int = 20
-## Completion: one string every STRING_STEP, bottom to top; then the drawing is traced over
-## REVEAL_TIME; then CODA_TIME with everything shown.
-## 13 strings (Scorpio.SEGMENTS, checked by a test) in about the tune's old 1.7 s.
-const STRING_COUNT: int = 13
-const STRING_STEP: float = 0.13
-const TUNE_TIME: float = STRING_STEP * STRING_COUNT
+## Completion: every string in TUNE_TIME, bottom to top (string_step apart, whatever the map's
+## string count); then the drawing is traced over REVEAL_TIME; then CODA_TIME with everything shown.
+const TUNE_TIME: float = 1.7
 const REVEAL_TIME: float = 1.2
 const CODA_TIME: float = 0.6
 const COMPLETION_TIME: float = TUNE_TIME + REVEAL_TIME + CODA_TIME
@@ -89,7 +86,6 @@ var _art: Array = []
 func _ready() -> void:
 	for size: int in 3:
 		_art.append([landmark_pixels(size, false), landmark_pixels(size, true)])
-	_drawing = scorpion_drawing()
 
 
 func _process(delta: float) -> void:
@@ -100,13 +96,14 @@ func _draw() -> void:
 	if _run == null or _run.scorpio == null:
 		return
 	_draw_scorpion()
-	for segment: int in Scorpio.segment_count():
+	var map: StarMap = _map()
+	for segment: int in map.segment_count():
 		_draw_string(segment)
-	for i: int in Scorpio.LANDMARKS.size():
+	for i: int in map.count():
 		_draw_landmark(i)
 	if _ring_time >= 0.0:
-		for p: Vector2i in lit_ring_pixels(Scorpio.SIZES[_ring_landmark], _ring_time / LIT_RING_TIME):
-			_dot(Scorpio.LANDMARKS[_ring_landmark] + p, LIT_RING_COLOURS[mini(floori(_ring_time / LIT_RING_TIME * 4.0), 3)])
+		for p: Vector2i in lit_ring_pixels(map.sizes[_ring_landmark], _ring_time / LIT_RING_TIME):
+			_dot(map.landmarks[_ring_landmark] + p, LIT_RING_COLOURS[mini(floori(_ring_time / LIT_RING_TIME * 4.0), 3)])
 	if _beam_time >= 0.0:
 		_draw_beam(beam_pixels(_beam_from, _beam_to, _beam_time / BEAM_TIME))
 	if _completion_time >= 0.0:
@@ -118,6 +115,7 @@ func setup(run: RunState) -> void:
 	# The map sits where the run's sky puts it (a taller sky moves it up); everything here is drawn
 	# in its home layout, so the whole view moves with it.
 	position = Vector2(run.scorpio.shift) if run.scorpio != null else Vector2.ZERO
+	_drawing = scorpion_drawing(_map())
 	_shown_lit.clear()
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
@@ -127,6 +125,20 @@ func setup(run: RunState) -> void:
 	_beam_time = -1.0
 	_completion_time = -1.0
 	_revealed = false
+
+
+## The layout drawn: the run's map (#62), or the full Scorpio without one.
+func _map() -> StarMap:
+	return _run.scorpio.map if _run != null and _run.scorpio != null else StarMap.scorpio()
+
+
+## Seconds between the completion tune's strings: the whole tune takes TUNE_TIME.
+static func string_step(map: StarMap = null) -> float:
+	return TUNE_TIME / maxi(_or_full(map).segment_count(), 1)
+
+
+static func _or_full(map: StarMap) -> StarMap:
+	return map if map != null else StarMap.scorpio()
 
 
 ## The link being traced: the landmarks in it and the strings it would form.
@@ -157,9 +169,9 @@ func flash_landmark(index: int) -> void:
 ## The Sun's ignition is over: a sunbeam flies from its rim (the Sun sits at `sun`) to landmark
 ## `index`, which lights when it lands (its landmark_lit event plays then). -1: no beam.
 func launch_sunbeam(sun: Vector2i, index: int) -> void:
-	if index < 0 or index >= Scorpio.LANDMARKS.size():
+	if index < 0 or index >= _map().count():
 		return
-	_beam_to = Scorpio.LANDMARKS[index]
+	_beam_to = _map().landmarks[index]
 	var sun_here: Vector2i = sun - Vector2i(position)
 	var toward: Vector2 = Vector2(_beam_to - sun_here).normalized()
 	_beam_from = sun_here + Vector2i((toward * SUN_RIM).round())
@@ -222,23 +234,24 @@ func flash_string(segment: int) -> void:
 
 
 ## The strings from the bottom of the sky to the top: lowest midpoint first.
-static func song_order() -> Array[int]:
+static func song_order(map: StarMap = null) -> Array[int]:
+	var m: StarMap = _or_full(map)
 	var order: Array[int] = []
-	for segment: int in Scorpio.segment_count():
+	for segment: int in m.segment_count():
 		order.append(segment)
 	order.sort_custom(func(a: int, b: int) -> bool:
-		return _mid_y(a) > _mid_y(b) or (_mid_y(a) == _mid_y(b) and a > b))
+		return _mid_y(m, a) > _mid_y(m, b) or (_mid_y(m, a) == _mid_y(m, b) and a > b))
 	return order
 
 
-static func _mid_y(segment: int) -> int:
-	var ends: Array[Vector2i] = Scorpio.segment_ends(segment)
+static func _mid_y(map: StarMap, segment: int) -> int:
+	var ends: Array[Vector2i] = map.segment_ends(segment)
 	return ends[0].y + ends[1].y
 
 
 func play_completion() -> void:
 	_completion_time = 0.0
-	string_sung.emit(song_order()[0], 0)
+	string_sung.emit(song_order(_map())[0], 0)
 	queue_redraw()
 
 
@@ -268,15 +281,31 @@ static func vibration(i: int, count: int, age: float) -> int:
 	return roundi(envelope * swing * sin(PI * i / (count - 1)))
 
 
-## The scorpion drawn around the landmarks, as the pen traces it: a pincer at each claw star
-## (beta and pi, opening forward), the body's sides from the head to mu, three pairs of legs, the
-## tail's bulbs and the stinger's hook. Whole pixels, in order, no repeats.
-static func scorpion_drawing() -> Array[Vector2i]:
-	var marks: Array[Vector2i] = Scorpio.LANDMARKS
-	var spine: Array[int] = _spine()
+## The drawing traced around the landmarks when the map is complete, as the pen traces it, for
+## the map's Drawing style. The whole scorpion: a pincer at each claw star (beta and pi, opening
+## forward), the body's sides from the head to mu, three pairs of legs, the tail's bulbs and the
+## stinger's hook. A stinger (#62): a bulb on each tail string and the sting's hook past the last
+## star. Whole pixels, in order, no repeats, clear of the landmarks.
+static func scorpion_drawing(map: StarMap = null) -> Array[Vector2i]:
+	var m: StarMap = _or_full(map)
+	var strokes: Array = _stinger_strokes(m) if m.drawing == StarMap.Drawing.STINGER else _scorpion_strokes(m)
+	var pixels: Array[Vector2i] = []
+	var seen: Dictionary = {}
+	for stroke: Array in strokes:
+		for k: int in range(1, stroke.size()):
+			for p: Vector2i in LinkLayer.line_pixels(Vector2i((stroke[k - 1] as Vector2).round()), Vector2i((stroke[k] as Vector2).round())):
+				if not seen.has(p) and not _near_landmark(m, p):
+					seen[p] = true
+					pixels.append(p)
+	return pixels
+
+
+static func _scorpion_strokes(m: StarMap) -> Array:
+	var marks: Array[Vector2i] = m.landmarks
+	var spine: Array[int] = _spine(m)
 	var strokes: Array = []
 	var heart := Vector2(marks[Scorpio.ANTARES])
-	for claw: int in Scorpio.neighbours(Scorpio.HEAD):
+	for claw: int in m.neighbours(Scorpio.HEAD):
 		if claw == spine[1]:
 			continue
 		# An open C at the claw star, its gap facing away from the heart.
@@ -292,48 +321,61 @@ static func scorpion_drawing() -> Array[Vector2i]:
 	for side: float in [-1.0, 1.0]:
 		var edge: Array = []
 		for k: int in widths.size():
-			edge.append(Vector2(marks[spine[k]]) + _body_normal(k) * widths[k] * side)
+			edge.append(Vector2(marks[spine[k]]) + _body_normal(m, spine, k) * widths[k] * side)
 		strokes.append(edge)
 	for k: int in [2, 3, 4]:
 		for side: float in [-1.0, 1.0]:
-			var root: Vector2 = Vector2(marks[spine[k]]) + _body_normal(k) * widths[k] * side
-			var knee: Vector2 = root + _body_normal(k) * 6.0 * side
+			var root: Vector2 = Vector2(marks[spine[k]]) + _body_normal(m, spine, k) * widths[k] * side
+			var knee: Vector2 = root + _body_normal(m, spine, k) * 6.0 * side
 			var back: Vector2 = (Vector2(marks[spine[k + 1]]) - Vector2(marks[spine[k]])).normalized()
-			strokes.append([root, knee, knee + back * 5.0 + _body_normal(k) * 3.0 * side])
+			strokes.append([root, knee, knee + back * 5.0 + _body_normal(m, spine, k) * 3.0 * side])
 	# The tail: a bulb on each string from mu to the stinger.
 	for k: int in range(widths.size() - 1, spine.size() - 1):
 		strokes.append(_circle((Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0, 4.0))
-	var tip := Vector2(marks[spine[-1]])
-	var tail: Vector2 = (tip - Vector2(marks[spine[-2]])).normalized()
+	strokes.append(_sting(m, spine, heart))
+	return strokes
+
+
+## A stinger map: its landmarks are one line from the tail joint to the sting's tip.
+static func _stinger_strokes(m: StarMap) -> Array:
+	var marks: Array[Vector2i] = m.landmarks
+	var spine: Array[int] = m.path(0, m.count() - 1)
+	var strokes: Array = []
+	for k: int in spine.size() - 2:
+		strokes.append(_circle((Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0, 4.0))
+	# The telson: a wider bulb round the star before the tip.
+	strokes.append(_circle(Vector2(marks[spine[-2]]), 7.0))
+	var centre := Vector2.ZERO
+	for p: Vector2i in marks:
+		centre += Vector2(p)
+	strokes.append(_sting(m, spine, centre / marks.size()))
+	return strokes
+
+
+## The sting's hook past the spine's last star, curling towards `inward`.
+static func _sting(m: StarMap, spine: Array[int], inward: Vector2) -> Array:
+	var tip := Vector2(m.landmarks[spine[-1]])
+	var tail: Vector2 = (tip - Vector2(m.landmarks[spine[-2]])).normalized()
 	var sting: Vector2 = tip + tail * 7.0
 	var hook_side: Vector2 = tail.orthogonal()
-	if hook_side.dot(heart - tip) < 0.0:
+	if hook_side.dot(inward - tip) < 0.0:
 		hook_side = -hook_side
-	strokes.append([tip + tail * 4.0, sting, sting + tail * 3.0 + hook_side * 4.0, sting + hook_side * 7.0])
-	var pixels: Array[Vector2i] = []
-	var seen: Dictionary = {}
-	for stroke: Array in strokes:
-		for k: int in range(1, stroke.size()):
-			for p: Vector2i in LinkLayer.line_pixels(Vector2i((stroke[k - 1] as Vector2).round()), Vector2i((stroke[k] as Vector2).round())):
-				if not seen.has(p) and not _near_landmark(p):
-					seen[p] = true
-					pixels.append(p)
-	return pixels
+	return [tip + tail * 4.0, sting, sting + tail * 3.0 + hook_side * 4.0, sting + hook_side * 7.0]
 
 
 ## The scorpion's spine, head to stinger: the head, then every landmark down the strings that
 ## don't lead to a claw (the head's first string past the claws, then one line).
-static func _spine() -> Array[int]:
+static func _spine(m: StarMap) -> Array[int]:
 	var spine: Array[int] = [Scorpio.HEAD]
 	var previous: int = -1
 	var current: int = Scorpio.HEAD
 	while true:
 		var next: int = -1
-		for n: int in Scorpio.neighbours(current):
+		for n: int in m.neighbours(current):
 			if n == previous or spine.has(n):
 				continue
 			# From the head, follow the string toward the heart; past it there is only one way on.
-			if current == Scorpio.HEAD and Scorpio.neighbours(n).size() < 2:
+			if current == Scorpio.HEAD and m.neighbours(n).size() < 2:
 				continue
 			next = n
 			break
@@ -346,11 +388,9 @@ static func _spine() -> Array[int]:
 
 
 ## The body's sideways direction at spine position `k`, averaged over its neighbouring strings.
-static func _body_normal(k: int) -> Vector2:
-	var marks: Array[Vector2i] = Scorpio.LANDMARKS
-	var spine: Array[int] = _spine()
-	var a: Vector2 = Vector2(marks[spine[maxi(k - 1, 0)]])
-	var b: Vector2 = Vector2(marks[spine[mini(k + 1, spine.size() - 1)]])
+static func _body_normal(m: StarMap, spine: Array[int], k: int) -> Vector2:
+	var a: Vector2 = Vector2(m.landmarks[spine[maxi(k - 1, 0)]])
+	var b: Vector2 = Vector2(m.landmarks[spine[mini(k + 1, spine.size() - 1)]])
 	return (b - a).normalized().orthogonal()
 
 
@@ -362,8 +402,8 @@ static func _circle(centre: Vector2, radius: float) -> Array:
 
 
 ## The drawing leaves each landmark's star clear.
-static func _near_landmark(p: Vector2i) -> bool:
-	for landmark: Vector2i in Scorpio.LANDMARKS:
+static func _near_landmark(m: StarMap, p: Vector2i) -> bool:
+	for landmark: Vector2i in m.landmarks:
 		if maxi(absi(p.x - landmark.x), absi(p.y - landmark.y)) <= 3:
 			return true
 	return false
@@ -397,10 +437,11 @@ func advance(delta: float) -> void:
 			sunbeam_landed.emit(_beam_to)
 		redraw = true
 	if _completion_time >= 0.0:
-		var before: int = floori(_completion_time / STRING_STEP)
+		var step_time: float = string_step(_map())
+		var before: int = floori(_completion_time / step_time)
 		_completion_time += delta
-		var now: int = floori(_completion_time / STRING_STEP)
-		var order: Array[int] = song_order()
+		var now: int = floori(_completion_time / step_time)
+		var order: Array[int] = song_order(_map())
 		for k: int in range(before + 1, mini(now, order.size() - 1) + 1):
 			string_sung.emit(order[k], k)
 		if _completion_time >= COMPLETION_TIME:
@@ -412,8 +453,8 @@ func advance(delta: float) -> void:
 
 
 ## Every pixel of a string, head to stinger, with the ends kept clear of the landmarks.
-static func outline_pixels(segment: int) -> Array[Vector2i]:
-	var ends: Array[Vector2i] = Scorpio.segment_ends(segment)
+static func outline_pixels(segment: int, map: StarMap = null) -> Array[Vector2i]:
+	var ends: Array[Vector2i] = _or_full(map).segment_ends(segment)
 	var line: Array[Vector2i] = LinkLayer.line_pixels(ends[0], ends[1])
 	return line.slice(LANDMARK_CLEAR, line.size() - LANDMARK_CLEAR)
 
@@ -439,7 +480,7 @@ static func landmark_pixels(size: int, lit: bool) -> Dictionary[Vector2i, Color]
 
 
 func _draw_string(segment: int) -> void:
-	var pixels: Array[Vector2i] = outline_pixels(segment)
+	var pixels: Array[Vector2i] = outline_pixels(segment, _map())
 	var age: float = _sung_age(segment)
 	if age >= 0.0 and age < VIBRATE_TIME:
 		_draw_vibrating(segment, pixels, age)
@@ -477,7 +518,7 @@ func shows_lit(index: int) -> bool:
 
 ## Whether string `segment` shows formed: both its landmarks show lit.
 func shows_built(segment: int) -> bool:
-	var ends: Array[int] = Scorpio.segment_landmarks(segment)
+	var ends: Array[int] = _map().segment_landmarks(segment)
 	return shows_lit(ends[0]) and shows_lit(ends[1])
 
 
@@ -496,38 +537,38 @@ func shows_cue(index: int) -> bool:
 func _draw_landmark(index: int) -> void:
 	if shows_cue(index):
 		var colour: Color = Palette.C4 if cue_frame() == 1 else Palette.C5
-		for d: Vector2i in cue_pixels(Scorpio.SIZES[index]):
-			_dot(Scorpio.LANDMARKS[index] + d, colour)
+		for d: Vector2i in cue_pixels(_map().sizes[index]):
+			_dot(_map().landmarks[index] + d, colour)
 	var lit: bool = shows_lit(index) or _selected.has(index)
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
-	var dots: Dictionary = _art[Scorpio.SIZES[index]][1 if lit else 0]
+	var dots: Dictionary = _art[_map().sizes[index]][1 if lit else 0]
 	for d: Vector2i in dots:
-		_dot(Scorpio.LANDMARKS[index] + d, Palette.C0 if flash else dots[d])
+		_dot(_map().landmarks[index] + d, Palette.C0 if flash else dots[d])
 
 
 ## Completion: the landmarks of the strings played so far flash C0.
 func _draw_completion() -> void:
-	var order: Array[int] = song_order()
-	var played: int = mini(floori(_completion_time / STRING_STEP) + 1, order.size())
+	var order: Array[int] = song_order(_map())
+	var played: int = mini(floori(_completion_time / string_step(_map())) + 1, order.size())
 	for k: int in played:
 		var segment: int = order[k]
-		for index: int in Scorpio.segment_landmarks(segment):
-			var dots: Dictionary = _art[Scorpio.SIZES[index]][1]
+		for index: int in _map().segment_landmarks(segment):
+			var dots: Dictionary = _art[_map().sizes[index]][1]
 			for d: Vector2i in dots:
-				_dot(Scorpio.LANDMARKS[index] + d, Palette.C0 if dots[d] != Palette.C3 else Palette.C1)
+				_dot(_map().landmarks[index] + d, Palette.C0 if dots[d] != Palette.C3 else Palette.C1)
 
 
 ## Seconds since `segment`'s note in the completion tune, or -1 if it hasn't sounded.
 func _sung_age(segment: int) -> float:
 	if _completion_time < 0.0:
 		return -1.0
-	var start: float = song_order().find(segment) * STRING_STEP
+	var start: float = song_order(_map()).find(segment) * string_step(_map())
 	return _completion_time - start if _completion_time >= start else -1.0
 
 
 ## A string just sung: C0, pushed across itself by the standing wave.
 func _draw_vibrating(segment: int, pixels: Array[Vector2i], age: float) -> void:
-	var ends: Array[Vector2i] = Scorpio.segment_ends(segment)
+	var ends: Array[Vector2i] = _map().segment_ends(segment)
 	var along: Vector2i = ends[1] - ends[0]
 	var across := Vector2i(1, 0) if absi(along.y) > absi(along.x) else Vector2i(0, 1)
 	for i: int in pixels.size():

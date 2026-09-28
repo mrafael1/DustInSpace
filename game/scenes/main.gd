@@ -20,6 +20,9 @@ signal map_requested
 @export var use_telescope: bool = true
 ## Played from a chapter's chart (App sets it before adding Main): shows the MAP buttons.
 @export var in_chapter: bool = false
+## The constellation layout to play when balance.json turns the constellation on (a StarMap id:
+## a chapter stage's, #62; the full Scorpio by default).
+@export var star_map: String = "scorpio"
 
 var run: RunState
 ## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
@@ -78,7 +81,7 @@ func start_run(balance: Balance) -> bool:
 		_report_balance_errors(balance.errors)
 		return false
 	_balance_errors.visible = false
-	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra))
+	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), StarMap.by_id(star_map))
 	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)
 	for child: Node in get_children():

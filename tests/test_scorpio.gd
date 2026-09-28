@@ -79,7 +79,7 @@ func test_the_map_is_scorpius_with_its_claws_and_hooked_tail() -> void:
 	for pair: Vector2i in Scorpio.SEGMENTS:
 		var length: float = Vector2(m[pair.x]).distance_to(Vector2(m[pair.y]))
 		assert_between(length, 24.0, 30.0, "string %s is short and even" % pair)
-	assert_eq(ConstellationView.STRING_COUNT, Scorpio.segment_count(), "the completion tune plays every string")
+	assert_eq(ConstellationView.song_order().size(), Scorpio.segment_count(), "the completion tune plays every string")
 
 
 ## Each landmark can be picked on its own: no two hit circles overlap.

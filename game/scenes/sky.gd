@@ -157,7 +157,7 @@ func star_at(point: Vector2i) -> int:
 			best_dist_sq = dist_sq
 			best_id = id
 	if _run.scorpio != null:
-		for i: int in Scorpio.LANDMARKS.size():
+		for i: int in _run.scorpio.map.count():
 			if _run.scorpio.is_lit(i):
 				continue
 			var dist_sq: int = (_run.scorpio.landmark_position(i) - point).length_squared()
@@ -235,7 +235,7 @@ func _on_selection_changed(ids: Array[int]) -> void:
 func _too_many_landmarks(ids: Array[int]) -> bool:
 	if _run == null or _run.scorpio == null:
 		return false
-	return ids.filter(Scorpio.is_landmark_id).size() > Scorpio.LANDMARKS_PER_COMBO
+	return ids.filter(_run.scorpio.is_landmark).size() > Scorpio.LANDMARKS_PER_COMBO
 
 
 func _refuse_link(ids: Array[int]) -> void:
@@ -287,7 +287,7 @@ func _show_preview() -> void:
 	var ids: Array[int] = _gesture.selected
 	var landmarks: Array[int] = []
 	for id: int in ids:
-		if Scorpio.is_landmark_id(id):
+		if _run.scorpio.is_landmark(id):
 			landmarks.append(Scorpio.landmark_index(id))
 	_constellation.show_link_preview(landmarks, _run.strings_for(ids))
 
@@ -314,7 +314,7 @@ func _positions(stars: Array[Star]) -> Array[Vector2i]:
 func _positions_of_ids(ids: Array[int]) -> Array[Vector2i]:
 	var points: Array[Vector2i] = []
 	for id: int in ids:
-		if _run.scorpio != null and Scorpio.is_landmark_id(id):
+		if _run.scorpio != null and _run.scorpio.is_landmark(id):
 			points.append(_run.scorpio.landmark_position(Scorpio.landmark_index(id)))
 			continue
 		var star: Star = _run.find_star(id)

@@ -157,8 +157,9 @@ func _show_end() -> void:
 	var won: bool = _run.outcome == RunState.Outcome.WON
 	if _run.scorpio != null:
 		# The Scorpio map's objective is the constellation (#40).
-		_add_line("SCORPIO COMPLETE" if won else "SCORPIO UNFINISHED", Palette.C1 if won else Palette.S4)
-		_add_line("STRINGS %d/%d" % [_run.scorpio.built_count(), Scorpio.segment_count()], Palette.C1)
+		var title: String = _run.scorpio.map.title
+		_add_line(title + (" COMPLETE" if won else " UNFINISHED"), Palette.C1 if won else Palette.S4)
+		_add_line("STRINGS %d/%d" % [_run.scorpio.built_count(), _run.scorpio.map.segment_count()], Palette.C1)
 	elif won:
 		_add_line("SUN RESTORED", Palette.C1)
 		_add_line(light, Palette.C1)
