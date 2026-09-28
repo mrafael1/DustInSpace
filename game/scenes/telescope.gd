@@ -36,9 +36,10 @@ const BARREL_HALF: int = 3
 const HOOD_HALF: int = 4
 const STRAPS: Array[int] = [-4, 9]
 ## The lens opening: the hood's last rows inside its rim. Dark and hollow when empty; the
-## loaded planet shows through it, seated SEAT px deep behind the hood.
+## loaded planet shows through it, seated SEAT px deep: the hood and its rim overlap its lower
+## half, so it sits in the mouth rather than on top of it.
 const LENS_DEPTH: int = 2
-const SEAT: int = 4
+const SEAT: int = 6
 ## The tripod's head (under the pivot) and its three legs; the middle one is behind.
 const HEAD_TOP: int = -4
 const HEAD_ROWS: int = 3
@@ -47,8 +48,10 @@ const BACK_LEG := Vector2i(0, 8)
 ## Press areas: around the tripod, along the barrel, and around the planet at the mouth.
 const SCOPE_RADIUS: int = 13
 const PACK_REACH: int = 3
-## The sight line: one dot every SIGHT_STEP px from the mouth, stopping short of the reticle.
+## The sight line: one dot every SIGHT_STEP px, starting SIGHT_CLEAR px past the planet's edge
+## (so it doesn't touch the loaded planet) and stopping SIGHT_GAP px short of the reticle.
 const SIGHT_STEP: int = 4
+const SIGHT_CLEAR: int = 3
 const SIGHT_GAP: int = 8
 ## The burst preview: a dotted ring where the stars will scatter (StarScatter.RING_MIN).
 const RING_RADIUS: int = StarScatter.RING_MIN
@@ -124,6 +127,11 @@ func direction() -> Vector2:
 ## The mouth of the barrel, the hood's rim (this node's coordinates).
 func mouth() -> Vector2i:
 	return PIVOT + Vector2i((direction() * MOUTH).round())
+
+
+## The sight line's first dot, in pixels along the line from the planet's centre: clear of it.
+static func sight_start() -> int:
+	return PackView.HUD_RADIUS + 1 + SIGHT_CLEAR
 
 
 ## Where the loaded planet sits: seated SEAT px into the mouth, the rest of it out in front.
@@ -376,12 +384,12 @@ func _lit_side() -> int:
 	return 1 if Vector2(-dir.y, dir.x).dot(Vector2(-1, -1)) >= 0.0 else -1
 
 
-## A dotted C2 sight line from the planet to the reticle.
+## A dotted C2 sight line from just past the planet to the reticle.
 func _draw_sight() -> void:
 	var from: Vector2i = pack_position()
 	var to: Vector2i = burst_preview() - origin()
 	var line: Array[Vector2i] = LinkLayer.line_pixels(from, to)
-	for i: int in range(SIGHT_STEP, line.size() - SIGHT_GAP, SIGHT_STEP):
+	for i: int in range(sight_start(), line.size() - SIGHT_GAP, SIGHT_STEP):
 		_dot(line[i], Palette.C2)
 
 

@@ -284,6 +284,15 @@ func test_only_the_barrel_turns_the_tripod_stays() -> void:
 	assert_true(scope.on_scope(scope.mouth()), "and so is the barrel's mouth, wherever it points")
 
 
+func test_the_planet_sits_deep_in_the_mouth() -> void:
+	var inside: int = PackView.HUD_RADIUS - (Vector2(scope.pack_position() - scope.mouth())).length()
+	assert_gte(inside, PackView.HUD_RADIUS / 2, "at least half the planet is behind the rim")
+
+
+func test_the_sight_line_starts_clear_of_the_planet() -> void:
+	assert_gt(Telescope.sight_start(), PackView.HUD_RADIUS + 1, "a gap between the planet and the first dot")
+
+
 func _tap(point: Vector2i) -> void:
 	_touch(point, true)
 	_touch(point, false)
