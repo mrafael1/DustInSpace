@@ -414,6 +414,37 @@ func test_scorpio_completes_with_the_suns_new_target() -> void:
 	assert_eq(triples, 60, "6 rekindles of 50 light each")
 
 
+func test_a_taller_sky_moves_the_map_up_to_stay_centred() -> void:
+	var tall: Rect2i = ScreenZones.play_sky(102)
+	assert_eq(tall, Rect2i(0, -24, 180, 274), "the sky grows up by the extra rows")
+	var map := Scorpio.new(tall)
+	assert_eq(map.shift, Vector2i(0, -51), "half of it: centred")
+	var inner: Rect2i = StarScatter.inner_rect(tall)
+	for i: int in Scorpio.LANDMARKS.size():
+		assert_eq(map.landmark_position(i), Scorpio.LANDMARKS[i] + Vector2i(0, -51))
+		assert_true(inner.has_point(map.landmark_position(i)))
+	assert_eq(Scorpio.new().shift, Vector2i.ZERO, "a 9:16 sky: the home layout")
+
+
+func test_on_a_taller_sky_the_rules_use_the_moved_map() -> void:
+	var data: Dictionary = Fixtures.balance_dict()
+	data["packs"]["blue"]["big_bang_chance"] = 0.0
+	data["packs"]["red"]["big_bang_chance"] = 0.0
+	data["scorpio"] = SCORPIO_REACH
+	var r := RunState.new(Balance.from_dict(data), Fixtures.rng(), ScreenZones.play_sky(102))
+	var at: Vector2i = r.scorpio.landmark_position(2)
+	# Two smalls by where landmark 2 now is (51 px above its home), in reach.
+	var ids: Array[int] = _row(r, SMALL, [at.x - 20, at.x + 20], at.y)
+	assert_eq(r.link([ids[0], Scorpio.landmark_id(2), ids[1]] as Array[int]), "small_triple")
+	assert_true(r.scorpio.is_lit(2))
+	r.owned_packs["red"] = 1
+	r.load_pack("red")
+	r.launch(r.scorpio.landmark_position(4))
+	for star: Star in r.stars:
+		for p: Vector2i in r.scorpio.landmark_positions():
+			assert_gte(Vector2(star.position).distance_to(Vector2(p)), StarScatter.LANDMARK_SPACING - 1.0, "bursts keep off the moved map")
+
+
 ## Stars of `size` along row `y`, at the given x, in that order. Returns their ids.
 func _row(r: RunState, size: int, xs: Array, y: int) -> Array[int]:
 	var ids: Array[int] = []

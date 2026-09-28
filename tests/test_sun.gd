@@ -180,6 +180,60 @@ func test_the_sky_glow_spreads_over_the_sky_in_halo_colours() -> void:
 	assert_gt(reach[1], ScreenZones.SKY.end.y - 5, "the last frame reaches the bottom of the sky")
 
 
+func test_the_9_16_glow_is_unchanged() -> void:
+	var area: Rect2i = SunView.glow_area(Rect2i(Vector2i.ZERO, ScreenZones.SCREEN))
+	assert_eq(area, Rect2i(0, 0, 180, ScreenZones.SKY.end.y))
+	assert_eq(SunView.glow_reach(ScreenZones.SUN_CENTRE, area), 230, "the old fixed reach, from the Sun to the far corner")
+
+
+## Phones from the issue, and a wide tablet: the glow's last frame covers every visible corner of
+## the sky, margins included, and its first frame stays near the Sun.
+func test_the_last_glow_frame_fills_the_whole_visible_sky_on_any_screen() -> void:
+	for window: Vector2i in [Vector2i(1170, 2532), Vector2i(412, 915), Vector2i(1080, 1920), Vector2i(1536, 2048)]:
+		var visible: Vector2i = ScreenZones.fill_size(window)
+		var offset: Vector2i = ScreenZones.game_offset(Vector2(visible))
+		var screen := Rect2i(-offset, visible)
+		var centre: Vector2i = ScreenZones.sun_centre(offset.y)
+		var area: Rect2i = SunView.glow_area(screen)
+		assert_eq(area.position, screen.position, "%s: from the screen's top-left corner" % window)
+		assert_eq(area.end, Vector2i(screen.end.x, ScreenZones.SKY.end.y), "%s: to its right edge, down to the sky's bottom" % window)
+		var glow: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, centre, area)
+		assert_eq(glow.get_size(), area.size)
+		for corner: Vector2i in [Vector2i.ZERO, Vector2i(area.size.x - 4, 0), Vector2i(0, area.size.y - 4), area.size - Vector2i(4, 4)]:
+			assert_true(_lit_in(glow, Rect2i(corner, Vector2i(4, 4))), "%s: the corner at %s is lit" % [window, corner + area.position])
+		# No unlit strip down either margin: every 4x4 block of the glow's outer ring has light.
+		for y: int in range(SunView.RADIUS + 20, area.size.y - 4, 4):
+			assert_true(_lit_in(glow, Rect2i(0, y, 4, 4)), "%s: left edge row %d" % [window, y])
+			assert_true(_lit_in(glow, Rect2i(area.size.x - 4, y, 4, 4)), "%s: right edge row %d" % [window, y])
+		var first: Image = SunView.sky_glow(1, centre, area)
+		assert_false(_lit_in(first, Rect2i(0, area.size.y - 4, 4, 4)), "%s: the first frame stays near the Sun" % window)
+
+
+func test_the_glow_dither_runs_on_from_the_game_into_the_margins() -> void:
+	var centre: Vector2i = ScreenZones.SUN_CENTRE
+	var narrow: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, centre, Rect2i(0, 0, 180, 250))
+	var wide: Image = SunView.sky_glow(SunView.IGNITE_FRAMES, centre, Rect2i(-20, -30, 220, 280))
+	var differ: int = 0
+	for y: int in range(0, 250, 3):
+		for x: int in range(0, 180, 3):
+			if narrow.get_pixel(x, y).a != wide.get_pixel(x + 20, y + 30).a:
+				differ += 1
+	assert_eq(differ, 0, "same pixels where the areas overlap, apart from the reach")
+
+
+func test_fit_screen_rebuilds_the_glow_for_the_new_screen() -> void:
+	sun.fit_screen(Rect2i(-8, -40, 196, 360))
+	assert_eq(sun.get("_screen"), Rect2i(-8, -40, 196, 360))
+
+
+func _lit_in(image: Image, block: Rect2i) -> bool:
+	for y: int in range(block.position.y, block.end.y):
+		for x: int in range(block.position.x, block.end.x):
+			if image.get_pixel(x, y).a > 0.0:
+				return true
+	return false
+
+
 func test_an_ignited_sun_idles_with_shimmering_rays_and_a_moving_glint() -> void:
 	var a: Dictionary[Vector2i, Color] = SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, true, false, 0)
 	var b: Dictionary[Vector2i, Color] = SunView.pixels(SunView.DISC_ROWS, SunView.RAYS, true, false, 1)

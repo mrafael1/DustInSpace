@@ -23,13 +23,33 @@ const STARTING_LIT: Array[int] = [0, 1]
 ## At most this many landmarks in one combo: two would light a whole string with one sky star
 ## (tools/balance/sim.py: the constellation done in about 2 packs).
 const LANDMARKS_PER_COMBO: int = 1
+## The play sky LANDMARKS are laid out in (a 9:16 screen). A taller sky (a taller phone) moves the
+## whole map by `shift` so it stays centred in it; spacing, sizes and reach don't change.
+const HOME_SKY := Rect2i(0, 78, 180, 172)
 
 var lit: Array[bool] = []
+## How far the map sits from its home layout in this run's sky (whole pixels, vertical only).
+var shift: Vector2i = Vector2i.ZERO
 
 
-func _init() -> void:
+## `sky`: the run's play sky; the map is centred in it as it is in HOME_SKY.
+func _init(sky: Rect2i = HOME_SKY) -> void:
 	for i: int in LANDMARKS.size():
 		lit.append(STARTING_LIT.has(i))
+	shift = Vector2i(0, (sky.get_center().y - HOME_SKY.get_center().y))
+
+
+## Landmark `index`'s position in this run's sky.
+func landmark_position(index: int) -> Vector2i:
+	return LANDMARKS[index] + shift
+
+
+## Every landmark's position in this run's sky, head to stinger.
+func landmark_positions() -> Array[Vector2i]:
+	var positions: Array[Vector2i] = []
+	for i: int in LANDMARKS.size():
+		positions.append(landmark_position(i))
+	return positions
 
 
 static func segment_count() -> int:
@@ -53,9 +73,10 @@ static func segment_ends(segment: int) -> Array[Vector2i]:
 	return [LANDMARKS[segment], LANDMARKS[segment + 1]]
 
 
-## A landmark as a star, for links and combos. Its id is its landmark id.
-static func landmark_star(index: int) -> Star:
-	return Star.new(landmark_id(index), SIZES[index] as Star.Size, LANDMARKS[index])
+## A landmark as a star, for links and combos, where it sits in this run's sky. Its id is its
+## landmark id.
+func landmark_star(index: int) -> Star:
+	return Star.new(landmark_id(index), SIZES[index] as Star.Size, landmark_position(index))
 
 
 func is_lit(index: int) -> bool:
