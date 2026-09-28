@@ -33,6 +33,7 @@ var _extra: int = 0
 @onready var _sound_toggle: SoundToggle = $SoundToggle
 @onready var _backdrop: Backdrop = $Backdrop
 @onready var _sparks: BurstSparks = $BurstSparks
+@onready var _payouts: PayoutPopups = $Payouts
 
 
 func _ready() -> void:
@@ -41,10 +42,10 @@ func _ready() -> void:
 	assert(_sequencer.get_index() == get_child_count() - 2, "EventSequencer must come right before it to lock input")
 	# Payouts travel: the counters tick up as the collect particles land on them.
 	_collect.dust_arrived.connect(_hud.receive_dust)
-	_collect.light_arrived.connect(_hud.receive_light)
+	# A link's dust floats up from it until it lands on the counter (#59).
+	_collect.dust_payout_launched.connect(_payouts.show_payout)
+	_collect.dust_payout_landed.connect(_payouts.release)
 	_collect.light_arrived.connect(_sun.receive_light)
-	# Scorpio: a rekindled Sun resets the light counter and then pays its dust.
-	_sun.rekindled.connect(_hud.reset_light)
 	_sun.released.connect(func() -> void: _sky.launch_sunbeam(Vector2i(_sun.position)))
 	_sky.watch_payouts(_collect)
 	_end_screen.restart_requested.connect(restart)
@@ -86,13 +87,14 @@ func fit_screen() -> void:
 	var visible: Vector2 = get_viewport().get_visible_rect().size
 	var offset: Vector2i = ScreenZones.game_offset(visible)
 	($BigBang/Shake as Camera2D).position = Vector2(-offset)
-	for layer: CanvasLayer in [$HUD, $EndScreen, $DebugLayer, $BigBang/Front] as Array[CanvasLayer]:
+	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front] as Array[CanvasLayer]:
 		layer.offset = Vector2(offset)
 	_sound_toggle.screen_offset = offset
 	_backdrop.fit(offset, Vector2i(visible))
 	# The UI anchors to the real screen's edges, not the game's 180x320 (the Sun's counter aside).
 	var screen := Rect2i(-offset, Vector2i(visible))
 	_hud.fit_screen(screen)
+	_payouts.fit_screen(screen)
 	_sound_toggle.target = _hud.sound_target()
 	_end_screen.fit_screen(screen)
 	_sun.fit_screen(screen)
