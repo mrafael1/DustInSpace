@@ -14,6 +14,8 @@ const C5 := Color("#6A3F7A")
 
 ## Sky ramp: UI plaques use an N0 fill and an N6 border; N7 marks things with no value.
 const N0 := Color("#07091F")
+## The chapter chart's faint grid.
+const N1 := Color("#0E1438")
 const N6 := Color("#5A51A6")
 const N7 := Color("#7E68C8")
 ## N8 doubles as the dust ramp's middle step (dust icon facets).
