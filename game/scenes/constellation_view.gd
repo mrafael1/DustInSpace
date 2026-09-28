@@ -202,7 +202,11 @@ func _draw_beam(trail: Array[Vector2i]) -> void:
 
 ## A lit ring around a landmark of `size`, `k` (0-1) of the way out: a 1 px circle.
 static func lit_ring_pixels(size: int, k: float) -> Array[Vector2i]:
-	var radius: int = StarView.half_extent(size as Star.Size) + 2 + roundi(clampf(k, 0.0, 1.0) * LIT_RING_GROWTH)
+	return circle_pixels(StarView.half_extent(size as Star.Size) + 2 + roundi(clampf(k, 0.0, 1.0) * LIT_RING_GROWTH))
+
+
+## A 1 px circle of `radius` round the origin, on whole pixels.
+static func circle_pixels(radius: int) -> Array[Vector2i]:
 	var dots: Array[Vector2i] = []
 	for dy: int in range(-radius - 1, radius + 2):
 		for dx: int in range(-radius - 1, radius + 2):

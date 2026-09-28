@@ -60,6 +60,16 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 - **Win:** Sun light reaches the target. The Sun fully ignites and lights up the sky.
 - **Loss:** the player has no packs left, not enough dust to buy one, **and** no valid combination remains in the sky. Always check for remaining combinations before ending the run.
 
+### Scorpio chapter chart (#62)
+
+The game opens on Scorpio's chart: the constellation drawn as a pixel-art star chart, each of its 14 stars a stage point. The route starts at the stinger (Shaula, point 1), climbs the tail and body to the head, then visits the two claws. Numbers count the route and small chevrons on the strings point the way on.
+
+- **States:** completed points are gold stars and the strings between them glow; the point to play next has a warm ring that breathes; locked points are dim. The selected point wears corner brackets.
+- **Travel:** selecting a point sends a small comet along the strings to it. Back from a won stage, its point lights with a ring, then the comet travels to the stage it unlocked.
+- **Playing:** PLAY (REPLAY once done) opens the selected stage. Locked points can be selected to see "COMING SOON" but never played. In a stage, MAP (top-right, and on the end screen) goes back to the chart.
+- **Progression:** a stage counts as won as soon as the core decides it, and unlocks the next point if its stage is built. Progress is saved on the device (`user://progress.json`) and survives restarts. The chart's progress is separate from the constellation built inside a stage.
+- **Stages built:** only stage 1, the current map (#63). Stage 2, Orion's marks (#64), is next. The other points show "COMING SOON" rather than empty stages. No upgrades, currencies or buffs.
+
 ### Scorpio constellation (prototype, #40)
 
 An experiment to learn whether building a constellation makes the loop more fun and more challenging. It's on for playtesting (`scorpio.enabled` in `balance.json`); set it to `false` to play the plain stage.

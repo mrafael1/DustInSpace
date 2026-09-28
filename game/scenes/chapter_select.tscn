@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/chapter_select.gd" id="1_chapter"]
+
+[node name="ChapterSelect" type="CanvasLayer"]
+script = ExtResource("1_chapter")
+
+[node name="Chart" type="Node2D" parent="."]
+
+[node name="Title" type="Label" parent="."]
+mouse_filter = 2
+
+[node name="Subtitle" type="Label" parent="."]
+mouse_filter = 2
+
+[node name="Info" type="Label" parent="."]
+mouse_filter = 2
+
+[node name="Play" type="Label" parent="."]
+mouse_filter = 2

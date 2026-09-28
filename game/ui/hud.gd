@@ -24,6 +24,8 @@ signal pack_ready(kind: String)
 ## The player picked a planet with its icon or its buy button, and it loaded (or was bought and
 ## loaded). The telescope aims with it (Main wires it).
 signal planet_chosen(kind: String)
+## The MAP button was tapped: back to the chapter's chart (#62; only shown in a chapter).
+signal map_requested
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -35,6 +37,8 @@ const SLOT_Y: int = 290
 ## them to the real screen's corners).
 ## The speaker sits 10 px in from the corner: a phone's rounded corner clipped it at 4 px.
 const SOUND_AT := Vector2i(10, 10)
+## The MAP button (in a chapter) sits this far in from the top-right corner.
+const MAP_INSET: int = 10
 const DUST_ICON_AT := Vector2i(12, 300)
 const DUST_AT := Vector2i(20, 297)
 ## A counter hops 1 px up for this long when a particle lands on it.
@@ -66,6 +70,7 @@ var _message_left: float = 0.0
 @onready var _slot_layer: Node2D = $Slots
 @onready var _sound: SoundIcon = $SoundIcon
 @onready var _message: Label = $Message
+@onready var _map: MapButton = $MapButton
 
 
 func _ready() -> void:
@@ -86,6 +91,8 @@ func _process(delta: float) -> void:
 func fit_screen(screen: Rect2i) -> void:
 	var bottom: int = screen.end.y - ScreenZones.SCREEN.y
 	_sound.position = Vector2(SOUND_AT + screen.position)
+	# The MAP button mirrors the speaker in the top-right corner.
+	_map.position = Vector2(Vector2i(screen.end.x - MAP_INSET - MapButton.SIZE.x, screen.position.y + MAP_INSET))
 	($DustIcon as Node2D).position = Vector2(DUST_ICON_AT + Vector2i(screen.position.x, bottom))
 	_rest[_dust] = Vector2(DUST_AT + Vector2i(screen.position.x, bottom))
 	_dust.position = _rest[_dust]
@@ -162,6 +169,19 @@ func sound_level() -> int:
 
 
 ## The speaker's tap target on screen (SoundToggle takes the taps).
+## Shows the MAP button (in a chapter) or hides it.
+func show_map_button(on: bool) -> void:
+	_map.visible = on
+
+
+func is_map_button_shown() -> bool:
+	return _map.visible
+
+
+func map_target() -> Rect2i:
+	return _map.target()
+
+
 func sound_target() -> Rect2i:
 	return Rect2i(SoundIcon.TARGET.position + Vector2i(_sound.position), SoundIcon.TARGET.size)
 
@@ -194,6 +214,8 @@ func handle_pointer(event: InputEvent) -> bool:
 
 ## The tap target under a screen point, as [kind, &"icon" or &"cost"], or [] for none.
 func target_at(point: Vector2i) -> Array:
+	if _map.visible and _map.target().has_point(point):
+		return ["", &"map"]
 	for kind: String in _slots:
 		var part: StringName = _slots[kind].target_at(point - Vector2i(_slot_layer.position + _slots[kind].position))
 		if part != &"":
@@ -204,11 +226,15 @@ func target_at(point: Vector2i) -> Array:
 ## Remembers the target a press started on; a buy button shows held down while pressed.
 func _press(target: Array) -> void:
 	_pressed = target
+	_map.pressed = target == ["", &"map"]
 	for kind: String in _slots:
 		_slots[kind].press_buy(target == [kind, &"cost"])
 
 
 func _tap(kind: String, part: StringName) -> void:
+	if part == &"map":
+		map_requested.emit()
+		return
 	var done: bool
 	if part == &"icon":
 		done = _run.load_pack(kind) or _run.buy(kind)
