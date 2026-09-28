@@ -40,8 +40,8 @@ const DUST_AT := Vector2i(20, 297)
 const LIGHT_AT := Vector2i(60, 66)
 ## A counter hops 1 px up for this long when a particle lands on it.
 const HOP_TIME: float = 0.1
-## The message line (show_message), just above the launcher, and how long a message stays.
-const MESSAGE_Y: int = 222
+## The message line (show_message), on the land above the HUD row, and how long a message stays.
+const MESSAGE_Y: int = 262
 const MESSAGE_TIME: float = 1.6
 
 var _run: RunState
@@ -115,7 +115,6 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer.event_played.connect(_on_event_played)
 	_build_slots(run.balance.pack_kinds())
 	_press([])
-	show_message("")
 	refresh()
 
 

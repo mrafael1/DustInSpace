@@ -167,6 +167,14 @@ func test_the_telescope_launches_by_default_and_t_switches_to_the_slingshot() ->
 	assert_false(telescope.visible or telescope.can_process())
 
 
+func test_a_run_starts_with_the_telescope_loaded_and_aiming() -> void:
+	var telescope: Telescope = main.get_node("Telescope")
+	assert_ne(telescope.seated_pack(), "")
+	assert_true(telescope.is_aiming())
+	assert_eq((main.get_node("HUD") as Hud).message(), Telescope.AIM_MESSAGE, "with the hint showing")
+	assert_true(ScreenZones.HUD.grow(10).has_point(telescope.origin()), "in the HUD's row")
+
+
 func test_the_telescope_message_shows_on_the_hud() -> void:
 	var hud: Hud = main.get_node("HUD")
 	(main.get_node("Telescope") as Telescope).message_shown.emit(Telescope.EMPTY_MESSAGE)

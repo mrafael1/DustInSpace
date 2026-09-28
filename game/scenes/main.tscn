@@ -35,7 +35,7 @@ centered = false
 position = Vector2(90, 270)
 
 [node name="Telescope" parent="." instance=ExtResource("21_telescope")]
-position = Vector2(90, 270)
+position = Vector2(80, 300)
 
 [node name="BurstSparks" type="Node2D" parent="."]
 script = ExtResource("8_sparks")

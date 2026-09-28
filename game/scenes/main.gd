@@ -112,6 +112,8 @@ func switch_launcher(telescope: bool) -> void:
 		launcher.visible = on
 		launcher.process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
 	_hud.show_message("")
+	if telescope:
+		_telescope.request_aim()
 
 
 ## The launcher in use: the telescope or the slingshot.
@@ -137,6 +139,7 @@ func _wire_sound() -> void:
 	_telescope.aim_started.connect(_sfx.play.bind(&"pull_start", 1.0))
 	_telescope.aim_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_telescope.empty_tapped.connect(_sfx.play.bind(&"tap_refused", 1.0))
+	_telescope.planet_seated.connect(func(_kind: String) -> void: _sfx.play(&"pack_load", 1.5))
 	_sky.star_selected.connect(_sfx.on_star_selected)
 	_sky.link_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
