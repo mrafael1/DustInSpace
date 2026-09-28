@@ -69,7 +69,21 @@ The game opens on Scorpio's chart: the constellation drawn as a pixel-art star c
 - **States:** a won part's stars are gold; the part to play next is warm, with a breathing ring round its point (its first star from the tail); locked parts are cool. Numbers count the stages from the tail. The path is gold between won stars, warm through the part to play next, and a cool guide elsewhere. Tapping any star selects its part, and a comet travels there. Back from a win, the stage's point flashes as its stars light, then the comet travels to the stage it opened.
 - **Playing:** PLAY (REPLAY once won) opens the selected stage. Parts not built yet say "COMING SOON". In a stage, MAP (top-right, and on the end screen) goes back to the chart, and the end screen names the map ("STINGER COMPLETE").
 - **Progression:** a stage counts as won as soon as the core decides it, and is saved on the device (`user://progress.json`). The chart's progress is separate from the constellation built inside a stage. No upgrades, currencies or buffs.
-- **Built so far:** the Stinger and the final. Tail, Body, Heart and Claws come next, each with its own map.
+- **Built so far:** the Stinger, the Tail and the final. Body, Heart and Claws come next, each with its own map.
+
+### Tail stage: Orion the hunter (#64, a prototype)
+
+The **Tail** is stage 2: six stars curling down the right of the sky and along the bottom (the first one starts lit, so five to light), with the top-left corner left to **Orion**, drawn there as a dim cool figure with a bow. He adds one twist to the stage:
+
+- **The intro:** launch 1 plays as usual. After launch 2's pack bursts, Orion marks one loose star in the sky with an ember crosshair (unlike the warm selection ring and the landmarks' corner hints), and the line above the launcher says "LINK IT BEFORE ORION SHOOTS" (once per run). On launch 3, while the new pack hovers before it bursts, his figure brightens, his arrow flies to the marked star and breaks it; then the pack opens.
+- **Rules:** a marked star is an ordinary star: using it in a combo before the next launch pays as usual and clears the mark. An arrow that hits pays nothing and takes the star away once. Orion marks loose sky stars only, never landmarks. There is no counterattack and no bonus.
+- **After the intro:** at most one mark at a time. Each launch first resolves the old mark (the arrow, if the star is still there), then the pack opens, then Orion marks a new star. With no star in the sky (after a Big Bang), he doesn't mark; the next burst gets one.
+- **Other ways a mark leaves:** a combo, a rekindled Sun clearing the sky, or the completion clearing it all take the mark with the star; the arrow never hits twice. A Big Bang comes after the arrow on the same launch, so the shot star isn't paid by it.
+- **Targets are random** (a seeded stream of their own, `run_seed ^ Orion.SEED_SALT`): some marks can't be saved (no combo for them in reach), and nothing quietly guarantees a rescue.
+- **Win and loss are checked once, at the end of the launch,** after the arrow, the burst and the new mark: an arrow can take the only combo left and lose the run.
+- **Tuning:** `orion.first_mark_launch` (2) in `balance.json`. A map brings Orion (`StarMap.orion`), the balance says when he starts; without an `orion` block he never marks.
+- **Simulator (`--map tail`):** the bots don't play around the mark; when a combo takes stars of its size they use the others first. Tail with Orion from launch 2: about 3.9 packs (blue only) / 3.8 (red when affordable), all won; without Orion 3.8 / 3.7; from launch 1, 4.2 / 4.0 (99.9% / 100%). `--orion-rescue` (the bots use the marked star first) gives 3.8 / 3.7. The bots link every combo they can at once, so a mark rarely survives; the playtest has to tell whether he is felt at all.
+- **Sound:** a low reject tone as he marks, a high whoosh as the arrow leaves, the burst sound as it hits (existing cues, pitched).
 
 ### Scorpio constellation (prototype, #40)
 
