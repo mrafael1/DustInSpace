@@ -3,6 +3,10 @@ extends Node
 ## Development shortcuts, active in debug builds only.
 ## L: launch the loaded pack at a random point in the sky (stand-in until the slingshot, #5).
 ## B: the next pack opens as a Big Bang.
+## T: switch between the telescope and the slingshot (issue #52's comparison).
+
+## T was pressed (Main swaps the launchers).
+signal launcher_switch_requested
 
 ## XOR'd into the run seed so debug targets get their own stream.
 const TARGET_SEED_SALT: int = 0xDEB6
@@ -27,6 +31,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_B:
 		force_big_bang()
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_T:
+		launcher_switch_requested.emit()
 		get_viewport().set_input_as_handled()
 
 

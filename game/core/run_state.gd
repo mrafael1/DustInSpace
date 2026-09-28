@@ -70,7 +70,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i)
 	_layout_rng.seed = p_rng.seed ^ LAYOUT_SEED_SALT
 	dust = balance.start_dust
 	if balance.scorpio_enabled:
-		scorpio = Scorpio.new()
+		scorpio = Scorpio.new(p_sky_rect)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -137,7 +137,7 @@ func has_remaining_combo() -> bool:
 	var pool: Array[Star] = stars.duplicate()
 	for i: int in Scorpio.LANDMARKS.size():
 		if not scorpio.is_lit(i):
-			pool.append(Scorpio.landmark_star(i))
+			pool.append(scorpio.landmark_star(i))
 	for a: int in pool.size():
 		for b: int in range(a + 1, pool.size()):
 			for c: int in range(b + 1, pool.size()):
@@ -331,7 +331,7 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 		occupied.append(star.position)
 	var landmarks: Array[Vector2i] = []
 	if scorpio != null:
-		landmarks = Scorpio.LANDMARKS
+		landmarks = scorpio.landmark_positions()
 	var positions: Array[Vector2i] = StarScatter.place(sizes.size(), burst, sky_rect, occupied, _layout_rng, landmarks)
 	var born: Array[Star] = []
 	for i: int in sizes.size():
@@ -386,7 +386,7 @@ func _stars_for_link(star_ids: Array[int]) -> Array[Star]:
 func _link_star(id: int) -> Star:
 	if scorpio != null and Scorpio.is_landmark_id(id):
 		var index: int = Scorpio.landmark_index(id)
-		return null if scorpio.is_lit(index) else Scorpio.landmark_star(index)
+		return null if scorpio.is_lit(index) else scorpio.landmark_star(index)
 	return find_star(id)
 
 

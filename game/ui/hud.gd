@@ -21,6 +21,9 @@ extends CanvasLayer
 signal tap_refused(kind: String)
 ## A pack became buyable as the dust landed (its slot's cue). Feedback only (sound).
 signal pack_ready(kind: String)
+## The player picked a planet with its icon or its buy button, and it loaded (or was bought and
+## loaded). The telescope aims with it (Main wires it).
+signal planet_chosen(kind: String)
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -28,8 +31,18 @@ const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 const SLOT_SPACING: int = 30
 const LAST_SLOT_X: int = 158
 const SLOT_Y: int = 290
+## Where the speaker, the dust icon and the dust counter sit on a 9:16 screen (fit_screen moves
+## them to the real screen's corners).
+## The speaker sits 10 px in from the corner: a phone's rounded corner clipped it at 4 px.
+const SOUND_AT := Vector2i(10, 10)
+const DUST_ICON_AT := Vector2i(12, 300)
+const DUST_AT := Vector2i(20, 297)
+const LIGHT_AT := Vector2i(60, 66)
 ## A counter hops 1 px up for this long when a particle lands on it.
 const HOP_TIME: float = 0.1
+## The message line (show_message), on the land above the HUD row, and how long a message stays.
+const MESSAGE_Y: int = 262
+const MESSAGE_TIME: float = 1.6
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -50,11 +63,13 @@ var _light_in_flight: int = 0
 ## Seconds of hop left per counter, and where each counter rests.
 var _hops: Dictionary[Label, float] = {}
 var _rest: Dictionary[Label, Vector2] = {}
+var _message_left: float = 0.0
 
 @onready var _dust: Label = $Dust
 @onready var _light: Label = $Light
 @onready var _slot_layer: Node2D = $Slots
 @onready var _sound: SoundIcon = $SoundIcon
+@onready var _message: Label = $Message
 
 
 func _ready() -> void:
@@ -62,14 +77,32 @@ func _ready() -> void:
 	_light.label_settings = HudText.secondary(Palette.C1)
 	for label: Label in [_dust, _light]:
 		_rest[label] = label.position
+	_message.label_settings = HudText.primary(Palette.C1)
+	_message.position = Vector2(0, MESSAGE_Y)
+	_message.visible = false
 
 
 func _process(delta: float) -> void:
 	advance(delta)
 
 
+## Anchors the HUD to the real screen, `screen` in game coordinates (on a 9:16 screen, the game's
+## own 0,0 180x320): the speaker in its top-left corner, the dust counter on its bottom-left, the
+## pack slots on its bottom-right. The Sun's light counter stays under the Sun (at the top).
+func fit_screen(screen: Rect2i) -> void:
+	var bottom: int = screen.end.y - ScreenZones.SCREEN.y
+	_sound.position = Vector2(SOUND_AT + screen.position)
+	($DustIcon as Node2D).position = Vector2(DUST_ICON_AT + Vector2i(screen.position.x, bottom))
+	_rest[_dust] = Vector2(DUST_AT + Vector2i(screen.position.x, bottom))
+	_dust.position = _rest[_dust]
+	_slot_layer.position = Vector2(screen.end.x - ScreenZones.SCREEN.x, bottom)
+	# The light counter stays under the Sun, which rises to the top of the screen.
+	_rest[_light] = Vector2(LIGHT_AT + Vector2i(0, screen.position.y))
+	_light.position = _rest[_light]
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if handle_pointer(event):
+	if handle_pointer(ScreenZones.to_game(event, Vector2i(offset))):
 		get_viewport().set_input_as_handled()
 
 
@@ -127,6 +160,21 @@ func advance(delta: float) -> void:
 	for label: Label in _hops:
 		_hops[label] = maxf(_hops[label] - delta, 0.0)
 		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
+	if _message_left > 0.0:
+		_message_left -= delta
+		_message.visible = _message_left > 0.0
+
+
+## Shows a short message above the launcher for MESSAGE_TIME ("" clears it).
+func show_message(text: String) -> void:
+	_message.text = text
+	_message_left = MESSAGE_TIME if text != "" else 0.0
+	_message.visible = text != ""
+
+
+## The message on show, or "" for none.
+func message() -> String:
+	return _message.text if _message.visible else ""
 
 
 ## Shows the sound level (Sfx.Level) on the speaker.
@@ -172,7 +220,7 @@ func handle_pointer(event: InputEvent) -> bool:
 ## The tap target under a screen point, as [kind, &"icon" or &"cost"], or [] for none.
 func target_at(point: Vector2i) -> Array:
 	for kind: String in _slots:
-		var part: StringName = _slots[kind].target_at(point - Vector2i(_slots[kind].position))
+		var part: StringName = _slots[kind].target_at(point - Vector2i(_slot_layer.position + _slots[kind].position))
 		if part != &"":
 			return [kind, part]
 	return []
@@ -191,6 +239,8 @@ func _tap(kind: String, part: StringName) -> void:
 		done = _run.load_pack(kind) or _run.buy(kind)
 	else:
 		done = _run.buy(kind)
+	if done:
+		planet_chosen.emit(kind)
 	if not done:
 		_slots[kind].nudge()
 		tap_refused.emit(kind)

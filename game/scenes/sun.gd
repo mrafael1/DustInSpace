@@ -38,8 +38,9 @@ const IGNITE_FRAMES: int = 6
 ## A won run holds this long past the particles' longest travel, so the last light always lands
 ## (and the ignition extends the hold) before the sequence can finish.
 const ARRIVAL_MARGIN: float = 0.1
-## The glow's reach on its last frame: past the farthest corner of the sky from the Sun.
-const GLOW_REACH: int = 230
+## The glow starts just outside the halo; on its last frame it reaches past the farthest corner of
+## the glow area (glow_reach): the whole visible sky, margins included (#53).
+const GLOW_START: int = RADIUS + 13
 ## The light pool's surface ripples between two frames; the smoulder and ignited idle use the same tick.
 const RIPPLE_TIME: float = 0.5
 ## Craters on the unlit disc, as (x, y, radius) from the centre.
@@ -67,8 +68,11 @@ var _release_left: float = 0.0
 var _ignite_time: float = -1.0
 var _ripple: int = 0
 var _ripple_time: float = 0.0
-## Sky glow textures by ignition frame: at most IGNITE_FRAMES per run, each built once.
+## Sky glow textures by ignition frame: at most IGNITE_FRAMES per run and screen, each built once.
 var _glow_textures: Dictionary[int, ImageTexture] = {}
+## The visible screen in game coordinates (Main's fit_screen): on a 9:16 phone the game's own
+## 180x320; taller or wider ones show more, and the glow fills it.
+var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 
 
 func _process(delta: float) -> void:
@@ -78,9 +82,10 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var frame: int = ignite_frame()
 	if frame > 0:
+		var area: Rect2i = glow_area(_screen)
 		if not _glow_textures.has(frame):
-			_glow_textures[frame] = ImageTexture.create_from_image(sky_glow(frame, Vector2i(global_position)))
-		draw_texture(_glow_textures[frame], -global_position)
+			_glow_textures[frame] = ImageTexture.create_from_image(sky_glow(frame, Vector2i(global_position), area))
+		draw_texture(_glow_textures[frame], Vector2(area.position) - global_position)
 	var lit: bool = frame > 0
 	var dots: Dictionary[Vector2i, Color] = pixels(
 		DISC_ROWS if lit else fill_rows(), RAYS if lit else lit_rays(), lit, is_pulsing(), _ripple)
@@ -103,6 +108,15 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_release_left = 0.0
 	_glow_textures.clear()
 	_ignite_time = IGNITE_TIME if run.outcome == RunState.Outcome.WON else -1.0
+	queue_redraw()
+
+
+## The visible screen changed (`screen` in game coordinates): the glow is rebuilt to fill it.
+func fit_screen(screen: Rect2i) -> void:
+	if screen == _screen:
+		return
+	_screen = screen
+	_glow_textures.clear()
 	queue_redraw()
 
 
@@ -188,20 +202,36 @@ static func pixels(p_fill_rows: int, p_lit_rays: int, p_ignited: bool, p_lifted:
 	return dots
 
 
-## The warm glow over the sky while the Sun ignites, in screen pixels down to the sky's bottom
-## edge: dithered C4 then C5 bands whose reach grows with the frame. Halo colours only.
-static func sky_glow(frame: int, centre: Vector2i) -> Image:
-	var size := Vector2i(ScreenZones.SKY.end.x, ScreenZones.SKY.end.y)
-	var image := Image.create_empty(size.x, size.y, false, Image.FORMAT_RGBA8)
-	var reach: float = lerpf(RADIUS + 13, GLOW_REACH, float(frame) / IGNITE_FRAMES)
-	for y: int in size.y:
-		for x: int in size.x:
-			var d: float = Vector2(x - centre.x, y - centre.y).length()
-			if d <= RADIUS + 13 or d >= reach:
+## Where the sky glow goes on a visible screen `screen` (game coordinates): its full width, from
+## its top down to the play sky's bottom edge (the land stays unlit).
+static func glow_area(screen: Rect2i) -> Rect2i:
+	return Rect2i(screen.position, Vector2i(screen.size.x, ScreenZones.SKY.end.y - screen.position.y))
+
+
+## The glow's reach on its last frame: just past the corner of `area` farthest from `centre`.
+static func glow_reach(centre: Vector2i, area: Rect2i) -> int:
+	var farthest: float = 0.0
+	for corner: Vector2i in [area.position, Vector2i(area.end.x, area.position.y), Vector2i(area.position.x, area.end.y), area.end]:
+		farthest = maxf(farthest, Vector2(corner - centre).length())
+	return ceili(farthest)
+
+
+## The warm glow over the sky while the Sun ignites, covering `area` (game coordinates; the image's
+## pixel 0,0 is area.position): dithered C4 then C5 bands around the Sun at `centre`, whose reach
+## grows with the frame until it covers the whole area. The dither follows game coordinates, so the
+## pattern runs on unbroken from the game's screen into the margins. Halo colours only.
+static func sky_glow(frame: int, centre: Vector2i, area: Rect2i = glow_area(Rect2i(Vector2i.ZERO, ScreenZones.SCREEN))) -> Image:
+	var image := Image.create_empty(area.size.x, area.size.y, false, Image.FORMAT_RGBA8)
+	var reach: float = lerpf(GLOW_START, glow_reach(centre, area), float(frame) / IGNITE_FRAMES)
+	for y: int in area.size.y:
+		for x: int in area.size.x:
+			var p: Vector2i = area.position + Vector2i(x, y)
+			var d: float = Vector2(p - centre).length()
+			if d <= GLOW_START or d >= reach:
 				continue
 			var colour: Color = Palette.C4 if d < 60 else Palette.C5
 			var density: float = 0.125 if d >= 120 else 0.25
-			if _bayer(x, y) < density:
+			if _bayer(p.x, p.y) < density:
 				image.set_pixel(x, y, colour)
 	return image
 

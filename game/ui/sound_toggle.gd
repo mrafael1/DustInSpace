@@ -9,13 +9,19 @@ extends Node
 signal toggled
 
 ## The speaker's tap target on the 180x320 screen: the HUD's SoundIcon position + SoundIcon.TARGET.
-const TARGET := Rect2i(0, 0, 22, 22)
+const TARGET := Rect2i(6, 6, 22, 22)
+
+## Where the game's screen sits in the window (ScreenZones.game_offset; Main sets it).
+var screen_offset: Vector2i = Vector2i.ZERO
+## The speaker's tap target now, in game coordinates: TARGET on a 9:16 screen, the real screen's
+## top-left corner otherwise (Main sets it from Hud.sound_target).
+var target: Rect2i = TARGET
 
 var _pressed: bool = false
 
 
 func _input(event: InputEvent) -> void:
-	if handle_pointer(event):
+	if handle_pointer(ScreenZones.to_game(event, screen_offset)):
 		get_viewport().set_input_as_handled()
 
 
@@ -24,7 +30,7 @@ func handle_pointer(event: InputEvent) -> bool:
 	var touch := event as InputEventScreenTouch
 	if touch == null or touch.index != 0:
 		return false
-	var on_target: bool = TARGET.has_point(Vector2i(touch.position.floor()))
+	var on_target: bool = target.has_point(Vector2i(touch.position.floor()))
 	if touch.pressed:
 		_pressed = on_target
 		return on_target

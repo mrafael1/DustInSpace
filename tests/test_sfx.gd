@@ -427,10 +427,12 @@ func _main() -> Main:
 	return main
 
 
-## A tap through the real viewport, so every _input gate sees it in tree order.
+## A tap through the real viewport, so every _input gate sees it in tree order. `at` is on the
+## game's 180x320 screen; the window may show more around it (ScreenZones.game_offset).
 func _tap_screen(at: Vector2i) -> void:
+	var offset: Vector2i = ScreenZones.game_offset(get_viewport().get_visible_rect().size)
 	for pressed: bool in [true, false]:
-		get_viewport().push_input(_touch(Vector2(at), pressed), true)
+		get_viewport().push_input(_touch(Vector2(at + offset), pressed), true)
 
 
 func _touch(at: Vector2, pressed: bool) -> InputEventScreenTouch:

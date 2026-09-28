@@ -113,6 +113,9 @@ func _draw() -> void:
 
 func setup(run: RunState) -> void:
 	_run = run
+	# The map sits where the run's sky puts it (a taller sky moves it up); everything here is drawn
+	# in its home layout, so the whole view moves with it.
+	position = Vector2(run.scorpio.shift) if run.scorpio != null else Vector2.ZERO
 	_shown_lit.clear()
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
@@ -155,8 +158,9 @@ func launch_sunbeam(sun: Vector2i, index: int) -> void:
 	if index < 0 or index >= Scorpio.LANDMARKS.size():
 		return
 	_beam_to = Scorpio.LANDMARKS[index]
-	var toward: Vector2 = Vector2(_beam_to - sun).normalized()
-	_beam_from = sun + Vector2i((toward * SUN_RIM).round())
+	var sun_here: Vector2i = sun - Vector2i(position)
+	var toward: Vector2 = Vector2(_beam_to - sun_here).normalized()
+	_beam_from = sun_here + Vector2i((toward * SUN_RIM).round())
 	_beam_time = 0.0
 	queue_redraw()
 

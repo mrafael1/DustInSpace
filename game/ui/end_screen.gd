@@ -33,6 +33,8 @@ var _waiting_for_payouts: bool = false
 var _payouts: CollectParticles
 var _pressed: bool = false
 var _panel: Rect2i = Rect2i()
+## The real screen in game coordinates (fit_screen): the panel centres on it.
+var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 var _button: Rect2i = Rect2i()
 
 @onready var _canvas: Node2D = $Canvas
@@ -47,7 +49,7 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if handle_pointer(event):
+	if handle_pointer(ScreenZones.to_game(event, Vector2i(offset))):
 		get_viewport().set_input_as_handled()
 
 
@@ -145,8 +147,10 @@ func _show_end() -> void:
 		_add_line(light, Palette.C1)
 	var rows: int = _lines.get_child_count()
 	var height: int = PADDING + rows * LINE_STEP + BUTTON_GAP + BUTTON_SIZE.y + PADDING
-	_panel = Rect2i(CENTRE_X - WIDTH / 2, TOP, WIDTH, height)
-	_button = Rect2i(CENTRE_X - BUTTON_SIZE.x / 2, _panel.end.y - PADDING - BUTTON_SIZE.y, BUTTON_SIZE.x, BUTTON_SIZE.y)
+	var shift: Vector2i = _shift()
+	var centre_x: int = CENTRE_X + shift.x
+	_panel = Rect2i(centre_x - WIDTH / 2, TOP + shift.y, WIDTH, height)
+	_button = Rect2i(centre_x - BUTTON_SIZE.x / 2, _panel.end.y - PADDING - BUTTON_SIZE.y, BUTTON_SIZE.x, BUTTON_SIZE.y)
 	_restart.text = "RESTART"
 	_centre(_restart, _button.position.y + (BUTTON_SIZE.y - 7) / 2)
 	_pressed = false
@@ -169,13 +173,27 @@ func _add_line(text: String, colour: Color) -> void:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.text = text
 	_lines.add_child(label)
-	_centre(label, TOP + PADDING + (_lines.get_child_count() - 1) * LINE_STEP)
+	_centre(label, TOP + _shift().y + PADDING + (_lines.get_child_count() - 1) * LINE_STEP)
 
 
 ## Sizes a label to its text and centres it on the screen at row `y`, on whole pixels.
 func _centre(label: Label, y: int) -> void:
 	label.size = label.get_minimum_size()
-	label.position = Vector2(CENTRE_X - floori(label.size.x / 2.0), y)
+	label.position = Vector2(CENTRE_X + _shift().x - floori(label.size.x / 2.0), y)
+
+
+## Centres the panel on the real screen, `screen` in game coordinates (on a 9:16 screen, the
+## game's own 0,0 180x320).
+func fit_screen(screen: Rect2i) -> void:
+	_screen = screen
+	if visible and _run != null and _run.is_over():
+		_show_end()
+
+
+## How far the panel moves from where it sits on a 9:16 screen: half the extra the real screen
+## shows each way.
+func _shift() -> Vector2i:
+	return _screen.position + (_screen.size - ScreenZones.SCREEN) / 2
 
 
 func _draw_plaques() -> void:

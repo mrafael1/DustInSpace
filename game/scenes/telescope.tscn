@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/telescope.gd" id="1_telescope"]
+[ext_resource type="Script" path="res://game/scenes/pack_view.gd" id="2_pack_view"]
+
+[node name="Telescope" type="Node2D"]
+script = ExtResource("1_telescope")
+
+[node name="RestPack" type="Node2D" parent="."]
+script = ExtResource("2_pack_view")
+
+[node name="FlyingPack" type="Node2D" parent="."]
+visible = false
+script = ExtResource("2_pack_view")

@@ -10,8 +10,14 @@ signal run_started(run: RunState)
 @export var seed_override: int = 0
 ## Where the first run's balance comes from. Tests point it elsewhere.
 @export_file("*.json") var balance_path: String = Balance.DEFAULT_PATH
+## Issue #52's prototype: launch with the telescope (point and tap) instead of the slingshot.
+## Debug builds switch with T to compare the two.
+@export var use_telescope: bool = true
 
 var run: RunState
+## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
+## the next run's play sky grows by it.
+var _extra: int = 0
 
 @onready var _sequencer: EventSequencer = $EventSequencer
 @onready var _balance_errors: Label = $DebugLayer/BalanceErrors
@@ -21,9 +27,11 @@ var run: RunState
 @onready var _end_screen: EndScreen = $EndScreen
 @onready var _sfx: Sfx = $Sfx
 @onready var _launcher: Launcher = $Launcher
+@onready var _telescope: Telescope = $Telescope
 @onready var _sky: SkyView = $Sky
 @onready var _big_bang: BigBangSequence = $BigBang
 @onready var _sound_toggle: SoundToggle = $SoundToggle
+@onready var _backdrop: Backdrop = $Backdrop
 @onready var _sparks: BurstSparks = $BurstSparks
 
 
@@ -41,7 +49,13 @@ func _ready() -> void:
 	_sky.watch_payouts(_collect)
 	_end_screen.restart_requested.connect(restart)
 	_end_screen.watch_payouts(_collect)
+	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
+	_telescope.message_shown.connect(_hud.show_message)
+	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
+	switch_launcher(use_telescope)
 	_wire_sound()
+	get_window().size_changed.connect(fit_screen)
+	fit_screen()
 	start_run(Balance.load_file(balance_path))
 
 
@@ -52,13 +66,60 @@ func start_run(balance: Balance) -> bool:
 		_report_balance_errors(balance.errors)
 		return false
 	_balance_errors.visible = false
-	run = RunState.new(balance, _new_rng(), ScreenZones.SKY)
+	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra))
 	_sequencer.bind(run)
 	for child: Node in get_children():
 		if child.has_method("setup"):
 			child.setup(run, _sequencer)
 	run_started.emit(run)
 	return true
+
+
+## Fills the window and places the game's 180x320 screen in it (a phone that isn't 9:16 shows
+## more; see ScreenZones): the camera moves the world, the UI layers follow it, and the Backdrop
+## fills the rest.
+func fit_screen() -> void:
+	# Fill the window at a whole-number scale (Godot's own "expand" leaves bars on phones).
+	var window: Window = get_window()
+	if window == get_tree().root:
+		window.content_scale_size = ScreenZones.fill_size(window.size)
+	var visible: Vector2 = get_viewport().get_visible_rect().size
+	var offset: Vector2i = ScreenZones.game_offset(visible)
+	($BigBang/Shake as Camera2D).position = Vector2(-offset)
+	for layer: CanvasLayer in [$HUD, $EndScreen, $DebugLayer, $BigBang/Front] as Array[CanvasLayer]:
+		layer.offset = Vector2(offset)
+	_sound_toggle.screen_offset = offset
+	_backdrop.fit(offset, Vector2i(visible))
+	# The UI anchors to the real screen's edges, not the game's 180x320 (the Sun's counter aside).
+	var screen := Rect2i(-offset, Vector2i(visible))
+	_hud.fit_screen(screen)
+	_sound_toggle.target = _hud.sound_target()
+	_end_screen.fit_screen(screen)
+	_sun.fit_screen(screen)
+	# The Sun rises to the top of the screen; its light follows it. A run already in play keeps its
+	# sky: the next one (RESTART) takes the new size.
+	_extra = offset.y
+	_sun.position = Vector2(ScreenZones.sun_centre(_extra))
+	_collect.light_target = ScreenZones.sun_centre(_extra)
+
+
+## Shows the telescope (true) or the slingshot and hands it the input; the other one hides and
+## takes none. Both keep following the run's events, so either can take over at any time.
+func switch_launcher(telescope: bool) -> void:
+	use_telescope = telescope
+	for launcher: Launcher in [_launcher, _telescope] as Array[Launcher]:
+		var on: bool = (launcher == _telescope) == telescope
+		launcher.cancel_pull()
+		launcher.visible = on
+		launcher.process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+	_hud.show_message("")
+	if telescope:
+		_telescope.request_aim()
+
+
+## The launcher in use: the telescope or the slingshot.
+func launcher() -> Launcher:
+	return _telescope if use_telescope else _launcher
 
 
 ## A fresh run on the current run's balance (the end screen's RESTART).
@@ -75,6 +136,11 @@ func _wire_sound() -> void:
 	_launcher.pull_stepped.connect(_sfx.on_pull_stepped)
 	_launcher.pull_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_launcher.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
+	_telescope.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
+	_telescope.aim_started.connect(_sfx.play.bind(&"pull_start", 1.0))
+	_telescope.aim_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
+	_telescope.empty_tapped.connect(_sfx.play.bind(&"tap_refused", 1.0))
+	_telescope.planet_seated.connect(func(_kind: String) -> void: _sfx.play(&"pack_load", 1.5))
 	_sky.star_selected.connect(_sfx.on_star_selected)
 	_sky.link_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))

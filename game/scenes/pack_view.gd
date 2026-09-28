@@ -36,6 +36,14 @@ var radius_override: int = 0:
 	set(value):
 		radius_override = value
 		queue_redraw()
+## False holds the planet on its first spin frame (the HUD's icons that aren't loaded).
+var spinning: bool = true:
+	set(value):
+		spinning = value
+		if not value:
+			_spin_time = 0.0
+			_spin = 0
+		queue_redraw()
 
 
 var _spin_time: float = 0.0
@@ -66,6 +74,8 @@ func spin_frame() -> int:
 
 ## Moves the idle spin on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
+	if not spinning:
+		return
 	_spin_time += delta
 	var spin: int = floori(_spin_time / SPIN_STEP) % SPIN_FRAMES
 	if spin != _spin:
