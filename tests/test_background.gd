@@ -31,14 +31,51 @@ func test_the_background_is_opaque_sky_and_land_colours_only() -> void:
 	assert_eq(off.keys(), [], "every pixel opaque and on the N or M ramp")
 
 
-func test_the_forest_ground_under_the_hud_is_dark() -> void:
+## The forest floor under the HUD (#14): dark where the HUD's text and icons sit (M0 and M1 only
+## behind the dust counter and each pack's count and cost), with a lit grass bank above.
+func test_the_forest_floor_stays_dark_behind_the_hud_text() -> void:
 	var image: Image = (load(BACKGROUND) as Texture2D).get_image()
-	var off: int = 0
-	for y: int in range(288, 320):
-		for x: int in 180:
-			if image.get_pixel(x, y).to_html(false) != "0a0c26":
-				off += 1
-	assert_eq(off, 0, "flat M0 from y 288 down: the HUD reads on it")
+	var dark: Array[String] = ["0a0c26", "121638"]
+	var zones: Array[Rect2i] = [Rect2i(4, 294, 60, 14), Rect2i(112, 298, 68, 16)]
+	for zone: Rect2i in zones:
+		for y: int in range(zone.position.y, zone.end.y):
+			for x: int in range(zone.position.x, zone.end.x):
+				assert_true(image.get_pixel(x, y).to_html(false) in dark, "(%d, %d) is dark behind the HUD" % [x, y])
+
+
+func test_the_forest_floor_has_a_grass_bank_stones_and_the_telescope_slab() -> void:
+	var image: Image = (load(BACKGROUND) as Texture2D).get_image()
+	var lit: int = 0
+	for x: int in 180:
+		for y: int in range(282, 290):
+			if image.get_pixel(x, y).to_html(false) in ["2b3470", "4a5aa8"]:
+				lit += 1
+				break
+	assert_eq(lit, 180, "a lit M3/M4 grass rim runs all the way across")
+	# The telescope (Main: x 80, feet 10 px below it) stands on the slab's top row.
+	var feet_row: int = 300 + 10 + 1
+	for x: int in [71, 80, 89]:
+		assert_true(image.get_pixel(x, feet_row).to_html(false) in ["2b3470", "4a5aa8"], "slab top under x %d" % x)
+
+
+## Repeated across (Backdrop.ground_colour), the floor's last column meets its first no worse than
+## any two neighbouring columns inside it: no seam in a wider screen's margins.
+func test_the_forest_floor_tiles_across() -> void:
+	var image: Image = (load(BACKGROUND) as Texture2D).get_image()
+	var worst: int = 0
+	for x: int in range(1, 180):
+		worst = maxi(worst, _column_changes(image, x - 1, x))
+	assert_lte(_column_changes(image, 179, 0), worst, "the seam is like any other column step")
+	assert_eq(Backdrop.ground_colour(image, -1, 300), Backdrop.edge_colour(image, 179, 300), "the margin left of the game repeats its right edge")
+	assert_eq(Backdrop.ground_colour(image, 185, 300), Backdrop.edge_colour(image, 5, 300))
+
+
+func _column_changes(image: Image, a: int, b: int) -> int:
+	var changes: int = 0
+	for y: int in range(Backdrop.GROUND_TOP, 320):
+		if image.get_pixel(a, y) != image.get_pixel(b, y):
+			changes += 1
+	return changes
 
 
 ## The sky and land ramps from the .gpl, by hex.

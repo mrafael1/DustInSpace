@@ -4,7 +4,8 @@ extends Node2D
 ## the game sits on the bottom edge, so this is mostly sky above it. The sky's top colour carries
 ## on for a band, then steps (a checker seam) into darker space, with sparse cool background
 ## stars and a few 3 px glints, like the background's own. Out to the sides, each row's edge
-## colour carries on, with stars in the sky rows. Stars sit on a fixed hash of their position,
+## colour carries on, with stars in the sky rows, except the forest floor under the HUD, which
+## repeats across (the background draws it to tile every 180 px). Stars sit on a fixed hash of their position,
 ## so they never move. Drawn under everything; Main tells it where the game sits. Owns no rules.
 
 const BACKGROUND := preload("res://assets/art/background.png")
@@ -18,6 +19,8 @@ const GLINT_ODDS: int = 14
 const STAR_COLOURS: Array[Color] = [Palette.N7, Palette.N7, Palette.N8, Palette.M5]
 ## Stars in the side margins only above the land.
 const SKY_BOTTOM: int = 230
+## From this row down, the side margins repeat the forest floor instead of its edge colours.
+const GROUND_TOP: int = 284
 
 ## The game's screen sits at `_offset` in a visible area of `_visible` px.
 var _offset: Vector2i = Vector2i.ZERO
@@ -37,11 +40,16 @@ func _draw() -> void:
 	var right: int = _visible.x - _offset.x
 	var top: int = -_offset.y
 	var bottom: int = _visible.y - _offset.y
-	for y: int in screen.y:
+	for y: int in GROUND_TOP:
 		if left < 0:
 			draw_rect(Rect2(left, y, -left, 1), edge_colour(_image, 0, y))
 		if right > screen.x:
 			draw_rect(Rect2(screen.x, y, right - screen.x, 1), edge_colour(_image, screen.x - 1, y))
+	for y: int in range(GROUND_TOP, screen.y):
+		for x: int in range(left, 0):
+			draw_rect(Rect2(x, y, 1, 1), ground_colour(_image, x, y))
+		for x: int in range(screen.x, right):
+			draw_rect(Rect2(x, y, 1, 1), ground_colour(_image, x, y))
 	if top < 0:
 		_draw_space(left, top, right)
 	if bottom > screen.y:
@@ -61,6 +69,11 @@ func fit(offset: Vector2i, visible: Vector2i) -> void:
 static func edge_colour(image: Image, x: int, y: int) -> Color:
 	var c: Color = image.get_pixel(x, y)
 	return Color(c.r, c.g, c.b)
+
+
+## The forest floor at (x, y) for any x: the background's own, repeated every 180 px across.
+static func ground_colour(image: Image, x: int, y: int) -> Color:
+	return edge_colour(image, posmod(x, ScreenZones.SCREEN.x), y)
 
 
 ## The sky above the game at row `y` (negative), column `x`: the sky's top colour for SKY_BAND
