@@ -17,6 +17,10 @@ each; the bots link every combo they can before that happens, best first. The Su
 scorpio.sun_target there (sun_target without it).
 Not modelled: where stars are. The bots link any stars in the sky, so scorpio.max_link_distance
 (each step of a link must be at most that long) is ignored: real Scorpio runs can only do worse.
+Orion (#64, the Tail map): from launch orion.first_mark_launch, after each burst he marks one
+random sky star; on the next launch, before the pack opens, it's destroyed for nothing if it's
+still in the sky. The bots don't play around the mark: when a combo takes stars of the marked
+star's size they use the others first (pessimistic), unless --orion-rescue (they use it first).
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
 """
@@ -29,10 +33,12 @@ TRIPLE = {"small": "small_triple", "medium": "medium_triple", "big": "big_triple
 LANDMARK_SIZES = ("medium", "medium", "small", "small", "big", "small", "medium", "small",
                   "small", "small", "big", "small", "medium", "big")
 STARTING_LIT = (0, 1, 2)
+ORION = False
 # The chapter's part stages play their own maps (#62, game/core/star_map.gd): --map picks one.
 MAPS = {
-    "scorpio": (LANDMARK_SIZES, STARTING_LIT),
-    "stinger": (("small", "small", "medium", "small", "big", "medium"), (0,)),
+    "scorpio": (LANDMARK_SIZES, STARTING_LIT, False),
+    "stinger": (("small", "small", "medium", "small", "big", "medium"), (0,), False),
+    "tail": (("medium", "small", "medium", "small", "big", "small"), (0,), True),
 }
 MAX_LANDMARKS_PER_COMBO = 1
 
@@ -91,7 +97,7 @@ def best_combo(cfg, sky, unlit):
     return best
 
 
-def run(cfg, policy, lighting_pays="all"):
+def run(cfg, policy, lighting_pays="all", orion_rescue=False):
     scorpio = cfg.get("scorpio", {})
     on = scorpio.get("enabled", False)
     unlit = [size for i, size in enumerate(LANDMARK_SIZES) if i not in STARTING_LIT] if on else []
@@ -99,6 +105,9 @@ def run(cfg, policy, lighting_pays="all"):
     dust, light = cfg["start_dust"], 0
     packs = ["blue"] * cfg["start_packs"]["blue"] + ["red"] * cfg["start_packs"]["red"]
     sky, opened, big_bangs = [], 0, 0
+    # Orion: the size of the marked star, or None; and the launch he marks first (0: never).
+    marked = None
+    first_mark = cfg.get("orion", {}).get("first_mark_launch", 0) if on and ORION else 0
     while True:
         # resolve every available combination (best first)
         while True:
@@ -118,6 +127,10 @@ def run(cfg, policy, lighting_pays="all"):
                     if not best:
                         break
                     key, used = TRIPLE[best], [best] * 3
+            if marked is not None and marked in used:
+                # Rescued when the combo has to take it (or the bots take it first, --orion-rescue).
+                if orion_rescue or sky.count(marked) == used.count(marked):
+                    marked = None
             for s in used:
                 sky.remove(s)
             # What a combo that lights a landmark pays: as usual in the game ("all"); the other
@@ -137,6 +150,7 @@ def run(cfg, policy, lighting_pays="all"):
                     light = 0
                     dust += scorpio["sun_dust_per_star"] * len(sky)
                     sky = []
+                    marked = None
                     if unlit:
                         unlit.pop(0)
                 if not unlit:
@@ -152,12 +166,17 @@ def run(cfg, policy, lighting_pays="all"):
         kind = packs.pop(0)
         pack = cfg["packs"][kind]
         opened += 1
+        if marked is not None:
+            sky.remove(marked)
+            marked = None
         if random.random() < pack["big_bang_chance"]:
             big_bangs += 1
             dust += cfg["big_bang"]["base_dust"] + cfg["big_bang"]["dust_per_cleared_star"] * len(sky)
             sky = []
         else:
             sky += [draw(pack) for _ in range(int(pack["stars"]))]
+        if first_mark and opened >= first_mark and sky:
+            marked = random.choice(sky)
 
 
 def blue_only(cfg, sky, dust):
@@ -181,9 +200,11 @@ def main():
     ap.add_argument("--map", default="scorpio", choices=sorted(MAPS), help="the constellation map (scorpio.enabled)")
     ap.add_argument("--lighting-pays", default="all", choices=["all", "dust", "light", "half", "minus1", "none"],
                     help="what-if: what a combo that lights a landmark pays (the game: all)")
+    ap.add_argument("--orion-rescue", action="store_true",
+                    help="Orion's maps: the bots use the marked star first when a combo takes its size")
     a = ap.parse_args()
-    global LANDMARK_SIZES, STARTING_LIT
-    LANDMARK_SIZES, STARTING_LIT = MAPS[a.map]
+    global LANDMARK_SIZES, STARTING_LIT, ORION
+    LANDMARK_SIZES, STARTING_LIT, ORION = MAPS[a.map]
     if a.seed is not None:
         random.seed(a.seed)
     cfg = load(a.set)
@@ -193,10 +214,13 @@ def main():
     if scorpio.get("enabled"):
         print(f"scorpio on, map {a.map} (the constellation wins), lighting pays {a.lighting_pays}, "
               f"Sun full at {scorpio.get('sun_target', cfg['sun_target'])}")
+        if ORION and cfg.get("orion", {}).get("first_mark_launch"):
+            print(f"  Orion marks from launch {cfg['orion']['first_mark_launch']}; the bots "
+                  f"{'rescue the mark when they can' if a.orion_rescue else 'use the marked star last'}")
         if scorpio.get("max_link_distance"):
             print(f"  not modelled: max_link_distance {scorpio['max_link_distance']} (the bots ignore where stars are)")
     for name, pol in POLICIES.items():
-        res = [run(cfg, pol, a.lighting_pays) for _ in range(a.runs)]
+        res = [run(cfg, pol, a.lighting_pays, a.orion_rescue) for _ in range(a.runs)]
         wins = [r for r in res if r[0]]
         packs = statistics.mean(r[1] for r in wins) if wins else float("nan")
         bb = 100 * sum(1 for r in res if r[2]) / a.runs
