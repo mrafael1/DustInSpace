@@ -1,6 +1,7 @@
 class_name ChapterSelect
 extends CanvasLayer
-## Scorpio's chapter chart (#62): the constellation as a pixel-art star chart, each star a stage
+## Scorpio's chapter chart (#62): the constellation as a pixel-art star chart over deep space
+## (a stepped sky, a milky way, faint nebulae and cool background stars), each star a stage
 ## point, travelled from the tail. Tap a point to select it (a comet travels there along the
 ## strings); PLAY starts its stage if it's available or completed. Locked points can be selected to
 ## see what they are, never played.
@@ -37,10 +38,25 @@ const TRAIL: Array[Color] = [Palette.C0, Palette.C1, Palette.C1, Palette.C2, Pal
 const LIGHT_TIME: float = 0.45
 const LIGHT_GROWTH: int = 12
 const LIGHT_COLOURS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+## Space behind the chart (cool colours only: warm is for the route and stages). The sky steps
+## down from N0 to N2 through ordered-dither seams (SKY_STOPS: the row each step starts at, in game
+## rows); a milky way runs across it (dithered N2/N3 about MILKY_WAY's line, MILKY_WIDTH px either
+## side); two nebulae glow faintly (NEBULAE: centre and radius, N4/N5 dither); background stars are
+## 1 px N7/N8/M5, one in STAR_ODDS pixels, one in GLINT_ODDS of them a 3 px glint, kept STAR_CLEAR
+## px from every stage point and off its number, the title and the stage panel.
+const SKY_STOPS: Array[int] = [104, 214]
+const SKY_STEPS: Array[Color] = [Palette.N0, Palette.N1, Palette.N2]
+const SEAM: int = 32
+const MILKY_WAY: Array[Vector2i] = [Vector2i(-40, 300), Vector2i(220, 10)]
+const MILKY_WIDTH: int = 22
+const NEBULAE: Array[Vector3i] = [Vector3i(46, 118, 34), Vector3i(150, 222, 26)]
+const STAR_ODDS: int = 110
+const GLINT_ODDS: int = 12
+const STAR_CLEAR: int = 8
+const STAR_COLOURS: Array[Color] = [Palette.N7, Palette.N7, Palette.N8, Palette.M5]
+
 ## Where a point's number sits from the point.
 const NUMBER_OFFSET := Vector2i(8, -12)
-## The chart's faint grid, every GRID px.
-const GRID: int = 20
 
 var _chapter: Chapter
 var _selected: int = 0
@@ -58,6 +74,8 @@ var _pressed_play: bool = false
 ## The visible screen in game coordinates (fit_screen).
 var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 var _numbers: Array[Label] = []
+## The space behind the chart, built once per screen.
+var _space: ImageTexture
 
 @onready var _chart: Node2D = $Chart
 @onready var _title: Label = $Title
@@ -104,8 +122,93 @@ func setup(chapter: Chapter) -> void:
 
 
 func fit_screen(screen: Rect2i) -> void:
+	if screen != _screen or _space == null:
+		_space = ImageTexture.create_from_image(space_image(screen))
 	_screen = screen
 	_chart.queue_redraw()
+
+
+## The space behind the chart for a visible screen `screen` (game coordinates; the image's 0,0 is
+## screen.position). Opaque, cool palette colours only, the same pixels for the same place.
+static func space_image(screen: Rect2i) -> Image:
+	var image := Image.create_empty(screen.size.x, screen.size.y, false, Image.FORMAT_RGBA8)
+	var a := Vector2(MILKY_WAY[0])
+	var along: Vector2 = (Vector2(MILKY_WAY[1]) - a).normalized()
+	for y: int in screen.size.y:
+		for x: int in screen.size.x:
+			var p := Vector2i(x, y) + screen.position
+			image.set_pixel(x, y, _space_colour(p, a, along))
+	for p: Vector2i in space_stars(screen):
+		var h: int = _hash(p) / STAR_ODDS
+		var local: Vector2i = p - screen.position
+		if h % GLINT_ODDS == 0:
+			for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				var q: Vector2i = local + n
+				if q.x >= 0 and q.y >= 0 and q.x < screen.size.x and q.y < screen.size.y:
+					image.set_pixel(q.x, q.y, Palette.N7)
+			image.set_pixel(local.x, local.y, Palette.M5)
+		else:
+			image.set_pixel(local.x, local.y, STAR_COLOURS[h % STAR_COLOURS.size()])
+	return image
+
+
+## Where the background stars are in `screen`: a fixed hash per pixel, clear of the stage points
+## and the stage panel.
+static func space_stars(screen: Rect2i) -> Array[Vector2i]:
+	var stars: Array[Vector2i] = []
+	var panel: Rect2i = PANEL.grow(3)
+	var title := Rect2i(40, TITLE_Y - 3, 100, SUBTITLE_Y - TITLE_Y + 13)
+	for y: int in range(screen.position.y, screen.end.y):
+		for x: int in range(screen.position.x, screen.end.x):
+			var p := Vector2i(x, y)
+			if _hash(p) % STAR_ODDS != 0 or panel.has_point(p) or title.has_point(p):
+				continue
+			var clear: bool = true
+			for point: int in Chapter.point_count():
+				var number := Rect2i(point_position(point) + NUMBER_OFFSET - Vector2i(2, 2), Vector2i(12, 10))
+				if (point_position(point) - p).length_squared() < STAR_CLEAR * STAR_CLEAR or number.has_point(p):
+					clear = false
+					break
+			if clear:
+				stars.append(p)
+	return stars
+
+
+static func _space_colour(p: Vector2i, milky_start: Vector2, milky_along: Vector2) -> Color:
+	var bayer: float = StarView.BAYER[posmod(p.y, 4) * 4 + posmod(p.x, 4)] / 16.0
+	# The sky's steps, each seam an ordered dither SEAM rows deep.
+	var step: int = 0
+	for i: int in SKY_STOPS.size():
+		var into: float = float(p.y - SKY_STOPS[i]) / SEAM
+		if into >= 1.0 or (into > 0.0 and bayer < into):
+			step = i + 1
+	var colour: Color = SKY_STEPS[step]
+	# The milky way: N2, then N3 at its heart, thinning out to its edges.
+	var rel: Vector2 = Vector2(p) - milky_start
+	var off: float = absf(rel.dot(milky_along.orthogonal())) + 4.0 * sin(rel.dot(milky_along) * 0.05)
+	var band: float = 1.0 - absf(off) / MILKY_WIDTH
+	if band > 0.0:
+		if band > 0.6 and bayer < (band - 0.6) * 1.2:
+			colour = Palette.N3
+		elif bayer < band * 0.55:
+			colour = Palette.N2 if step < 2 else Palette.N3
+	# Nebulae: a soft N4 cloud with an N5 heart, dithered sparser to its rim.
+	for nebula: Vector3i in NEBULAE:
+		var d: float = Vector2(p).distance_to(Vector2(nebula.x, nebula.y)) / nebula.z
+		var wobble: float = 0.12 * sin(p.x * 0.21 + nebula.x) * cos(p.y * 0.17 + nebula.y)
+		var k: float = 1.0 - d + wobble
+		if k > 0.55 and bayer < (k - 0.55) * 1.4:
+			colour = Palette.N5
+		elif k > 0.0 and bayer < k * 0.5:
+			colour = Palette.N4
+	return colour
+
+
+## A fixed, well-mixed hash of a pixel (non-negative).
+static func _hash(p: Vector2i) -> int:
+	var h: int = p.x * 374761393 + p.y * 668265263
+	h = (h ^ (h >> 13)) * 1274126177
+	return absi(h ^ (h >> 16))
 
 
 ## Back from a stage: `lit` (a route point just completed, or -1) flashes as it lights, then a
@@ -266,12 +369,9 @@ func _centre(label: Label, y: int) -> void:
 
 
 func _draw_chart() -> void:
-	_chart.draw_rect(Rect2(_screen), Palette.N0)
-	# A faint solid grid, the chart's paper.
-	for y: int in range(_screen.position.y + posmod(-_screen.position.y, GRID), _screen.end.y, GRID):
-		_chart.draw_rect(Rect2(_screen.position.x, y, _screen.size.x, 1), Palette.N1)
-	for x: int in range(_screen.position.x + posmod(-_screen.position.x, GRID), _screen.end.x, GRID):
-		_chart.draw_rect(Rect2(x, _screen.position.y, 1, _screen.size.y), Palette.N1)
+	if _space == null:
+		_space = ImageTexture.create_from_image(space_image(_screen))
+	_chart.draw_texture(_space, Vector2(_screen.position))
 	if _chapter == null:
 		return
 	var legs: Array[Leg] = string_legs()

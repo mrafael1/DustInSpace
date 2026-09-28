@@ -143,6 +143,31 @@ func test_the_stage_panel_holds_the_name_and_play() -> void:
 	assert_true(ChapterSelect.PANEL.has_point(Vector2i(info.position)))
 
 
+## The chart sits in space: opaque, cool night colours only (warm is for the route and stages),
+## the same on every build, and its stars keep clear of the stage points, title and panel.
+func test_the_space_background_is_cool_opaque_and_clear_of_the_chart() -> void:
+	var screen := Rect2i(-7, -102, 195, 422)
+	var image: Image = ChapterSelect.space_image(screen)
+	assert_eq(image.get_size(), screen.size, "the whole visible screen")
+	var cool: Array[String] = []
+	for colour: Color in [Palette.N0, Palette.N1, Palette.N2, Palette.N3, Palette.N4, Palette.N5, Palette.N7, Palette.N8, Palette.M5]:
+		cool.append(colour.to_html(false))
+	var off: Dictionary = {}
+	for y: int in range(0, image.get_height(), 2):
+		for x: int in range(0, image.get_width(), 2):
+			var c: Color = image.get_pixel(x, y)
+			if c.a < 1.0 or not cool.has(c.to_html(false)):
+				off[c.to_html()] = true
+	assert_eq(off.keys(), [], "opaque, cool palette colours only")
+	assert_eq(ChapterSelect.space_image(screen).get_data(), image.get_data(), "the same every time")
+	var stars: Array[Vector2i] = ChapterSelect.space_stars(screen)
+	assert_gt(stars.size(), 100, "a starry sky")
+	for star: Vector2i in stars:
+		assert_false(ChapterSelect.PANEL.has_point(star), "off the stage panel")
+		for point: int in Chapter.point_count():
+			assert_gte((ChapterSelect.point_position(point) - star).length(), float(ChapterSelect.STAR_CLEAR), "clear of point %d" % point)
+
+
 func test_app_opens_on_the_chart_then_stage_1_then_back() -> void:
 	var app: App = _app()
 	var app_chart: ChapterSelect = app.get_node("ChapterSelect")
