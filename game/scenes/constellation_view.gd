@@ -285,10 +285,17 @@ static func vibration(i: int, count: int, age: float) -> int:
 ## the map's Drawing style. The whole scorpion: a pincer at each claw star (beta and pi, opening
 ## forward), the body's sides from the head to mu, three pairs of legs, the tail's bulbs and the
 ## stinger's hook. A stinger (#62): a bulb on each tail string and the sting's hook past the last
-## star. Whole pixels, in order, no repeats, clear of the landmarks.
+## star. A tail (#64): a tapering bulb on each string. Whole pixels, in order, no repeats, clear of the landmarks.
 static func scorpion_drawing(map: StarMap = null) -> Array[Vector2i]:
 	var m: StarMap = _or_full(map)
-	var strokes: Array = _stinger_strokes(m) if m.drawing == StarMap.Drawing.STINGER else _scorpion_strokes(m)
+	var strokes: Array
+	match m.drawing:
+		StarMap.Drawing.STINGER:
+			strokes = _stinger_strokes(m)
+		StarMap.Drawing.TAIL:
+			strokes = _tail_strokes(m)
+		_:
+			strokes = _scorpion_strokes(m)
 	var pixels: Array[Vector2i] = []
 	var seen: Dictionary = {}
 	for stroke: Array in strokes:
@@ -349,6 +356,18 @@ static func _stinger_strokes(m: StarMap) -> Array:
 	for p: Vector2i in marks:
 		centre += Vector2(p)
 	strokes.append(_sting(m, spine, centre / marks.size()))
+	return strokes
+
+
+## A tail map: its landmarks are one line from the body to the stinger; each string is a segment
+## of the tail, a bulb that tapers towards the stinger.
+static func _tail_strokes(m: StarMap) -> Array:
+	var marks: Array[Vector2i] = m.landmarks
+	var spine: Array[int] = m.path(0, m.count() - 1)
+	var strokes: Array = []
+	for k: int in spine.size() - 1:
+		var radius: float = 6.0 if k < 2 else 5.0
+		strokes.append(_circle((Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0, radius))
 	return strokes
 
 

@@ -17,7 +17,7 @@ const ID: String = "scorpio"
 ## the first one its point on the chart; `map`: its StarMap id, or "" while it isn't built.
 const STAGES: Array[Dictionary] = [
 	{"name": "STINGER", "map": "stinger", "stars": [13, 12, 11]},
-	{"name": "TAIL", "map": "", "stars": [10, 9, 8]},
+	{"name": "TAIL", "map": "tail", "stars": [10, 9, 8]},
 	{"name": "BODY", "map": "", "stars": [7, 6, 5]},
 	{"name": "HEART", "map": "", "stars": [4, 3]},
 	{"name": "CLAWS", "map": "", "stars": [1, 0, 2]},

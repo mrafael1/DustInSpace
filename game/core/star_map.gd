@@ -7,8 +7,8 @@ extends RefCounted
 ## Positions are on the 180x320 grid in Scorpio.HOME_SKY; a taller sky shifts them (Scorpio.shift).
 
 ## How the finished drawing is traced: the whole scorpion, or only a stinger (tail bulbs and a
-## hooked sting).
-enum Drawing { SCORPION, STINGER }
+## hooked sting), or a tail (a row of bulbs).
+enum Drawing { SCORPION, STINGER, TAIL }
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -20,6 +20,8 @@ var segments: Array[Vector2i] = []
 var sizes: Array[int] = []
 var starting_lit: Array[int] = []
 var drawing: Drawing = Drawing.SCORPION
+## Orion (#64) hunts this stage: he marks a loose star after each burst and shoots it next launch.
+var orion: bool = false
 
 
 ## The full Scorpio (#61): every star of Scorpius's figure.
@@ -51,11 +53,29 @@ static func stinger() -> StarMap:
 	return map
 
 
+## The Tail, stage 2 (#64): six stars in a curve down the right of the sky and along the bottom,
+## the scorpion's tail segments, with the top left left open for Orion the hunter, who marks a star
+## after each burst and shoots it on the next launch. The first segment starts lit: five to light.
+static func tail() -> StarMap:
+	var map := StarMap.new()
+	map.id = "tail"
+	map.title = "TAIL"
+	map.landmarks = [Vector2i(146, 112), Vector2i(150, 142), Vector2i(144, 172), Vector2i(128, 198), Vector2i(104, 216), Vector2i(74, 224)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.drawing = Drawing.TAIL
+	map.orion = true
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
 		"stinger":
 			return stinger()
+		"tail":
+			return tail()
 	return scorpio()
 
 

@@ -69,6 +69,7 @@ func test_the_final_is_playable_from_its_crown_point() -> void:
 func test_a_won_stage_can_be_replayed() -> void:
 	var chapter := Chapter.new()
 	chapter.complete(0)
+	chapter.complete(1)
 	chapter.complete(Chapter.FINAL)
 	chart.setup(chapter)
 	assert_eq(chart.selected(), Chapter.FINAL, "all built stages won: the last one")
@@ -227,7 +228,20 @@ func test_a_win_lights_the_point_and_survives_a_restart() -> void:
 	await get_tree().process_frame
 	var again: App = _app()
 	assert_true(again.chapter.is_completed(0), "the app restarted with the progress kept")
-	assert_eq((again.get_node("ChapterSelect") as ChapterSelect).selected(), Chapter.FINAL, "the final is next")
+	assert_eq((again.get_node("ChapterSelect") as ChapterSelect).selected(), 1, "the Tail is next")
+
+
+func test_the_tail_opens_after_the_stinger_and_plays_its_own_map_with_orion() -> void:
+	var app: App = _app()
+	app.open_stage(1)
+	assert_null(app.stage(), "locked before the Stinger is won")
+	app.open_stage(0)
+	app.stage().run.run_won.emit()
+	app.back_to_chart()
+	assert_eq(app.chapter.state(1), Chapter.PointState.AVAILABLE)
+	app.open_stage(1)
+	assert_eq(app.stage().run.scorpio.map.id, "tail")
+	assert_not_null(app.stage().run.orion, "Orion hunts the Tail")
 
 
 func test_a_loss_changes_nothing() -> void:

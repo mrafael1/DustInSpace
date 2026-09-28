@@ -39,6 +39,9 @@ var scorpio_sun_target: int = 0
 ## The longest step (native px) between consecutive stars in a link on the Scorpio map.
 ## Optional: 0 = no limit.
 var scorpio_max_link_distance: int = 0
+## Orion (#64): the launch whose burst Orion marks first, on maps that bring him (the Tail).
+## Optional in the file: without an "orion" block he never marks (0).
+var orion_first_mark_launch: int = 0
 
 var errors: Array[String] = []
 
@@ -95,6 +98,8 @@ func _parse(data: Dictionary) -> void:
 	big_bang_dust_per_cleared_star = _read_int(big_bang, "dust_per_cleared_star", "big_bang.", 0)
 	if data.has("scorpio"):
 		_parse_scorpio(_read_dict(data, "scorpio", ""))
+	if data.has("orion"):
+		orion_first_mark_launch = _read_int(_read_dict(data, "orion", ""), "first_mark_launch", "orion.", 1)
 
 
 func _parse_packs(raw: Dictionary) -> void:
