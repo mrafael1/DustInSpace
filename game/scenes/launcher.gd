@@ -163,13 +163,14 @@ func advance(delta: float) -> void:
 		queue_redraw()
 
 
-## The flying pack's offset from the fork: an eased arc while flying, a whole-pixel shake after.
+## The flying pack's offset from the fork: an eased arc from _flight_from() while flying, a
+## whole-pixel shake after.
 func flight_offset() -> Vector2i:
 	if _flight == Flight.TREMBLING:
 		return _flight_to + TREMBLE_SHAKE[int(_flight_time / TREMBLE_STEP) % TREMBLE_SHAKE.size()]
 	var k: float = clampf(_flight_time / FLIGHT_TIME, 0.0, 1.0)
 	var eased: float = 1.0 - (1.0 - k) * (1.0 - k)
-	var point: Vector2 = Vector2.ZERO.lerp(Vector2(_flight_to), eased)
+	var point: Vector2 = Vector2(_flight_from()).lerp(Vector2(_flight_to), eased)
 	return Vector2i(point.round()) + Vector2i(0, -roundi(sin(k * PI) * ARC_HEIGHT))
 
 
@@ -245,12 +246,17 @@ func _launch_view(kind: String, burst: Vector2i) -> void:
 	_flying_pack.kind = kind
 	_flying_pack.grown = false
 	_flying_pack.bright = false
-	_flying_pack.position = Vector2.ZERO
+	_flying_pack.position = Vector2(_flight_from())
 	_flying_pack.visible = true
 	_flight = Flight.FLYING
 	_flight_time = 0.0
 	_flight_to = burst - origin()
 	_sequencer.hold(FLIGHT_TIME + TREMBLE_TIME)
+
+
+## Where the flight starts, in this node's coordinates: the fork, where the pack rests.
+func _flight_from() -> Vector2i:
+	return Vector2i.ZERO
 
 
 func _burst_view(burst: Vector2i) -> void:
