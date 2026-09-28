@@ -4,10 +4,11 @@ extends CanvasLayer
 ## point, travelled from the tail. Tap a point to select it (a comet travels there along the
 ## strings); PLAY starts its stage if it's available or completed. Locked points can be selected to
 ## see what they are, never played.
-## Points: completed ones are gold stars, and the strings between completed points glow; the one
-## to play next has a warm ring that breathes; locked ones are dim. The selected point wears C0
-## corner brackets. Numbers (3x5, UI text) count the route from the tail, and small chevrons on the
-## strings point the way on, so the direction reads without astronomy.
+## Points: completed ones are gold stars; the one to play next has a warm ring that breathes;
+## locked ones are cool and quieter. The selected point wears C0 corner brackets. The path is solid:
+## gold along the route between completed stages, warm from the last one to the stage to play
+## next, and a cool guide elsewhere. Numbers (3x5, UI text) count the route from the tail, so the
+## direction reads without astronomy. The selected stage's name and PLAY sit on their own panel.
 ## Back from a won stage (show_progress), the point flashes as it lights, then a comet travels to
 ## the point it unlocked. Owns no rules: Chapter says what's completed and available.
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
@@ -15,10 +16,15 @@ extends CanvasLayer
 ## The player asked to play the stage at route point `point`.
 signal stage_chosen(point: int)
 
+## How a string of the path shows: a cool guide, the way to the stage to play next, or travelled.
+enum Leg { GUIDE, NEXT, LIT }
+
 const TITLE_Y: int = 30
 const SUBTITLE_Y: int = 42
-const INFO_Y: int = 252
-const PLAY := Rect2i(58, 266, 64, 22)
+const INFO_Y: int = 251
+const PLAY := Rect2i(58, 264, 64, 22)
+## The stage panel behind the name and PLAY: M1 fill, N6 border, clipped corners.
+const PANEL := Rect2i(26, 242, 128, 50)
 ## Press circle around a point: 44 pt at 2 pt per px.
 const HIT_RADIUS: int = 12
 ## The breathing ring round the point to play next: radius 6 or 7, swapping every RING_STEP.
@@ -65,7 +71,7 @@ func _ready() -> void:
 	_title.label_settings = HudText.primary(Palette.C1)
 	_subtitle.label_settings = HudText.primary(Palette.N8)
 	_info.label_settings = HudText.primary(Palette.C1)
-	_play.label_settings = HudText.primary(Palette.C1)
+	_play.label_settings = HudText.primary(Palette.C0)
 	_title.text = "SCORPIO"
 	_subtitle.text = "CHAPTER 1"
 	_centre(_title, TITLE_Y)
@@ -232,7 +238,7 @@ func _refresh() -> void:
 	if _chapter == null or _info == null:
 		return
 	for point: int in _numbers.size():
-		var colour: Color = Palette.N7
+		var colour: Color = Palette.N8
 		match _chapter.state(point):
 			Chapter.PointState.COMPLETED:
 				colour = Palette.C1
@@ -245,7 +251,7 @@ func _refresh() -> void:
 		_info.label_settings.font_color = Palette.C1
 	else:
 		_info.text = "COMING SOON"
-		_info.label_settings.font_color = Palette.N7
+		_info.label_settings.font_color = Palette.N8
 	_centre(_info, INFO_Y)
 	_play.visible = can_play()
 	_play.text = "REPLAY" if _chapter.is_completed(_selected) else "PLAY"
@@ -261,18 +267,18 @@ func _centre(label: Label, y: int) -> void:
 
 func _draw_chart() -> void:
 	_chart.draw_rect(Rect2(_screen), Palette.N0)
+	# A faint solid grid, the chart's paper.
 	for y: int in range(_screen.position.y + posmod(-_screen.position.y, GRID), _screen.end.y, GRID):
-		for x: int in range(_screen.position.x, _screen.end.x, 3):
-			_dot(Vector2i(x, y), Palette.N1)
+		_chart.draw_rect(Rect2(_screen.position.x, y, _screen.size.x, 1), Palette.N1)
 	for x: int in range(_screen.position.x + posmod(-_screen.position.x, GRID), _screen.end.x, GRID):
-		for y: int in range(_screen.position.y, _screen.end.y, 3):
-			_dot(Vector2i(x, y), Palette.N1)
+		_chart.draw_rect(Rect2(x, _screen.position.y, 1, _screen.size.y), Palette.N1)
 	if _chapter == null:
 		return
-	for segment: int in Scorpio.segment_count():
-		_draw_string(segment)
-	for point: int in range(1, Chapter.point_count()):
-		_draw_chevron(point)
+	var legs: Array[Leg] = string_legs()
+	for leg: Leg in [Leg.GUIDE, Leg.NEXT, Leg.LIT]:
+		for segment: int in Scorpio.segment_count():
+			if legs[segment] == leg:
+				_draw_string(segment, leg)
 	for point: int in Chapter.point_count():
 		_draw_point(point)
 	_draw_selection(point_position(_selected))
@@ -283,37 +289,51 @@ func _draw_chart() -> void:
 		for d: Vector2i in ConstellationView.circle_pixels(radius):
 			_dot(point_position(_light_point) + d, colour)
 	_draw_comet()
+	_draw_plaque(PANEL, Palette.M1, Palette.N6)
 	if can_play():
-		_draw_plaque(PLAY, Palette.M3 if _pressed_play else Palette.N0, Palette.C2)
+		_draw_plaque(PLAY, Palette.C4 if _pressed_play else Palette.C5, Palette.C2)
 
 
-## A string glows C1 between two completed points; otherwise it's a dotted N6 guide.
-func _draw_string(segment: int) -> void:
+## How each string shows (Scorpio.SEGMENTS order): LIT along the route between completed stages
+## (following the strings, so the way back through the head to a claw lights too), NEXT from the
+## last completed stage to the stage to play next, GUIDE elsewhere.
+func string_legs() -> Array[Leg]:
+	var legs: Array[Leg] = []
+	for segment: int in Scorpio.segment_count():
+		legs.append(Leg.GUIDE)
+	for point: int in range(1, Chapter.point_count()):
+		var leg: Leg = Leg.GUIDE
+		if _chapter.is_completed(point - 1) and _chapter.is_completed(point):
+			leg = Leg.LIT
+		elif _chapter.is_completed(point - 1) and _chapter.is_available(point):
+			leg = Leg.NEXT
+		if leg == Leg.GUIDE:
+			continue
+		var marks: Array[int] = Chapter.path(point - 1, point)
+		for k: int in range(1, marks.size()):
+			var segment: int = _segment_between(marks[k - 1], marks[k])
+			legs[segment] = maxi(legs[segment], leg) as Leg
+	return legs
+
+
+## A solid 1 px string: C1 when travelled, C3 on the way to the next stage, an N6 guide elsewhere.
+func _draw_string(segment: int, leg: Leg) -> void:
 	var ends: Array[int] = Scorpio.segment_landmarks(segment)
-	var done: bool = _landmark_completed(ends[0]) and _landmark_completed(ends[1])
-	var pixels: Array[Vector2i] = LinkLayer.line_pixels(Scorpio.LANDMARKS[ends[0]], Scorpio.LANDMARKS[ends[1]])
-	for i: int in pixels.size():
-		if done:
-			_dot(pixels[i], Palette.C1)
-		elif i % 2 == 0:
-			_dot(pixels[i], Palette.N6)
+	var colour: Color = Palette.N6
+	if leg == Leg.LIT:
+		colour = Palette.C1
+	elif leg == Leg.NEXT:
+		colour = Palette.C3
+	for p: Vector2i in LinkLayer.line_pixels(Scorpio.LANDMARKS[ends[0]], Scorpio.LANDMARKS[ends[1]]):
+		_dot(p, colour)
 
 
-## A small chevron halfway from point `point - 1` towards `point`, pointing the way on: warm on
-## the step to the point to play next, dim elsewhere.
-func _draw_chevron(point: int) -> void:
-	var marks: Array[int] = Chapter.path(point - 1, point)
-	if marks.size() < 2:
-		return
-	var a := Vector2(Scorpio.LANDMARKS[marks[0]])
-	var b := Vector2(Scorpio.LANDMARKS[marks[1]])
-	var dir: Vector2 = (b - a).normalized()
-	var mid: Vector2 = (a + b) / 2.0
-	var side: Vector2 = dir.orthogonal()
-	var colour: Color = Palette.C2 if _chapter.state(point) == Chapter.PointState.AVAILABLE and not _chapter.is_completed(point) else Palette.N7
-	_dot(Vector2i((mid + dir * 1.5).round()), colour)
-	_dot(Vector2i((mid - dir * 0.5 + side * 1.5).round()), colour)
-	_dot(Vector2i((mid - dir * 0.5 - side * 1.5).round()), colour)
+static func _segment_between(a: int, b: int) -> int:
+	for segment: int in Scorpio.segment_count():
+		var pair: Vector2i = Scorpio.SEGMENTS[segment]
+		if (pair.x == a and pair.y == b) or (pair.x == b and pair.y == a):
+			return segment
+	return -1
 
 
 func _draw_point(point: int) -> void:
@@ -328,12 +348,12 @@ func _draw_point(point: int) -> void:
 			_fill(at, 1, Palette.C1)
 			_dot(at, Palette.C0)
 			for d: Vector2i in ConstellationView.circle_pixels(6 + _ring_frame()):
-				if (d.x + d.y) % 2 == 0:
-					_dot(at + d, Palette.C2)
+				_dot(at + d, Palette.C2)
 		_:
+			_fill(at, 1, Palette.N0)
 			for d: Vector2i in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
-				_dot(at + d, Palette.N6)
-			_dot(at, Palette.N8)
+				_dot(at + d, Palette.N8)
+			_dot(at, Palette.M6)
 
 
 ## C0 corner brackets round the selected point (a lighter C1 while it's pressed).
@@ -357,11 +377,6 @@ func _draw_comet() -> void:
 		for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 			_dot(_travel[head] + n, Palette.C1)
 		_dot(_travel[head], Palette.C0)
-
-
-func _landmark_completed(landmark: int) -> bool:
-	var point: int = Chapter.ROUTE.find(landmark)
-	return point >= 0 and _chapter.is_completed(point)
 
 
 func _fill(at: Vector2i, half: int, colour: Color) -> void:

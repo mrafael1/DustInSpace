@@ -108,6 +108,41 @@ func test_the_chart_draws_only_palette_colours() -> void:
 		assert_true(colour in [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.C4])
 
 
+## Feedback on #66: finished stages light the path between them; the way to the next stage is
+## warm; the rest is a solid cool guide.
+func test_the_path_lights_between_finished_stages_and_warms_toward_the_next() -> void:
+	var chapter := Chapter.new(3)
+	chart.setup(chapter)
+	var tail: int = _segment(13, 12)
+	var next: int = _segment(12, 11)
+	assert_eq(chart.string_legs()[tail], ChapterSelect.Leg.GUIDE, "nothing done yet")
+	chapter.complete(0)
+	chart.setup(chapter)
+	assert_eq(chart.string_legs()[tail], ChapterSelect.Leg.NEXT, "the way from stage 1 to stage 2")
+	chapter.complete(1)
+	chart.setup(chapter)
+	var legs: Array = chart.string_legs()
+	assert_eq(legs[tail], ChapterSelect.Leg.LIT, "stages 1 and 2 done: the path between them lights")
+	assert_eq(legs[next], ChapterSelect.Leg.NEXT, "and warms on to stage 3")
+	assert_eq(legs.count(ChapterSelect.Leg.LIT), 1)
+
+
+func test_a_claw_reached_back_through_the_head_lights_both_strings() -> void:
+	var chapter := Chapter.new(Chapter.point_count())
+	for point: int in Chapter.point_count():
+		chapter.complete(point)
+	chart.setup(chapter)
+	for leg: ChapterSelect.Leg in chart.string_legs():
+		assert_eq(leg, ChapterSelect.Leg.LIT, "every string on the route lights")
+
+
+func test_the_stage_panel_holds_the_name_and_play() -> void:
+	chart.setup(Chapter.new())
+	assert_true(ChapterSelect.PANEL.encloses(ChapterSelect.PLAY))
+	var info: Label = _label("Info")
+	assert_true(ChapterSelect.PANEL.has_point(Vector2i(info.position)))
+
+
 func test_app_opens_on_the_chart_then_stage_1_then_back() -> void:
 	var app: App = _app()
 	var app_chart: ChapterSelect = app.get_node("ChapterSelect")
@@ -197,6 +232,14 @@ func test_the_end_screen_offers_the_map_in_a_chapter() -> void:
 		touch.pressed = pressed
 		end.handle_pointer(touch)
 	assert_eq(backed, [true])
+
+
+func _segment(a: int, b: int) -> int:
+	for segment: int in Scorpio.segment_count():
+		var pair: Vector2i = Scorpio.SEGMENTS[segment]
+		if (pair.x == a and pair.y == b) or (pair.x == b and pair.y == a):
+			return segment
+	return -1
 
 
 func _app() -> App:
