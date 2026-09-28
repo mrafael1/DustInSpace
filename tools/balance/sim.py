@@ -29,6 +29,11 @@ TRIPLE = {"small": "small_triple", "medium": "medium_triple", "big": "big_triple
 LANDMARK_SIZES = ("medium", "medium", "small", "small", "big", "small", "medium", "small",
                   "small", "small", "big", "small", "medium", "big")
 STARTING_LIT = (0, 1, 2)
+# The chapter's part stages play their own maps (#62, game/core/star_map.gd): --map picks one.
+MAPS = {
+    "scorpio": (LANDMARK_SIZES, STARTING_LIT),
+    "stinger": (("small", "small", "medium", "small", "big", "medium"), (0,)),
+}
 MAX_LANDMARKS_PER_COMBO = 1
 
 
@@ -173,9 +178,12 @@ def main():
     ap.add_argument("--runs", type=int, default=20000)
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--set", action="append", default=[], help="override, e.g. packs.red.cost=6")
+    ap.add_argument("--map", default="scorpio", choices=sorted(MAPS), help="the constellation map (scorpio.enabled)")
     ap.add_argument("--lighting-pays", default="all", choices=["all", "dust", "light", "half", "minus1", "none"],
                     help="what-if: what a combo that lights a landmark pays (the game: all)")
     a = ap.parse_args()
+    global LANDMARK_SIZES, STARTING_LIT
+    LANDMARK_SIZES, STARTING_LIT = MAPS[a.map]
     if a.seed is not None:
         random.seed(a.seed)
     cfg = load(a.set)
@@ -183,7 +191,7 @@ def main():
     print(f"{'policy':<30}{'win %':>7}{'packs to win':>14}{'runs w/ Big Bang':>18}")
     scorpio = cfg.get("scorpio", {})
     if scorpio.get("enabled"):
-        print(f"scorpio on (the constellation wins), lighting pays {a.lighting_pays}, "
+        print(f"scorpio on, map {a.map} (the constellation wins), lighting pays {a.lighting_pays}, "
               f"Sun full at {scorpio.get('sun_target', cfg['sun_target'])}")
         if scorpio.get("max_link_distance"):
             print(f"  not modelled: max_link_distance {scorpio['max_link_distance']} (the bots ignore where stars are)")
