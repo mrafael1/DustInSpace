@@ -92,6 +92,29 @@ static func neighbours(index: int) -> Array[int]:
 	return found
 
 
+## The landmarks from `from` to `to` along the strings, both ends included (the strings form a
+## tree, so there is one way).
+static func landmark_path(from: int, to: int) -> Array[int]:
+	var came_from: Dictionary = {from: -1}
+	var queue: Array[int] = [from]
+	while not queue.is_empty():
+		var at: int = queue.pop_front()
+		if at == to:
+			break
+		for n: int in neighbours(at):
+			if not came_from.has(n):
+				came_from[n] = at
+				queue.append(n)
+	var route: Array[int] = []
+	if not came_from.has(to):
+		return route
+	var step: int = to
+	while step != -1:
+		route.push_front(step)
+		step = came_from[step]
+	return route
+
+
 ## The strings that end at landmark `index`, in order.
 static func segments_of(index: int) -> Array[int]:
 	var found: Array[int] = []
