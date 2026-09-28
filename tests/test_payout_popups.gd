@@ -154,6 +154,32 @@ func test_quick_successive_payouts_each_show_and_do_not_overlap() -> void:
 	assert_eq(popups.texts(), ["+3", "+6"] as Array[String], "each leaves on its own landing")
 
 
+## Review on #60: near the top of the sky there's no row above, so the popup must find room below
+## or beside instead of drawing over the one already there.
+func test_popups_at_the_top_of_the_sky_find_room_below_or_beside() -> void:
+	var stars: Array[Vector2i] = [Vector2i(40, 90), Vector2i(60, 90), Vector2i(80, 90)]
+	popups.show_payout(1, 3, stars)
+	popups.show_payout(2, 5, stars)
+	popups.show_payout(3, 6, stars)
+	_assert_apart_and_inside()
+
+
+func test_neighbouring_stars_the_sun_bursts_never_draw_over_each_other() -> void:
+	var at: Array[Vector2i] = [Vector2i(20, 86), Vector2i(26, 88), Vector2i(32, 86), Vector2i(170, 244), Vector2i(174, 240), Vector2i(90, 160), Vector2i(94, 162)]
+	for i: int in at.size():
+		popups.show_payout(i + 1, 1, [at[i]] as Array[Vector2i], i * SkyView.EXPLODE_STAGGER)
+	_assert_apart_and_inside()
+
+
+func _assert_apart_and_inside() -> void:
+	var rects: Array[Rect2i] = popups.rects()
+	var area: Rect2i = popups.bounds()
+	for i: int in rects.size():
+		assert_true(area.encloses(Rect2i(rects[i].position - Vector2i(0, PayoutPopups.RISE), rects[i].size + Vector2i(0, PayoutPopups.RISE))), "popup %d inside the sky" % i)
+		for j: int in range(i + 1, rects.size()):
+			assert_false(rects[i].intersects(rects[j]), "popups %d %s and %d %s apart" % [i, rects[i], j, rects[j]])
+
+
 func test_a_new_run_clears_every_popup() -> void:
 	popups.show_payout(1, 3, [Vector2i(60, 150)] as Array[Vector2i])
 	popups.setup(Fixtures.run(), sequencer)

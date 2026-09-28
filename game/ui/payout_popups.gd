@@ -7,8 +7,8 @@ extends CanvasLayer
 ## Feedback only: the dust is credited by the core and counted as the particles land; nothing here
 ## holds the sequencer or takes input. Numbers are Labels in the 5x7 font; nothing is baked in.
 ## Placed in game coordinates (Main offsets the layer like the HUD): starting at the link's middle,
-## pushed away from its last star (where the finger lifted), inside the visible sky, and one row
-## above any popup still showing that it would overlap.
+## pushed away from its last star (where the finger lifted), inside the visible sky, and moved to
+## the nearest free spot (up first, then down, then sideways) if it would overlap one showing.
 
 ## A popup's parts: the number, a gap, then the small dust diamond.
 const TEXT_HEIGHT: int = 7
@@ -180,23 +180,36 @@ static func place(stars: Array[Vector2i], size: Vector2i, area: Rect2i) -> Vecto
 		clampi(at.y, area.position.y + RISE, area.end.y - size.y))
 
 
-## Moves `at` up a row at a time while it would overlap a popup still showing (never out of the sky).
+## The nearest free spot for a popup of `size` wanted at `at`: the same column a row up, a row
+## down, two rows up and so on; then the same one popup-width to the left and right. Only spots
+## inside the sky all the way up count. With no free spot anywhere, `at` (it overlaps).
+@warning_ignore("integer_division")
 func _stack(at: Vector2i, size: Vector2i) -> Vector2i:
 	var area: Rect2i = bounds()
-	var moved: Vector2i = at
-	for i: int in _popups.size():
-		var clash: bool = false
-		for popup: PayoutPopup in _popups:
-			if Rect2i(moved - Vector2i(0, RISE), size + Vector2i(0, RISE)).intersects(popup.rect()):
-				clash = true
-				break
-		if not clash:
-			return moved
-		var up: Vector2i = moved - Vector2i(0, TEXT_HEIGHT + RISE + 1)
-		if up.y < area.position.y + RISE:
-			return moved
-		moved = up
-	return moved
+	var row: int = TEXT_HEIGHT + RISE + 1
+	var rows: Array[int] = [0]
+	for k: int in range(1, area.size.y / row + 1):
+		rows.append_array([-k, k])
+	for column: int in [0, -1, 1, -2, 2]:
+		for r: int in rows:
+			var spot: Vector2i = at + Vector2i(column * (size.x + ICON_GAP + 1), r * row)
+			if _fits(spot, size, area) and not _clashes(spot, size):
+				return spot
+	return at
+
+
+## True if a popup of `size` at `spot` stays inside `area` all the way up its rise.
+static func _fits(spot: Vector2i, size: Vector2i, area: Rect2i) -> bool:
+	return area.encloses(Rect2i(spot - Vector2i(0, RISE), size + Vector2i(0, RISE)))
+
+
+## True if a popup of `size` at `spot` would overlap one still showing (or waiting to show).
+func _clashes(spot: Vector2i, size: Vector2i) -> bool:
+	var rect := Rect2i(spot - Vector2i(0, RISE), size + Vector2i(0, RISE))
+	for popup: PayoutPopup in _popups:
+		if rect.intersects(popup.rect()):
+			return true
+	return false
 
 
 ## Rise, the top payout's flash and hop, on whole pixels.
