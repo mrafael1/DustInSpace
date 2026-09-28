@@ -262,24 +262,25 @@ static func vibration(i: int, count: int, age: float) -> int:
 	return roundi(envelope * swing * sin(PI * i / (count - 1)))
 
 
-## The scorpion drawn around the landmarks, as the pen traces it: pincers, then the body's sides,
+## The scorpion drawn around the landmarks, as the pen traces it: the claws (an arm to each of
+## Scorpius's claw stars, Scorpio.CLAWS, and a pincer there), then the body's sides,
 ## the legs, the tail's bulbs and the stinger's hook. Whole pixels, in order, no repeats.
 static func scorpion_drawing() -> Array[Vector2i]:
 	var marks: Array[Vector2i] = Scorpio.LANDMARKS
 	var strokes: Array = []
 	var head := Vector2(marks[0])
 	var forward: Vector2 = (head - Vector2(marks[1])).normalized()
-	var across: Vector2 = forward.orthogonal()
-	for side: float in [-1.0, 1.0]:
-		# An arm swings out from the head and bends forward to a claw: an open C, gap to the front.
-		var shoulder: Vector2 = head + across * side * 7.0 + forward * 2.0
-		var elbow: Vector2 = shoulder + forward * 7.0 + across * side * 3.0
-		var claw: Vector2 = elbow + forward * 5.0
-		strokes.append([head, shoulder, elbow])
+	for claw: Vector2i in Scorpio.CLAWS:
+		# An arm runs from the head out to a claw star (Scorpius's head arc), bowing forward, and
+		# a pincer opens there: an open C, its gap to the front.
+		var tip: Vector2 = head + Vector2(claw)
+		var elbow: Vector2 = head + Vector2(claw) * 0.5 + forward * 4.0
+		strokes.append([head, elbow, tip])
+		var centre: Vector2 = tip + forward * 3.0
 		var arc: Array = []
 		for k: int in 9:
 			var angle: float = forward.angle() + 0.7 + (TAU - 1.4) * k / 8.0
-			arc.append(claw + Vector2.from_angle(angle) * 4.0)
+			arc.append(centre + Vector2.from_angle(angle) * 4.0)
 		strokes.append(arc)
 	var widths: Array[float] = [4.0, 7.0, 6.0, 5.0, 3.0]
 	for side: float in [-1.0, 1.0]:
