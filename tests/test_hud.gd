@@ -270,7 +270,7 @@ func test_a_pack_icon_is_lit_while_owned_and_grey_at_zero() -> void:
 		assert_false(blue.is_hopping(), "and still")
 	run.dust = 0
 	hud.refresh()
-	assert_true(_icon("red").bright, "owned: lit and spinning even with no dust")
+	assert_true(_icon("red").bright, "owned: lit even with no dust")
 	assert_false(_icon("red").greyed)
 
 
@@ -293,8 +293,8 @@ func test_a_buyable_icon_hops_a_pixel_now_and_then() -> void:
 	red.set_process(false)
 	blue.advance(0.0)
 	red.advance(0.0)
-	assert_true(blue.is_hopping(), "it hops as soon as it's buyable")
-	assert_false(red.is_hopping(), "a grey icon never does")
+	assert_true(blue.is_hopping(), "the loaded icon hops as soon as it's buyable")
+	assert_false(red.is_hopping(), "one that isn't loaded never does")
 	blue.advance(PackSlot.HOP_TIME * 1.1)
 	assert_false(blue.is_hopping())
 	assert_eq(blue.get_node("Icon").position, Vector2.ZERO, "back on the grid")
@@ -578,6 +578,43 @@ func test_dust_icons_are_faceted_diamonds_on_the_dust_ramp() -> void:
 
 
 ## Links three small stars: a small triple, worth 3 dust and 5 light in the fixtures.
+func test_only_the_loaded_pack_icon_moves() -> void:
+	for loaded: String in ["blue", "red", ""]:
+		run.owned_packs["blue"] = 2
+		run.owned_packs["red"] = 0 if loaded == "" else 2
+		run.loaded_pack = loaded
+		if loaded == "":
+			run.owned_packs["blue"] = 0
+		run.dust = 50
+		hud.refresh()
+		for kind: String in ["blue", "red"]:
+			var slot: PackSlot = hud.slot(kind)
+			slot.set_process(false)
+			var icon: PackView = _icon(kind)
+			icon.set_process(false)
+			var moved: bool = false
+			for i: int in 12:
+				slot.advance(0.13)
+				icon.advance(0.13)
+				moved = moved or slot.is_hopping() or icon.spin_frame() != 0
+			assert_eq(moved, kind == loaded, "%s loaded: %s %s" % [loaded if loaded != "" else "nothing", kind, "moves" if kind == loaded else "stays still"])
+
+
+func test_the_buy_button_also_picks_the_planet() -> void:
+	run.dust = 50
+	watch_signals(hud)
+	_tap_part("red", &"cost")
+	assert_signal_emitted_with_parameters(hud, "planet_chosen", ["red"])
+	assert_eq(run.loaded_pack, "red")
+
+
+func test_a_refused_buy_picks_nothing() -> void:
+	run.dust = 0
+	watch_signals(hud)
+	_tap_part("red", &"cost")
+	assert_signal_not_emitted(hud, "planet_chosen")
+
+
 func _link_small_triple() -> void:
 	var ids: Array[int] = []
 	for x: int in [70, 90, 110]:

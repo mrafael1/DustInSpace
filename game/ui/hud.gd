@@ -21,8 +21,8 @@ extends CanvasLayer
 signal tap_refused(kind: String)
 ## A pack became buyable as the dust landed (its slot's cue). Feedback only (sound).
 signal pack_ready(kind: String)
-## The player picked a planet with its icon, and it loaded (or was bought and loaded). The
-## telescope aims with it (Main wires it).
+## The player picked a planet with its icon or its buy button, and it loaded (or was bought and
+## loaded). The telescope aims with it (Main wires it).
 signal planet_chosen(kind: String)
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
@@ -237,10 +237,10 @@ func _tap(kind: String, part: StringName) -> void:
 	var done: bool
 	if part == &"icon":
 		done = _run.load_pack(kind) or _run.buy(kind)
-		if done:
-			planet_chosen.emit(kind)
 	else:
 		done = _run.buy(kind)
+	if done:
+		planet_chosen.emit(kind)
 	if not done:
 		_slots[kind].nudge()
 		tap_refused.emit(kind)
