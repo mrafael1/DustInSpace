@@ -21,6 +21,9 @@ extends CanvasLayer
 signal tap_refused(kind: String)
 ## A pack became buyable as the dust landed (its slot's cue). Feedback only (sound).
 signal pack_ready(kind: String)
+## The player picked a planet with its icon or its buy button, and it loaded (or was bought and
+## loaded). The telescope aims with it (Main wires it).
+signal planet_chosen(kind: String)
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
 
@@ -37,6 +40,9 @@ const DUST_AT := Vector2i(20, 297)
 const LIGHT_AT := Vector2i(60, 66)
 ## A counter hops 1 px up for this long when a particle lands on it.
 const HOP_TIME: float = 0.1
+## The message line (show_message), on the land above the HUD row, and how long a message stays.
+const MESSAGE_Y: int = 262
+const MESSAGE_TIME: float = 1.6
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -57,11 +63,13 @@ var _light_in_flight: int = 0
 ## Seconds of hop left per counter, and where each counter rests.
 var _hops: Dictionary[Label, float] = {}
 var _rest: Dictionary[Label, Vector2] = {}
+var _message_left: float = 0.0
 
 @onready var _dust: Label = $Dust
 @onready var _light: Label = $Light
 @onready var _slot_layer: Node2D = $Slots
 @onready var _sound: SoundIcon = $SoundIcon
+@onready var _message: Label = $Message
 
 
 func _ready() -> void:
@@ -69,6 +77,9 @@ func _ready() -> void:
 	_light.label_settings = HudText.secondary(Palette.C1)
 	for label: Label in [_dust, _light]:
 		_rest[label] = label.position
+	_message.label_settings = HudText.primary(Palette.C1)
+	_message.position = Vector2(0, MESSAGE_Y)
+	_message.visible = false
 
 
 func _process(delta: float) -> void:
@@ -149,6 +160,21 @@ func advance(delta: float) -> void:
 	for label: Label in _hops:
 		_hops[label] = maxf(_hops[label] - delta, 0.0)
 		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
+	if _message_left > 0.0:
+		_message_left -= delta
+		_message.visible = _message_left > 0.0
+
+
+## Shows a short message above the launcher for MESSAGE_TIME ("" clears it).
+func show_message(text: String) -> void:
+	_message.text = text
+	_message_left = MESSAGE_TIME if text != "" else 0.0
+	_message.visible = text != ""
+
+
+## The message on show, or "" for none.
+func message() -> String:
+	return _message.text if _message.visible else ""
 
 
 ## Shows the sound level (Sfx.Level) on the speaker.
@@ -213,6 +239,8 @@ func _tap(kind: String, part: StringName) -> void:
 		done = _run.load_pack(kind) or _run.buy(kind)
 	else:
 		done = _run.buy(kind)
+	if done:
+		planet_chosen.emit(kind)
 	if not done:
 		_slots[kind].nudge()
 		tap_refused.emit(kind)
