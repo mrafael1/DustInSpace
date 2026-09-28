@@ -171,7 +171,7 @@ func test_a_run_starts_with_the_telescope_loaded_and_aiming() -> void:
 	var telescope: Telescope = main.get_node("Telescope")
 	assert_ne(telescope.seated_pack(), "")
 	assert_true(telescope.is_aiming())
-	assert_eq((main.get_node("HUD") as Hud).message(), Telescope.AIM_MESSAGE, "with the hint showing")
+	assert_eq((main.get_node("HUD") as Hud).message(), "", "no hint text: the reticle says it")
 	assert_true(ScreenZones.HUD.grow(10).has_point(telescope.origin()), "in the HUD's row")
 
 

@@ -125,7 +125,10 @@ func test_the_seated_planet_shows_in_a_window_on_the_barrel() -> void:
 	var u: int = (Telescope.WINDOW_FROM + Telescope.WINDOW_TO) / 2
 	assert_true(Palette.BLUE_PACK.has(scope._barrel_colour(u, 0, "blue")))
 	assert_true(Palette.RED_PACK.has(scope._barrel_colour(u, 0, "red")))
-	assert_eq(scope._barrel_colour(u, 0, ""), Palette.M4, "empty: plain barrel")
+	assert_eq(scope._barrel_colour(u, 0, ""), Palette.M1, "empty: dark neutral glass")
+	for kind: String in ["", "blue", "red"]:
+		for v: int in [-1, 0, 1]:
+			assert_ne(scope._barrel_colour(u, v, kind), Palette.M4, "the window is always there (%s)" % kind)
 	assert_eq(scope._barrel_colour(Telescope.MOUTH - 1, 0, "blue"), Palette.N0, "the lens stays a dark opening")
 	assert_eq(scope._barrel_colour(Telescope.MOUTH - 1, 0, ""), Palette.N0)
 

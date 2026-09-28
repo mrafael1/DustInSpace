@@ -25,7 +25,6 @@ signal empty_tapped
 signal message_shown(text: String)
 
 const EMPTY_MESSAGE: String = "LOAD A PLANET FIRST"
-const AIM_MESSAGE: String = "TAP THE SKY TO LAUNCH"
 ## The tube turns in this many whole-pixel direction frames around the pivot.
 const DIRECTIONS: int = 16
 ## Where the barrel pivots on the tripod's head. The tripod never moves; only the barrel turns.
@@ -42,7 +41,8 @@ const HOOD_HALF: int = 4
 const STRAPS: Array[int] = [-4, 9]
 ## The lens opening: the hood's last rows inside its rim, dark and hollow.
 const LENS_DEPTH: int = 2
-## The loaded planet's window on the barrel (u from..to, 3 px across), in the pack's own colours.
+## The loaded planet's window on the barrel (u from..to, 3 px across): the pack's own colours, or
+## dark neutral glass when the telescope is empty.
 const WINDOW_FROM: int = 2
 const WINDOW_TO: int = 6
 ## Loading: the planet drops along the barrel from LOAD_FROM px past the mouth to LOAD_TO px inside
@@ -193,7 +193,6 @@ func start_aim() -> bool:
 	_aiming = true
 	_pose()
 	aim_started.emit()
-	message_shown.emit(AIM_MESSAGE)
 	return true
 
 
@@ -430,7 +429,9 @@ func _barrel_colour(u: int, v: int, loaded: String) -> Variant:
 	if u < HOOD_BACK:
 		if absi(v) > BARREL_HALF:
 			return null
-		if loaded != "" and u >= WINDOW_FROM and u <= WINDOW_TO and absi(v) <= 1:
+		if u >= WINDOW_FROM and u <= WINDOW_TO and absi(v) <= 1:
+			if loaded == "":
+				return Palette.M3 if v == 1 and u > WINDOW_FROM and u < WINDOW_TO else Palette.M1
 			var ramp: Array[Color] = Palette.RED_PACK if loaded == "red" else Palette.BLUE_PACK
 			return ramp[3 + v] if u > WINDOW_FROM and u < WINDOW_TO else ramp[1]
 		if v == BARREL_HALF or STRAPS.has(u):
