@@ -17,9 +17,9 @@ each; the bots link every combo they can before that happens, best first. The Su
 scorpio.sun_target there (sun_target without it).
 Not modelled: where stars are. The bots link any stars in the sky, so scorpio.max_link_distance
 (each step of a link must be at most that long) is ignored: real Scorpio runs can only do worse.
-Orion (#64, the Tail map): from launch orion.first_mark_launch, after each burst he marks one
-random sky star; on the next launch, before the pack opens, it's destroyed for nothing if it's
-still in the sky. The bots don't play around the mark: when a combo takes stars of the marked
+Orion (#64, the Tail map): from launch orion.first_mark_launch, after each move he marks one
+random sky star: after each burst, and after a combo when no mark is left; on the next launch,
+before the pack opens, it's destroyed for nothing if it's still in the sky. The bots don't play around the mark: when a combo takes stars of the marked
 star's size they use the others first (pessimistic), unless --orion-rescue (they use it first).
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
@@ -157,6 +157,9 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False):
                     return True, opened, big_bangs
             elif light >= cfg["sun_target"]:
                 return True, opened, big_bangs
+            # A combo is a move: with no mark left, Orion marks again.
+            if first_mark and opened >= first_mark and marked is None and sky:
+                marked = random.choice(sky)
         if not packs:
             choice = policy(cfg, sky, dust)
             if choice is None:
