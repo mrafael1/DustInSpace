@@ -22,10 +22,13 @@ Orion (#64, the Tail map): from launch orion.first_mark_launch he keeps one rand
 destroyed for nothing, unless a Sun clear takes the sky first. After every combo he marks a new one.
 Launches never shoot. The bots don't play around the mark: when a combo takes stars of the marked
 star's size they use the others first (pessimistic), unless --orion-rescue (they use it first).
+Orion's volley (#70, the Body map): every volley.interval-th combo, once it and any Sun clear
+resolve, destroys a random volley.fraction of the sky's stars (rounded up) for nothing; the winning
+combo skips it. The bots don't play around it (they never hold a combo back or launch first).
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
 """
-import argparse, json, random, pathlib, statistics
+import argparse, json, math, random, pathlib, statistics
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SIZES = ("small", "medium", "big")
@@ -40,7 +43,11 @@ MAPS = {
     "scorpio": (LANDMARK_SIZES, STARTING_LIT, False),
     "stinger": (("small", "small", "medium", "small", "big", "medium"), (0,), False),
     "tail": (("medium", "small", "medium", "small", "big", "small"), (0,), True),
+    "body": (("big", "medium", "big", "medium", "small", "small", "small", "medium", "small"), (0,), False),
 }
+# The maps where Orion looses his volley (#70).
+VOLLEY_MAPS = {"body"}
+VOLLEY = False
 MAX_LANDMARKS_PER_COMBO = 1
 
 
@@ -109,6 +116,10 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False):
     # Orion: the size of the marked star, or None; and the launch he marks first (0: never).
     marked = None
     first_mark = cfg.get("orion", {}).get("first_mark_launch", 0) if on and ORION else 0
+    # The volley: combos between volleys (0: none), the share it takes, and combos counted so far.
+    volley_every = cfg.get("volley", {}).get("interval", 0) if on and VOLLEY else 0
+    volley_share = cfg.get("volley", {}).get("fraction", 0.0)
+    counted = 0
     while True:
         # resolve every available combination (best first)
         while True:
@@ -161,6 +172,13 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False):
             if marked is not None and not saved:
                 sky.remove(marked)
             marked = None
+            # Orion's volley: every volley_every-th combo destroys a share of the sky, rounded up.
+            if volley_every:
+                counted += 1
+                if counted == volley_every:
+                    counted = 0
+                    for _ in range(min(math.ceil(len(sky) * volley_share - 1e-9), len(sky))):
+                        sky.pop(random.randrange(len(sky)))
             if first_mark and opened >= first_mark and sky:
                 marked = random.choice(sky)
         if not packs:
@@ -207,8 +225,9 @@ def main():
     ap.add_argument("--orion-rescue", action="store_true",
                     help="Orion's maps: the bots use the marked star first when a combo takes its size")
     a = ap.parse_args()
-    global LANDMARK_SIZES, STARTING_LIT, ORION
+    global LANDMARK_SIZES, STARTING_LIT, ORION, VOLLEY
     LANDMARK_SIZES, STARTING_LIT, ORION = MAPS[a.map]
+    VOLLEY = a.map in VOLLEY_MAPS
     if a.seed is not None:
         random.seed(a.seed)
     cfg = load(a.set)
@@ -221,6 +240,9 @@ def main():
         if ORION and cfg.get("orion", {}).get("first_mark_launch"):
             print(f"  Orion marks from launch {cfg['orion']['first_mark_launch']}; the bots "
                   f"{'rescue the mark when they can' if a.orion_rescue else 'use the marked star last'}")
+        if VOLLEY and cfg.get("volley", {}).get("interval"):
+            print(f"  Orion's volley every {cfg['volley']['interval']} combos takes "
+                  f"{cfg['volley']['fraction']:.0%} of the sky (rounded up); the bots don't play around it")
         if scorpio.get("max_link_distance"):
             print(f"  not modelled: max_link_distance {scorpio['max_link_distance']} (the bots ignore where stars are)")
     for name, pol in POLICIES.items():

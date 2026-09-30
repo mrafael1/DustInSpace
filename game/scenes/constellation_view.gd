@@ -295,6 +295,8 @@ static func scorpion_drawing(map: StarMap = null) -> Array[Vector2i]:
 			strokes = _stinger_strokes(m)
 		StarMap.Drawing.TAIL:
 			strokes = _tail_strokes(m)
+		StarMap.Drawing.BODY:
+			strokes = _body_strokes(m)
 		_:
 			strokes = _scorpion_strokes(m)
 	var pixels: Array[Vector2i] = []
@@ -369,6 +371,35 @@ static func _tail_strokes(m: StarMap) -> Array:
 	for k: int in spine.size() - 1:
 		var radius: float = 6.0 if k < 2 else 5.0
 		strokes.append(_circle((Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0, radius))
+	return strokes
+
+
+## A body map (#70): its spine is landmarks 0-4 and the rest are legs. The body's plated sides run
+## along the spine, widest in the middle, with a cross plate at each inner spine star; each leg
+## star grows a jointed claw out past it.
+static func _body_strokes(m: StarMap) -> Array:
+	var marks: Array[Vector2i] = m.landmarks
+	var spine: Array[int] = m.path(0, 4)
+	var widths: Array[float] = [5.0, 8.0, 9.0, 8.0, 5.0]
+	var strokes: Array = []
+	for side: float in [-1.0, 1.0]:
+		var edge: Array = []
+		for k: int in spine.size():
+			edge.append(Vector2(marks[spine[k]]) + _body_normal(m, spine, k) * widths[k] * side)
+		strokes.append(edge)
+	for k: int in range(1, spine.size() - 1):
+		var mid: Vector2 = (Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0
+		var normal: Vector2 = _body_normal(m, spine, k)
+		var half: float = (widths[k] + widths[k + 1]) / 2.0
+		strokes.append([mid - normal * half, mid + normal * half])
+	for leg: int in m.count():
+		if spine.has(leg):
+			continue
+		var root: Vector2 = Vector2(marks[m.neighbours(leg)[0]])
+		var out: Vector2 = (Vector2(marks[leg]) - root).normalized()
+		var knee: Vector2 = Vector2(marks[leg]) + out * 5.0
+		var down := Vector2(-out.y, out.x) if out.x < 0.0 else Vector2(out.y, -out.x)
+		strokes.append([knee, knee + out * 3.0 + down * 4.0, knee + out * 2.0 + down * 7.0])
 	return strokes
 
 

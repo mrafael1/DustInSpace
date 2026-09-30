@@ -49,6 +49,8 @@ const MESSAGE_TIME: float = 1.6
 ## Orion's first mark of a run (#64) says what it means, a little longer.
 const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
+## Orion's volley countdown (#70) sits centred this far from his figure's top-left: above his head.
+const VOLLEY_COUNTER_OFFSET := Vector2i(15, -8)
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -70,6 +72,8 @@ var _rest: Dictionary[Label, Vector2] = {}
 var _message_left: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
+## The volley countdown above Orion, shown on stages with a volley.
+var _volley := VolleyCounter.new()
 
 @onready var _dust: Label = $Dust
 @onready var _slot_layer: Node2D = $Slots
@@ -84,6 +88,9 @@ func _ready() -> void:
 	_message.label_settings = HudText.primary(Palette.C1)
 	_message.position = Vector2(0, MESSAGE_Y)
 	_message.visible = false
+	_volley.name = "VolleyCountdown"
+	_volley.visible = false
+	add_child(_volley)
 
 
 func _process(delta: float) -> void:
@@ -118,6 +125,10 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer.event_played.connect(_on_event_played)
 	_build_slots(run.balance.pack_kinds())
 	_orion_told = false
+	_volley.visible = run.volley != null
+	if run.volley != null:
+		_volley.position = Vector2(run.sky_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
+		_volley.reset(run.volley.links_left(), run.volley.interval)
 	_press([])
 	refresh()
 
@@ -275,6 +286,12 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_dust_in_flight += event.args[1]
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
+		&"volley_counted":
+			_volley.count(event.args[0])
+			return
+		&"volley_fired":
+			_volley.fire()
+			return
 		&"star_marked":
 			if not _orion_told:
 				_orion_told = true
@@ -283,6 +300,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		_:
 			return
 	_show()
+
+
+func volley_countdown() -> String:
+	return _volley.text() if _volley.visible else ""
 
 
 ## The loaded marker needs a pack left to show: RunState empties the launcher without a signal

@@ -46,6 +46,9 @@ const EXPLODE_STAGGER: float = 0.06
 ## scaling a phone shows about 2 pt per native px, so a 22 px circle is 44 pt.
 const HIT_RADIUS: int = 11
 
+## Orion's volley intro (#70): how long its stars show before the volley takes them.
+const INTRO_HOLD: float = 0.9
+
 var _run: RunState
 var _sequencer: EventSequencer
 var _views: Dictionary[int, StarView] = {}
@@ -101,7 +104,9 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_completion_waiting = false
 	_rekindle_landmark = -1
 	_constellation.setup(run)
-	_orion.setup(run.orion != null, run.sky_rect)
+	_orion.setup(run.orion != null or run.volley != null, run.sky_rect)
+	if run.volley != null:
+		_orion.show_volley_charge(run.volley.links_left(), run.volley.interval)
 	for star: Star in run.stars:
 		_spawn(star)
 
@@ -215,6 +220,15 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_sequencer.hold(OrionView.MARK_TIME)
 		&"star_shot":
 			_shoot(event.args[0])
+		&"volley_intro_placed":
+			for star: Star in event.args[0]:
+				_spawn(star)
+			# A beat to see the stars before the intro volley takes them.
+			_sequencer.hold(INTRO_HOLD)
+		&"volley_fired":
+			_volley(event.args[0])
+		&"volley_counted":
+			_orion.show_volley_charge(event.args[0], _run.volley.interval)
 	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
 	if _orion.marked() != null and not _views.values().has(_orion.marked()):
 		_orion.clear_mark()
@@ -294,7 +308,7 @@ func _show_link() -> void:
 	_link_layer.show_reach(points[_gesture.selected.size() - 1] if open else Vector2i.ZERO, reach if open else 0)
 	_show_preview()
 	# Orion readies his bow while the link would leave his mark behind.
-	_orion.ready_bow(_run != null and _run.link_shoots(_gesture.selected))
+	_orion.ready_bow(_run != null and (_run.link_shoots(_gesture.selected) or _run.link_fires_volley(_gesture.selected)))
 
 
 ## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it
@@ -414,6 +428,24 @@ func _shoot(star: Star) -> void:
 		view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
 		view.explode(landing)
 	_sequencer.hold(landing + StarView.DISSOLVE_TIME * 0.5)
+
+
+## Orion's volley: an arrow flies to each star it takes, which bursts as its arrow lands; the next
+## events wait for the last.
+func _volley(stars: Array[Star]) -> void:
+	var targets: Array[Vector2i] = []
+	for star: Star in stars:
+		targets.append(star.position)
+	var landings: Array[float] = _orion.fire_volley(targets)
+	var last: float = OrionView.DRAW_TIME
+	for i: int in stars.size():
+		last = landings[i]
+		var view: StarView = _views.get(stars[i].id)
+		if view != null:
+			_views.erase(stars[i].id)
+			view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
+			view.explode(landings[i])
+	_sequencer.hold(last + StarView.DISSOLVE_TIME * 0.5)
 
 
 func _dissolve(stars: Array[Star]) -> void:

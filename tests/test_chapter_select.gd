@@ -70,6 +70,7 @@ func test_a_won_stage_can_be_replayed() -> void:
 	var chapter := Chapter.new()
 	chapter.complete(0)
 	chapter.complete(1)
+	chapter.complete(2)
 	chapter.complete(Chapter.FINAL)
 	chart.setup(chapter)
 	assert_eq(chart.selected(), Chapter.FINAL, "all built stages won: the last one")
@@ -353,6 +354,26 @@ func test_the_tail_opens_after_the_stinger_and_plays_its_own_map_with_orion() ->
 	app.open_stage(1)
 	assert_eq(app.stage().run.scorpio.map.id, "tail")
 	assert_not_null(app.stage().run.orion, "Orion hunts the Tail")
+
+
+func test_the_body_opens_after_the_tail_and_plays_its_own_map_with_the_volley() -> void:
+	var app: App = _app()
+	app.open_stage(0)
+	app.stage().run.run_won.emit()
+	app.back_to_chart()
+	app.open_stage(2)
+	assert_null(app.stage(), "locked before the Tail is won")
+	app.open_stage(1)
+	app.stage().run.run_won.emit()
+	app.back_to_chart()
+	assert_eq(app.chapter.state(2), Chapter.PointState.AVAILABLE)
+	app.open_stage(2)
+	assert_eq(app.stage().run.scorpio.map.id, "body")
+	assert_not_null(app.stage().run.volley, "Orion's volley on the Body")
+	assert_null(app.stage().run.orion, "no single marks there")
+	app.stage().run.run_won.emit()
+	app.back_to_chart()
+	assert_true(app.chapter.is_completed(2), "its win is recorded")
 
 
 func test_a_loss_changes_nothing() -> void:

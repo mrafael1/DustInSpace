@@ -42,6 +42,14 @@ var scorpio_max_link_distance: int = 0
 ## Orion (#64): the launch whose burst Orion marks first, on maps that bring him (the Tail).
 ## Optional in the file: without an "orion" block he never marks (0).
 var orion_first_mark_launch: int = 0
+## Orion's volley (#70), on maps that bring it (the Body): successful links between volleys, and
+## the share of loose stars each destroys (rounded up). Optional: without a "volley" block there is
+## none (interval 0).
+var volley_interval: int = 0
+var volley_fraction: float = 0.0
+## The stars already in the sky when a volley stage opens, which its intro volley destroys.
+## Optional in the block: 0 = no intro.
+var volley_intro_stars: int = 0
 
 var errors: Array[String] = []
 
@@ -100,6 +108,14 @@ func _parse(data: Dictionary) -> void:
 		_parse_scorpio(_read_dict(data, "scorpio", ""))
 	if data.has("orion"):
 		orion_first_mark_launch = _read_int(_read_dict(data, "orion", ""), "first_mark_launch", "orion.", 1)
+	if data.has("volley"):
+		var volley: Dictionary = _read_dict(data, "volley", "")
+		volley_interval = _read_int(volley, "interval", "volley.", 1)
+		volley_fraction = _read_chance(volley, "fraction", "volley.")
+		if volley.has("fraction") and volley_fraction <= 0.0:
+			errors.append("volley.fraction: must be above 0")
+		if volley.has("intro_stars"):
+			volley_intro_stars = _read_int(volley, "intro_stars", "volley.", 0)
 
 
 func _parse_packs(raw: Dictionary) -> void:
