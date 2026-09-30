@@ -7,6 +7,9 @@ extends Node2D
 ## his bow held drawn while it stands. While the player traces a link that would leave the marked
 ## star behind, his bow readies: the figure lights up and the sight line holds on the star. Then his
 ## arrow flying to it.
+## On the Body (#70) he looses volleys instead: his bow charges as the countdown drops (at rest, then
+## an arrow nocked, then three nocked and the bow blinking bright on the last link; steady bright
+## while a traced link would loose it), then a fan of arrows flies to the stars the volley takes.
 ## Owns no rules: SkyView tells it what the events say.
 
 ## Orion bent his bow: the arrow is off. Feedback only (sound).
@@ -31,6 +34,12 @@ const PULSE_PERIOD: float = 1.0
 const PULSE_OUT: float = 0.12
 ## Each reticle tick's length, pointing in at the star.
 const TICK: int = 3
+## The volley's arrows leave VOLLEY_STAGGER apart. On the last link before it the bow blinks bright
+## and dim, CHARGE_BLINK each. Nocked arrows are NOCK px long, pointing out from the bow hand.
+const VOLLEY_STAGGER: float = 0.05
+const CHARGE_BLINK: float = 0.3
+const NOCK: int = 4
+const NOCKS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(2, -1), Vector2i(2, 1)]
 ## Where the figure sits: this far into the play sky from its top-left corner.
 const FIGURE_AT := Vector2i(6, 6)
 ## Orion's stars (figure coordinates), laid out as in the sky (RA/Dec at about 1.7 px a degree):
@@ -55,8 +64,14 @@ var _arrow_to: Vector2i = Vector2i.ZERO
 var _arrow_age: float = -1.0
 ## The shot star's size: its crosshair stays on it until the arrow lands.
 var _arrow_size: int = 0
-## The traced link would leave the marked star behind.
+## The traced link would leave the marked star behind (or loose the volley).
 var _bow_ready: bool = false
+## The volley's charge: 0 at rest, 1 building, 2 on the last link before it (VOLLEY_* only).
+var _charge: int = 0
+var _charge_age: float = 0.0
+## The volley in flight: where each arrow goes, and how long since the bow was drawn (-1: none).
+var _volley_to: Array[Vector2i] = []
+var _volley_age: float = -1.0
 
 @onready var _figure_layer: Node2D = get_node("../FigureLayer")
 
@@ -76,6 +91,9 @@ func setup(hunts: bool, sky: Rect2i) -> void:
 	_marked = null
 	_arrow_age = -1.0
 	_bow_ready = false
+	_charge = 0
+	_volley_to.clear()
+	_volley_age = -1.0
 	queue_redraw()
 	_figure_layer.queue_redraw()
 
@@ -118,7 +136,64 @@ func ready_bow(on: bool) -> void:
 
 
 func is_bow_ready() -> bool:
-	return _bow_ready and marked() != null
+	return _bow_ready and (marked() != null or _charge > 0)
+
+
+## The volley's countdown: `links_left` successful links until it (of `interval`).
+func show_volley_charge(links_left: int, interval: int) -> void:
+	var charge: int = 0
+	if links_left <= 1:
+		charge = 2
+	elif links_left < interval:
+		charge = 1
+	if charge != _charge:
+		_charge = charge
+		_charge_age = 0.0
+		_figure_layer.queue_redraw()
+
+
+func volley_charge() -> int:
+	return _charge
+
+
+## Orion looses a volley at `targets`: the bow draws, then the arrows leave VOLLEY_STAGGER apart.
+## Returns when each lands, in order.
+func fire_volley(targets: Array[Vector2i]) -> Array[float]:
+	_volley_to = targets.duplicate()
+	_volley_age = 0.0
+	_bow_ready = false
+	var landings: Array[float] = []
+	for i: int in targets.size():
+		landings.append(DRAW_TIME + i * VOLLEY_STAGGER + FLIGHT_TIME)
+	queue_redraw()
+	_figure_layer.queue_redraw()
+	return landings
+
+
+func is_volleying() -> bool:
+	return _volley_age >= 0.0
+
+
+## The volley's arrows now: each one's pixels, tip last (none before it leaves or once it lands).
+func volley_arrows() -> Array[Array]:
+	var arrows: Array[Array] = []
+	for i: int in _volley_to.size():
+		var age: float = _volley_age - DRAW_TIME - i * VOLLEY_STAGGER
+		if age >= 0.0 and age < FLIGHT_TIME:
+			arrows.append(_arrow_line(bow_hand(), _volley_to[i], age / FLIGHT_TIME))
+	return arrows
+
+
+## The arrows nocked on the bow now (charging): one while building, all NOCKS on the last link.
+func nocked_pixels() -> Array[Vector2i]:
+	var pixels: Array[Vector2i] = []
+	if not _figure_shown or _charge == 0 or is_volleying():
+		return pixels
+	var count: int = 1 if _charge == 1 else NOCKS.size()
+	for n: int in count:
+		var dir: Vector2 = Vector2(NOCKS[n]).normalized()
+		pixels.append_array(LinkLayer.line_pixels(bow_hand(), bow_hand() + Vector2i((dir * NOCK).round())))
+	return pixels
 
 
 ## A new mark is being acquired: the figure flashes and the sight line shows.
@@ -160,6 +235,21 @@ func advance(delta: float) -> void:
 			_arrow_age = -1.0
 		queue_redraw()
 		_figure_layer.queue_redraw()
+	if _volley_age >= 0.0:
+		var drawn: bool = _volley_age >= DRAW_TIME
+		_volley_age += delta
+		if not drawn and _volley_age >= DRAW_TIME:
+			arrow_loosed.emit()
+		if _volley_age >= DRAW_TIME + maxi(_volley_to.size() - 1, 0) * VOLLEY_STAGGER + FLIGHT_TIME:
+			_volley_age = -1.0
+			_volley_to.clear()
+		queue_redraw()
+		_figure_layer.queue_redraw()
+	if _charge == 2:
+		var blink: int = int(_charge_age / CHARGE_BLINK)
+		_charge_age += delta
+		if int(_charge_age / CHARGE_BLINK) != blink:
+			_figure_layer.queue_redraw()
 
 
 ## The crosshair around a star of `size`, `lock` px further out than at rest: a tick of TICK pixels
@@ -206,10 +296,14 @@ func sight_pixels() -> Array[Vector2i]:
 func arrow_pixels() -> Array[Vector2i]:
 	if _arrow_age < DRAW_TIME:
 		return []
-	var k: float = minf((_arrow_age - DRAW_TIME) / FLIGHT_TIME, 1.0)
-	var from := Vector2(_arrow_from)
-	var tip: Vector2 = from.lerp(Vector2(_arrow_to), k)
-	var back: Vector2 = (from - Vector2(_arrow_to)).normalized() * SHAFT
+	return _arrow_line(_arrow_from, _arrow_to, minf((_arrow_age - DRAW_TIME) / FLIGHT_TIME, 1.0))
+
+
+## An arrow `k` of the way from `from` to `to`: its shaft trails SHAFT px behind the tip, tip last.
+static func _arrow_line(from_at: Vector2i, to: Vector2i, k: float) -> Array[Vector2i]:
+	var from := Vector2(from_at)
+	var tip: Vector2 = from.lerp(Vector2(to), k)
+	var back: Vector2 = (from - Vector2(to)).normalized() * SHAFT
 	var tail: Vector2 = tip + back if tip.distance_to(from) > SHAFT else from
 	return LinkLayer.line_pixels(Vector2i(tail.round()), Vector2i(tip.round()))
 
@@ -220,7 +314,8 @@ func figure_pixels() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	if not _figure_shown:
 		return dots
-	var hunting: bool = is_shooting() or is_aiming() or is_bow_ready()
+	var blinking_on: bool = _charge == 2 and int(_charge_age / CHARGE_BLINK) % 2 == 0
+	var hunting: bool = is_shooting() or is_aiming() or is_bow_ready() or is_volleying() or blinking_on
 	var line_colour: Color = Palette.N5 if hunting else Palette.N3
 	for pair: Vector2i in LINES:
 		for p: Vector2i in LinkLayer.line_pixels(BODY[pair.x], BODY[pair.y]):
@@ -229,7 +324,7 @@ func figure_pixels() -> Dictionary[Vector2i, Color]:
 		dots[_figure_at + p] = line_colour
 	for p: Vector2i in LinkLayer.line_pixels(BODY[1], BOW_HAND):
 		dots[_figure_at + p] = line_colour
-	var bow_colour: Color = Palette.N10 if hunting else (Palette.N6 if marked() != null else Palette.N4)
+	var bow_colour: Color = Palette.N10 if hunting else (Palette.N6 if marked() != null or _charge > 0 else Palette.N4)
 	for k: int in range(1, BOW.size()):
 		for p: Vector2i in LinkLayer.line_pixels(BOW[k - 1], BOW[k]):
 			dots[_figure_at + p] = bow_colour
@@ -250,15 +345,19 @@ func _draw() -> void:
 	if is_shooting():
 		for p: Vector2i in reticle_pixels(_arrow_size):
 			_dot(_arrow_to + p, Palette.S4)
-	var arrow: Array[Vector2i] = arrow_pixels()
-	for i: int in arrow.size():
-		_dot(arrow[i], Palette.M6 if i >= arrow.size() - 2 else Palette.M5)
+	var arrows: Array[Array] = volley_arrows()
+	arrows.append(arrow_pixels())
+	for arrow: Array in arrows:
+		for i: int in arrow.size():
+			_dot(arrow[i], Palette.M6 if i >= arrow.size() - 2 else Palette.M5)
 
 
 func _draw_figure() -> void:
 	var dots: Dictionary[Vector2i, Color] = figure_pixels()
 	for p: Vector2i in dots:
 		_figure_layer.draw_rect(Rect2(Vector2(p), Vector2.ONE), dots[p])
+	for p: Vector2i in nocked_pixels():
+		_figure_layer.draw_rect(Rect2(Vector2(p), Vector2.ONE), Palette.M5)
 
 
 func _dot(p: Vector2i, colour: Color) -> void:
