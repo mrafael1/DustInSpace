@@ -19,7 +19,8 @@ extends Node2D
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
 ## Orion (#64): on stages he hunts, the OrionLayer shows his figure, the reticle on the star he
 ## marked, his bow readying while a traced link would leave it behind, and his arrow; the shot star
-## bursts as the arrow lands, once that link resolves.
+## bursts as the arrow lands, once that link resolves. On the Heart (#71) it shows his hunting
+## area's ring; each launch, once the pack's stars are out, his arrow strikes it.
 
 ## A star joined the link being traced; `count` stars are in it now. Feedback only (sound).
 signal star_selected(count: int)
@@ -104,7 +105,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_completion_waiting = false
 	_rekindle_landmark = -1
 	_constellation.setup(run)
-	_orion.setup(run.orion != null or run.volley != null, run.sky_rect)
+	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.sky_rect)
 	if run.volley != null:
 		_orion.show_volley_charge(run.volley.links_left(), run.volley.interval)
 	for star: Star in run.stars:
@@ -229,6 +230,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_volley(event.args[0])
 		&"volley_counted":
 			_orion.show_volley_charge(event.args[0], _run.volley.interval)
+		&"area_struck":
+			_strike_area(event.args[1])
+		&"area_marked":
+			_orion.mark_area(event.args[0], event.args[1])
+			_sequencer.hold(OrionView.MARK_TIME)
 	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
 	if _orion.marked() != null and not _views.values().has(_orion.marked()):
 		_orion.clear_mark()
@@ -429,6 +435,19 @@ func _shoot(star: Star) -> void:
 		_views.erase(star.id)
 		view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
 		view.explode(landing)
+	_sequencer.hold(landing + StarView.DISSOLVE_TIME * 0.5)
+
+
+## Orion's hunting area (#71): his arrow flies to the ring's centre, and the stars inside burst as
+## it lands; the next events (the new ring) wait for it.
+func _strike_area(stars: Array[Star]) -> void:
+	var landing: float = _orion.strike_area()
+	for star: Star in stars:
+		var view: StarView = _views.get(star.id)
+		if view != null:
+			_views.erase(star.id)
+			view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
+			view.explode(landing)
 	_sequencer.hold(landing + StarView.DISSOLVE_TIME * 0.5)
 
 
