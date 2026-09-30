@@ -5,8 +5,8 @@ extends RefCounted
 
 const DEFAULT_PATH: String = "res://game/config/balance.json"
 const COMBO_KEYS: Array[String] = ["small_triple", "medium_triple", "big_triple", "sequence"]
-## The volley blocks a map can name (StarMap.volley): the Body's, and the Heart's own.
-const VOLLEY_BLOCKS: Array[String] = ["volley", "heart_volley"]
+## The volley blocks a map can name (StarMap.volley): the Body's so far.
+const VOLLEY_BLOCKS: Array[String] = ["volley"]
 
 
 class PackDef:
@@ -54,9 +54,12 @@ var scorpio_max_link_distance: int = 0
 ## Orion (#64): the launch whose burst Orion marks first, on maps that bring him (the Tail).
 ## Optional in the file: without an "orion" block he never marks (0).
 var orion_first_mark_launch: int = 0
-## Orion's volleys (#70, #71), by block name: each map that brings one names its block (the Body
-## "volley", the Heart "heart_volley"). Optional: without its block a map has no volley.
+## Orion's volleys (#70), by block name: each map that brings one names its block (the Body's is
+## "volley"). Optional: without its block a map has no volley.
 var volleys: Dictionary[String, VolleyDef] = {}
+## Orion's hunting area (#71), on maps that bring it (the Heart): the circle's radius in native px.
+## Optional: without a "hunt" block there is none (0).
+var hunt_radius: int = 0
 
 var errors: Array[String] = []
 
@@ -120,6 +123,8 @@ func _parse(data: Dictionary) -> void:
 		_parse_scorpio(_read_dict(data, "scorpio", ""))
 	if data.has("orion"):
 		orion_first_mark_launch = _read_int(_read_dict(data, "orion", ""), "first_mark_launch", "orion.", 1)
+	if data.has("hunt"):
+		hunt_radius = _read_int(_read_dict(data, "hunt", ""), "radius", "hunt.", 1)
 	for block: String in VOLLEY_BLOCKS:
 		if data.has(block):
 			volleys[block] = _parse_volley(_read_dict(data, block, ""), block + ".")

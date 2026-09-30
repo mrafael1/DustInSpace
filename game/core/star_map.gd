@@ -22,11 +22,14 @@ var sizes: Array[int] = []
 var starting_lit: Array[int] = []
 var drawing: Drawing = Drawing.SCORPION
 ## Orion (#64) hunts this stage: he marks a loose star; the next link saves it or has it shot. With
-## a volley too (the Heart, #71), both threats run.
+## a volley too, both threats run (the Claws are planned to bring every one).
 var orion: bool = false
 ## Orion looses a volley (#70) every few links on this stage: the balance.json block that tunes it
 ## (Balance.VOLLEY_BLOCKS), or "" for none.
 var volley: String = ""
+## Orion marks a hunting area (#71) here: each launch, once its pack bursts, his arrow strikes it
+## and destroys the loose stars inside, then he marks a new one.
+var hunt: bool = false
 
 
 ## The full Scorpio (#61): every star of Scorpius's figure.
@@ -94,8 +97,8 @@ static func body() -> StarMap:
 ## The Heart, stage 4 (#71): seven stars. A spine of five climbs from the lower left (towards the
 ## Body) through Antares (big, in the middle) to sigma and on to the upper right (towards the
 ## Claws); Antares also branches up-left and down-right, so four strings meet at the heart. Orion
-## keeps the top left and brings both his threats: the Tail's single mark and the Body's volley,
-## tuned by its own "heart_volley" block. The lower-left star starts lit: six to light.
+## keeps the top left and hunts an area: each launch strikes the circle he marked. The lower-left
+## star starts lit: six to light.
 static func heart() -> StarMap:
 	var map := StarMap.new()
 	map.id = "heart"
@@ -105,8 +108,7 @@ static func heart() -> StarMap:
 	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM]
 	map.starting_lit = [0]
 	map.drawing = Drawing.HEART
-	map.orion = true
-	map.volley = "heart_volley"
+	map.hunt = true
 	return map
 
 
