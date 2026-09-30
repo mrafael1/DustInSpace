@@ -71,7 +71,7 @@ The game opens on Scorpio's chart: the constellation drawn as a pixel-art star c
 - **Stage label:** no box: the selected stage's name sits between two thin rules tipped with little stars (warm when it can be played), with PLAY below in the game's button style (N0 fill, C2 border, C1 text).
 - **Playing:** PLAY (REPLAY once won) opens the selected stage. Parts not built yet say "COMING SOON". In a stage, MAP (top-right, and on the end screen) goes back to the chart, and the end screen names the map ("STINGER COMPLETE").
 - **Progression:** a stage counts as won as soon as the core decides it, and is saved on the device (`user://progress.json`). The chart's progress is separate from the constellation built inside a stage. No upgrades, currencies or buffs.
-- **Built so far:** the Stinger, the Tail and the final. Body, Heart and Claws come next, each with its own map.
+- **Built so far:** the Stinger, the Tail, the Body and the final. Heart and Claws come next, each with its own map.
 
 ### Tail stage: Orion the hunter (#64, a prototype)
 
@@ -87,6 +87,21 @@ The **Tail** is stage 2: six stars curling down the right of the sky and along t
 - **Tuning:** `orion.first_mark_launch` (1) in `balance.json`. A map brings Orion (`StarMap.orion`), the balance says when he starts; without an `orion` block he never marks.
 - **Simulator (`--map tail`):** the bots don't play around the mark; when a combo takes stars of its size they use the others first, so almost every combo sacrifices the target. Tail with Orion from launch 1: about 4.4 packs (blue only) / 4.2 (red when affordable), 99.7% / 99.9% won; `--orion-rescue` (the bots use the marked star first when a combo takes its size) gives 3.9 / 3.8, all won; from launch 2, 4.3 / 4.0; without Orion 3.8 / 3.7. The bots never launch to rescue or hold a combo back, so real play sits between the two.
 - **Sound:** a low reject tone as he marks, a high whoosh as the arrow leaves, the burst sound as it hits (existing cues, pitched).
+
+### Body stage: Orion's volley (#70, a prototype)
+
+The **Body** is stage 3, unlocked by winning the Tail: nine stars, more connected than the Tail. A spine of five runs from the upper right down to the lower left, and its second and third stars each branch to a leg on either side, so two stars join four strings (eight strings in all). The spine's top star starts lit, so eight are left to light. Its finished drawing is the body's plated sides along the spine, a cross plate at each inner spine star, and a jointed claw past each leg star. Orion's figure keeps the top-left corner, and his twist here is the **volley**, which replaces the Tail's single mark:
+
+- **Every third successful link looses a volley.** The link resolves first (its combo pays, landmarks light, a full Sun rekindles and clears the sky). Then Orion's arrows destroy half the loose sky stars, rounded up, for nothing. Landmarks and the constellation are never hit. An empty sky loses nothing. Either way the countdown starts again.
+- **What counts:** only successful links. Launches, purchases, aiming, invalid links and cancelled gestures don't advance the countdown, so launching stays the way to refill the sky. The link that completes the stage skips the volley (the run is won). A Sun rekindle clears the sky before the volley, so nothing is paid and destroyed twice.
+- **No marks on the Body:** Orion doesn't mark single stars or fire the Tail's single shot here. The Heart (stage 4) is planned to combine both; that is not built.
+- **Countdown:** above Orion's figure, "VOLLEY IN 3", "VOLLEY IN 2", then "VOLLEY NEXT" in ember on the last link. His bow charges with it: at rest, then drawn with one arrow nocked, then a fan of three arrows nocked and the bow blinking bright on the last link. While the player traces a full link that would loose the volley, the bow holds steady and bright.
+- **The volley:** the bow draws, then one arrow per victim leaves the bow hand, 0.05 s apart, and each victim bursts as its arrow lands, so every loss has a visible cause. The countdown resets once the last arrow lands.
+- **Randomness:** victims come from their own seeded stream (`run_seed ^ Volley.SEED_SALT`), so packs and layout never shift.
+- **Win and loss:** the volley comes before the loss check, so it can break the last combo and lose the run.
+- **Tuning:** `volley.interval` (3) and `volley.fraction` (0.5) in `balance.json`. A map brings the volley (`StarMap.volley`); without a `volley` block there is none.
+- **Simulator (`--map body`):** the bots don't play around the volley (they never hold a combo back or launch first to spread the loss). Body with the volley: about 6.4 packs (blue only) / 5.7 (red when affordable), 99.9% / 99.0% won; without it, 6.1 / 5.4, all won; if a volley cleared the whole sky, 6.6 / 5.8 (98.4% / 89.1%). The bots link every combo at once, so the sky is usually thin when the volley lands; stars' positions and link reach aren't modelled, so real play can only do worse. A playtest decides whether half the sky is felt, and whether to try a full clear.
+- **Sound:** the arrow's whoosh as the volley leaves, the burst sound as each star is hit (existing cues).
 
 ### Scorpio constellation (prototype, #40)
 
