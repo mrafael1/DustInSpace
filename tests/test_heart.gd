@@ -18,7 +18,7 @@ func before_each() -> void:
 
 func test_balance_reads_the_hunt_and_leaves_it_out_without_a_block() -> void:
 	assert_eq(Fixtures.balance().hunt_radius, 0, "no block: no hunt")
-	assert_eq(Balance.load_file().hunt_radius, 24, "shipped: a 24 px circle")
+	assert_eq(Balance.load_file().hunt_radius, 40, "shipped: a 40 px circle, about a fifth of the sky")
 	var data: Dictionary = Fixtures.balance_dict()
 	data["hunt"] = {"radius": 0}
 	assert_false(Balance.from_dict(data).is_valid(), "a circle has a size")
@@ -131,7 +131,10 @@ func test_links_invalid_links_and_failed_launches_never_strike_or_move_the_area(
 func test_areas_stay_in_the_sky_and_clear_of_orion() -> void:
 	var corner := Rect2i(Fixtures.SKY.position + Volley.ORION_CORNER.position, Volley.ORION_CORNER.size)
 	for seed_value: int in range(1, 31):
-		var run: RunState = _heart_run(6, seed_value)
+		var data: Dictionary = _balance_dict()
+		data["hunt"] = {"radius": 24 if seed_value % 2 == 0 else 40}
+		data["start_packs"] = {"blue": 6, "red": 0}
+		var run := RunState.new(Balance.from_dict(data), Fixtures.rng(seed_value), Fixtures.SKY, StarMap.heart())
 		run.area_marked.connect(func(at: Vector2i, radius: int) -> void:
 			assert_true(Fixtures.SKY.grow(-radius).has_point(at), "seed %d: the whole circle round %s in the sky" % [seed_value, at])
 			assert_false(corner.grow(radius).has_point(at), "seed %d: the circle keeps off Orion's figure" % seed_value))

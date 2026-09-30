@@ -17,5 +17,5 @@
   "scorpio": { "enabled": true, "sun_dust_per_star": 1, "sun_target": 75, "max_link_distance": 56 },
   "orion": { "first_mark_launch": 1 },
   "volley": { "interval": 2, "fraction": 1.0, "intro_stars": 6 },
-  "hunt": { "radius": 24 }
+  "hunt": { "radius": 40 }
 }
