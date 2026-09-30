@@ -211,7 +211,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			var marked: StarView = _views.get((event.args[0] as Star).id)
 			if marked != null:
 				_orion.mark(marked)
-				_sequencer.hold(OrionView.LOCK_STEPS * OrionView.LOCK_STEP_TIME)
+				_sequencer.hold(OrionView.MARK_TIME)
 		&"star_shot":
 			_shoot(event.args[0])
 	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
