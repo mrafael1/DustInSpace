@@ -19,7 +19,7 @@ func test_balance_reads_the_hearts_own_volley() -> void:
 	var shipped: Balance = Balance.load_file()
 	var heart: Balance.VolleyDef = shipped.volley("heart_volley")
 	assert_not_null(heart)
-	assert_eq([heart.interval, heart.fraction, heart.intro_stars], [3, 0.5, 0], "shipped: every third link, half the sky, no intro")
+	assert_eq([heart.interval, heart.fraction, heart.intro_stars], [2, 1.0, 0], "shipped: like the Body, every second link takes the whole sky; no intro")
 	assert_null(Fixtures.balance().volley("heart_volley"), "no block: no volley")
 	var data: Dictionary = Fixtures.balance_dict()
 	data["heart_volley"] = {"interval": 0, "fraction": 0.5}
@@ -229,12 +229,22 @@ func test_a_big_bang_takes_the_mark_without_moving_the_countdown() -> void:
 
 func test_a_full_volley_leaves_nothing_to_mark_until_the_next_burst() -> void:
 	var data: Dictionary = _balance_dict()
-	data["heart_volley"] = {"interval": 1, "fraction": 1.0}
+	data["heart_volley"] = {"interval": 2, "fraction": 1.0}
 	data["start_packs"] = {"blue": 6, "red": 0}
 	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.heart())
 	_launch_until_marked(run)
 	run.link(_corner_trio(run))
-	assert_true(run.stars.is_empty(), "the arrow, then the volley took the rest")
+	assert_false(run.stars.is_empty(), "the first link: only the arrow")
+	assert_true(run.orion.has_target(), "and a new mark")
+	var shot: Array[Star] = []
+	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
+	var victims: Array[Star] = []
+	run.volley_fired.connect(func(stars: Array[Star]) -> void: victims.append_array(stars))
+	var target: Star = run.marked_star()
+	run.link(_corner_trio(run))
+	assert_eq(shot, [target] as Array[Star], "the second: the arrow takes the mark")
+	assert_false(victims.has(target), "the volley doesn't take it again")
+	assert_true(run.stars.is_empty(), "then the volley takes every other loose star")
 	assert_false(run.orion.has_target())
 	run.launch(Vector2i(90, 150))
 	assert_true(run.orion.has_target())
