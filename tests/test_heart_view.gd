@@ -67,20 +67,23 @@ func test_the_first_burst_marks_a_ring_with_its_line_of_text() -> void:
 		assert_between(d, run.hunt.radius - 1.0, run.hunt.radius + 2.0, "on the circle")
 
 
-func test_the_ring_is_dotted_and_unlike_the_crosshair() -> void:
-	var ring: Array[Vector2i] = OrionView.ring_pixels(24)
-	assert_gt(ring.size(), 40)
-	var seen: Dictionary = {}
-	for p: Vector2i in ring:
-		assert_false(seen.has(p), "no pixel twice")
-		seen[p] = true
-	var gaps: int = 0
-	for i: int in ring.size():
-		var next: Vector2i = ring[(i + 1) % ring.size()]
-		if maxi(absi(next.x - ring[i].x), absi(next.y - ring[i].y)) > 1:
-			gaps += 1
-	assert_gt(gaps, ring.size() / 2, "dotted, not a solid line")
-	assert_eq(OrionView.ring_pixels(24, 1).size() >= ring.size(), true, "a pulse steps it out")
+func test_the_ring_is_a_clean_symmetric_dotted_circle() -> void:
+	for radius: int in [24, 40, 41]:
+		var ring: Array[Vector2i] = OrionView.ring_pixels(radius)
+		assert_gt(ring.size(), 24, "radius %d: dots all round" % radius)
+		var dots: Dictionary = {}
+		for p: Vector2i in ring:
+			assert_false(dots.has(p), "no pixel twice")
+			dots[p] = true
+			assert_between(Vector2(p).length(), radius - 0.75, radius + 0.75, "radius %d: %s on the circle" % [radius, p])
+		for p: Vector2i in ring:
+			for mirror: Vector2i in [Vector2i(-p.x, p.y), Vector2i(p.x, -p.y), Vector2i(p.y, p.x)]:
+				assert_true(dots.has(mirror), "radius %d: %s mirrored" % [radius, p])
+			for dx: int in [-1, 0, 1]:
+				for dy: int in [-1, 0, 1]:
+					if dx != 0 or dy != 0:
+						assert_false(dots.has(p + Vector2i(dx, dy)), "radius %d: dots never touch at %s" % [radius, p])
+	assert_ne(OrionView.ring_pixels(40, 1), OrionView.ring_pixels(40), "a pulse steps it out")
 
 
 func test_the_next_launch_strikes_the_ring_and_marks_a_new_one() -> void:

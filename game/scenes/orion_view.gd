@@ -45,6 +45,8 @@ const VOLLEY_STAGGER: float = 0.05
 const CHARGE_BLINK: float = 0.3
 const NOCK: int = 4
 const NOCKS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(2, -1), Vector2i(2, 1)]
+## The hunting ring's dots: every RING_GAP-th pixel of its outline.
+const RING_GAP: int = 3
 ## Where the figure sits: this far into the play sky from its top-left corner.
 const FIGURE_AT := Vector2i(6, 6)
 ## Orion's stars (figure coordinates), laid out as in the sky (RA/Dec at about 1.7 px a degree):
@@ -161,19 +163,34 @@ func strike_area() -> float:
 	return DRAW_TIME + FLIGHT_TIME
 
 
-## The dotted ring of a circle of `radius` round the origin: every other pixel of its outline, going
-## round, 1 px further out while it pulses.
+## The dotted ring of a circle of `radius` round the origin, 1 px further out while it pulses: a
+## midpoint-circle outline, every RING_GAP-th pixel of one octant mirrored eight ways, so the dots
+## are evenly spaced and the ring exactly symmetric, and no two dots touch.
 static func ring_pixels(radius: int, pulse: int = 0) -> Array[Vector2i]:
 	var r: int = radius + pulse
-	var outline: Array[Vector2i] = []
-	var steps: int = ceili(TAU * r) * 2
-	for k: int in steps:
-		var p := Vector2i((Vector2.from_angle(TAU * k / steps) * r).round())
-		if outline.is_empty() or (p != outline[-1] and p != outline[0]):
-			outline.append(p)
+	var octant: Array[Vector2i] = []
+	var x: int = 0
+	var y: int = r
+	var d: int = 1 - r
+	while x <= y:
+		octant.append(Vector2i(x, y))
+		if d < 0:
+			d += 2 * x + 3
+		else:
+			d += 2 * (x - y) + 5
+			y -= 1
+		x += 1
 	var dots: Array[Vector2i] = []
-	for i: int in range(0, outline.size(), 2):
-		dots.append(outline[i])
+	var seen: Dictionary = {}
+	for k: int in range(0, octant.size(), RING_GAP):
+		var p: Vector2i = octant[k]
+		# Next to the diagonal a dot and its mirror would touch: keep only the one on it.
+		if p.x != p.y and absi(p.x - p.y) <= 1:
+			continue
+		for q: Vector2i in [Vector2i(p.x, p.y), Vector2i(p.y, p.x), Vector2i(-p.x, p.y), Vector2i(-p.y, p.x), Vector2i(p.x, -p.y), Vector2i(p.y, -p.x), Vector2i(-p.x, -p.y), Vector2i(-p.y, -p.x)]:
+			if not seen.has(q):
+				seen[q] = true
+				dots.append(q)
 	return dots
 
 
