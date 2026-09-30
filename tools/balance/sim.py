@@ -25,6 +25,8 @@ star's size they use the others first (pessimistic), unless --orion-rescue (they
 Orion's volley (#70, the Body map): every volley.interval-th combo, once it and any Sun clear
 resolve, destroys a random volley.fraction of the sky's stars (rounded up) for nothing; the winning
 combo skips it. The bots don't play around it (they never hold a combo back or launch first).
+The Heart (#71) brings both, the volley tuned by heart_volley: after a combo (and any Sun clear) the
+single arrow first, then the volley on what's left, then a new mark, as in the game.
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
 """
@@ -44,10 +46,11 @@ MAPS = {
     "stinger": (("small", "small", "medium", "small", "big", "medium"), (0,), False),
     "tail": (("medium", "small", "medium", "small", "big", "small"), (0,), True),
     "body": (("big", "medium", "big", "medium", "small", "small", "small", "medium", "small"), (0,), False),
+    "heart": (("small", "medium", "big", "medium", "small", "small", "medium"), (0,), True),
 }
-# The maps where Orion looses his volley (#70).
-VOLLEY_MAPS = {"body"}
-VOLLEY = False
+# The maps where Orion looses his volley (#70), and the balance.json block that tunes it there.
+VOLLEY_MAPS = {"body": "volley", "heart": "heart_volley"}
+VOLLEY = ""
 MAX_LANDMARKS_PER_COMBO = 1
 
 
@@ -117,8 +120,8 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False):
     marked = None
     first_mark = cfg.get("orion", {}).get("first_mark_launch", 0) if on and ORION else 0
     # The volley: combos between volleys (0: none), the share it takes, and combos counted so far.
-    volley_every = cfg.get("volley", {}).get("interval", 0) if on and VOLLEY else 0
-    volley_share = cfg.get("volley", {}).get("fraction", 0.0)
+    volley_every = cfg.get(VOLLEY, {}).get("interval", 0) if on and VOLLEY else 0
+    volley_share = cfg.get(VOLLEY, {}).get("fraction", 0.0)
     counted = 0
     while True:
         # resolve every available combination (best first)
@@ -227,7 +230,7 @@ def main():
     a = ap.parse_args()
     global LANDMARK_SIZES, STARTING_LIT, ORION, VOLLEY
     LANDMARK_SIZES, STARTING_LIT, ORION = MAPS[a.map]
-    VOLLEY = a.map in VOLLEY_MAPS
+    VOLLEY = VOLLEY_MAPS.get(a.map, "")
     if a.seed is not None:
         random.seed(a.seed)
     cfg = load(a.set)
@@ -240,9 +243,9 @@ def main():
         if ORION and cfg.get("orion", {}).get("first_mark_launch"):
             print(f"  Orion marks from launch {cfg['orion']['first_mark_launch']}; the bots "
                   f"{'rescue the mark when they can' if a.orion_rescue else 'use the marked star last'}")
-        if VOLLEY and cfg.get("volley", {}).get("interval"):
-            print(f"  Orion's volley every {cfg['volley']['interval']} combos takes "
-                  f"{cfg['volley']['fraction']:.0%} of the sky (rounded up); the bots don't play around it")
+        if VOLLEY and cfg.get(VOLLEY, {}).get("interval"):
+            print(f"  Orion's volley ({VOLLEY}) every {cfg[VOLLEY]['interval']} combos takes "
+                  f"{cfg[VOLLEY]['fraction']:.0%} of the sky (rounded up); the bots don't play around it")
         if scorpio.get("max_link_distance"):
             print(f"  not modelled: max_link_distance {scorpio['max_link_distance']} (the bots ignore where stars are)")
     for name, pol in POLICIES.items():
