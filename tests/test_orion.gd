@@ -24,7 +24,7 @@ func test_balance_reads_orion_and_leaves_him_out_without_a_block() -> void:
 	assert_false(Balance.from_dict(data).is_valid(), "he marks from launch 1 at the earliest")
 	data["orion"] = {}
 	assert_false(Balance.from_dict(data).is_valid())
-	assert_eq(Balance.load_file().orion_first_mark_launch, 2, "shipped: the intro marks on launch 2")
+	assert_eq(Balance.load_file().orion_first_mark_launch, 1, "shipped: the intro marks on launch 1")
 
 
 func test_only_the_tail_brings_orion() -> void:
