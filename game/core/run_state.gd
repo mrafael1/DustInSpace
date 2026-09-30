@@ -457,6 +457,8 @@ func play_volley_intro() -> void:
 	for star: Star in placed:
 		stars.erase(star)
 	volley_fired.emit(placed)
+	# Like any volley, the countdown then shows where it stands (untouched: the intro doesn't count).
+	volley_counted.emit(volley.links_left())
 
 
 ## Orion's volley: whether linking `star_ids` would loose it (a valid link, the last before the

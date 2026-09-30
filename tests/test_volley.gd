@@ -286,7 +286,7 @@ func test_the_intro_places_stars_then_a_volley_takes_them_all() -> void:
 	assert_true(run.stars.is_empty())
 	assert_eq(run.dust, dust, "for nothing")
 	assert_eq(run.volley.links_left(), run.volley.interval, "it doesn't count")
-	assert_eq(events, [&"volley_intro_placed", &"volley_fired"] as Array[StringName])
+	assert_eq(events, [&"volley_intro_placed", &"volley_fired", &"volley_counted"] as Array[StringName])
 	assert_eq(run.outcome, RunState.Outcome.PLAYING)
 
 

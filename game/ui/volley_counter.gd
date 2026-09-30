@@ -1,7 +1,8 @@
 class_name VolleyCounter
 extends Node2D
-## Orion's volley countdown (#70), above his head: a row of pips, one per link between volleys,
-## centred on the node's origin (their top there). They fill as links are counted. Each count hops
+## Orion's volley countdown (#70), above his head: a tiny constellation, one star per link between
+## volleys, joined by a dotted string, centred on the node's origin (their top there). A counted
+## link lights the next star (a white-hot heart, ember arms) and the string to it. Each count hops
 ## the row up and flashes the lit pips white; on the last link the lit pips glow between two embers;
 ## when the volley fires the whole row shakes and flashes, stays lit ember while the arrows fly, then
 ## drops back in, empty, from above.
@@ -20,9 +21,14 @@ const SHAKE_STEP: float = 0.06
 ## The emptied row drops in from DROP px above over DROP_TIME.
 const DROP: int = 5
 const DROP_TIME: float = 0.18
-## The pips: PIP px squares, PIP_GAP apart. Unlit ones are N5.
-const PIP: int = 3
-const PIP_GAP: int = 2
+## The stars: 4-point, ARM px arms, SPACING px apart. Unlit ones are a dim cool cross (N6 heart,
+## N5 arms, no tips); lit ones a C0 heart, arms in the lit colour, tips a step darker (TIPS).
+## The string between two stars: a dot every STRING_GAP px, N4, or the tips' colour once both ends
+## are lit.
+const ARM: int = 2
+const SPACING: int = 9
+const STRING_GAP: int = 2
+const TIPS: Dictionary[Color, Color] = {Palette.C0: Palette.C1, Palette.S4: Palette.S3, Palette.C3: Palette.S4, Palette.N8: Palette.N6}
 
 var links_left: int = 0
 var interval: int = 0
@@ -52,7 +58,7 @@ func reset(p_links_left: int, p_interval: int) -> void:
 
 ## A link was counted, or the volley reset the count: hops, or drops in after a volley.
 func count(p_links_left: int) -> void:
-	var after_volley: bool = p_links_left > links_left
+	var after_volley: bool = _fired or p_links_left > links_left
 	links_left = p_links_left
 	_shake_age = -1.0
 	_fired = false
@@ -78,6 +84,16 @@ func text() -> String:
 
 func lit_count() -> int:
 	return interval - links_left
+
+
+## How many stars show lit now: the counted links, or all of them once the volley fired.
+func lit_stars() -> int:
+	return interval if _fired else lit_count()
+
+
+## Where star `i` sits (its heart), relative to the node, offset included.
+func star_at(i: int) -> Vector2i:
+	return offset() + Vector2i(-floori((interval - 1) * SPACING / 2.0) + i * SPACING, ARM)
 
 
 func is_shaking() -> bool:
@@ -109,17 +125,26 @@ func colour() -> Color:
 	return Palette.N8
 
 
-## The pips now (relative to the node, offset included), lit ones first from the left.
+## The counter's pixels now (relative to the node, offset included): the strings, then the stars,
+## lit ones first from the left.
 func pip_pixels() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
-	var width: int = interval * PIP + (interval - 1) * PIP_GAP
-	var left: int = -floori(width / 2.0)
-	var lit: int = interval if _fired else lit_count()
+	var lit: int = lit_stars()
+	var arm_colour: Color = colour()
+	var tip_colour: Color = TIPS[arm_colour]
+	for i: int in range(1, interval):
+		var string_colour: Color = tip_colour if i < lit else Palette.N4
+		for x: int in range(star_at(i - 1).x + ARM + 2, star_at(i).x - ARM - 1, STRING_GAP):
+			dots[Vector2i(x, star_at(i).y)] = string_colour
 	for i: int in interval:
-		var colour_i: Color = colour() if i < lit else Palette.N5
-		for x: int in PIP:
-			for y: int in PIP:
-				dots[offset() + Vector2i(left + i * (PIP + PIP_GAP) + x, y)] = colour_i
+		var at: Vector2i = star_at(i)
+		for axis: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			if i < lit:
+				dots[at + axis] = arm_colour
+				dots[at + axis * ARM] = tip_colour
+			else:
+				dots[at + axis] = Palette.N5
+		dots[at] = Palette.C0 if i < lit else Palette.N6
 	return dots
 
 
