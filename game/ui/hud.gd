@@ -40,6 +40,9 @@ const SOUND_AT := Vector2i(10, 10)
 ## The MAP button (in a chapter) sits this far in from the top-right corner.
 const MAP_INSET: int = 10
 const DUST_ICON_AT := Vector2i(12, 300)
+## On a wider screen the dust counter and the pack slots stay at most this many px out beside the
+## game's own 180 columns, close to the stage, rather than in the far corners.
+const HUD_REACH: int = 12
 const DUST_AT := Vector2i(20, 297)
 ## A counter hops 1 px up for this long when a particle lands on it.
 const HOP_TIME: float = 0.1
@@ -101,16 +104,18 @@ func _process(delta: float) -> void:
 
 ## Anchors the HUD to the real screen, `screen` in game coordinates (on a 9:16 screen, the game's
 ## own 0,0 180x320): the speaker in its top-left corner, the dust counter on its bottom-left, the
-## pack slots on its bottom-right.
+## pack slots on its bottom-right (on a wide screen, no more than HUD_REACH px out from the game).
 func fit_screen(screen: Rect2i) -> void:
 	var bottom: int = screen.end.y - ScreenZones.SCREEN.y
+	var left: int = maxi(screen.position.x, -HUD_REACH)
+	var right: int = mini(screen.end.x - ScreenZones.SCREEN.x, HUD_REACH)
 	_sound.position = Vector2(SOUND_AT + screen.position)
 	# The MAP button mirrors the speaker in the top-right corner.
 	_map.position = Vector2(Vector2i(screen.end.x - MAP_INSET - MapButton.SIZE.x, screen.position.y + MAP_INSET))
-	($DustIcon as Node2D).position = Vector2(DUST_ICON_AT + Vector2i(screen.position.x, bottom))
-	_rest[_dust] = Vector2(DUST_AT + Vector2i(screen.position.x, bottom))
+	($DustIcon as Node2D).position = Vector2(DUST_ICON_AT + Vector2i(left, bottom))
+	_rest[_dust] = Vector2(DUST_AT + Vector2i(left, bottom))
 	_dust.position = _rest[_dust]
-	_slot_layer.position = Vector2(screen.end.x - ScreenZones.SCREEN.x, bottom)
+	_slot_layer.position = Vector2(right, bottom)
 
 
 func _unhandled_input(event: InputEvent) -> void:

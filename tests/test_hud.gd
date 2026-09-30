@@ -671,6 +671,16 @@ func _slot_label(kind: String, name: String) -> Label:
 	return hud.slot(kind).get_node(name)
 
 
+## On a wide screen the dust counter and the pack slots stay close to the stage.
+func test_the_hud_stays_near_the_stage_on_a_wide_screen() -> void:
+	var wide := Rect2i(-60, -80, 300, 400)
+	var blue_before: Vector2i = Vector2i(hud.slot("blue").position)
+	hud.fit_screen(wide)
+	assert_eq(Vector2i((hud.get_node("Dust") as Label).position), Hud.DUST_AT + Vector2i(-Hud.HUD_REACH, 0), "12 px out, not in the far corner")
+	var blue_at: Vector2i = blue_before + Vector2i(Hud.HUD_REACH, 0)
+	assert_eq(hud.target_at(blue_at + PackSlot.COST_TARGET.get_center()), ["blue", &"cost"], "taps follow the slots")
+
+
 func test_the_hud_anchors_to_a_taller_phone_screens_corners() -> void:
 	# A 1170x2532 phone: 195x422 game pixels, the game's 180x320 on the bottom, centred across.
 	var phone := Rect2i(-7, -102, 195, 422)
