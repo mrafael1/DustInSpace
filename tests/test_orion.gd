@@ -72,12 +72,64 @@ func test_a_target_collected_in_time_pays_and_is_safe() -> void:
 	var combo: String = run.link([target.id, a.id, b.id] as Array[int])
 	assert_ne(combo, Combos.INVALID)
 	assert_eq(run.dust, dust + run.balance.combos[combo].dust, "it pays normally")
-	assert_null(run.marked_star(), "the mark is cleared")
-	assert_false(run.orion.has_target())
-	var sky: int = run.stars.size()
+	assert_false(run.stars.has(target))
+	assert_ne(run.orion.target, target.id, "that mark is gone")
 	run.launch(Vector2i(90, 150))
-	assert_true(shot.is_empty(), "the arrow has nothing to hit")
-	assert_gt(run.stars.size(), sky, "the pack opened as usual")
+	assert_false(shot.has(target), "the saved star isn't shot")
+
+
+func test_linking_the_target_is_a_move_orion_marks_again() -> void:
+	var run: RunState = _tail_run()
+	var marked: Array[Star] = []
+	var shot: Array[Star] = []
+	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
+	_launch_until_marked(run)
+	run.star_marked.connect(func(star: Star) -> void: marked.append(star))
+	var target: Star = run.marked_star()
+	var a: Star = run.add_star(target.size, target.position + Vector2i(6, 0))
+	var b: Star = run.add_star(target.size, target.position + Vector2i(0, 6))
+	_record(run)
+	run.link([target.id, a.id, b.id] as Array[int])
+	assert_eq(marked.size(), 1, "the link was a move: a new mark")
+	assert_true(run.stars.has(marked[0]), "on a loose star still in the sky")
+	assert_eq(run.marked_star(), marked[0])
+	assert_eq(events[-1], &"star_marked", "after the combo resolves")
+	run.launch(Vector2i(90, 150))
+	assert_eq(shot, [marked[0]] as Array[Star], "the next launch shoots the new mark")
+
+
+func test_an_unrelated_link_keeps_the_mark() -> void:
+	var run: RunState = _tail_run()
+	_launch_until_marked(run)
+	var target: int = run.orion.target
+	var marks: Array[Star] = []
+	run.star_marked.connect(func(star: Star) -> void: marks.append(star))
+	var trio: Array[int] = _corner_trio(run)
+	assert_false(trio.has(target))
+	assert_ne(run.link(trio), Combos.INVALID)
+	assert_eq(run.orion.target, target, "the threat doesn't jump")
+	assert_true(marks.is_empty(), "no new mark")
+
+
+func test_a_link_before_the_intro_launch_marks_nothing() -> void:
+	var run: RunState = _tail_run()
+	run.launch(Vector2i(90, 150))
+	var marks: Array[Star] = []
+	run.star_marked.connect(func(star: Star) -> void: marks.append(star))
+	run.add_star(Star.Size.BIG, CORNER + Vector2i(0, 30))
+	run.link(_corner_trio(run))
+	assert_true(marks.is_empty(), "Orion starts on launch %d" % run.orion.first_mark_launch)
+	assert_false(run.orion.has_target())
+
+
+func test_a_link_that_empties_the_sky_leaves_nothing_to_mark() -> void:
+	var run: RunState = _tail_run()
+	_launch_until_marked(run)
+	run.stars.clear()
+	run.orion.forget([run.orion.target] as Array[int])
+	run.link(_corner_trio(run))
+	assert_true(run.stars.is_empty())
+	assert_false(run.orion.has_target())
 
 
 func test_an_uncollected_target_is_destroyed_once() -> void:

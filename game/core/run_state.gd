@@ -28,8 +28,8 @@ signal sun_rekindled(landmark: int)
 signal sky_cleared(stars: Array[Star], dust: int)
 ## Scorpio: the last landmark lit. On the Scorpio map that's the win (run_won follows).
 signal constellation_completed
-## Orion (#64): after a pack burst, Orion marked `star`, a loose sky star; his arrow takes it on
-## the next launch unless it leaves the sky first.
+## Orion (#64): after a move (a pack burst, or a link that left no mark), Orion marked `star`, a
+## loose sky star; his arrow takes it on the next launch unless it leaves the sky first.
 signal star_marked(star: Star)
 ## Orion: on a launch, before the pack opens, his arrow destroyed the marked `star`. No reward.
 signal star_shot(star: Star)
@@ -236,7 +236,7 @@ func launch(target: Vector2i) -> bool:
 	return true
 
 
-## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up. On the Scorpio map
+## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up (nor moves Orion). On the Scorpio map
 ## a step between consecutive stars longer than the reach makes the link invalid.
 ## On the Scorpio map one unlit landmark can be in it too: the combo pays as usual and the
 ## landmark lights up instead of being used up. A full Sun then rekindles.
@@ -271,6 +271,10 @@ func link(star_ids: Array[int]) -> String:
 		if scorpio.is_complete():
 			constellation_completed.emit()
 	_check_end()
+	# A link is a move too: with no mark left (it took the marked star, or there was none) Orion
+	# marks again. A link that left his mark alone keeps it.
+	if orion != null and not is_over() and not orion.has_target():
+		_orion_mark()
 	return combo
 
 
