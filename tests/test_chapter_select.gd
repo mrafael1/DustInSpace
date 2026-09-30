@@ -165,6 +165,24 @@ func test_the_stage_label_holds_the_name_and_play() -> void:
 	assert_true(ChapterSelect.label_areas()[1].encloses(ChapterSelect.PLAY))
 
 
+## On a taller phone the heading goes to the top of the screen, the label and PLAY stay at the
+## bottom (PLAY a little further from the name), and the chart is lifted halfway, its pixels whole.
+func test_a_taller_screen_spreads_the_heading_chart_and_label() -> void:
+	chart.setup(Chapter.new())
+	var home_info: float = _label("Info").position.y
+	chart.fit_screen(Rect2i(0, -80, 180, 400))
+	assert_eq(chart.offset, Vector2(0, 40), "the chart lifts by half the extra height")
+	var on_screen := func(label: String) -> float: return _label(label).position.y + chart.offset.y
+	assert_eq(on_screen.call("Title"), float(ChapterSelect.TITLE_Y), "the heading at the top")
+	assert_eq(on_screen.call("Subtitle"), float(ChapterSelect.SUBTITLE_Y))
+	assert_eq(on_screen.call("Info"), home_info + 80, "the name at the bottom")
+	var play: Rect2i = ChapterSelect.play_rect(Rect2i(0, -40, 180, 400))
+	assert_eq(play.position.y + 40, ChapterSelect.PLAY.position.y + 80 + ChapterSelect.PLAY_ROOM, "PLAY a little lower")
+	watch_signals(chart)
+	_tap(play.get_center())
+	assert_signal_emitted_with_parameters(chart, "stage_chosen", [0])
+
+
 ## The chart sits in space: opaque, cool night colours only (warm is for the route and stages),
 ## the same on every build, and its stars keep clear of the stage points, title and panel.
 func test_the_space_background_is_cool_opaque_and_clear_of_the_chart() -> void:
@@ -185,7 +203,7 @@ func test_the_space_background_is_cool_opaque_and_clear_of_the_chart() -> void:
 	var stars: Array[Vector2i] = ChapterSelect.space_stars(screen)
 	assert_gt(stars.size(), 100, "a starry sky")
 	for star: Vector2i in stars:
-		for area: Rect2i in ChapterSelect.label_areas():
+		for area: Rect2i in ChapterSelect.label_areas(screen):
 			assert_false(area.has_point(star), "off the stage label")
 		for point: Vector2i in Scorpio.LANDMARKS + [ChapterSelect.FINAL_AT]:
 			assert_gte((point - star).length(), float(ChapterSelect.STAR_CLEAR), "clear of %s" % point)
