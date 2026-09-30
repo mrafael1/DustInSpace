@@ -1,6 +1,7 @@
 extends GutTest
-## Orion (#64), the Tail stage's twist: after a pack bursts he marks a loose sky star, and on the
-## next launch, before that pack opens, his arrow destroys it if it's still there. For nothing.
+## Orion (#64), the Tail stage's twist: he keeps a loose sky star marked; the next successful link
+## saves it if it uses it, or has his arrow destroy it (for nothing) if it leaves it behind. Then he
+## marks a new one. Launches never fire.
 
 const Fixtures := preload("res://tests/fixtures.gd")
 const LauncherScene := preload("res://game/scenes/launcher.tscn")
@@ -33,7 +34,7 @@ func test_only_the_tail_brings_orion() -> void:
 	assert_null(RunState.new(Fixtures.balance(_scorpio_on()), Fixtures.rng(), Fixtures.SKY, StarMap.tail()).orion, "nor without his tuning")
 
 
-func test_the_intro_marks_on_launch_two_and_shoots_before_launch_three_bursts() -> void:
+func test_the_intro_marks_on_launch_two_and_launches_never_fire() -> void:
 	var run: RunState = _tail_run()
 	_record(run)
 	var marked: Array[Star] = []
@@ -42,25 +43,19 @@ func test_the_intro_marks_on_launch_two_and_shoots_before_launch_three_bursts() 
 	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
 	run.launch(Vector2i(90, 150))
 	assert_true(marked.is_empty(), "launch 1 is normal")
-	assert_false(events.has(&"star_marked"))
 	run.launch(Vector2i(90, 150))
 	assert_eq(marked.size(), 1, "launch 2: Orion marks one star")
 	assert_true(run.stars.has(marked[0]), "a loose star in the sky")
 	assert_eq(run.marked_star(), marked[0])
 	assert_eq(events.slice(-3), [&"pack_launched", &"pack_burst", &"star_marked"] as Array[StringName], "marked after the burst")
-	var dust: int = run.dust
-	var light: int = run.light
-	events.clear()
-	run.launch(Vector2i(90, 150))
-	assert_eq(shot, [marked[0]] as Array[Star], "launch 3: the arrow takes it")
-	assert_false(run.stars.has(marked[0]))
-	assert_eq([run.dust, run.light], [dust, light], "for nothing")
-	assert_eq(events.slice(0, 3), [&"pack_launched", &"star_shot", &"pack_burst"] as Array[StringName], "before the new pack opens")
-	assert_eq(marked.size(), 2, "then he marks the next one")
-	assert_ne(marked[1], marked[0])
+	for launch: int in 2:
+		run.launch(Vector2i(90, 150))
+	assert_true(shot.is_empty(), "a launch never fires")
+	assert_eq(marked.size(), 1, "and keeps the standing mark")
+	assert_eq(run.marked_star(), marked[0])
 
 
-func test_a_target_collected_in_time_pays_and_is_safe() -> void:
+func test_a_link_using_the_target_saves_it_and_orion_marks_again() -> void:
 	var run: RunState = _tail_run()
 	var shot: Array[Star] = []
 	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
@@ -68,92 +63,78 @@ func test_a_target_collected_in_time_pays_and_is_safe() -> void:
 	var target: Star = run.marked_star()
 	var a: Star = run.add_star(target.size, target.position + Vector2i(6, 0))
 	var b: Star = run.add_star(target.size, target.position + Vector2i(0, 6))
+	assert_false(run.link_shoots([target.id, a.id, b.id] as Array[int]), "no arrow for this link")
 	var dust: int = run.dust
+	_record(run)
 	var combo: String = run.link([target.id, a.id, b.id] as Array[int])
 	assert_ne(combo, Combos.INVALID)
 	assert_eq(run.dust, dust + run.balance.combos[combo].dust, "it pays normally")
-	assert_false(run.stars.has(target))
-	assert_ne(run.orion.target, target.id, "that mark is gone")
-	run.launch(Vector2i(90, 150))
-	assert_false(shot.has(target), "the saved star isn't shot")
+	assert_true(shot.is_empty(), "saved: nothing shot")
+	assert_true(run.orion.has_target(), "a new mark")
+	assert_ne(run.orion.target, target.id)
+	assert_true(run.stars.has(run.marked_star()))
+	assert_eq(events[-1], &"star_marked", "once the link resolves")
 
 
-func test_linking_the_target_is_a_move_orion_marks_again() -> void:
+func test_a_link_leaving_the_target_behind_has_it_shot() -> void:
 	var run: RunState = _tail_run()
-	var marked: Array[Star] = []
+	_launch_until_marked(run)
+	var target: Star = run.marked_star()
+	var trio: Array[int] = _corner_trio(run)
+	assert_true(run.link_shoots(trio))
 	var shot: Array[Star] = []
 	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
-	_launch_until_marked(run)
-	run.star_marked.connect(func(star: Star) -> void: marked.append(star))
-	var target: Star = run.marked_star()
-	var a: Star = run.add_star(target.size, target.position + Vector2i(6, 0))
-	var b: Star = run.add_star(target.size, target.position + Vector2i(0, 6))
-	_record(run)
-	run.link([target.id, a.id, b.id] as Array[int])
-	assert_eq(marked.size(), 1, "the link was a move: a new mark")
-	assert_true(run.stars.has(marked[0]), "on a loose star still in the sky")
-	assert_eq(run.marked_star(), marked[0])
-	assert_eq(events[-1], &"star_marked", "after the combo resolves")
-	run.launch(Vector2i(90, 150))
-	assert_eq(shot, [marked[0]] as Array[Star], "the next launch shoots the new mark")
+	var dust: int = run.dust
+	var light: int = run.light
+	var combo: String = run.link(trio)
+	var reward: Balance.ComboReward = run.balance.combos[combo]
+	assert_eq(shot, [target] as Array[Star], "the arrow takes the target")
+	assert_false(run.stars.has(target))
+	assert_eq([run.dust, run.light], [dust + reward.dust, light + reward.light], "the combo pays, the shot star nothing")
+	assert_true(run.orion.has_target(), "then a new mark")
+	assert_ne(run.orion.target, target.id)
 
 
-func test_an_unrelated_link_keeps_the_mark() -> void:
+func test_the_link_events_come_combo_then_shot_then_mark() -> void:
 	var run: RunState = _tail_run()
 	_launch_until_marked(run)
-	var target: int = run.orion.target
-	var marks: Array[Star] = []
-	run.star_marked.connect(func(star: Star) -> void: marks.append(star))
 	var trio: Array[int] = _corner_trio(run)
-	assert_false(trio.has(target))
-	assert_ne(run.link(trio), Combos.INVALID)
-	assert_eq(run.orion.target, target, "the threat doesn't jump")
-	assert_true(marks.is_empty(), "no new mark")
+	_record(run)
+	run.link(trio)
+	assert_eq(events, [&"combo_collected", &"star_shot", &"star_marked"] as Array[StringName])
 
 
-func test_a_link_before_the_intro_launch_marks_nothing() -> void:
-	var run: RunState = _tail_run()
-	run.launch(Vector2i(90, 150))
-	var marks: Array[Star] = []
-	run.star_marked.connect(func(star: Star) -> void: marks.append(star))
-	run.add_star(Star.Size.BIG, CORNER + Vector2i(0, 30))
-	run.link(_corner_trio(run))
-	assert_true(marks.is_empty(), "Orion starts on launch %d" % run.orion.first_mark_launch)
-	assert_false(run.orion.has_target())
-
-
-func test_a_link_that_empties_the_sky_leaves_nothing_to_mark() -> void:
-	var run: RunState = _tail_run()
-	_launch_until_marked(run)
-	run.stars.clear()
-	run.orion.forget([run.orion.target] as Array[int])
-	run.link(_corner_trio(run))
-	assert_true(run.stars.is_empty())
-	assert_false(run.orion.has_target())
-
-
-func test_an_uncollected_target_is_destroyed_once() -> void:
+func test_each_link_that_leaves_a_mark_shoots_it_once() -> void:
 	var run: RunState = _tail_run(10)
+	for launch: int in 4:
+		run.launch(Vector2i(90, 150))
 	var shot: Array[int] = []
 	run.star_shot.connect(func(star: Star) -> void: shot.append(star.id))
-	var marks: Array[int] = []
+	var marks: Array[int] = [run.orion.target]
 	run.star_marked.connect(func(star: Star) -> void: marks.append(star.id))
-	for launch: int in 8:
-		run.launch(Vector2i(90, 150))
-	assert_eq(marks.size(), 7, "one mark after every burst from launch 2")
-	assert_eq(shot, marks.slice(0, 6), "each mark shot on the next launch, in order")
+	for round_index: int in 3:
+		run.link(_corner_trio(run))
+	assert_eq(shot, marks.slice(0, 3), "each mark shot by the next link, in order")
 	for id: int in shot:
 		assert_eq(shot.count(id), 1, "star %d destroyed once" % id)
 		assert_null(run.find_star(id))
-	assert_eq(run.marked_star().id, marks[-1], "one target at a time: the last mark waits")
+	assert_eq(run.orion.target, marks[-1], "one target at a time: the last mark waits")
 
 
 func test_an_invalid_link_or_a_failed_launch_doesnt_advance_orion() -> void:
 	var run: RunState = _tail_run(2)
 	_launch_until_marked(run)
 	var target: int = run.orion.target
+	var shot: Array[Star] = []
+	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
 	assert_eq(run.link([target, 999, 998] as Array[int]), Combos.INVALID)
+	var big: Star = run.add_star(Star.Size.BIG, CORNER)
+	var small: Star = run.add_star(Star.Size.SMALL, CORNER + Vector2i(10, 0))
+	var other: Star = run.add_star(Star.Size.SMALL, CORNER + Vector2i(5, 8))
+	assert_false(run.link_shoots([big.id, small.id, other.id] as Array[int]), "no arrow for a wrong combo")
+	assert_eq(run.link([big.id, small.id, other.id] as Array[int]), Combos.INVALID)
 	assert_eq([run.orion.launches, run.orion.target], [2, target], "an invalid link changes nothing")
+	assert_true(shot.is_empty())
 	assert_false(run.launch(Vector2i(90, 150)), "no pack left")
 	assert_eq([run.orion.launches, run.orion.target], [2, target], "nor does a launch that can't happen")
 	assert_not_null(run.find_star(target))
@@ -202,7 +183,9 @@ func test_the_same_seed_marks_the_same_stars() -> void:
 		run.star_marked.connect(func(star: Star) -> void: marks.append(star.id))
 		for launch: int in 6:
 			run.launch(Vector2i(90, 150))
+			_link_any(run)
 		picks.append(marks)
+	assert_gt(picks[0].size(), 2)
 	assert_eq(picks[0], picks[1])
 
 
@@ -214,6 +197,15 @@ func test_orion_marks_loose_stars_only_never_landmarks() -> void:
 			assert_true(run.stars.has(star), "seed %d: a star in the sky" % seed_value))
 		for launch: int in 6:
 			run.launch(Vector2i(40 + 20 * launch, 120 + 15 * launch))
+			_link_any(run)
+
+
+func test_a_link_before_the_intro_launch_marks_nothing() -> void:
+	var run: RunState = _tail_run()
+	run.launch(Vector2i(90, 150))
+	run.add_star(Star.Size.BIG, CORNER + Vector2i(0, 30))
+	run.link(_corner_trio(run))
+	assert_false(run.orion.has_target(), "Orion starts on launch %d" % run.orion.first_mark_launch)
 
 
 func test_a_sun_clear_takes_the_target_and_the_arrow_has_nothing_to_hit() -> void:
@@ -224,41 +216,27 @@ func test_a_sun_clear_takes_the_target_and_the_arrow_has_nothing_to_hit() -> voi
 	var target: Star = run.marked_star()
 	run.light = run.light_target() - 1
 	var trio: Array[int] = _corner_trio(run)
+	assert_false(run.link_shoots(trio), "the rekindle clears the sky first")
 	run.link(trio)
 	assert_false(run.stars.has(target), "the rekindled Sun cleared the sky")
-	assert_false(run.orion.has_target(), "and the mark with it")
+	assert_true(shot.is_empty(), "nothing left to shoot")
+	assert_false(run.orion.has_target(), "nor to mark")
 	run.launch(Vector2i(90, 150))
-	assert_true(shot.is_empty())
+	assert_true(run.orion.has_target(), "the next burst gets a mark")
 
 
-func test_a_big_bang_leaves_nothing_to_mark() -> void:
+func test_a_big_bang_takes_the_target_and_the_next_burst_is_marked() -> void:
 	var run: RunState = _tail_run()
-	var marked: Array[Star] = []
-	run.star_marked.connect(func(star: Star) -> void: marked.append(star))
 	var shot: Array[Star] = []
 	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
-	run.launch(Vector2i(90, 150))
+	_launch_until_marked(run)
 	run.force_next_big_bang = true
 	run.launch(Vector2i(90, 150))
 	assert_true(run.stars.is_empty())
-	assert_true(marked.is_empty(), "no eligible star: no mark")
-	assert_false(run.orion.has_target())
+	assert_false(run.orion.has_target(), "no eligible star: no mark")
 	run.launch(Vector2i(90, 150))
-	assert_true(shot.is_empty(), "so nothing to shoot")
-	assert_eq(marked.size(), 1, "the next burst gets a mark")
-
-
-func test_a_big_bang_on_the_arrow_launch_comes_after_the_shot() -> void:
-	var run: RunState = _tail_run()
-	_launch_until_marked(run)
-	var target: Star = run.marked_star()
-	var cleared: Array[Star] = []
-	run.big_bang_started.connect(func(_at: Vector2i, stars: Array[Star], _dust: int) -> void: cleared.append_array(stars))
-	_record(run)
-	run.force_next_big_bang = true
-	run.launch(Vector2i(90, 150))
-	assert_eq(events.slice(0, 3), [&"pack_launched", &"star_shot", &"big_bang_started"] as Array[StringName])
-	assert_false(cleared.has(target), "the arrow's star isn't paid by the Big Bang")
+	assert_true(run.orion.has_target(), "the next burst gets one")
+	assert_true(shot.is_empty())
 
 
 func test_completing_the_tail_clears_the_mark_and_wins() -> void:
@@ -278,32 +256,40 @@ func test_completing_the_tail_clears_the_mark_and_wins() -> void:
 
 
 func test_the_loss_check_sees_the_sky_after_the_arrow() -> void:
-	# One pack left, no dust, three small stars in a corner: a combo, so the run goes on. Orion marks
-	# one of them; the last launch opens a single big star: the arrow broke the only combo.
-	var data: Dictionary = _balance_dict()
-	data["start_packs"] = {"blue": 1, "red": 0}
-	data["packs"]["blue"] = {"cost": 4, "stars": 1, "weights": {"small": 0, "medium": 0, "big": 1}, "big_bang_chance": 0.0}
-	data["orion"] = {"first_mark_launch": 1}
-	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.tail())
+	# No pack, no dust: three smalls in a corner and three mediums below, the target one of the
+	# mediums. Linking the smalls leaves it behind: the arrow breaks the last combo.
+	var run: RunState = _stuck_run()
+	var mediums: Array[int] = _medium_trio(run)
+	run.orion.target = mediums[2]
 	var trio: Array[int] = _corner_trio(run)
-	run.orion.target = trio[2]
-	assert_true(run.has_remaining_combo())
 	_record(run)
-	run.launch(CORNER + Vector2i(0, 30))
-	assert_eq(run.outcome, RunState.Outcome.LOST, "no pack, no dust, no combo after the shot")
-	assert_eq(events.find(&"star_shot"), 1)
-	assert_eq(events[-1], &"run_lost", "decided once, at the end of the launch")
-	assert_eq(events.count(&"run_lost"), 1)
-
-
-func test_a_collected_target_keeps_the_run_alive() -> void:
-	# The same corner, but the marked star is linked before the launch: nothing to shoot.
-	var run: RunState = _tail_run(3)
-	var trio: Array[int] = _corner_trio(run)
-	run.orion.target = trio[2]
 	run.link(trio)
-	assert_false(run.orion.has_target())
+	assert_eq(run.outcome, RunState.Outcome.LOST, "no pack, no dust, no combo after the shot")
+	assert_eq(events, [&"combo_collected", &"star_shot", &"run_lost"] as Array[StringName], "decided after the arrow, no new mark")
+
+
+func test_saving_the_target_keeps_the_run_alive() -> void:
+	# The same sky, but the mediums with the target are linked: the smalls still make a combo.
+	var run: RunState = _stuck_run()
+	var mediums: Array[int] = _medium_trio(run)
+	_corner_trio(run)
+	run.orion.target = mediums[2]
+	run.link(mediums)
 	assert_eq(run.outcome, RunState.Outcome.PLAYING)
+	assert_true(run.orion.has_target(), "a new mark on a small")
+
+
+func test_link_shoots_only_for_a_valid_link_that_leaves_the_target() -> void:
+	var run: RunState = _tail_run()
+	var trio: Array[int] = _corner_trio(run)
+	assert_false(run.link_shoots(trio), "no mark: no arrow")
+	_launch_until_marked(run)
+	assert_true(run.link_shoots(trio))
+	assert_false(run.link_shoots([trio[0], trio[1]] as Array[int]), "not a whole link")
+	var target: Star = run.marked_star()
+	var a: Star = run.add_star(target.size, target.position + Vector2i(6, 0))
+	var b: Star = run.add_star(target.size, target.position + Vector2i(0, 6))
+	assert_false(run.link_shoots([a.id, target.id, b.id] as Array[int]), "a link with the target saves it")
 
 
 func test_the_tail_map_is_a_curling_tail_with_room_for_orion() -> void:
@@ -368,3 +354,35 @@ func _record(run: RunState) -> void:
 	for info: Dictionary in run.get_script().get_script_signal_list():
 		var signal_name: StringName = info["name"]
 		run.connect(signal_name, func(...args: Array) -> void: events.append(signal_name))
+
+
+## No pack and no dust, with Orion started (so he can mark after a link).
+func _stuck_run() -> RunState:
+	var data: Dictionary = _balance_dict()
+	data["start_packs"] = {"blue": 0, "red": 0}
+	data["start_dust"] = 0
+	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.tail())
+	run.orion.launches = run.orion.first_mark_launch
+	return run
+
+
+## Three mediums below Orion's corner, out of reach of the landmarks. Their ids.
+func _medium_trio(run: RunState) -> Array[int]:
+	var ids: Array[int] = []
+	for offset: Vector2i in [Vector2i(0, 30), Vector2i(10, 30), Vector2i(5, 38)]:
+		ids.append(run.add_star(Star.Size.MEDIUM, CORNER + offset).id)
+	return ids
+
+
+## Links the first valid combo of sky stars, if there is one.
+func _link_any(run: RunState) -> void:
+	var ids: Array[int] = []
+	for star: Star in run.stars:
+		ids.append(star.id)
+	for a: int in ids.size():
+		for b: int in range(a + 1, ids.size()):
+			for c: int in range(b + 1, ids.size()):
+				var trio: Array[int] = [ids[a], ids[b], ids[c]]
+				if run.combo_for(trio) != Combos.INVALID:
+					run.link(trio)
+					return

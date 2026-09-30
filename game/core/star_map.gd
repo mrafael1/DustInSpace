@@ -20,7 +20,7 @@ var segments: Array[Vector2i] = []
 var sizes: Array[int] = []
 var starting_lit: Array[int] = []
 var drawing: Drawing = Drawing.SCORPION
-## Orion (#64) hunts this stage: he marks a loose star after each move and shoots it next launch.
+## Orion (#64) hunts this stage: he marks a loose star; the next link saves it or has it shot.
 var orion: bool = false
 
 
@@ -55,7 +55,7 @@ static func stinger() -> StarMap:
 
 ## The Tail, stage 2 (#64): six stars in a curve down the right of the sky and along the bottom,
 ## the scorpion's tail segments, with the top left left open for Orion the hunter, who marks a star
-## after each move and shoots it on the next launch. The first segment starts lit: five to light.
+## that a link leaving it behind has shot. The first segment starts lit: five to light.
 static func tail() -> StarMap:
 	var map := StarMap.new()
 	map.id = "tail"
