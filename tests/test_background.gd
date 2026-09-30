@@ -70,6 +70,40 @@ func test_the_forest_floor_tiles_across() -> void:
 	assert_eq(Backdrop.ground_colour(image, 185, 300), Backdrop.edge_colour(image, 5, 300))
 
 
+## A wide screen's sides carry the landscape on: opaque sky and land colours only, the sky keeping
+## the background's own dither next to the game (no stripes), a step darker further out, and
+## mountains of varied heights with trees standing in front.
+func test_a_wide_screens_sides_carry_the_landscape_on() -> void:
+	var background: Image = (load(BACKGROUND) as Texture2D).get_image()
+	var area := Rect2i(-60, -80, 300, 400)
+	var image: Image = Backdrop.margin_image(background, area)
+	var allowed: Dictionary[String, String] = _cool_colours()
+	var off: Dictionary[String, bool] = {}
+	for y: int in range(0, area.size.y, 2):
+		for x: int in range(0, area.size.x, 2):
+			var p := Vector2i(x, y) + area.position
+			var c: Color = image.get_pixel(x, y)
+			if Rect2i(Vector2i.ZERO, ScreenZones.SCREEN).has_point(p):
+				assert_eq(c.a, 0.0, "clear over the game")
+			elif c.a < 1.0 or not allowed.has(c.to_html(false)):
+				off[c.to_html()] = true
+	assert_eq(off.keys(), [], "opaque sky and land colours")
+	# Row 120 dithers N2/N3 every other pixel: the margin next to the game carries the pattern.
+	for x: int in range(-4, 0):
+		assert_eq(image.get_pixel(x - area.position.x, 120 - area.position.y), Backdrop.edge_colour(background, x + 180, 120), "row 120 dithers on at x %d" % x)
+	assert_eq(Backdrop.outer_sky(Palette.N3, -40, 140), Palette.N2, "further out, a step darker")
+	assert_eq(Backdrop.outer_sky(Palette.N3, -2, 140), Palette.N3, "not next to the game")
+	var tops: Dictionary[int, bool] = {}
+	var trees: int = 0
+	for x: int in range(-60, 0):
+		tops[Backdrop.mountain_top(background, x)] = true
+		if Backdrop.is_tree(x):
+			trees += 1
+	assert_gt(tops.size(), 6, "irregular mountains, not a flat band")
+	assert_between(trees, 4, 20, "scattered trees")
+	assert_lte(absi(Backdrop.mountain_top(background, -1) - Backdrop.mountain_top(background, 0)), 2, "starting at the background's edge height")
+
+
 func _column_changes(image: Image, a: int, b: int) -> int:
 	var changes: int = 0
 	for y: int in range(Backdrop.GROUND_TOP, 320):

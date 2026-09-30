@@ -39,8 +39,10 @@ const S4 := Color("#D0542E")
 ## Dust ramp: dust icon, numbers, particles.
 const D0 := Color("#D9CCFF")
 
-## Land ramp: the slingshot's fork, handle and bands.
+## Land ramp: the slingshot's fork, handle and bands; the Backdrop's side scenery (trees M1,
+## hills M2, mountains M3 with M4 rims).
 const M1 := Color("#121638")
+const M2 := Color("#1B2150")
 const M3 := Color("#2B3470")
 const M4 := Color("#4A5AA8")
 const M5 := Color("#9FB0EE")
