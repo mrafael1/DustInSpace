@@ -25,8 +25,10 @@ star's size they use the others first (pessimistic), unless --orion-rescue (they
 Orion's volley (#70, the Body map): every volley.interval-th combo, once it and any Sun clear
 resolve, destroys a random volley.fraction of the sky's stars (rounded up) for nothing; the winning
 combo skips it. The bots don't play around it (they never hold a combo back or launch first).
-The Heart (#71) brings both, the volley tuned by heart_volley: after a combo (and any Sun clear) the
-single arrow first, then the volley on what's left, then a new mark, as in the game.
+Orion's hunting area (#71, the Heart): from the second launch, once the pack has burst, his arrow
+strikes a circle of hunt.radius. Where stars are isn't modelled, so each loose star (the new ones
+too) is lost with the chance a random point lies in the circle: its share of the sky (--hunt-share
+overrides it). The bots never link a threatened star out first nor aim away from the circle.
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
 """
@@ -46,11 +48,17 @@ MAPS = {
     "stinger": (("small", "small", "medium", "small", "big", "medium"), (0,), False),
     "tail": (("medium", "small", "medium", "small", "big", "small"), (0,), True),
     "body": (("big", "medium", "big", "medium", "small", "small", "small", "medium", "small"), (0,), False),
-    "heart": (("small", "medium", "big", "medium", "small", "small", "medium"), (0,), True),
+    "heart": (("small", "medium", "big", "medium", "small", "small", "medium"), (0,), False),
 }
 # The maps where Orion looses his volley (#70), and the balance.json block that tunes it there.
-VOLLEY_MAPS = {"body": "volley", "heart": "heart_volley"}
+VOLLEY_MAPS = {"body": "volley"}
 VOLLEY = ""
+# The maps where Orion hunts an area (#71).
+HUNT_MAPS = {"heart"}
+HUNT = False
+# The home sky's inner rect (game/core/scorpio.gd HOME_SKY less StarScatter.EDGE_MARGIN), for the
+# share of the sky a hunting circle covers.
+INNER_SKY_AREA = (180 - 16) * (172 - 16)
 MAX_LANDMARKS_PER_COMBO = 1
 
 
@@ -108,7 +116,16 @@ def best_combo(cfg, sky, unlit):
     return best
 
 
-def run(cfg, policy, lighting_pays="all", orion_rescue=False):
+def hunt_share(cfg, override=None):
+    """The chance a loose star is inside the hunting circle (0: no hunt)."""
+    if not HUNT or not cfg.get("hunt"):
+        return 0.0
+    if override is not None:
+        return override
+    return min(math.pi * cfg["hunt"]["radius"] ** 2 / INNER_SKY_AREA, 1.0)
+
+
+def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None):
     scorpio = cfg.get("scorpio", {})
     on = scorpio.get("enabled", False)
     unlit = [size for i, size in enumerate(LANDMARK_SIZES) if i not in STARTING_LIT] if on else []
@@ -123,6 +140,8 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False):
     volley_every = cfg.get(VOLLEY, {}).get("interval", 0) if on and VOLLEY else 0
     volley_share = cfg.get(VOLLEY, {}).get("fraction", 0.0)
     counted = 0
+    # The hunt: the chance each loose star is in the circle when a launch strikes it.
+    struck_share = hunt_share(cfg, hunt_override) if on else 0.0
     while True:
         # resolve every available combination (best first)
         while True:
@@ -200,6 +219,9 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False):
             marked = None
         else:
             sky += [draw(pack) for _ in range(int(pack["stars"]))]
+        # The hunting circle marked after the last launch is struck once this pack has burst.
+        if struck_share and opened > 1:
+            sky = [s for s in sky if random.random() >= struck_share]
         if first_mark and opened >= first_mark and sky and marked is None:
             marked = random.choice(sky)
 
@@ -227,10 +249,13 @@ def main():
                     help="what-if: what a combo that lights a landmark pays (the game: all)")
     ap.add_argument("--orion-rescue", action="store_true",
                     help="Orion's maps: the bots use the marked star first when a combo takes its size")
+    ap.add_argument("--hunt-share", type=float, default=None,
+                    help="the hunting circle's maps: the chance a loose star is in it (default: its share of the sky)")
     a = ap.parse_args()
-    global LANDMARK_SIZES, STARTING_LIT, ORION, VOLLEY
+    global LANDMARK_SIZES, STARTING_LIT, ORION, VOLLEY, HUNT
     LANDMARK_SIZES, STARTING_LIT, ORION = MAPS[a.map]
     VOLLEY = VOLLEY_MAPS.get(a.map, "")
+    HUNT = a.map in HUNT_MAPS
     if a.seed is not None:
         random.seed(a.seed)
     cfg = load(a.set)
@@ -246,10 +271,13 @@ def main():
         if VOLLEY and cfg.get(VOLLEY, {}).get("interval"):
             print(f"  Orion's volley ({VOLLEY}) every {cfg[VOLLEY]['interval']} combos takes "
                   f"{cfg[VOLLEY]['fraction']:.0%} of the sky (rounded up); the bots don't play around it")
+        if HUNT and cfg.get("hunt"):
+            print(f"  Orion's hunting circle (radius {cfg['hunt']['radius']}) strikes each launch from the second: "
+                  f"each loose star lost at {hunt_share(cfg, a.hunt_share):.1%}; the bots don't play around it")
         if scorpio.get("max_link_distance"):
             print(f"  not modelled: max_link_distance {scorpio['max_link_distance']} (the bots ignore where stars are)")
     for name, pol in POLICIES.items():
-        res = [run(cfg, pol, a.lighting_pays, a.orion_rescue) for _ in range(a.runs)]
+        res = [run(cfg, pol, a.lighting_pays, a.orion_rescue, a.hunt_share) for _ in range(a.runs)]
         wins = [r for r in res if r[0]]
         packs = statistics.mean(r[1] for r in wins) if wins else float("nan")
         bb = 100 * sum(1 for r in res if r[2]) / a.runs
