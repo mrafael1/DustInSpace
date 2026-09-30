@@ -50,7 +50,7 @@ const MESSAGE_TIME: float = 1.6
 const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's volley countdown (#70) sits centred this far from his figure's top-left: above his head.
-const VOLLEY_COUNTER_OFFSET := Vector2i(15, -14)
+const VOLLEY_COUNTER_OFFSET := Vector2i(15, -8)
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -90,10 +90,6 @@ func _ready() -> void:
 	_message.visible = false
 	_volley.name = "VolleyCountdown"
 	_volley.visible = false
-	var number := Label.new()
-	number.name = "Number"
-	number.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_volley.add_child(number)
 	add_child(_volley)
 
 

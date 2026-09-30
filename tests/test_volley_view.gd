@@ -30,10 +30,10 @@ func before_each() -> void:
 
 func test_the_body_shows_orion_and_the_countdown() -> void:
 	assert_true(orion.is_figure_shown())
-	assert_eq(hud.volley_countdown(), "3", "just the number")
+	assert_eq(hud.volley_countdown(), "3", "three links left")
 	var counter: VolleyCounter = hud.get_node("VolleyCountdown")
 	var figure_top: Vector2i = run.sky_rect.position + OrionView.FIGURE_AT
-	assert_lt(counter.position.y + VolleyCounter.PIP_Y + VolleyCounter.PIP, figure_top.y + 1, "above his figure, pips too")
+	assert_lt(counter.position.y + VolleyCounter.PIP, figure_top.y, "above his figure")
 	assert_eq(counter.position, counter.position.round(), "on the pixel grid")
 	main.star_map = "tail"
 	main.start_run(Balance.from_dict(_balance_dict()))
