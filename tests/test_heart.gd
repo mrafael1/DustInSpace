@@ -205,6 +205,106 @@ func test_a_restart_has_no_area() -> void:
 	assert_false(_heart_run().hunt.has_area())
 
 
+func test_balance_reads_the_hunts_intro() -> void:
+	assert_eq(Balance.load_file().hunt_intro_stars, 3, "shipped: three stars in the circle, then a demo launch")
+	assert_eq(_balance().hunt_intro_stars, 0, "no intro unless asked")
+	var data: Dictionary = _balance_dict()
+	data["hunt"] = {"radius": 40, "intro_stars": -1}
+	assert_false(Balance.from_dict(data).is_valid())
+
+
+func test_the_intro_plays_the_whole_cycle_once_for_nothing() -> void:
+	var run: RunState = _intro_run()
+	_record(run)
+	var placed: Array[Star] = []
+	run.hunt_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append_array(stars))
+	var born: Array[Star] = []
+	run.hunt_intro_burst.connect(func(_at: Vector2i, stars: Array[Star]) -> void: born.append_array(stars))
+	var launched: Array = []
+	run.hunt_intro_launched.connect(func(kind: String, at: Vector2i) -> void: launched.append([kind, at]))
+	var hit: Array[Star] = []
+	var centres: Array[Vector2i] = []
+	run.area_marked.connect(func(at: Vector2i, _radius: int) -> void: centres.append(at))
+	run.area_struck.connect(func(at: Vector2i, stars: Array[Star]) -> void:
+		assert_eq(at, centres[0], "the arrow strikes the circle it marked")
+		hit.append_array(stars))
+	var dust: int = run.dust
+	var packs: Dictionary = run.owned_packs.duplicate()
+	run.play_hunt_intro()
+	assert_eq(events, [&"hunt_intro_placed", &"area_marked", &"hunt_intro_launched", &"hunt_intro_burst", &"area_struck"] as Array[StringName])
+	assert_eq(placed.size(), 3, "the stars already there")
+	assert_eq(born.size(), run.balance.packs["blue"].stars, "the demo pack's stars")
+	assert_eq(launched, [["blue", centres[0]]], "the demo pack flies into the circle")
+	assert_eq(hit.size(), placed.size() + born.size(), "the strike takes them all, the new ones too")
+	assert_true(run.stars.is_empty())
+	assert_eq(run.dust, dust, "for nothing")
+	assert_eq(run.owned_packs, packs, "no pack used")
+	assert_eq(run.loaded_pack, "blue")
+	assert_false(run.hunt.has_area(), "no circle left: the first real launch marks one")
+	assert_eq(run.outcome, RunState.Outcome.PLAYING)
+
+
+func test_the_intros_stars_are_all_inside_its_circle_on_every_seed() -> void:
+	for seed_value: int in range(1, 41):
+		var run: RunState = _intro_run(seed_value)
+		var count: Array[int] = [0]
+		run.hunt_intro_placed.connect(func(stars: Array[Star]) -> void: count[0] += stars.size())
+		run.hunt_intro_burst.connect(func(_at: Vector2i, stars: Array[Star]) -> void: count[0] += stars.size())
+		var hit: Array[int] = [0]
+		run.area_struck.connect(func(_at: Vector2i, stars: Array[Star]) -> void:
+			hit[0] = stars.size()
+			for star: Star in stars:
+				assert_false(run.scorpio.is_landmark(star.id)))
+		run.play_hunt_intro()
+		assert_eq(count[0], 6, "seed %d: every intro star placed" % seed_value)
+		assert_eq(hit[0], count[0], "seed %d: and struck" % seed_value)
+		assert_true(run.stars.is_empty(), "seed %d" % seed_value)
+
+
+func test_the_intro_plays_once_and_only_on_a_fresh_hunting_stage() -> void:
+	var run: RunState = _intro_run()
+	run.play_hunt_intro()
+	var again: Array[bool] = []
+	run.hunt_intro_placed.connect(func(_stars: Array[Star]) -> void: again.append(true))
+	run.launch(MID_SKY)
+	run.play_hunt_intro()
+	assert_true(again.is_empty(), "not once stars are in the sky")
+	var data: Dictionary = _intro_dict()
+	var body := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.body())
+	body.hunt_intro_placed.connect(func(_stars: Array[Star]) -> void: again.append(true))
+	body.play_hunt_intro()
+	assert_true(again.is_empty(), "no hunt, no intro")
+	var plain: RunState = _heart_run()
+	plain.hunt_intro_placed.connect(func(_stars: Array[Star]) -> void: again.append(true))
+	plain.play_hunt_intro()
+	assert_true(again.is_empty(), "no intro_stars, no intro")
+
+
+func test_after_the_intro_the_first_launch_only_marks() -> void:
+	var run: RunState = _intro_run()
+	run.play_hunt_intro()
+	var struck: Array[bool] = []
+	run.area_struck.connect(func(_at: Vector2i, _stars: Array[Star]) -> void: struck.append(true))
+	run.launch(MID_SKY)
+	assert_true(struck.is_empty(), "the intro's circle is gone")
+	assert_true(run.hunt.has_area())
+	assert_eq(run.stars.size(), 3)
+
+
+func test_the_intro_never_shifts_the_packs() -> void:
+	var skies: Array[Array] = []
+	for intro: bool in [true, false]:
+		var run: RunState = _intro_run(42)
+		if intro:
+			run.play_hunt_intro()
+		run.launch(MID_SKY)
+		var sky: Array[String] = []
+		for star: Star in run.stars:
+			sky.append("%d:%s" % [star.size, star.position])
+		skies.append(sky)
+	assert_eq(skies[0], skies[1], "the first burst is the same with or without the intro")
+
+
 func test_the_heart_map() -> void:
 	var map: StarMap = StarMap.heart()
 	assert_eq(StarMap.by_id("heart").id, "heart")
@@ -278,6 +378,17 @@ func _heart_run(packs: int = 6, seed_value: int = 1) -> RunState:
 	var data: Dictionary = _balance_dict()
 	data["start_packs"] = {"blue": packs, "red": 0}
 	return RunState.new(Balance.from_dict(data), Fixtures.rng(seed_value), Fixtures.SKY, StarMap.heart())
+
+
+func _intro_dict() -> Dictionary:
+	var data: Dictionary = _balance_dict()
+	data["hunt"] = {"radius": 40, "intro_stars": 3}
+	data["start_packs"] = {"blue": 6, "red": 0}
+	return data
+
+
+func _intro_run(seed_value: int = 1) -> RunState:
+	return RunState.new(Balance.from_dict(_intro_dict()), Fixtures.rng(seed_value), Fixtures.SKY, StarMap.heart())
 
 
 ## Takes every star out of the run (test setup only).

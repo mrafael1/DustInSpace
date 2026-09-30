@@ -89,6 +89,8 @@ func start_run(balance: Balance) -> bool:
 			child.setup(run, _sequencer)
 	# A volley stage opens by showing its volley (#70), once every view is bound.
 	run.play_volley_intro()
+	# So does a hunting stage (#71): the whole cycle once, with a demo launch.
+	run.play_hunt_intro()
 	run_started.emit(run)
 	return true
 

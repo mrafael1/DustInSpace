@@ -60,6 +60,9 @@ var volleys: Dictionary[String, VolleyDef] = {}
 ## Orion's hunting area (#71), on maps that bring it (the Heart): the circle's radius in native px.
 ## Optional: without a "hunt" block there is none (0).
 var hunt_radius: int = 0
+## The stars already in the circle when the hunt's stage opens, before its intro's demo launch.
+## Optional in the block: 0 = no intro.
+var hunt_intro_stars: int = 0
 
 var errors: Array[String] = []
 
@@ -124,7 +127,10 @@ func _parse(data: Dictionary) -> void:
 	if data.has("orion"):
 		orion_first_mark_launch = _read_int(_read_dict(data, "orion", ""), "first_mark_launch", "orion.", 1)
 	if data.has("hunt"):
-		hunt_radius = _read_int(_read_dict(data, "hunt", ""), "radius", "hunt.", 1)
+		var hunt: Dictionary = _read_dict(data, "hunt", "")
+		hunt_radius = _read_int(hunt, "radius", "hunt.", 1)
+		if hunt.has("intro_stars"):
+			hunt_intro_stars = _read_int(hunt, "intro_stars", "hunt.", 0)
 	for block: String in VOLLEY_BLOCKS:
 		if data.has(block):
 			volleys[block] = _parse_volley(_read_dict(data, block, ""), block + ".")

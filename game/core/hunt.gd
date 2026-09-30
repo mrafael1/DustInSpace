@@ -6,6 +6,8 @@ extends RefCounted
 ## first launch only marks (there's no circle to strike yet). Links, purchases, aiming and cancelled
 ## gestures don't move him. Circles are placed at random from their own RNG stream, clear of his
 ## corner of the sky.
+## The stage opens with an intro that plays the whole cycle once: stars in a circle, a demo launch
+## bursting into it, and the strike that takes them all (it pays nothing and uses no pack).
 ## Pure state; RunState applies it inside launch() so a launch stays one atomic step.
 
 ## XOR'd into the run seed so the circles have their own stream and never shift packs or layout.
@@ -27,6 +29,14 @@ func _init(p_radius: int, run_seed: int) -> void:
 
 func has_area() -> bool:
 	return _marked
+
+
+## The intro's star sizes: `count` at random, from the hunt's stream.
+func intro_sizes(count: int) -> Array[int]:
+	var sizes: Array[int] = []
+	for i: int in count:
+		sizes.append(_rng.randi_range(Star.Size.SMALL, Star.Size.BIG))
+	return sizes
 
 
 ## Whether a star at `at` is inside the marked circle (its edge included).

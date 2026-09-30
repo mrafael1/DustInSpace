@@ -46,6 +46,13 @@ signal area_marked(centre: Vector2i, radius: int)
 ## Orion's hunting area: a launch's pack burst, then his arrow struck the circle at `centre` and
 ## destroyed the loose `stars` inside (maybe none). No reward.
 signal area_struck(centre: Vector2i, stars: Array[Star])
+## Orion's hunting intro: the stage opened with `stars` already in the sky (inside the circle
+## area_marked shows next).
+signal hunt_intro_placed(stars: Array[Star])
+## Orion's hunting intro: a demo pack of `kind` flies to `burst` (presentation: no pack is used).
+signal hunt_intro_launched(kind: String, burst: Vector2i)
+## Orion's hunting intro: the demo pack burst at `burst` into `stars` (area_struck takes them next).
+signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
 signal run_won
 signal run_lost
 
@@ -479,6 +486,45 @@ func play_volley_intro() -> void:
 	volley_fired.emit(placed)
 	# Like any volley, the countdown then shows where it stands (untouched: the intro doesn't count).
 	volley_counted.emit(volley.links_left())
+
+
+## Orion's hunting intro (#71), as the Heart opens (the scene calls it once its views are bound):
+## the whole cycle once, to show what the circle means and when it strikes. A few stars in the sky,
+## Orion marks a circle round them, a demo pack flies into it and bursts, then his arrow strikes the
+## circle and takes them all. It pays nothing, uses no pack and leaves no circle (the first real
+## launch marks one); it uses the hunt's own RNG stream, so packs and layout never shift. Does
+## nothing without a hunt or an intro, or once the run has begun.
+func play_hunt_intro() -> void:
+	if hunt == null or balance.hunt_intro_stars <= 0 or not stars.is_empty() or is_over():
+		return
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ Hunt.SEED_SALT ^ LAYOUT_SEED_SALT
+	var centre: Vector2i = hunt.mark(sky_rect)
+	var placed: Array[Star] = _hunt_intro_stars(balance.hunt_intro_stars, centre, layout)
+	hunt_intro_placed.emit(placed)
+	area_marked.emit(centre, hunt.radius)
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	hunt_intro_launched.emit(kind, centre)
+	var born: Array[Star] = _hunt_intro_stars(balance.packs[kind].stars, centre, layout)
+	hunt_intro_burst.emit(centre, born)
+	_hunt_strike()
+
+
+## `count` stars of random sizes scattered round `centre`; one the scatter pushed out of the circle
+## is pulled back in along its line, so the strike takes every one.
+func _hunt_intro_stars(count: int, centre: Vector2i, layout: RandomNumberGenerator) -> Array[Star]:
+	var occupied: Array[Vector2i] = []
+	for star: Star in stars:
+		occupied.append(star.position)
+	var sizes: Array[int] = hunt.intro_sizes(count)
+	var spots: Array[Vector2i] = StarScatter.place(count, centre, sky_rect, occupied, layout, scorpio.landmark_positions())
+	var placed: Array[Star] = []
+	for i: int in count:
+		var spot: Vector2i = spots[i]
+		if not hunt.contains(spot):
+			spot = centre + Vector2i((Vector2(spot - centre).normalized() * (hunt.radius - 6)).round())
+		placed.append(add_star(sizes[i] as Star.Size, spot))
+	return placed
 
 
 ## Orion's volley: whether linking `star_ids` would loose it (a valid link, the last before the
