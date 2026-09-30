@@ -17,9 +17,10 @@ each; the bots link every combo they can before that happens, best first. The Su
 scorpio.sun_target there (sun_target without it).
 Not modelled: where stars are. The bots link any stars in the sky, so scorpio.max_link_distance
 (each step of a link must be at most that long) is ignored: real Scorpio runs can only do worse.
-Orion (#64, the Tail map): from launch orion.first_mark_launch, after each move he marks one
-random sky star: after each burst, and after a combo when no mark is left; on the next launch,
-before the pack opens, it's destroyed for nothing if it's still in the sky. The bots don't play around the mark: when a combo takes stars of the marked
+Orion (#64, the Tail map): from launch orion.first_mark_launch he keeps one random sky star marked
+(a burst marks one when none is). A combo that uses it saves it; a combo that leaves it behind has it
+destroyed for nothing, unless a Sun clear takes the sky first. After every combo he marks a new one.
+Launches never shoot. The bots don't play around the mark: when a combo takes stars of the marked
 star's size they use the others first (pessimistic), unless --orion-rescue (they use it first).
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
@@ -127,10 +128,8 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False):
                     if not best:
                         break
                     key, used = TRIPLE[best], [best] * 3
-            if marked is not None and marked in used:
-                # Rescued when the combo has to take it (or the bots take it first, --orion-rescue).
-                if orion_rescue or sky.count(marked) == used.count(marked):
-                    marked = None
+            # Saved when the combo has to take it (or the bots take it first, --orion-rescue).
+            saved = marked is not None and marked in used and (orion_rescue or sky.count(marked) == used.count(marked))
             for s in used:
                 sky.remove(s)
             # What a combo that lights a landmark pays: as usual in the game ("all"); the other
@@ -157,8 +156,12 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False):
                     return True, opened, big_bangs
             elif light >= cfg["sun_target"]:
                 return True, opened, big_bangs
-            # A combo is a move: with no mark left, Orion marks again.
-            if first_mark and opened >= first_mark and marked is None and sky:
+            # Orion: a combo that left the mark behind has it shot (a Sun clear took it already);
+            # then he marks a new one.
+            if marked is not None and not saved:
+                sky.remove(marked)
+            marked = None
+            if first_mark and opened >= first_mark and sky:
                 marked = random.choice(sky)
         if not packs:
             choice = policy(cfg, sky, dust)
@@ -169,16 +172,14 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False):
         kind = packs.pop(0)
         pack = cfg["packs"][kind]
         opened += 1
-        if marked is not None:
-            sky.remove(marked)
-            marked = None
         if random.random() < pack["big_bang_chance"]:
             big_bangs += 1
             dust += cfg["big_bang"]["base_dust"] + cfg["big_bang"]["dust_per_cleared_star"] * len(sky)
             sky = []
+            marked = None
         else:
             sky += [draw(pack) for _ in range(int(pack["stars"]))]
-        if first_mark and opened >= first_mark and sky:
+        if first_mark and opened >= first_mark and sky and marked is None:
             marked = random.choice(sky)
 
 
