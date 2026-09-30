@@ -17,6 +17,9 @@ extends Node2D
 ## (sky_cleared).
 ## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
+## Orion (#64): on stages he hunts, the OrionLayer shows his figure, the reticle on the star he
+## marked, his bow readying while a traced link would leave it behind, and his arrow; the shot star
+## bursts as the arrow lands, once that link resolves.
 
 ## A star joined the link being traced; `count` stars are in it now. Feedback only (sound).
 signal star_selected(count: int)
@@ -28,7 +31,8 @@ signal sunbeam_landed(at: Vector2i)
 signal link_refused
 ## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
 signal step_refused
-## Scorpio: the constellation is complete and a star left in the sky burst at `at`. Feedback only.
+## Scorpio: the constellation is complete and a star left in the sky burst at `at` (or Orion's
+## arrow broke it). Feedback only.
 signal star_exploded(at: Vector2i)
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
@@ -64,6 +68,7 @@ var _completion_waiting: bool = false
 @onready var _halo_layer: Node2D = $HaloLayer
 @onready var _link_layer: LinkLayer = $LinkLayer
 @onready var _star_layer: Node2D = $StarLayer
+@onready var _orion: OrionView = $OrionLayer
 
 
 func _ready() -> void:
@@ -96,6 +101,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_completion_waiting = false
 	_rekindle_landmark = -1
 	_constellation.setup(run)
+	_orion.setup(run.orion != null, run.sky_rect)
 	for star: Star in run.stars:
 		_spawn(star)
 
@@ -202,6 +208,16 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_completion_waiting = true
 			else:
 				_play_completion()
+		&"star_marked":
+			var marked: StarView = _views.get((event.args[0] as Star).id)
+			if marked != null:
+				_orion.mark(marked)
+				_sequencer.hold(OrionView.MARK_TIME)
+		&"star_shot":
+			_shoot(event.args[0])
+	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
+	if _orion.marked() != null and not _views.values().has(_orion.marked()):
+		_orion.clear_mark()
 
 
 ## Presses only start inside the sky; a release always ends the press that started.
@@ -277,6 +293,8 @@ func _show_link() -> void:
 	var reach: int = _run.link_reach() if _run != null else 0
 	_link_layer.show_reach(points[_gesture.selected.size() - 1] if open else Vector2i.ZERO, reach if open else 0)
 	_show_preview()
+	# Orion readies his bow while the link would leave his mark behind.
+	_orion.ready_bow(_run != null and _run.link_shoots(_gesture.selected))
 
 
 ## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it
@@ -385,6 +403,17 @@ static func explode_order(stars: Array[Star]) -> Array[Star]:
 	order.sort_custom(func(a: Star, b: Star) -> bool:
 		return a.position.y > b.position.y or (a.position.y == b.position.y and a.position.x < b.position.x))
 	return order
+
+
+## Orion's arrow flies to `star`, which bursts as it lands; the next events wait for it.
+func _shoot(star: Star) -> void:
+	var landing: float = _orion.shoot(star.position, star.size)
+	var view: StarView = _views.get(star.id)
+	if view != null:
+		_views.erase(star.id)
+		view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
+		view.explode(landing)
+	_sequencer.hold(landing + StarView.DISSOLVE_TIME * 0.5)
 
 
 func _dissolve(stars: Array[Star]) -> void:

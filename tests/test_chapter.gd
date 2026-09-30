@@ -28,11 +28,13 @@ func test_the_parts_share_out_every_chart_star_from_the_tail() -> void:
 	assert_eq(Chapter.stars(Chapter.FINAL), [] as Array[int], "the final is the whole figure")
 
 
-func test_only_the_stinger_and_the_final_are_built() -> void:
+func test_the_stinger_the_tail_and_the_final_are_built() -> void:
 	var chapter := Chapter.new()
 	assert_eq(chapter.map_id(0), "stinger")
+	assert_eq(chapter.map_id(1), "tail")
 	assert_eq(chapter.map_id(Chapter.FINAL), "scorpio")
-	for stage: int in range(1, Chapter.FINAL):
+	assert_eq(chapter.state(1), Chapter.PointState.LOCKED, "until the Stinger is won")
+	for stage: int in range(2, Chapter.FINAL):
 		assert_false(chapter.has_stage(stage), "%s isn't built yet" % Chapter.stage_name(stage))
 		assert_eq(chapter.state(stage), Chapter.PointState.LOCKED)
 	assert_eq(chapter.state(0), Chapter.PointState.AVAILABLE)
@@ -57,6 +59,7 @@ func test_winning_a_part_unlocks_the_next_built_part() -> void:
 
 func test_with_only_the_stinger_built_winning_it_opens_no_part() -> void:
 	var chapter := Chapter.new()
+	chapter.set_built(1, false)
 	assert_eq(chapter.complete(0), -1)
 	assert_eq(chapter.current(), Chapter.FINAL, "the final is next to play")
 

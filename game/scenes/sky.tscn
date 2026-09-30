@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/sky.gd" id="1_sky"]
 [ext_resource type="Script" path="res://game/scenes/constellation_view.gd" id="9_constellation"]
 [ext_resource type="Script" path="res://game/scenes/link_layer.gd" id="2_link_layer"]
+[ext_resource type="Script" path="res://game/scenes/orion_view.gd" id="3_orion"]
 
 [node name="Sky" type="Node2D"]
 script = ExtResource("1_sky")
@@ -10,9 +11,14 @@ script = ExtResource("1_sky")
 [node name="ConstellationLayer" type="Node2D" parent="."]
 script = ExtResource("9_constellation")
 
+[node name="FigureLayer" type="Node2D" parent="."]
+
 [node name="HaloLayer" type="Node2D" parent="."]
 
 [node name="LinkLayer" type="Node2D" parent="."]
 script = ExtResource("2_link_layer")
 
 [node name="StarLayer" type="Node2D" parent="."]
+
+[node name="OrionLayer" type="Node2D" parent="."]
+script = ExtResource("3_orion")

@@ -28,6 +28,11 @@ signal sun_rekindled(landmark: int)
 signal sky_cleared(stars: Array[Star], dust: int)
 ## Scorpio: the last landmark lit. On the Scorpio map that's the win (run_won follows).
 signal constellation_completed
+## Orion (#64): Orion marked `star`, a loose sky star: after a successful link, or after a burst
+## when none was marked. The next link that leaves it behind has his arrow take it.
+signal star_marked(star: Star)
+## Orion: a successful link left the marked `star` behind, and his arrow destroyed it. No reward.
+signal star_shot(star: Star)
 signal run_won
 signal run_lost
 
@@ -54,6 +59,8 @@ var outcome: Outcome = Outcome.PLAYING
 var force_next_big_bang: bool = false
 ## The Scorpio map, or null when balance.json has it off.
 var scorpio: Scorpio
+## Orion (#64), or null when the map doesn't bring him (or balance.json has no "orion" block).
+var orion: Orion
 
 var _rng: RandomNumberGenerator
 var _layout_rng := RandomNumberGenerator.new()
@@ -73,6 +80,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 	dust = balance.start_dust
 	if balance.scorpio_enabled:
 		scorpio = Scorpio.new(p_sky_rect, p_map)
+		if scorpio.map.orion and balance.orion_first_mark_launch > 0:
+			orion = Orion.new(balance.orion_first_mark_launch, run_seed)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -203,6 +212,8 @@ func load_pack(kind: String) -> bool:
 
 
 ## Launches the loaded pack toward `target`. The burst point is clamped into the sky.
+## With Orion: no arrow; after the pack opens he marks a loose star if none is marked. Win and
+## loss are checked once, at the end.
 func launch(target: Vector2i) -> bool:
 	if is_over() or loaded_pack == "" or owned_packs.get(loaded_pack, 0) <= 0:
 		return false
@@ -210,19 +221,23 @@ func launch(target: Vector2i) -> bool:
 	var burst: Vector2i = StarScatter.clamp_to_sky(target, sky_rect)
 	owned_packs[kind] -= 1
 	pack_launched.emit(kind, burst)
+	if orion != null:
+		orion.count_launch()
 	var result: PackOpener.PackResult = PackOpener.open(balance.packs[kind], _rng, force_next_big_bang)
 	force_next_big_bang = false
 	if result.big_bang:
 		_big_bang(burst)
 	else:
 		_burst(kind, burst, result.sizes)
+	if orion != null and not orion.has_target():
+		_orion_mark()
 	_auto_load()
 	_check_end()
 	return true
 
 
-## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up. On the Scorpio map
-## a step between consecutive stars longer than the reach makes the link invalid.
+## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up (nor moves Orion).
+## On the Scorpio map a step between consecutive stars longer than the reach makes the link invalid.
 ## On the Scorpio map one unlit landmark can be in it too: the combo pays as usual and the
 ## landmark lights up instead of being used up. A full Sun then rekindles.
 ## Returns the combo key, or Combos.INVALID.
@@ -237,6 +252,7 @@ func link(star_ids: Array[int]) -> String:
 		return Combos.INVALID
 	for star: Star in linked:
 		stars.erase(star)
+	_orion_forget(linked)
 	var reward: Balance.ComboReward = balance.combos[combo]
 	dust += reward.dust
 	light += reward.light
@@ -254,8 +270,37 @@ func link(star_ids: Array[int]) -> String:
 			_clear_sky(0)
 		if scorpio.is_complete():
 			constellation_completed.emit()
+	# Orion: a link that left his mark behind has the arrow take it (a clear took it already), before
+	# the loss check sees the sky. Then he marks a new star if the run goes on.
+	if orion != null:
+		_orion_shoot()
 	_check_end()
+	if orion != null and not is_over():
+		_orion_mark()
 	return combo
+
+
+## Orion: whether linking `star_ids` would have his arrow take the marked star: a valid link that
+## leaves it behind and doesn't clear the sky (a rekindled Sun or the completion) first.
+func link_shoots(star_ids: Array[int]) -> bool:
+	if orion == null or not orion.has_target() or star_ids.has(orion.target):
+		return false
+	var combo: String = combo_for(star_ids)
+	if combo == Combos.INVALID:
+		return false
+	return not _link_clears_sky(star_ids, balance.combos[combo].light)
+
+
+## Scorpio: whether a valid link of `star_ids` paying `gain` light clears the sky: its Sun rekindles
+## or its landmarks complete the constellation.
+func _link_clears_sky(star_ids: Array[int], gain: int) -> bool:
+	if scorpio == null:
+		return false
+	var lit: Array[bool] = scorpio.lit.duplicate()
+	for id: int in star_ids:
+		if scorpio.is_landmark(id):
+			lit[Scorpio.landmark_index(id)] = true
+	return light + gain >= light_target() or not lit.has(false)
 
 
 ## The combo a link would make (Combos.INVALID if none), without making it. For previews.
@@ -349,6 +394,7 @@ func _clear_sky(dust_per_star: int) -> void:
 		return
 	var cleared: Array[Star] = stars.duplicate()
 	stars.clear()
+	_orion_forget(cleared)
 	var gain: int = dust_per_star * cleared.size()
 	dust += gain
 	sky_cleared.emit(cleared, gain)
@@ -358,9 +404,40 @@ func _clear_sky(dust_per_star: int) -> void:
 func _big_bang(burst: Vector2i) -> void:
 	var cleared: Array[Star] = stars.duplicate()
 	stars.clear()
+	_orion_forget(cleared)
 	var gain: int = balance.big_bang_base_dust + balance.big_bang_dust_per_cleared_star * cleared.size()
 	dust += gain
 	big_bang_started.emit(burst, cleared, gain)
+
+
+## The star Orion has marked, or null.
+func marked_star() -> Star:
+	return find_star(orion.target) if orion != null and orion.has_target() else null
+
+
+## Orion's arrow: the marked star, if it's still in the sky after a link, is destroyed for nothing.
+func _orion_shoot() -> void:
+	var star: Star = find_star(orion.draw_bow())
+	if star == null:
+		return
+	stars.erase(star)
+	star_shot.emit(star)
+
+
+## Orion marks a loose sky star (the sky's stars: landmarks are never in it), if he can yet.
+func _orion_mark() -> void:
+	var id: int = orion.mark(stars)
+	if id != 0:
+		star_marked.emit(find_star(id))
+
+
+func _orion_forget(gone: Array[Star]) -> void:
+	if orion == null:
+		return
+	var ids: Array[int] = []
+	for star: Star in gone:
+		ids.append(star.id)
+	orion.forget(ids)
 
 
 ## Returns the stars for a link, or an empty array if the ids aren't 3 distinct sky stars. On the
