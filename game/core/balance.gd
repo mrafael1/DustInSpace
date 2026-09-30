@@ -47,6 +47,9 @@ var orion_first_mark_launch: int = 0
 ## none (interval 0).
 var volley_interval: int = 0
 var volley_fraction: float = 0.0
+## The stars already in the sky when a volley stage opens, which its intro volley destroys.
+## Optional in the block: 0 = no intro.
+var volley_intro_stars: int = 0
 
 var errors: Array[String] = []
 
@@ -111,6 +114,8 @@ func _parse(data: Dictionary) -> void:
 		volley_fraction = _read_chance(volley, "fraction", "volley.")
 		if volley.has("fraction") and volley_fraction <= 0.0:
 			errors.append("volley.fraction: must be above 0")
+		if volley.has("intro_stars"):
+			volley_intro_stars = _read_int(volley, "intro_stars", "volley.", 0)
 
 
 func _parse_packs(raw: Dictionary) -> void:

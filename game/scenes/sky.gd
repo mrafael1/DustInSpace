@@ -46,6 +46,9 @@ const EXPLODE_STAGGER: float = 0.06
 ## scaling a phone shows about 2 pt per native px, so a 22 px circle is 44 pt.
 const HIT_RADIUS: int = 11
 
+## Orion's volley intro (#70): how long its stars show before the volley takes them.
+const INTRO_HOLD: float = 0.9
+
 var _run: RunState
 var _sequencer: EventSequencer
 var _views: Dictionary[int, StarView] = {}
@@ -217,6 +220,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_sequencer.hold(OrionView.MARK_TIME)
 		&"star_shot":
 			_shoot(event.args[0])
+		&"volley_intro_placed":
+			for star: Star in event.args[0]:
+				_spawn(star)
+			# A beat to see the stars before the intro volley takes them.
+			_sequencer.hold(INTRO_HOLD)
 		&"volley_fired":
 			_volley(event.args[0])
 		&"volley_counted":

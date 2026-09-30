@@ -37,6 +37,9 @@ signal star_shot(star: Star)
 signal volley_counted(links_left: int)
 ## Orion's volley: a counted link looses it, and his arrows destroyed `stars` (maybe none). No reward.
 signal volley_fired(stars: Array[Star])
+## Orion's volley intro: a volley stage opened with `stars` already in the sky (the intro volley
+## destroys them next).
+signal volley_intro_placed(stars: Array[Star])
 signal run_won
 signal run_lost
 
@@ -429,6 +432,31 @@ func _count_for_volley() -> void:
 			stars.erase(star)
 		volley_fired.emit(victims)
 	volley_counted.emit(volley.links_left())
+
+
+## Orion's volley intro, as a volley stage opens (the scene calls it once its views are bound): a
+## few random stars already in the sky, then a volley at once that destroys them all. It pays
+## nothing, doesn't count towards the next volley, and uses the volley's own RNG stream, so packs
+## and layout never shift. Does nothing without a volley, or once the run has begun.
+func play_volley_intro() -> void:
+	if volley == null or balance.volley_intro_stars <= 0 or not stars.is_empty() or is_over():
+		return
+	var sizes: Array[int] = volley.intro_sizes(balance.volley_intro_stars)
+	var spots: Array[Vector2i] = volley.intro_spots(StarScatter.inner_rect(sky_rect), sky_rect)
+	var placed: Array[Star] = []
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ Volley.SEED_SALT ^ LAYOUT_SEED_SALT
+	for spot: int in spots.size():
+		var count: int = sizes.size() / 2 if spot == 0 else sizes.size() - sizes.size() / 2
+		var occupied: Array[Vector2i] = []
+		for star: Star in placed:
+			occupied.append(star.position)
+		for p: Vector2i in StarScatter.place(count, spots[spot], sky_rect, occupied, layout, scorpio.landmark_positions()):
+			placed.append(add_star(sizes[placed.size()] as Star.Size, p))
+	volley_intro_placed.emit(placed)
+	for star: Star in placed:
+		stars.erase(star)
+	volley_fired.emit(placed)
 
 
 ## Orion's volley: whether linking `star_ids` would loose it (a valid link, the last before the

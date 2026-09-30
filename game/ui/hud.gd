@@ -49,8 +49,9 @@ const MESSAGE_TIME: float = 1.6
 ## Orion's first mark of a run (#64) says what it means, a little longer.
 const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
-## Orion's volley countdown (#70) sits this far above his figure's top-left.
-const VOLLEY_LABEL_OFFSET := Vector2i(0, -11)
+## Orion's volley countdown (#70), a bare number, sits centred this far from his figure's top-left:
+## above his head.
+const VOLLEY_LABEL_OFFSET := Vector2i(14, -11)
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -300,9 +301,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	_show()
 
 
-## The volley countdown's text for `links_left` links to go: the count, then NEXT on the last link.
+## The volley countdown's text for `links_left` links to go: just the number.
 static func volley_text(links_left: int) -> String:
-	return "VOLLEY NEXT" if links_left <= 1 else "VOLLEY IN %d" % links_left
+	return "%d" % links_left
 
 
 func volley_countdown() -> String:

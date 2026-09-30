@@ -30,7 +30,7 @@ func before_each() -> void:
 
 func test_the_body_shows_orion_and_the_countdown() -> void:
 	assert_true(orion.is_figure_shown())
-	assert_eq(hud.volley_countdown(), "VOLLEY IN 3")
+	assert_eq(hud.volley_countdown(), "3", "just the number")
 	var label: Label = hud.get_node("VolleyCountdown")
 	var figure_top: Vector2i = run.sky_rect.position + OrionView.FIGURE_AT
 	assert_lt(label.position.y, figure_top.y, "above his figure")
@@ -45,13 +45,13 @@ func test_the_countdown_and_the_bow_build_to_the_volley() -> void:
 	var rest: Dictionary[Vector2i, Color] = orion.figure_pixels()
 	assert_true(orion.nocked_pixels().is_empty(), "nothing nocked at rest")
 	_link_corner_trio()
-	assert_eq(hud.volley_countdown(), "VOLLEY IN 2")
+	assert_eq(hud.volley_countdown(), "2")
 	assert_eq(orion.volley_charge(), 1)
 	assert_eq(orion.nocked_pixels().size(), OrionView.NOCK + 1, "one arrow nocked")
 	var bow_at: Vector2i = run.sky_rect.position + OrionView.FIGURE_AT + OrionView.BOW[2]
 	assert_ne(orion.figure_pixels()[bow_at], rest[bow_at], "the bow drawn")
 	_link_corner_trio()
-	assert_eq(hud.volley_countdown(), "VOLLEY NEXT")
+	assert_eq(hud.volley_countdown(), "1")
 	assert_eq(orion.volley_charge(), 2)
 	assert_gt(orion.nocked_pixels().size(), OrionView.NOCK + 1, "a fan of arrows nocked")
 	var seen: Dictionary = {}
@@ -112,7 +112,7 @@ func test_the_volley_sends_an_arrow_to_each_star_it_takes() -> void:
 	assert_gt(most, 0)
 	assert_false(orion.is_volleying(), "all landed")
 	_play()
-	assert_eq(hud.volley_countdown(), "VOLLEY IN 3", "the countdown starts again")
+	assert_eq(hud.volley_countdown(), "3", "the countdown starts again")
 	assert_eq(orion.volley_charge(), 0)
 
 
@@ -122,8 +122,31 @@ func test_a_restart_resets_the_countdown_and_the_bow() -> void:
 	assert_eq(orion.volley_charge(), 2)
 	main.restart()
 	assert_eq(orion.volley_charge(), 0)
-	assert_eq(hud.volley_countdown(), "VOLLEY IN 3")
+	assert_eq(hud.volley_countdown(), "3")
 	assert_false(orion.is_volleying())
+
+
+func test_the_stage_opens_with_stars_and_a_volley_that_takes_them() -> void:
+	var data: Dictionary = _balance_dict()
+	data["volley"] = {"interval": 2, "fraction": 1.0, "intro_stars": 6}
+	main.start_run(Balance.from_dict(data))
+	run = main.run
+	sequencer.advance(0.0)
+	assert_true(run.stars.is_empty(), "the intro volley already took them in the run")
+	var shown: int = 0
+	for view: Node in sky.get_node("StarLayer").get_children():
+		if view is StarView:
+			shown += 1
+	assert_eq(shown, 6, "but the sky shows them first")
+	assert_false(orion.is_volleying(), "a beat before the arrows")
+	var waited: float = 0.0
+	while not orion.is_volleying() and waited < 3.0:
+		sequencer.advance(1.0 / 60.0)
+		waited += 1.0 / 60.0
+	assert_true(orion.is_volleying(), "then the volley")
+	assert_between(waited, SkyView.INTRO_HOLD - 0.05, SkyView.INTRO_HOLD + 0.2)
+	_play()
+	assert_eq(hud.volley_countdown(), "2", "and the countdown for the real ones")
 
 
 func _balance_dict() -> Dictionary:

@@ -87,6 +87,8 @@ func start_run(balance: Balance) -> bool:
 	for child: Node in get_children():
 		if child.has_method("setup"):
 			child.setup(run, _sequencer)
+	# A volley stage opens by showing its volley (#70), once every view is bound.
+	run.play_volley_intro()
 	run_started.emit(run)
 	return true
 
