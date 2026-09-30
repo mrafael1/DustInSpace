@@ -142,6 +142,59 @@ func test_areas_stay_in_the_sky_and_clear_of_orion() -> void:
 			run.launch(Vector2i(40 + 20 * launch, 120 + 15 * launch))
 
 
+func test_every_area_threatens_a_loose_star_on_every_seed() -> void:
+	for seed_value: int in range(1, 31):
+		var data: Dictionary = _balance_dict()
+		data["hunt"] = {"radius": 24 if seed_value % 2 == 0 else 40}
+		data["start_packs"] = {"blue": 6, "red": 0}
+		var run := RunState.new(Balance.from_dict(data), Fixtures.rng(seed_value), Fixtures.SKY, StarMap.heart())
+		var covered: Array[bool] = []
+		run.area_marked.connect(func(_at: Vector2i, radius: int) -> void:
+			# Only stars no circle can reach (in Orion's corner, or the sky's far corners) are ever left out.
+			var reachable: bool = run.stars.any(func(star: Star) -> bool: return _reachable(star, radius))
+			covered.append(not reachable or run.stars.any(func(star: Star) -> bool: return run.hunt.contains(star.position))))
+		for launch: int in 6:
+			run.launch(Vector2i(40 + 20 * launch, 120 + 15 * launch))
+		assert_eq(covered.size(), 6)
+		assert_does_not_have(covered, false, "seed %d: never a circle over empty sky while a star can be reached" % seed_value)
+
+
+func test_a_circle_is_marked_round_a_star_even_at_the_skys_edge_or_by_orion() -> void:
+	var corner := Rect2i(Fixtures.SKY.position + Volley.ORION_CORNER.position, Volley.ORION_CORNER.size)
+	var edges: Array[Vector2i] = [
+		Vector2i(90, Fixtures.SKY.end.y - StarScatter.EDGE_MARGIN - 1),
+		Vector2i(Fixtures.SKY.end.x - StarScatter.EDGE_MARGIN - 1, 160),
+		corner.end + Vector2i(1, 1),
+		Vector2i(120, Fixtures.SKY.position.y + StarScatter.EDGE_MARGIN),
+	]
+	for at: Vector2i in edges:
+		for seed_value: int in range(1, 11):
+			var hunt := Hunt.new(40, seed_value)
+			var star := Star.new(1, Star.Size.SMALL, at)
+			var centre: Vector2i = hunt.mark(Fixtures.SKY, [star] as Array[Star])
+			assert_true(hunt.contains(at), "%s, seed %d: the star is inside" % [at, seed_value])
+			assert_true(Fixtures.SKY.grow(-40).has_point(centre), "the whole circle in the sky")
+			assert_false(corner.grow(40).has_point(centre), "clear of Orion's figure")
+
+
+func test_a_star_hugging_orion_is_passed_over_for_one_the_circle_can_reach() -> void:
+	# Right beside his figure: no circle clear of it reaches this star; nor one in the sky's far corner.
+	var hugging := Star.new(1, Star.Size.BIG, Vector2i(45, 80))
+	var far := Star.new(3, Star.Size.MEDIUM, StarScatter.inner_rect(Fixtures.SKY).end - Vector2i.ONE)
+	var open := Star.new(2, Star.Size.SMALL, MID_SKY)
+	for seed_value: int in range(1, 21):
+		var hunt := Hunt.new(40, seed_value)
+		hunt.mark(Fixtures.SKY, [hugging, far, open] as Array[Star])
+		assert_true(hunt.contains(open.position), "seed %d" % seed_value)
+
+
+func test_an_empty_sky_still_gets_a_circle() -> void:
+	var hunt := Hunt.new(40, 7)
+	var centre: Vector2i = hunt.mark(Fixtures.SKY)
+	assert_true(hunt.has_area())
+	assert_true(Fixtures.SKY.grow(-40).has_point(centre))
+
+
 func test_the_same_seed_marks_the_same_areas_and_packs_never_shift() -> void:
 	var centres: Array[Array] = []
 	var skies: Array[Array] = []
@@ -372,6 +425,13 @@ func _balance_dict() -> Dictionary:
 
 func _balance() -> Balance:
 	return Balance.from_dict(_balance_dict())
+
+
+## Whether a circle of `radius` could be marked round `star` on its own.
+func _reachable(star: Star, radius: int) -> bool:
+	var hunt := Hunt.new(radius, 0)
+	hunt.mark(Fixtures.SKY, [star] as Array[Star])
+	return hunt.contains(star.position)
 
 
 func _heart_run(packs: int = 6, seed_value: int = 1) -> RunState:
