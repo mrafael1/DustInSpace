@@ -34,6 +34,9 @@ const SUBTITLE_Y: int = 42
 const INFO_Y: int = 250
 const PLAY := Rect2i(58, 265, 64, 21)
 const PANEL := Rect2i(26, 236, 128, 52)
+## On a taller phone (fit_screen) the heading goes to the top of the screen, the label stays at the
+## bottom, and the chart sits halfway between; PLAY also drops up to PLAY_ROOM px below the name.
+const PLAY_ROOM: int = 4
 ## The rules either side of the name: RULE px long, RULE_GAP px from it, a small star at the far end.
 const RULE: int = 14
 const RULE_GAP: int = 5
@@ -118,7 +121,8 @@ var _light_time: float = 0.0
 var _then_travel_to: int = -1
 var _pressed_point: int = -1
 var _pressed_play: bool = false
-## The visible screen in game coordinates (fit_screen).
+## The visible screen in the chart's coordinates (fit_screen): the 9:16 layout, with any extra
+## height split above and below it.
 var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 var _numbers: Array[Label] = []
 ## The space behind the chart, built once per screen, and its twinkling stars.
@@ -152,8 +156,7 @@ func _ready() -> void:
 	_motes = mote_layout()
 	_title.text = "SCORPIO"
 	_subtitle.text = "CHAPTER 1"
-	_centre(_title, TITLE_Y)
-	_centre(_subtitle, SUBTITLE_Y)
+	_place_heading()
 	for stage: int in Chapter.stage_count():
 		var number := Label.new()
 		number.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -181,12 +184,37 @@ func setup(chapter: Chapter) -> void:
 	_refresh()
 
 
+## Fits the chart to `screen`, the visible area in game coordinates (the game's 180x320 at the
+## bottom). Extra height is split: the chart lifts by half of it and sets its own offset to match,
+## so the heading can rise to the top and the label stay at the bottom, each half as far from it.
 func fit_screen(screen: Rect2i) -> void:
-	if screen != _screen or _space == null:
-		_space = ImageTexture.create_from_image(space_image(screen))
-		_twinklers = twinkling_stars(screen)
-	_screen = screen
+	var extra: int = maxi(0, -screen.position.y)
+	var lift: int = extra / 2
+	offset = Vector2(-screen.position.x, extra - lift)
+	var local := Rect2i(screen.position + Vector2i(0, lift), screen.size)
+	if local != _screen or _space == null:
+		_space = ImageTexture.create_from_image(space_image(local))
+		_twinklers = twinkling_stars(local)
+	_screen = local
+	_place_heading()
+	_refresh()
 	_chart.queue_redraw()
+
+
+## How far the heading rises above its 9:16 place on `screen` (chart coordinates).
+static func heading_rise(screen: Rect2i) -> int:
+	return maxi(0, -screen.position.y)
+
+
+## How far the stage label drops below its 9:16 place on `screen` (chart coordinates).
+static func label_drop(screen: Rect2i) -> int:
+	return maxi(0, screen.end.y - ScreenZones.SCREEN.y)
+
+
+## Where PLAY sits on `screen` (chart coordinates).
+static func play_rect(screen: Rect2i = Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)) -> Rect2i:
+	var drop: int = label_drop(screen)
+	return Rect2i(PLAY.position + Vector2i(0, drop + mini(drop / 8, PLAY_ROOM)), PLAY.size)
 
 
 ## The background stars of `screen` that twinkle: plain 1 px ones (not glints), one in
@@ -286,19 +314,20 @@ static func space_image(screen: Rect2i) -> Image:
 
 
 ## Where the stage label draws (the name with its rules, PLAY): background stars keep off these.
-static func label_areas() -> Array[Rect2i]:
-	return [Rect2i(PANEL.position.x, INFO_Y - 3, PANEL.size.x, 13), PLAY.grow(3)]
+static func label_areas(screen: Rect2i = Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)) -> Array[Rect2i]:
+	return [Rect2i(PANEL.position.x, INFO_Y + label_drop(screen) - 3, PANEL.size.x, 13), play_rect(screen).grow(3)]
 
 
 ## Where the background stars are in `screen`: a fixed hash per pixel, clear of the stage points
 ## and the stage panel.
 static func space_stars(screen: Rect2i) -> Array[Vector2i]:
 	var stars: Array[Vector2i] = []
-	var title := Rect2i(40, TITLE_Y - 3, 100, SUBTITLE_Y - TITLE_Y + 13)
+	var title := Rect2i(40, TITLE_Y - heading_rise(screen) - 3, 100, SUBTITLE_Y - TITLE_Y + 13)
+	var labels: Array[Rect2i] = label_areas(screen)
 	for y: int in range(screen.position.y, screen.end.y):
 		for x: int in range(screen.position.x, screen.end.x):
 			var p := Vector2i(x, y)
-			if _hash(p) % STAR_ODDS != 0 or title.has_point(p) or label_areas().any(func(r: Rect2i) -> bool: return r.has_point(p)):
+			if _hash(p) % STAR_ODDS != 0 or title.has_point(p) or labels.any(func(r: Rect2i) -> bool: return r.has_point(p)):
 				continue
 			var clear: bool = true
 			for star: Vector2i in Scorpio.LANDMARKS + [FINAL_AT]:
@@ -437,7 +466,7 @@ func handle_pointer(event: InputEvent) -> bool:
 		return false
 	var at := Vector2i(touch.position.floor())
 	if touch.pressed:
-		_pressed_play = can_play() and PLAY.has_point(at)
+		_pressed_play = can_play() and play_rect(_screen).has_point(at)
 		_pressed_point = -1 if _pressed_play else stage_at(at)
 		_chart.queue_redraw()
 		return _pressed_play or _pressed_point >= 0
@@ -447,7 +476,7 @@ func handle_pointer(event: InputEvent) -> bool:
 		_pressed_point = -1
 		_chart.queue_redraw()
 		return used
-	if _pressed_play and PLAY.has_point(at) and can_play():
+	if _pressed_play and play_rect(_screen).has_point(at) and can_play():
 		stage_chosen.emit(_selected)
 	elif _pressed_point >= 0 and stage_at(at) == _pressed_point and not is_travelling() and not is_lighting():
 		select(_pressed_point)
@@ -580,12 +609,21 @@ func _refresh() -> void:
 	else:
 		_info.text = "COMING SOON"
 		_info.label_settings.font_color = Palette.N8
-	_centre(_info, INFO_Y)
+	_centre(_info, INFO_Y + label_drop(_screen))
 	_play.visible = can_play()
 	_play.text = "REPLAY" if _chapter.is_completed(_selected) else "PLAY"
 	_play.size = _play.get_minimum_size()
-	_play.position = Vector2(PLAY.position.x + floori((PLAY.size.x - _play.size.x) / 2.0), PLAY.position.y + 7)
+	var play: Rect2i = play_rect(_screen)
+	_play.position = Vector2(play.position.x + floori((play.size.x - _play.size.x) / 2.0), play.position.y + 7)
 	_chart.queue_redraw()
+
+
+func _place_heading() -> void:
+	if _title == null:
+		return
+	var rise: int = heading_rise(_screen)
+	_centre(_title, TITLE_Y - rise)
+	_centre(_subtitle, SUBTITLE_Y - rise)
 
 
 func _centre(label: Label, y: int) -> void:
@@ -626,7 +664,7 @@ func _draw_chart() -> void:
 	_draw_comet()
 	_draw_label_rules()
 	if can_play():
-		_draw_plaque(PLAY, Palette.M3 if _pressed_play else Palette.N0, Palette.C2)
+		_draw_plaque(play_rect(_screen), Palette.M3 if _pressed_play else Palette.N0, Palette.C2)
 
 
 ## The thin rules either side of the stage name, each tipped with a small star: warm for a stage
@@ -634,7 +672,7 @@ func _draw_chart() -> void:
 func _draw_label_rules() -> void:
 	if _info == null:
 		return
-	var y: int = INFO_Y + 3
+	var y: int = INFO_Y + label_drop(_screen) + 3
 	var half: int = floori(_info.size.x / 2.0)
 	var tip: Color = Palette.C2 if can_play() else Palette.N8
 	for side: int in [-1, 1]:

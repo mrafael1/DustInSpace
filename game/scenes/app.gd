@@ -78,7 +78,6 @@ func fit_screen() -> void:
 		window.content_scale_size = ScreenZones.fill_size(window.size)
 	var visible: Vector2 = get_viewport().get_visible_rect().size
 	var offset: Vector2i = ScreenZones.game_offset(visible)
-	_chart.offset = Vector2(offset)
 	_chart.fit_screen(Rect2i(-offset, Vector2i(visible)))
 
 
