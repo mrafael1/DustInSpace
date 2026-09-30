@@ -49,9 +49,8 @@ const MESSAGE_TIME: float = 1.6
 ## Orion's first mark of a run (#64) says what it means, a little longer.
 const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
-## Orion's volley countdown (#70), a bare number, sits centred this far from his figure's top-left:
-## above his head.
-const VOLLEY_LABEL_OFFSET := Vector2i(14, -11)
+## Orion's volley countdown (#70) sits centred this far from his figure's top-left: above his head.
+const VOLLEY_COUNTER_OFFSET := Vector2i(15, -14)
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -74,7 +73,7 @@ var _message_left: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
 ## The volley countdown above Orion, shown on stages with a volley.
-var _volley := Label.new()
+var _volley := VolleyCounter.new()
 
 @onready var _dust: Label = $Dust
 @onready var _slot_layer: Node2D = $Slots
@@ -90,8 +89,11 @@ func _ready() -> void:
 	_message.position = Vector2(0, MESSAGE_Y)
 	_message.visible = false
 	_volley.name = "VolleyCountdown"
-	_volley.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_volley.visible = false
+	var number := Label.new()
+	number.name = "Number"
+	number.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_volley.add_child(number)
 	add_child(_volley)
 
 
@@ -129,8 +131,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_orion_told = false
 	_volley.visible = run.volley != null
 	if run.volley != null:
-		_volley.position = Vector2(run.sky_rect.position + OrionView.FIGURE_AT + VOLLEY_LABEL_OFFSET)
-		_show_volley(run.volley.links_left())
+		_volley.position = Vector2(run.sky_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
+		_volley.reset(run.volley.links_left(), run.volley.interval)
 	_press([])
 	refresh()
 
@@ -289,7 +291,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 		&"volley_counted":
-			_show_volley(event.args[0])
+			_volley.count(event.args[0])
+			return
+		&"volley_fired":
+			_volley.fire()
 			return
 		&"star_marked":
 			if not _orion_told:
@@ -301,19 +306,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	_show()
 
 
-## The volley countdown's text for `links_left` links to go: just the number.
-static func volley_text(links_left: int) -> String:
-	return "%d" % links_left
-
-
 func volley_countdown() -> String:
-	return _volley.text if _volley.visible else ""
-
-
-## Cool while it's far off, ember on the last link (a threat, like a rejected link).
-func _show_volley(links_left: int) -> void:
-	_volley.text = volley_text(links_left)
-	_volley.label_settings = HudText.primary(Palette.S4 if links_left <= 1 else Palette.N8)
+	return _volley.text() if _volley.visible else ""
 
 
 ## The loaded marker needs a pack left to show: RunState empties the launcher without a signal

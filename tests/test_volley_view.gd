@@ -31,10 +31,10 @@ func before_each() -> void:
 func test_the_body_shows_orion_and_the_countdown() -> void:
 	assert_true(orion.is_figure_shown())
 	assert_eq(hud.volley_countdown(), "3", "just the number")
-	var label: Label = hud.get_node("VolleyCountdown")
+	var counter: VolleyCounter = hud.get_node("VolleyCountdown")
 	var figure_top: Vector2i = run.sky_rect.position + OrionView.FIGURE_AT
-	assert_lt(label.position.y, figure_top.y, "above his figure")
-	assert_eq(Vector2i(label.position), Vector2i(label.position.round()), "on the pixel grid")
+	assert_lt(counter.position.y + VolleyCounter.PIP_Y + VolleyCounter.PIP, figure_top.y + 1, "above his figure, pips too")
+	assert_eq(counter.position, counter.position.round(), "on the pixel grid")
 	main.star_map = "tail"
 	main.start_run(Balance.from_dict(_balance_dict()))
 	assert_eq(hud.volley_countdown(), "", "no countdown where there's no volley")
@@ -59,7 +59,9 @@ func test_the_countdown_and_the_bow_build_to_the_volley() -> void:
 		orion.advance(1.0 / 30.0)
 		seen[orion.figure_pixels()[bow_at]] = true
 	assert_eq(seen.size(), 2, "the bow blinks on the last link")
-	assert_eq(HudText.primary(Palette.S4).font_color, (hud.get_node("VolleyCountdown") as Label).label_settings.font_color, "ember: it's coming")
+	var counter: VolleyCounter = hud.get_node("VolleyCountdown")
+	counter.advance(1.0)
+	assert_true(counter.colour() in [Palette.S4, Palette.C3], "ember: it's coming")
 
 
 func test_tracing_the_link_that_fires_readies_the_bow() -> void:
