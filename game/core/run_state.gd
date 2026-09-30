@@ -33,6 +33,10 @@ signal constellation_completed
 signal star_marked(star: Star)
 ## Orion: a successful link left the marked `star` behind, and his arrow destroyed it. No reward.
 signal star_shot(star: Star)
+## Orion's volley (#70): a successful link was counted; `links_left` more until the next volley.
+signal volley_counted(links_left: int)
+## Orion's volley: a counted link looses it, and his arrows destroyed `stars` (maybe none). No reward.
+signal volley_fired(stars: Array[Star])
 signal run_won
 signal run_lost
 
@@ -61,6 +65,8 @@ var force_next_big_bang: bool = false
 var scorpio: Scorpio
 ## Orion (#64), or null when the map doesn't bring him (or balance.json has no "orion" block).
 var orion: Orion
+## Orion's volley (#70), or null when the map doesn't bring it (or balance.json has no "volley").
+var volley: Volley
 
 var _rng: RandomNumberGenerator
 var _layout_rng := RandomNumberGenerator.new()
@@ -82,6 +88,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		scorpio = Scorpio.new(p_sky_rect, p_map)
 		if scorpio.map.orion and balance.orion_first_mark_launch > 0:
 			orion = Orion.new(balance.orion_first_mark_launch, run_seed)
+		if scorpio.map.volley and balance.volley_interval > 0:
+			volley = Volley.new(balance.volley_interval, balance.volley_fraction, run_seed)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -274,6 +282,8 @@ func link(star_ids: Array[int]) -> String:
 	# the loss check sees the sky. Then he marks a new star if the run goes on.
 	if orion != null:
 		_orion_shoot()
+	if volley != null and not scorpio.is_complete():
+		_count_for_volley()
 	_check_end()
 	if orion != null and not is_over():
 		_orion_mark()
@@ -408,6 +418,29 @@ func _big_bang(burst: Vector2i) -> void:
 	var gain: int = balance.big_bang_base_dust + balance.big_bang_dust_per_cleared_star * cleared.size()
 	dust += gain
 	big_bang_started.emit(burst, cleared, gain)
+
+
+## Orion's volley: counts a successful link; the counted link that fills the interval destroys a
+## share of the loose stars (after any Sun clear, so nothing is paid twice), before the loss check.
+func _count_for_volley() -> void:
+	if volley.count_link():
+		var victims: Array[Star] = volley.pick(stars)
+		for star: Star in victims:
+			stars.erase(star)
+		volley_fired.emit(victims)
+	volley_counted.emit(volley.links_left())
+
+
+## Orion's volley: whether linking `star_ids` would loose it (a valid link, the last before the
+## volley, that doesn't complete the stage).
+func link_fires_volley(star_ids: Array[int]) -> bool:
+	if volley == null or volley.links_left() != 1 or combo_for(star_ids) == Combos.INVALID:
+		return false
+	var lit: Array[bool] = scorpio.lit.duplicate()
+	for id: int in star_ids:
+		if scorpio.is_landmark(id):
+			lit[Scorpio.landmark_index(id)] = true
+	return lit.has(false)
 
 
 ## The star Orion has marked, or null.

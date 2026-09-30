@@ -70,6 +70,7 @@ func test_a_won_stage_can_be_replayed() -> void:
 	var chapter := Chapter.new()
 	chapter.complete(0)
 	chapter.complete(1)
+	chapter.complete(2)
 	chapter.complete(Chapter.FINAL)
 	chart.setup(chapter)
 	assert_eq(chart.selected(), Chapter.FINAL, "all built stages won: the last one")
