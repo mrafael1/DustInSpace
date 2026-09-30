@@ -91,8 +91,9 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		scorpio = Scorpio.new(p_sky_rect, p_map)
 		if scorpio.map.orion and balance.orion_first_mark_launch > 0:
 			orion = Orion.new(balance.orion_first_mark_launch, run_seed)
-		if scorpio.map.volley and balance.volley_interval > 0:
-			volley = Volley.new(balance.volley_interval, balance.volley_fraction, run_seed)
+		var tuning: Balance.VolleyDef = balance.volley(scorpio.map.volley)
+		if tuning != null:
+			volley = Volley.new(tuning.interval, tuning.fraction, run_seed, tuning.intro_stars)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -282,7 +283,10 @@ func link(star_ids: Array[int]) -> String:
 		if scorpio.is_complete():
 			constellation_completed.emit()
 	# Orion: a link that left his mark behind has the arrow take it (a clear took it already), before
-	# the loss check sees the sky. Then he marks a new star if the run goes on.
+	# the loss check sees the sky. Then he marks a new star if the run goes on. On the Heart (#71) he
+	# also looses volleys: the single arrow flies first, so the mark is always settled (saved or shot)
+	# before the volley picks its victims, and the new mark comes after both: a volley never takes a
+	# marked star, and no star is hit twice. Saving the mark doesn't touch the volley's count.
 	if orion != null:
 		_orion_shoot()
 	if volley != null and not scorpio.is_complete():
@@ -439,9 +443,9 @@ func _count_for_volley() -> void:
 ## nothing, doesn't count towards the next volley, and uses the volley's own RNG stream, so packs
 ## and layout never shift. Does nothing without a volley, or once the run has begun.
 func play_volley_intro() -> void:
-	if volley == null or balance.volley_intro_stars <= 0 or not stars.is_empty() or is_over():
+	if volley == null or volley.intro_stars <= 0 or not stars.is_empty() or is_over():
 		return
-	var sizes: Array[int] = volley.intro_sizes(balance.volley_intro_stars)
+	var sizes: Array[int] = volley.intro_sizes(volley.intro_stars)
 	var spots: Array[Vector2i] = volley.intro_spots(StarScatter.inner_rect(sky_rect), sky_rect)
 	var placed: Array[Star] = []
 	var layout := RandomNumberGenerator.new()
