@@ -49,6 +49,8 @@ const MESSAGE_TIME: float = 1.6
 ## Orion's first mark of a run (#64) says what it means, a little longer.
 const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
+## Orion's first hunting area of a run (#71) says what the ring means.
+const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
 ## Orion's volley countdown (#70) sits centred this far from his figure's top-left: above his head.
 const VOLLEY_COUNTER_OFFSET := Vector2i(15, -8)
 
@@ -296,6 +298,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			if not _orion_told:
 				_orion_told = true
 				show_message(ORION_MESSAGE, ORION_MESSAGE_TIME)
+			return
+		&"area_marked":
+			if not _orion_told:
+				_orion_told = true
+				show_message(HUNT_MESSAGE, ORION_MESSAGE_TIME)
 			return
 		_:
 			return

@@ -40,6 +40,19 @@ signal volley_fired(stars: Array[Star])
 ## Orion's volley intro: a volley stage opened with `stars` already in the sky (the intro volley
 ## destroys them next).
 signal volley_intro_placed(stars: Array[Star])
+## Orion's hunting area (#71): he marked a circle of `radius` px at `centre`; the next launch's
+## arrow strikes it.
+signal area_marked(centre: Vector2i, radius: int)
+## Orion's hunting area: a launch's pack burst, then his arrow struck the circle at `centre` and
+## destroyed the loose `stars` inside (maybe none). No reward.
+signal area_struck(centre: Vector2i, stars: Array[Star])
+## Orion's hunting intro: the stage opened with `stars` already in the sky (inside the circle
+## area_marked shows next).
+signal hunt_intro_placed(stars: Array[Star])
+## Orion's hunting intro: a demo pack of `kind` flies to `burst` (presentation: no pack is used).
+signal hunt_intro_launched(kind: String, burst: Vector2i)
+## Orion's hunting intro: the demo pack burst at `burst` into `stars` (area_struck takes them next).
+signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
 signal run_won
 signal run_lost
 
@@ -70,6 +83,8 @@ var scorpio: Scorpio
 var orion: Orion
 ## Orion's volley (#70), or null when the map doesn't bring it (or balance.json has no "volley").
 var volley: Volley
+## Orion's hunting area (#71), or null when the map doesn't bring it (or balance.json has no "hunt").
+var hunt: Hunt
 
 var _rng: RandomNumberGenerator
 var _layout_rng := RandomNumberGenerator.new()
@@ -91,8 +106,11 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		scorpio = Scorpio.new(p_sky_rect, p_map)
 		if scorpio.map.orion and balance.orion_first_mark_launch > 0:
 			orion = Orion.new(balance.orion_first_mark_launch, run_seed)
-		if scorpio.map.volley and balance.volley_interval > 0:
-			volley = Volley.new(balance.volley_interval, balance.volley_fraction, run_seed)
+		var tuning: Balance.VolleyDef = balance.volley(scorpio.map.volley)
+		if tuning != null:
+			volley = Volley.new(tuning.interval, tuning.fraction, run_seed, tuning.intro_stars)
+		if scorpio.map.hunt and balance.hunt_radius > 0:
+			hunt = Hunt.new(balance.hunt_radius, run_seed)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -223,8 +241,9 @@ func load_pack(kind: String) -> bool:
 
 
 ## Launches the loaded pack toward `target`. The burst point is clamped into the sky.
-## With Orion: no arrow; after the pack opens he marks a loose star if none is marked. Win and
-## loss are checked once, at the end.
+## With Orion: no arrow; after the pack opens he marks a loose star if none is marked. With his
+## hunting area (#71): once the pack has opened, his arrow strikes the circle he marked (the new
+## stars too), then he marks a new one. Win and loss are checked once, at the end.
 func launch(target: Vector2i) -> bool:
 	if is_over() or loaded_pack == "" or owned_packs.get(loaded_pack, 0) <= 0:
 		return false
@@ -240,6 +259,11 @@ func launch(target: Vector2i) -> bool:
 		_big_bang(burst)
 	else:
 		_burst(kind, burst, result.sizes)
+	# The hunting area's strike comes before any single mark, so a mark never lands on a star the
+	# arrow is about to take.
+	if hunt != null:
+		_hunt_strike()
+		area_marked.emit(hunt.mark(sky_rect), hunt.radius)
 	if orion != null and not orion.has_target():
 		_orion_mark()
 	_auto_load()
@@ -282,7 +306,10 @@ func link(star_ids: Array[int]) -> String:
 		if scorpio.is_complete():
 			constellation_completed.emit()
 	# Orion: a link that left his mark behind has the arrow take it (a clear took it already), before
-	# the loss check sees the sky. Then he marks a new star if the run goes on.
+	# the loss check sees the sky. Then he marks a new star if the run goes on. On the Heart (#71) he
+	# also looses volleys: the single arrow flies first, so the mark is always settled (saved or shot)
+	# before the volley picks its victims, and the new mark comes after both: a volley never takes a
+	# marked star, and no star is hit twice. Saving the mark doesn't touch the volley's count.
 	if orion != null:
 		_orion_shoot()
 	if volley != null and not scorpio.is_complete():
@@ -439,9 +466,9 @@ func _count_for_volley() -> void:
 ## nothing, doesn't count towards the next volley, and uses the volley's own RNG stream, so packs
 ## and layout never shift. Does nothing without a volley, or once the run has begun.
 func play_volley_intro() -> void:
-	if volley == null or balance.volley_intro_stars <= 0 or not stars.is_empty() or is_over():
+	if volley == null or volley.intro_stars <= 0 or not stars.is_empty() or is_over():
 		return
-	var sizes: Array[int] = volley.intro_sizes(balance.volley_intro_stars)
+	var sizes: Array[int] = volley.intro_sizes(volley.intro_stars)
 	var spots: Array[Vector2i] = volley.intro_spots(StarScatter.inner_rect(sky_rect), sky_rect)
 	var placed: Array[Star] = []
 	var layout := RandomNumberGenerator.new()
@@ -461,6 +488,45 @@ func play_volley_intro() -> void:
 	volley_counted.emit(volley.links_left())
 
 
+## Orion's hunting intro (#71), as the Heart opens (the scene calls it once its views are bound):
+## the whole cycle once, to show what the circle means and when it strikes. A few stars in the sky,
+## Orion marks a circle round them, a demo pack flies into it and bursts, then his arrow strikes the
+## circle and takes them all. It pays nothing, uses no pack and leaves no circle (the first real
+## launch marks one); it uses the hunt's own RNG stream, so packs and layout never shift. Does
+## nothing without a hunt or an intro, or once the run has begun.
+func play_hunt_intro() -> void:
+	if hunt == null or balance.hunt_intro_stars <= 0 or not stars.is_empty() or is_over():
+		return
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ Hunt.SEED_SALT ^ LAYOUT_SEED_SALT
+	var centre: Vector2i = hunt.mark(sky_rect)
+	var placed: Array[Star] = _hunt_intro_stars(balance.hunt_intro_stars, centre, layout)
+	hunt_intro_placed.emit(placed)
+	area_marked.emit(centre, hunt.radius)
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	hunt_intro_launched.emit(kind, centre)
+	var born: Array[Star] = _hunt_intro_stars(balance.packs[kind].stars, centre, layout)
+	hunt_intro_burst.emit(centre, born)
+	_hunt_strike()
+
+
+## `count` stars of random sizes scattered round `centre`; one the scatter pushed out of the circle
+## is pulled back in along its line, so the strike takes every one.
+func _hunt_intro_stars(count: int, centre: Vector2i, layout: RandomNumberGenerator) -> Array[Star]:
+	var occupied: Array[Vector2i] = []
+	for star: Star in stars:
+		occupied.append(star.position)
+	var sizes: Array[int] = hunt.intro_sizes(count)
+	var spots: Array[Vector2i] = StarScatter.place(count, centre, sky_rect, occupied, layout, scorpio.landmark_positions())
+	var placed: Array[Star] = []
+	for i: int in count:
+		var spot: Vector2i = spots[i]
+		if not hunt.contains(spot):
+			spot = centre + Vector2i((Vector2(spot - centre).normalized() * (hunt.radius - 6)).round())
+		placed.append(add_star(sizes[i] as Star.Size, spot))
+	return placed
+
+
 ## Orion's volley: whether linking `star_ids` would loose it (a valid link, the last before the
 ## volley, that doesn't complete the stage).
 func link_fires_volley(star_ids: Array[int]) -> bool:
@@ -471,6 +537,19 @@ func link_fires_volley(star_ids: Array[int]) -> bool:
 		if scorpio.is_landmark(id):
 			lit[Scorpio.landmark_index(id)] = true
 	return lit.has(false)
+
+
+## Orion's hunting area: the arrow strikes the marked circle (none on the first launch) and every
+## loose star inside is destroyed, for nothing.
+func _hunt_strike() -> void:
+	if not hunt.has_area():
+		return
+	var at: Vector2i = hunt.centre
+	var hit: Array[Star] = hunt.strike(stars)
+	for star: Star in hit:
+		stars.erase(star)
+	_orion_forget(hit)
+	area_struck.emit(at, hit)
 
 
 ## The star Orion has marked, or null.

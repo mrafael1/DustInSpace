@@ -100,6 +100,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	match event.type:
 		&"pack_burst":
 			_spark(event.args[1])
+		&"hunt_intro_burst":
+			_spark(event.args[0])
 		&"big_bang_started":
 			_spark(event.args[0])
 

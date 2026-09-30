@@ -28,15 +28,17 @@ func test_the_parts_share_out_every_chart_star_from_the_tail() -> void:
 	assert_eq(Chapter.stars(Chapter.FINAL), [] as Array[int], "the final is the whole figure")
 
 
-func test_the_stinger_the_tail_the_body_and_the_final_are_built() -> void:
+func test_the_stinger_the_tail_the_body_the_heart_and_the_final_are_built() -> void:
 	var chapter := Chapter.new()
 	assert_eq(chapter.map_id(0), "stinger")
 	assert_eq(chapter.map_id(1), "tail")
 	assert_eq(chapter.map_id(2), "body")
+	assert_eq(chapter.map_id(3), "heart")
 	assert_eq(chapter.map_id(Chapter.FINAL), "scorpio")
 	assert_eq(chapter.state(1), Chapter.PointState.LOCKED, "until the Stinger is won")
 	assert_eq(chapter.state(2), Chapter.PointState.LOCKED, "until the Tail is won")
-	for stage: int in range(3, Chapter.FINAL):
+	assert_eq(chapter.state(3), Chapter.PointState.LOCKED, "until the Body is won")
+	for stage: int in range(4, Chapter.FINAL):
 		assert_false(chapter.has_stage(stage), "%s isn't built yet" % Chapter.stage_name(stage))
 		assert_eq(chapter.state(stage), Chapter.PointState.LOCKED)
 	assert_eq(chapter.state(0), Chapter.PointState.AVAILABLE)
@@ -103,7 +105,7 @@ func test_a_bad_save_reads_as_what_it_can_prove() -> void:
 	chapter.from_save({"completed": "all"})
 	assert_eq(chapter.completed_count(), 0)
 	chapter.from_save({"completed": [0, 1, 2, 3, 4]})
-	assert_eq(chapter.completed_count(), 3, "not past the parts built")
+	assert_eq(chapter.completed_count(), 4, "not past the parts built")
 
 
 func test_the_store_keeps_progress_across_instances() -> void:

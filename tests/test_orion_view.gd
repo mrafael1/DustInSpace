@@ -101,6 +101,25 @@ func test_tracing_a_link_that_leaves_the_mark_readies_the_bow_and_linking_shoots
 	assert_eq(orion.marked(), sky.star_view(run.marked_star().id), "the next mark")
 
 
+func test_a_volley_warning_never_aims_at_the_mark() -> void:
+	# With both threats (planned for the Claws), a link that saves the mark but looses the volley
+	# lights the bow without the sight line; only a link that would shoot the mark aims at it.
+	run.launch(Vector2i(60, 150))
+	run.launch(Vector2i(60, 150))
+	_play()
+	orion.advance(OrionView.MARK_TIME)
+	orion.show_volley_charge(1, 3)
+	orion.ready_bow(false, true)
+	assert_true(orion.is_bow_ready(), "the volley is coming")
+	assert_false(orion.is_shot_ready())
+	assert_true(orion.sight_pixels().is_empty(), "no sight line on the star this link saves")
+	orion.ready_bow(true, true)
+	assert_true(orion.is_shot_ready())
+	assert_false(orion.sight_pixels().is_empty(), "a link that leaves the mark aims at it")
+	orion.ready_bow(false, false)
+	assert_false(orion.is_bow_ready())
+
+
 func test_a_cancelled_trace_stands_the_bow_down() -> void:
 	var trio: Array[int] = _launch_until_a_trio_leaves_the_mark()
 	_tap(_at(trio[0]))

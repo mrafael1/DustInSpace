@@ -21,15 +21,18 @@ const INTRO_CLEAR: int = 24
 var interval: int = 3
 ## The share of loose stars a volley destroys, rounded up (balance.json volley.fraction).
 var fraction: float = 0.5
+## The stars the stage opens with, which the intro volley destroys (0: no intro).
+var intro_stars: int = 0
 ## Links counted since the last volley.
 var counted: int = 0
 
 var _rng := RandomNumberGenerator.new()
 
 
-func _init(p_interval: int, p_fraction: float, run_seed: int) -> void:
+func _init(p_interval: int, p_fraction: float, run_seed: int, p_intro_stars: int = 0) -> void:
 	interval = p_interval
 	fraction = p_fraction
+	intro_stars = p_intro_stars
 	_rng.seed = run_seed ^ SEED_SALT
 
 

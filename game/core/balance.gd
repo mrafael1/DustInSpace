@@ -5,6 +5,8 @@ extends RefCounted
 
 const DEFAULT_PATH: String = "res://game/config/balance.json"
 const COMBO_KEYS: Array[String] = ["small_triple", "medium_triple", "big_triple", "sequence"]
+## The volley blocks a map can name (StarMap.volley): the Body's so far.
+const VOLLEY_BLOCKS: Array[String] = ["volley"]
 
 
 class PackDef:
@@ -21,6 +23,16 @@ class ComboReward:
 	extends RefCounted
 	var dust: int = 0
 	var light: int = 0
+
+
+## One volley's tuning: successful links between volleys, the share of loose stars each destroys
+## (rounded up), and the stars already in the sky when its stage opens, which an intro volley
+## destroys (0: no intro).
+class VolleyDef:
+	extends RefCounted
+	var interval: int = 0
+	var fraction: float = 0.0
+	var intro_stars: int = 0
 
 
 var sun_target: int = 0
@@ -42,14 +54,15 @@ var scorpio_max_link_distance: int = 0
 ## Orion (#64): the launch whose burst Orion marks first, on maps that bring him (the Tail).
 ## Optional in the file: without an "orion" block he never marks (0).
 var orion_first_mark_launch: int = 0
-## Orion's volley (#70), on maps that bring it (the Body): successful links between volleys, and
-## the share of loose stars each destroys (rounded up). Optional: without a "volley" block there is
-## none (interval 0).
-var volley_interval: int = 0
-var volley_fraction: float = 0.0
-## The stars already in the sky when a volley stage opens, which its intro volley destroys.
+## Orion's volleys (#70), by block name: each map that brings one names its block (the Body's is
+## "volley"). Optional: without its block a map has no volley.
+var volleys: Dictionary[String, VolleyDef] = {}
+## Orion's hunting area (#71), on maps that bring it (the Heart): the circle's radius in native px.
+## Optional: without a "hunt" block there is none (0).
+var hunt_radius: int = 0
+## The stars already in the circle when the hunt's stage opens, before its intro's demo launch.
 ## Optional in the block: 0 = no intro.
-var volley_intro_stars: int = 0
+var hunt_intro_stars: int = 0
 
 var errors: Array[String] = []
 
@@ -87,6 +100,11 @@ func pack_kinds() -> Array[String]:
 	return kinds
 
 
+## The volley tuned by `block`, or null when the file has no such block.
+func volley(block: String) -> VolleyDef:
+	return volleys.get(block)
+
+
 func cheapest_pack_cost() -> int:
 	var cheapest: int = -1
 	for pack: PackDef in packs.values():
@@ -108,14 +126,14 @@ func _parse(data: Dictionary) -> void:
 		_parse_scorpio(_read_dict(data, "scorpio", ""))
 	if data.has("orion"):
 		orion_first_mark_launch = _read_int(_read_dict(data, "orion", ""), "first_mark_launch", "orion.", 1)
-	if data.has("volley"):
-		var volley: Dictionary = _read_dict(data, "volley", "")
-		volley_interval = _read_int(volley, "interval", "volley.", 1)
-		volley_fraction = _read_chance(volley, "fraction", "volley.")
-		if volley.has("fraction") and volley_fraction <= 0.0:
-			errors.append("volley.fraction: must be above 0")
-		if volley.has("intro_stars"):
-			volley_intro_stars = _read_int(volley, "intro_stars", "volley.", 0)
+	if data.has("hunt"):
+		var hunt: Dictionary = _read_dict(data, "hunt", "")
+		hunt_radius = _read_int(hunt, "radius", "hunt.", 1)
+		if hunt.has("intro_stars"):
+			hunt_intro_stars = _read_int(hunt, "intro_stars", "hunt.", 0)
+	for block: String in VOLLEY_BLOCKS:
+		if data.has(block):
+			volleys[block] = _parse_volley(_read_dict(data, block, ""), block + ".")
 
 
 func _parse_packs(raw: Dictionary) -> void:
@@ -157,6 +175,17 @@ func _parse_combos(raw: Dictionary) -> void:
 		reward.dust = _read_int(entry, "dust", ctx, 0)
 		reward.light = _read_int(entry, "light", ctx, 0)
 		combos[key] = reward
+
+
+func _parse_volley(raw: Dictionary, ctx: String) -> VolleyDef:
+	var def := VolleyDef.new()
+	def.interval = _read_int(raw, "interval", ctx, 1)
+	def.fraction = _read_chance(raw, "fraction", ctx)
+	if raw.has("fraction") and def.fraction <= 0.0:
+		errors.append(ctx + "fraction: must be above 0")
+	if raw.has("intro_stars"):
+		def.intro_stars = _read_int(raw, "intro_stars", ctx, 0)
+	return def
 
 
 func _parse_scorpio(raw: Dictionary) -> void:

@@ -15,9 +15,10 @@ func before_each() -> void:
 
 
 func test_balance_reads_the_volley_and_leaves_it_out_without_a_block() -> void:
-	assert_eq(Fixtures.balance().volley_interval, 0, "no block: no volley")
+	assert_null(Fixtures.balance().volley("volley"), "no block: no volley")
 	var shipped: Balance = Balance.load_file()
-	assert_eq([shipped.volley_interval, shipped.volley_fraction, shipped.volley_intro_stars], [2, 1.0, 6], "shipped: every second link, the whole sky, a 6-star intro")
+	var body: Balance.VolleyDef = shipped.volley("volley")
+	assert_eq([body.interval, body.fraction, body.intro_stars], [2, 1.0, 6], "shipped: every second link, the whole sky, a 6-star intro")
 	var data: Dictionary = Fixtures.balance_dict()
 	data["volley"] = {"interval": 0, "fraction": 0.5}
 	assert_false(Balance.from_dict(data).is_valid(), "at least one link between volleys")
@@ -28,7 +29,7 @@ func test_balance_reads_the_volley_and_leaves_it_out_without_a_block() -> void:
 	data["volley"] = {"interval": 3}
 	assert_false(Balance.from_dict(data).is_valid())
 	data["volley"] = {"interval": 3, "fraction": 0.5}
-	assert_eq(Balance.from_dict(data).volley_intro_stars, 0, "no intro unless asked")
+	assert_eq(Balance.from_dict(data).volley("volley").intro_stars, 0, "no intro unless asked")
 	data["volley"] = {"interval": 3, "fraction": 0.5, "intro_stars": -1}
 	assert_false(Balance.from_dict(data).is_valid())
 
@@ -333,7 +334,7 @@ func test_the_body_map_is_more_connected_than_the_tail() -> void:
 	var map: StarMap = StarMap.body()
 	assert_eq(StarMap.by_id("body").id, "body")
 	assert_eq(map.title, "BODY")
-	assert_true(map.volley)
+	assert_eq(map.volley, "volley")
 	assert_false(map.orion)
 	assert_gt(map.count(), StarMap.tail().count(), "more stars")
 	assert_gt(map.segment_count(), StarMap.tail().segment_count(), "more strings")

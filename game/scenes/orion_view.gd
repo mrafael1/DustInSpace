@@ -10,6 +10,11 @@ extends Node2D
 ## On the Body (#70) he looses volleys instead: his bow charges as the countdown drops (at rest, then
 ## an arrow nocked, then three nocked and the bow blinking bright on the last link; steady bright
 ## while a traced link would loose it), then a fan of arrows flies to the stars the volley takes.
+## On the Heart (#71) he does both: the crosshair marks the single target (and only a link that
+## would shoot it holds the sight line), while the nocked arrows and the countdown announce the volley.
+## On the Heart (#71) he hunts an area: a dotted ember ring (S4, like the crosshair) on the sky (the sight line runs to it as
+## it's marked); each launch, once its pack bursts, his arrow flies to the ring's centre and every
+## loose star inside bursts as it lands.
 ## Owns no rules: SkyView tells it what the events say.
 
 ## Orion bent his bow: the arrow is off. Feedback only (sound).
@@ -40,6 +45,8 @@ const VOLLEY_STAGGER: float = 0.05
 const CHARGE_BLINK: float = 0.3
 const NOCK: int = 4
 const NOCKS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(2, -1), Vector2i(2, 1)]
+## The hunting ring's dots: every RING_GAP-th pixel of its outline.
+const RING_GAP: int = 3
 ## Where the figure sits: this far into the play sky from its top-left corner.
 const FIGURE_AT := Vector2i(6, 6)
 ## Orion's stars (figure coordinates), laid out as in the sky (RA/Dec at about 1.7 px a degree):
@@ -64,14 +71,21 @@ var _arrow_to: Vector2i = Vector2i.ZERO
 var _arrow_age: float = -1.0
 ## The shot star's size: its crosshair stays on it until the arrow lands.
 var _arrow_size: int = 0
-## The traced link would leave the marked star behind (or loose the volley).
-var _bow_ready: bool = false
+## The traced link would leave the marked star behind, or loose the volley.
+var _shot_ready: bool = false
+var _volley_ready: bool = false
 ## The volley's charge: 0 at rest, 1 building, 2 on the last link before it (VOLLEY_* only).
 var _charge: int = 0
 var _charge_age: float = 0.0
 ## The volley in flight: where each arrow goes, and how long since the bow was drawn (-1: none).
 var _volley_to: Array[Vector2i] = []
 var _volley_age: float = -1.0
+## The hunting area: its centre and radius (0: none), and how long since it was marked.
+var _area_centre: Vector2i = Vector2i.ZERO
+var _area_radius: int = 0
+var _area_age: float = 0.0
+## The struck area's radius: its ring stays on the arrow's target until it lands (0: a star's shot).
+var _arrow_radius: int = 0
 
 @onready var _figure_layer: Node2D = get_node("../FigureLayer")
 
@@ -90,10 +104,13 @@ func setup(hunts: bool, sky: Rect2i) -> void:
 	_figure_at = sky.position + FIGURE_AT
 	_marked = null
 	_arrow_age = -1.0
-	_bow_ready = false
+	_shot_ready = false
+	_volley_ready = false
 	_charge = 0
 	_volley_to.clear()
 	_volley_age = -1.0
+	_area_radius = 0
+	_arrow_radius = 0
 	queue_redraw()
 	_figure_layer.queue_redraw()
 
@@ -119,24 +136,90 @@ func marked() -> StarView:
 	return _marked if is_instance_valid(_marked) else null
 
 
-func clear_mark() -> void:
-	_marked = null
-	_bow_ready = false
+## Orion marked the hunting area: a circle of `radius` at `centre`. The figure flashes and the sight
+## line runs to its edge, then the ring stays.
+func mark_area(centre: Vector2i, radius: int) -> void:
+	_area_centre = centre
+	_area_radius = radius
+	_area_age = 0.0
 	queue_redraw()
 	_figure_layer.queue_redraw()
 
 
-## The link being traced would (`on`) or wouldn't leave the marked star to his arrow.
-func ready_bow(on: bool) -> void:
-	if on == _bow_ready:
+func has_area() -> bool:
+	return _area_radius > 0
+
+
+## The arrow strikes the hunting area: it flies to the centre and the ring stays until it lands.
+## Returns how long until it lands.
+func strike_area() -> float:
+	_arrow_from = bow_hand()
+	_arrow_to = _area_centre
+	_arrow_radius = _area_radius
+	_arrow_age = 0.0
+	_area_radius = 0
+	queue_redraw()
+	_figure_layer.queue_redraw()
+	return DRAW_TIME + FLIGHT_TIME
+
+
+## The dotted ring of a circle of `radius` round the origin, 1 px further out while it pulses: a
+## midpoint-circle outline, every RING_GAP-th pixel of one octant mirrored eight ways, so the dots
+## are evenly spaced and the ring exactly symmetric, and no two dots touch.
+static func ring_pixels(radius: int, pulse: int = 0) -> Array[Vector2i]:
+	var r: int = radius + pulse
+	var octant: Array[Vector2i] = []
+	var x: int = 0
+	var y: int = r
+	var d: int = 1 - r
+	while x <= y:
+		octant.append(Vector2i(x, y))
+		if d < 0:
+			d += 2 * x + 3
+		else:
+			d += 2 * (x - y) + 5
+			y -= 1
+		x += 1
+	var dots: Array[Vector2i] = []
+	var seen: Dictionary = {}
+	for k: int in range(0, octant.size(), RING_GAP):
+		var p: Vector2i = octant[k]
+		# Next to the diagonal a dot and its mirror would touch: keep only the one on it.
+		if p.x != p.y and absi(p.x - p.y) <= 1:
+			continue
+		for q: Vector2i in [Vector2i(p.x, p.y), Vector2i(p.y, p.x), Vector2i(-p.x, p.y), Vector2i(-p.y, p.x), Vector2i(p.x, -p.y), Vector2i(p.y, -p.x), Vector2i(-p.x, -p.y), Vector2i(-p.y, -p.x)]:
+			if not seen.has(q):
+				seen[q] = true
+				dots.append(q)
+	return dots
+
+
+func clear_mark() -> void:
+	_marked = null
+	_shot_ready = false
+	queue_redraw()
+	_figure_layer.queue_redraw()
+
+
+## The link being traced would leave the marked star to his arrow (`shot`), or loose the volley
+## (`volley`). Either lights his figure; only a shot holds the sight line on the mark, so a link that
+## saves the mark but looses the volley (the Heart, #71) never aims at the star it saves.
+func ready_bow(shot: bool, volley: bool = false) -> void:
+	if shot == _shot_ready and volley == _volley_ready:
 		return
-	_bow_ready = on
+	_shot_ready = shot
+	_volley_ready = volley
 	queue_redraw()
 	_figure_layer.queue_redraw()
 
 
 func is_bow_ready() -> bool:
-	return _bow_ready and (marked() != null or _charge > 0)
+	return is_shot_ready() or (_volley_ready and _charge > 0)
+
+
+## The traced link would have his arrow take the marked star.
+func is_shot_ready() -> bool:
+	return _shot_ready and marked() != null
 
 
 ## The volley's countdown: `links_left` successful links until it (of `interval`).
@@ -161,7 +244,8 @@ func volley_charge() -> int:
 func fire_volley(targets: Array[Vector2i]) -> Array[float]:
 	_volley_to = targets.duplicate()
 	_volley_age = 0.0
-	_bow_ready = false
+	_shot_ready = false
+	_volley_ready = false
 	var landings: Array[float] = []
 	for i: int in targets.size():
 		landings.append(DRAW_TIME + i * VOLLEY_STAGGER + FLIGHT_TIME)
@@ -196,19 +280,49 @@ func nocked_pixels() -> Array[Vector2i]:
 	return pixels
 
 
-## A new mark is being acquired: the figure flashes and the sight line shows.
+## A new mark (or hunting area) is being acquired: the figure flashes and the sight line shows.
 func is_aiming() -> bool:
-	return marked() != null and _mark_age < MARK_TIME
+	return (marked() != null and _mark_age < MARK_TIME) or (has_area() and _area_age < MARK_TIME)
+
+
+## The hunting area's ring now, on the sky: it closes in from LOCK_STEPS px further out as it's
+## marked, then jumps a pixel out and back once a PULSE_PERIOD, like the reticle. None before the
+## sight line reaches it.
+func area_pixels() -> Array[Vector2i]:
+	var dots: Array[Vector2i] = []
+	if not has_area() or _area_age < TRACE_TIME:
+		return dots
+	var step: int = maxi(LOCK_STEPS - int((_area_age - TRACE_TIME) / LOCK_STEP_TIME), 0)
+	if step == 0 and fmod(_area_age - MARK_TIME, PULSE_PERIOD) >= PULSE_PERIOD - PULSE_OUT:
+		step = 1
+	for p: Vector2i in ring_pixels(_area_radius, step):
+		dots.append(_area_centre + p)
+	return dots
+
+
+## The sight line to a new hunting area, from the bow hand to short of its ring, while it's marked.
+func area_sight_pixels() -> Array[Vector2i]:
+	var dots: Array[Vector2i] = []
+	if not has_area() or _area_age >= MARK_TIME:
+		return dots
+	var line: Array[Vector2i] = LinkLayer.line_pixels(bow_hand(), _area_centre)
+	var reach: int = maxi(line.size() - _area_radius - LOCK_STEPS - 1, 0)
+	var shown: int = ceili(reach * minf(_area_age / TRACE_TIME, 1.0))
+	for i: int in range(0, shown, SIGHT_GAP):
+		dots.append(line[i])
+	return dots
 
 
 ## Orion shoots the star of `size` at `at`: the bow draws, then the arrow flies there; the
 ## crosshair stays on it until it lands. Returns how long until it lands.
 func shoot(at: Vector2i, size: int) -> float:
 	_marked = null
-	_bow_ready = false
+	_shot_ready = false
+	_volley_ready = false
 	_arrow_from = bow_hand()
 	_arrow_to = at
 	_arrow_size = size
+	_arrow_radius = 0
 	_arrow_age = 0.0
 	queue_redraw()
 	_figure_layer.queue_redraw()
@@ -243,6 +357,10 @@ func advance(delta: float) -> void:
 		if _volley_age >= DRAW_TIME + maxi(_volley_to.size() - 1, 0) * VOLLEY_STAGGER + FLIGHT_TIME:
 			_volley_age = -1.0
 			_volley_to.clear()
+		queue_redraw()
+		_figure_layer.queue_redraw()
+	if has_area():
+		_area_age += delta
 		queue_redraw()
 		_figure_layer.queue_redraw()
 	if _charge == 2:
@@ -281,12 +399,12 @@ func shows_reticle() -> bool:
 ## of where the reticle closes in from.
 func sight_pixels() -> Array[Vector2i]:
 	var dots: Array[Vector2i] = []
-	if not is_aiming() and not is_bow_ready():
+	if marked() == null or (_mark_age >= MARK_TIME and not is_shot_ready()):
 		return dots
 	var line: Array[Vector2i] = LinkLayer.line_pixels(bow_hand(), Vector2i(_marked.position.round()))
 	var short: int = StarView.half_extent(_marked.size as Star.Size) + 3 + LOCK_STEPS + TICK
 	var reach: int = maxi(line.size() - short, 0)
-	var shown: int = reach if is_bow_ready() else ceili(reach * minf(_mark_age / TRACE_TIME, 1.0))
+	var shown: int = reach if is_shot_ready() else ceili(reach * minf(_mark_age / TRACE_TIME, 1.0))
 	for i: int in range(0, shown, SIGHT_GAP):
 		dots.append(line[i])
 	return dots
@@ -324,7 +442,7 @@ func figure_pixels() -> Dictionary[Vector2i, Color]:
 		dots[_figure_at + p] = line_colour
 	for p: Vector2i in LinkLayer.line_pixels(BODY[1], BOW_HAND):
 		dots[_figure_at + p] = line_colour
-	var bow_colour: Color = Palette.N10 if hunting else (Palette.N6 if marked() != null or _charge > 0 else Palette.N4)
+	var bow_colour: Color = Palette.N10 if hunting else (Palette.N6 if marked() != null or _charge > 0 or has_area() else Palette.N4)
 	for k: int in range(1, BOW.size()):
 		for p: Vector2i in LinkLayer.line_pixels(BOW[k - 1], BOW[k]):
 			dots[_figure_at + p] = bow_colour
@@ -343,8 +461,14 @@ func _draw() -> void:
 		for p: Vector2i in reticle_pixels(_marked.size, lock_step()):
 			_dot(at + p, Palette.S4)
 	if is_shooting():
-		for p: Vector2i in reticle_pixels(_arrow_size):
+		var target: Array[Vector2i] = ring_pixels(_arrow_radius) if _arrow_radius > 0 else reticle_pixels(_arrow_size)
+		for p: Vector2i in target:
 			_dot(_arrow_to + p, Palette.S4)
+	if has_area():
+		for p: Vector2i in area_pixels():
+			_dot(p, Palette.S4)
+		for p: Vector2i in area_sight_pixels():
+			_dot(p, Palette.S3)
 	var arrows: Array[Array] = volley_arrows()
 	arrows.append(arrow_pixels())
 	for arrow: Array in arrows:
