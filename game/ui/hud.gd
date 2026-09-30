@@ -47,7 +47,7 @@ const HOP_TIME: float = 0.1
 const MESSAGE_Y: int = 262
 const MESSAGE_TIME: float = 1.6
 ## Orion's first mark of a run (#64) says what it means, a little longer.
-const ORION_MESSAGE: String = "LINK IT BEFORE ORION SHOOTS"
+const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 
 var _run: RunState

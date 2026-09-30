@@ -4,7 +4,9 @@ extends Node2D
 ## on the FigureLayer, under the stars); when he marks a star his figure flashes bright and a dotted
 ## ember sight line runs from his bow to it, then the ember crosshair closes on it and stays (a cue
 ## unlike the warm selection ring, the gold lit landmarks and the unlit landmarks' corner hints),
-## his bow held drawn while it stands; and his arrow flying to it.
+## his bow held drawn while it stands. While the player traces a link that would leave the marked
+## star behind, his bow readies: the figure lights up and the sight line holds on the star. Then his
+## arrow flying to it.
 ## Owns no rules: SkyView tells it what the events say.
 
 ## Orion bent his bow: the arrow is off. Feedback only (sound).
@@ -53,6 +55,8 @@ var _arrow_to: Vector2i = Vector2i.ZERO
 var _arrow_age: float = -1.0
 ## The shot star's size: its crosshair stays on it until the arrow lands.
 var _arrow_size: int = 0
+## The traced link would leave the marked star behind.
+var _bow_ready: bool = false
 
 @onready var _figure_layer: Node2D = get_node("../FigureLayer")
 
@@ -71,6 +75,7 @@ func setup(hunts: bool, sky: Rect2i) -> void:
 	_figure_at = sky.position + FIGURE_AT
 	_marked = null
 	_arrow_age = -1.0
+	_bow_ready = false
 	queue_redraw()
 	_figure_layer.queue_redraw()
 
@@ -98,8 +103,22 @@ func marked() -> StarView:
 
 func clear_mark() -> void:
 	_marked = null
+	_bow_ready = false
 	queue_redraw()
 	_figure_layer.queue_redraw()
+
+
+## The link being traced would (`on`) or wouldn't leave the marked star to his arrow.
+func ready_bow(on: bool) -> void:
+	if on == _bow_ready:
+		return
+	_bow_ready = on
+	queue_redraw()
+	_figure_layer.queue_redraw()
+
+
+func is_bow_ready() -> bool:
+	return _bow_ready and marked() != null
 
 
 ## A new mark is being acquired: the figure flashes and the sight line shows.
@@ -111,6 +130,7 @@ func is_aiming() -> bool:
 ## crosshair stays on it until it lands. Returns how long until it lands.
 func shoot(at: Vector2i, size: int) -> float:
 	_marked = null
+	_bow_ready = false
 	_arrow_from = bow_hand()
 	_arrow_to = at
 	_arrow_size = size
@@ -166,16 +186,17 @@ func shows_reticle() -> bool:
 	return marked() != null and _mark_age >= TRACE_TIME
 
 
-## The sight line's dots now, from the bow hand towards the marked star, the leading dot last; none
-## once the reticle has locked. It stops short of where the reticle closes in from.
+## The sight line's dots now, from the bow hand towards the marked star, the leading dot last: it
+## runs out while a mark locks on and holds while the bow is ready; none otherwise. It stops short
+## of where the reticle closes in from.
 func sight_pixels() -> Array[Vector2i]:
 	var dots: Array[Vector2i] = []
-	if not is_aiming():
+	if not is_aiming() and not is_bow_ready():
 		return dots
 	var line: Array[Vector2i] = LinkLayer.line_pixels(bow_hand(), Vector2i(_marked.position.round()))
 	var short: int = StarView.half_extent(_marked.size as Star.Size) + 3 + LOCK_STEPS + TICK
 	var reach: int = maxi(line.size() - short, 0)
-	var shown: int = ceili(reach * minf(_mark_age / TRACE_TIME, 1.0))
+	var shown: int = reach if is_bow_ready() else ceili(reach * minf(_mark_age / TRACE_TIME, 1.0))
 	for i: int in range(0, shown, SIGHT_GAP):
 		dots.append(line[i])
 	return dots
@@ -193,13 +214,13 @@ func arrow_pixels() -> Array[Vector2i]:
 	return LinkLayer.line_pixels(Vector2i(tail.round()), Vector2i(tip.round()))
 
 
-## The figure's pixels and colours: dim cool dots and faint lines; bright while he marks or shoots.
-## While a mark stands his bow stays drawn: a step brighter than at rest.
+## The figure's pixels and colours: dim cool dots and faint lines; bright while he marks, readies
+## his bow or shoots. While a mark stands his bow stays drawn: a step brighter than at rest.
 func figure_pixels() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	if not _figure_shown:
 		return dots
-	var hunting: bool = is_shooting() or is_aiming()
+	var hunting: bool = is_shooting() or is_aiming() or is_bow_ready()
 	var line_colour: Color = Palette.N5 if hunting else Palette.N3
 	for pair: Vector2i in LINES:
 		for p: Vector2i in LinkLayer.line_pixels(BODY[pair.x], BODY[pair.y]):

@@ -18,7 +18,8 @@ extends Node2D
 ## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
 ## Orion (#64): on stages he hunts, the OrionLayer shows his figure, the reticle on the star he
-## marked and his arrow; the shot star bursts as the arrow lands, before the new pack opens.
+## marked, his bow readying while a traced link would leave it behind, and his arrow; the shot star
+## bursts as the arrow lands, once that link resolves.
 
 ## A star joined the link being traced; `count` stars are in it now. Feedback only (sound).
 signal star_selected(count: int)
@@ -292,6 +293,8 @@ func _show_link() -> void:
 	var reach: int = _run.link_reach() if _run != null else 0
 	_link_layer.show_reach(points[_gesture.selected.size() - 1] if open else Vector2i.ZERO, reach if open else 0)
 	_show_preview()
+	# Orion readies his bow while the link would leave his mark behind.
+	_orion.ready_bow(_run != null and _run.link_shoots(_gesture.selected))
 
 
 ## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it
@@ -402,7 +405,7 @@ static func explode_order(stars: Array[Star]) -> Array[Star]:
 	return order
 
 
-## Orion's arrow flies to `star`, which bursts as it lands; the pack waits for it.
+## Orion's arrow flies to `star`, which bursts as it lands; the next events wait for it.
 func _shoot(star: Star) -> void:
 	var landing: float = _orion.shoot(star.position, star.size)
 	var view: StarView = _views.get(star.id)

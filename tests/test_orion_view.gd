@@ -1,6 +1,7 @@
 extends GutTest
-## Orion in the scenes (#64): his figure on the Tail only, the crosshair on the star he marks, and
-## his arrow breaking it before the new pack bursts.
+## Orion in the scenes (#64): his figure on the Tail only, the crosshair on the star he marks, his
+## bow readying while a traced link would leave it behind, and his arrow breaking it once that link
+## is made.
 
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
@@ -54,7 +55,7 @@ func test_the_crosshair_is_unlike_the_landmark_cue() -> void:
 			assert_false(ConstellationView.cue_pixels(size).has(p))
 
 
-func test_the_second_burst_marks_a_star_and_the_third_launch_shoots_it() -> void:
+func test_the_second_burst_marks_a_star_and_launches_never_shoot() -> void:
 	run.launch(Vector2i(60, 150))
 	_play()
 	assert_null(orion.marked(), "launch 1: no mark")
@@ -65,21 +66,50 @@ func test_the_second_burst_marks_a_star_and_the_third_launch_shoots_it() -> void
 	orion.advance(OrionView.MARK_TIME)
 	assert_true(orion.shows_reticle())
 	run.launch(Vector2i(60, 150))
-	# Launch, then the shot: the pack hovers while the arrow flies.
+	_play()
+	assert_false(orion.is_shooting())
+	assert_eq(orion.marked(), sky.star_view(target.id), "the mark stands through a launch")
+
+
+func test_tracing_a_link_that_leaves_the_mark_readies_the_bow_and_linking_shoots() -> void:
+	var trio: Array[int] = _launch_until_a_trio_leaves_the_mark()
+	var target: Star = run.marked_star()
+	orion.advance(OrionView.MARK_TIME)
+	_tap(_at(trio[0]))
+	_tap(_at(trio[1]))
+	assert_false(orion.is_bow_ready(), "two stars: the target could still join")
+	_touch(_at(trio[2]), true)
+	assert_eq(sky.selected_ids(), trio)
+	assert_true(orion.is_bow_ready(), "this link would leave the mark behind")
+	assert_false(orion.sight_pixels().is_empty(), "the sight line holds on the star")
+	var ready: Dictionary[Vector2i, Color] = orion.figure_pixels()
+	var bow_at: Vector2i = run.sky_rect.position + OrionView.FIGURE_AT + OrionView.BOW[2]
+	assert_eq(ready[bow_at], Palette.N10, "the bow lights up")
+	_touch(_at(trio[2]), false)
+	assert_false(orion.is_bow_ready(), "the link is made")
 	sequencer.advance(0.0)
 	var waited: float = 0.0
 	while not orion.is_shooting() and waited < 5.0:
 		sequencer.advance(1.0 / 60.0)
 		waited += 1.0 / 60.0
 	assert_true(orion.is_shooting(), "the arrow is out")
-	assert_gt(waited, 0.3, "after the pack's flight")
 	assert_null(sky.star_view(target.id), "the shot star is no longer the run's")
-	assert_eq(orion.marked(), null)
-	assert_true(sequencer.is_busy(), "the burst waits for the arrow")
+	assert_true(sequencer.is_busy(), "the next mark waits for the arrow")
 	orion.advance(OrionView.DRAW_TIME + 0.01)
 	assert_false(orion.arrow_pixels().is_empty())
 	_play()
 	assert_eq(orion.marked(), sky.star_view(run.marked_star().id), "the next mark")
+
+
+func test_a_cancelled_trace_stands_the_bow_down() -> void:
+	var trio: Array[int] = _launch_until_a_trio_leaves_the_mark()
+	_tap(_at(trio[0]))
+	_tap(_at(trio[1]))
+	_touch(_at(trio[2]), true)
+	assert_true(orion.is_bow_ready())
+	sky.handle_pointer(_cancel_event())
+	assert_false(orion.is_bow_ready())
+	assert_eq(run.marked_star().id, run.orion.target, "nothing was shot")
 
 
 func test_collecting_the_marked_star_moves_the_crosshair_to_a_new_mark() -> void:
@@ -177,6 +207,49 @@ func test_a_restart_clears_the_mark_and_the_arrow() -> void:
 	assert_null(orion.marked())
 	assert_false(orion.is_shooting())
 	assert_null(main.run.marked_star())
+
+
+## Launches until a combo of loose stars leaves the mark out. Its ids.
+func _launch_until_a_trio_leaves_the_mark() -> Array[int]:
+	for launch: int in 6:
+		run.launch(Vector2i(60 + 10 * launch, 150))
+		_play()
+		if not run.orion.has_target():
+			continue
+		var ids: Array[int] = []
+		for star: Star in run.stars:
+			if star.id != run.orion.target:
+				ids.append(star.id)
+		for a: int in ids.size():
+			for b: int in range(a + 1, ids.size()):
+				for c: int in range(b + 1, ids.size()):
+					var trio: Array[int] = [ids[a], ids[b], ids[c]]
+					if run.link_shoots(trio):
+						return trio
+	fail_test("no combo leaving the mark in 6 launches")
+	return []
+
+
+func _at(id: int) -> Vector2i:
+	return run.find_star(id).position
+
+
+func _tap(at: Vector2i) -> void:
+	_touch(at, true)
+	_touch(at, false)
+
+
+func _touch(at: Vector2i, pressed: bool) -> void:
+	var e := InputEventScreenTouch.new()
+	e.position = Vector2(at)
+	e.pressed = pressed
+	sky.handle_pointer(e)
+
+
+func _cancel_event() -> InputEventScreenTouch:
+	var e := InputEventScreenTouch.new()
+	e.canceled = true
+	return e
 
 
 func _play() -> void:
