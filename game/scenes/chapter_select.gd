@@ -7,10 +7,14 @@ extends CanvasLayer
 ## the stage it belongs to (a comet travels there); PLAY starts it if it's available or completed.
 ## Locked stages can be selected to see what they are, never played.
 ## A stage's stars are gold once it's won; the stage to play next shows warm, with a breathing
-## ring round its point (its first star from the tail); locked ones are cool and quieter. The
+## ring round its point (its first star from the tail); locked ones are cool and quieter. Each
+## part's point is its main star: bigger than the rest, twinkling on its own beat; the point to play
+## next is the biggest and flares brighter once a beat (solid steps, no fades). The
 ## selected stage's point wears C0 corner brackets. The path is solid: gold between won stars,
 ## warm through and into the stage to play next, a cool guide elsewhere. Numbers (3x5, UI text)
 ## count the stages from the tail. The selected stage's name and PLAY sit on their own panel.
+## The space behind is alive: some background stars twinkle, and now and then a cool shooting star
+## streaks across behind the chart.
 ## Back from a won stage (show_progress), its point flashes as its stars light, then a comet
 ## travels to the stage it opened. Owns no rules: Chapter says what's won and available.
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
@@ -29,8 +33,21 @@ const PLAY := Rect2i(58, 264, 64, 22)
 const PANEL := Rect2i(26, 242, 128, 50)
 ## Press circle around a point: 44 pt at 2 pt per px.
 const HIT_RADIUS: int = 12
-## The breathing ring round the point to play next: radius 6 or 7, swapping every RING_STEP.
+## The breathing ring round the point to play next: radius RING_RADIUS or one more, swapping every
+## RING_STEP.
 const RING_STEP: float = 0.45
+const RING_RADIUS: int = 8
+## A part's main star twinkles (step 1) for TWINKLE_ON once every TWINKLE_PERIOD, each part
+## TWINKLE_OFFSET later than the one before, so they never all twinkle together.
+const TWINKLE_PERIOD: float = 1.6
+const TWINKLE_ON: float = 0.15
+const TWINKLE_OFFSET: float = 0.55
+## The point to play next flares once every FLARE_PERIOD: FLARE_STEPS says how long each step lasts
+## (1: rising, 2: full, 1: falling), then it rests at step 0.
+const FLARE_PERIOD: float = 1.2
+const FLARE_STEPS: Array[Vector2] = [Vector2(0.08, 1), Vector2(0.2, 2), Vector2(0.3, 1)]
+## The chart redraws its animations at most once per ANIM_TICK.
+const ANIM_TICK: float = 1.0 / 30.0
 ## A comet travels the strings at TRAVEL_SPEED px a second: a small star for a head (C0 heart, C1
 ## arms) and a trail TRAIL long, cooling to C4.
 const TRAVEL_SPEED: float = 140.0
@@ -53,11 +70,24 @@ const MILKY_WIDTH: int = 22
 const NEBULAE: Array[Vector3i] = [Vector3i(46, 118, 34), Vector3i(150, 222, 26)]
 const STAR_ODDS: int = 110
 const GLINT_ODDS: int = 12
-const STAR_CLEAR: int = 8
+const STAR_CLEAR: int = 10
 const STAR_COLOURS: Array[Color] = [Palette.N7, Palette.N7, Palette.N8, Palette.M5]
+## One background star in SKY_TWINKLE_ODDS twinkles: it flashes M6 for SKY_TWINKLE_ON once every
+## SKY_TWINKLE_PERIOD, at a phase of its own.
+const SKY_TWINKLE_ODDS: int = 3
+const SKY_TWINKLE_PERIOD: float = 2.6
+const SKY_TWINKLE_ON: float = 0.2
+## A shooting star every METEOR_WAIT seconds (x to y, at random): it starts in the top METEOR_TOP rows,
+## streaks down and sideways at METEOR_SPEED px a second for METEOR_LENGTH px with a METEOR_TRAIL
+## behind its head, all cool colours, behind the chart.
+const METEOR_WAIT := Vector2(3.0, 8.0)
+const METEOR_TOP: int = 200
+const METEOR_SPEED: float = 200.0
+const METEOR_LENGTH := Vector2i(60, 110)
+const METEOR_TRAIL: Array[Color] = [Palette.M6, Palette.M6, Palette.M5, Palette.M5, Palette.M5, Palette.N8, Palette.N8, Palette.N8, Palette.N7, Palette.N7, Palette.N6, Palette.N6]
 
 ## Where a stage's number sits from its point.
-const NUMBER_OFFSET := Vector2i(8, -12)
+const NUMBER_OFFSET := Vector2i(9, -15)
 ## The final stage's crown point, above the figure.
 const FINAL_AT := Vector2i(90, 66)
 
@@ -77,8 +107,16 @@ var _pressed_play: bool = false
 ## The visible screen in game coordinates (fit_screen).
 var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 var _numbers: Array[Label] = []
-## The space behind the chart, built once per screen.
+## The space behind the chart, built once per screen, and its twinkling stars.
 var _space: ImageTexture
+var _twinklers: Array[Vector2i] = []
+## Picks when and where shooting stars fly (tests seed it).
+var meteor_rng := RandomNumberGenerator.new()
+## The shooting star: the pixels it streaks along and how long it's been flying (-1: none), and how
+## long until the next.
+var _meteor: Array[Vector2i] = []
+var _meteor_age: float = -1.0
+var _meteor_wait: float = 0.0
 
 @onready var _chart: Node2D = $Chart
 @onready var _title: Label = $Title
@@ -88,6 +126,8 @@ var _space: ImageTexture
 
 
 func _ready() -> void:
+	meteor_rng.randomize()
+	_meteor_wait = meteor_rng.randf_range(METEOR_WAIT.x, METEOR_WAIT.y)
 	_chart.draw.connect(_draw_chart)
 	_title.label_settings = HudText.primary(Palette.C1)
 	_subtitle.label_settings = HudText.primary(Palette.N8)
@@ -127,8 +167,56 @@ func setup(chapter: Chapter) -> void:
 func fit_screen(screen: Rect2i) -> void:
 	if screen != _screen or _space == null:
 		_space = ImageTexture.create_from_image(space_image(screen))
+		_twinklers = twinkling_stars(screen)
 	_screen = screen
 	_chart.queue_redraw()
+
+
+## The background stars of `screen` that twinkle: plain 1 px ones (not glints), one in
+## SKY_TWINKLE_ODDS.
+static func twinkling_stars(screen: Rect2i) -> Array[Vector2i]:
+	var twinklers: Array[Vector2i] = []
+	for p: Vector2i in space_stars(screen):
+		var h: int = _hash(p) / STAR_ODDS
+		if h % GLINT_ODDS != 0 and (h / GLINT_ODDS) % SKY_TWINKLE_ODDS == 0:
+			twinklers.append(p)
+	return twinklers
+
+
+## Whether the background star at `p` is lit up at `time` (its own phase, from its hash).
+static func sky_twinkles(p: Vector2i, time: float) -> bool:
+	var phase: float = float(_hash(p + Vector2i(7, 3)) % 1000) / 1000.0 * SKY_TWINKLE_PERIOD
+	return fmod(time + phase, SKY_TWINKLE_PERIOD) < SKY_TWINKLE_ON
+
+
+## Starts a shooting star now, from a random point near the top, streaking down and sideways.
+func launch_meteor() -> void:
+	var from := Vector2i(meteor_rng.randi_range(_screen.position.x + 10, _screen.end.x - 10), meteor_rng.randi_range(_screen.position.y + 4, METEOR_TOP))
+	var side: int = -1 if from.x > _screen.position.x + _screen.size.x / 2 else 1
+	var length: int = meteor_rng.randi_range(METEOR_LENGTH.x, METEOR_LENGTH.y)
+	var drop: int = meteor_rng.randi_range(length / 3, length / 2)
+	_meteor = LinkLayer.line_pixels(from, from + Vector2i(side * length, drop))
+	_meteor_age = 0.0
+
+
+func is_meteor_flying() -> bool:
+	return _meteor_age >= 0.0
+
+
+## The shooting star's pixels now, head first, with their colours; none when none flies.
+func meteor_pixels() -> Dictionary[Vector2i, Color]:
+	var dots: Dictionary[Vector2i, Color] = {}
+	if _meteor_age < 0.0:
+		return dots
+	var head: int = int(_meteor_age * METEOR_SPEED)
+	for k: int in METEOR_TRAIL.size():
+		var i: int = head - k
+		if i >= 0 and i < _meteor.size():
+			dots[_meteor[i]] = METEOR_TRAIL[k]
+	# A head a pixel thicker, below the line.
+	if head < _meteor.size():
+		dots[_meteor[head] + Vector2i.DOWN] = Palette.M5
+	return dots
 
 
 ## The space behind the chart for a visible screen `screen` (game coordinates; the image's 0,0 is
@@ -325,15 +413,16 @@ func handle_pointer(event: InputEvent) -> bool:
 
 ## Moves the comet, the lighting and the breathing ring on. Driven by `_process`; tests call it.
 func advance(delta: float) -> void:
-	var ring: int = _ring_frame()
+	var tick: int = int(_time / ANIM_TICK)
 	_time += delta
-	var redraw: bool = _ring_frame() != ring
+	var redraw: bool = int(_time / ANIM_TICK) != tick
 	if not _travel.is_empty():
 		_travel_time += delta
 		redraw = true
 		if _travel_time * TRAVEL_SPEED >= _travel.size() + TRAIL.size():
 			_travel.clear()
 	# After the comet, so a trip the lighting starts begins from its start.
+	_advance_meteor(delta)
 	if _light_point >= 0:
 		_light_time += delta
 		redraw = true
@@ -347,8 +436,83 @@ func advance(delta: float) -> void:
 		_chart.queue_redraw()
 
 
+## The shooting star flies on and ends; the next one waits its turn.
+func _advance_meteor(delta: float) -> void:
+	if _meteor_age >= 0.0:
+		_meteor_age += delta
+		if _meteor_age * METEOR_SPEED >= _meteor.size() + METEOR_TRAIL.size():
+			_meteor_age = -1.0
+			_meteor_wait = meteor_rng.randf_range(METEOR_WAIT.x, METEOR_WAIT.y)
+		return
+	_meteor_wait -= delta
+	if _meteor_wait <= 0.0:
+		launch_meteor()
+
+
 func _ring_frame() -> int:
 	return int(_time / RING_STEP) % 2
+
+
+## Stage `stage`'s main star twinkle step at `time`: 1 for TWINKLE_ON once a period, else 0.
+static func twinkle_step(stage: int, time: float) -> int:
+	return 1 if fposmod(time - stage * TWINKLE_OFFSET, TWINKLE_PERIOD) >= TWINKLE_PERIOD - TWINKLE_ON else 0
+
+
+## The point to play next's flare step at `time`: 0 at rest, 1 rising and falling, 2 at full.
+static func flare_step(time: float) -> int:
+	var t: float = fmod(time, FLARE_PERIOD)
+	for step: Vector2 in FLARE_STEPS:
+		if t < step.x:
+			return int(step.y)
+	return 0
+
+
+## A part's main star (its point), centred on 0,0, in `state` at animation `step`: a 4-point star,
+## bigger than the other chart stars. Locked: cool, twinkling to a longer, lighter cross (step 1).
+## Won: gold, twinkling the same. To play next: the biggest, flaring (steps 1 and 2) longer and
+## whiter, with diagonal glints.
+static func main_star_pixels(state: Chapter.PointState, step: int) -> Dictionary[Vector2i, Color]:
+	var core: Color
+	var corners: Color
+	var arms: Array[Color] = []
+	var glints: Array[Color] = []
+	match state:
+		Chapter.PointState.LOCKED:
+			core = Palette.M6
+			corners = Palette.N6
+			if step == 0:
+				arms = [Palette.N8, Palette.N6]
+			else:
+				arms = [Palette.M5, Palette.N8, Palette.N6]
+		Chapter.PointState.COMPLETED:
+			core = Palette.C0
+			corners = Palette.C2
+			if step == 0:
+				arms = [Palette.C1, Palette.C1, Palette.C2]
+			else:
+				arms = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+		_:
+			core = Palette.C0
+			corners = Palette.C1
+			match step:
+				0:
+					arms = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+				1:
+					arms = [Palette.C0, Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+					glints = [Palette.C2]
+				_:
+					arms = [Palette.C0, Palette.C0, Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+					glints = [Palette.C1, Palette.C3]
+	var dots: Dictionary[Vector2i, Color] = {}
+	for d: Vector2i in [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]:
+		dots[d] = corners
+		for k: int in glints.size():
+			dots[d * (k + 2)] = glints[k]
+	for axis: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		for k: int in arms.size():
+			dots[axis * (k + 1)] = arms[k]
+	dots[Vector2i.ZERO] = core
+	return dots
 
 
 func _refresh() -> void:
@@ -386,6 +550,12 @@ func _draw_chart() -> void:
 	if _space == null:
 		_space = ImageTexture.create_from_image(space_image(_screen))
 	_chart.draw_texture(_space, Vector2(_screen.position))
+	for p: Vector2i in _twinklers:
+		if sky_twinkles(p, _time):
+			_dot(p, Palette.M6)
+	var meteor: Dictionary[Vector2i, Color] = meteor_pixels()
+	for p: Vector2i in meteor:
+		_dot(p, meteor[p])
 	if _chapter == null:
 		return
 	var legs: Array[Leg] = string_legs()
@@ -444,10 +614,14 @@ func _draw_string(segment: int, leg: Leg) -> void:
 
 
 ## A chart star in its part's state: a gold star once won; warm while its part is the one to
-## play (its first star also wears the breathing ring); cool and quieter while locked.
+## play; cool and quieter while locked. A part's first star is its main star (main_star_pixels),
+## wearing the breathing ring while it's the one to play.
 func _draw_star(landmark: int) -> void:
 	var at: Vector2i = Scorpio.LANDMARKS[landmark]
 	var stage: int = Chapter.stage_of(landmark)
+	if landmark == Chapter.stars(stage)[0]:
+		_draw_main_star(stage)
+		return
 	match _chapter.state(stage):
 		Chapter.PointState.COMPLETED:
 			for d: Vector2i in [Vector2i(0, -2), Vector2i(0, 2), Vector2i(-2, 0), Vector2i(2, 0)]:
@@ -457,13 +631,24 @@ func _draw_star(landmark: int) -> void:
 		Chapter.PointState.AVAILABLE:
 			_fill(at, 1, Palette.C2)
 			_dot(at, Palette.C0)
-			if landmark == Chapter.stars(stage)[0]:
-				_ring(at)
 		_:
 			_fill(at, 1, Palette.N0)
 			for d: Vector2i in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
 				_dot(at + d, Palette.N8)
 			_dot(at, Palette.M6)
+
+
+## Stage `stage`'s main star, animated: the point to play next flares and wears the ring; the others
+## twinkle on their own beat.
+func _draw_main_star(stage: int) -> void:
+	var at: Vector2i = stage_position(stage)
+	var state: Chapter.PointState = _chapter.state(stage)
+	var step: int = flare_step(_time) if state == Chapter.PointState.AVAILABLE else twinkle_step(stage, _time)
+	var dots: Dictionary[Vector2i, Color] = main_star_pixels(state, step)
+	for d: Vector2i in dots:
+		_dot(at + d, dots[d])
+	if state == Chapter.PointState.AVAILABLE:
+		_ring(at)
 
 
 ## The final stage's crown point: a star with 3 px arms (gold once won, warm and ringed while
@@ -486,7 +671,7 @@ func _draw_crown() -> void:
 
 
 func _ring(at: Vector2i) -> void:
-	for d: Vector2i in ConstellationView.circle_pixels(6 + _ring_frame()):
+	for d: Vector2i in ConstellationView.circle_pixels(RING_RADIUS + _ring_frame()):
 		_dot(at + d, Palette.C2)
 
 

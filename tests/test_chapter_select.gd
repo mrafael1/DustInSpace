@@ -186,6 +186,94 @@ func test_the_space_background_is_cool_opaque_and_clear_of_the_chart() -> void:
 			assert_gte((point - star).length(), float(ChapterSelect.STAR_CLEAR), "clear of %s" % point)
 
 
+## Each part's point is its main star: bigger than the other chart stars (a 3x3 block), the point
+## to play next the biggest; locked ones stay cool.
+func test_main_stars_are_bigger_and_the_one_to_play_the_biggest() -> void:
+	var warm: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+	var cool: Array[Color] = [Palette.M5, Palette.M6, Palette.N6, Palette.N8]
+	var sizes: Dictionary = {}
+	for state: Chapter.PointState in [Chapter.PointState.LOCKED, Chapter.PointState.COMPLETED, Chapter.PointState.AVAILABLE]:
+		for step: int in 3:
+			var dots: Dictionary[Vector2i, Color] = ChapterSelect.main_star_pixels(state, step)
+			assert_gt(dots.size(), 9, "bigger than a plain chart star")
+			for d: Vector2i in dots:
+				assert_true(dots[d] in (cool if state == Chapter.PointState.LOCKED else warm), "%s %s" % [state, dots[d]])
+				assert_lt(d.length(), float(ChapterSelect.RING_RADIUS), "inside the ring")
+		sizes[state] = ChapterSelect.main_star_pixels(state, 0).size()
+	assert_gt(sizes[Chapter.PointState.AVAILABLE], sizes[Chapter.PointState.COMPLETED], "the one to play is the biggest")
+	assert_gt(sizes[Chapter.PointState.COMPLETED], sizes[Chapter.PointState.LOCKED])
+
+
+func test_main_stars_twinkle_each_on_its_own_beat() -> void:
+	var twinkled_at: Array[float] = []
+	for stage: int in Chapter.stage_count():
+		var first: float = -1.0
+		var on: int = 0
+		var t: float = 0.0
+		while t < ChapterSelect.TWINKLE_PERIOD:
+			if ChapterSelect.twinkle_step(stage, t) == 1:
+				on += 1
+				if first < 0.0:
+					first = t
+			t += 0.01
+		assert_almost_eq(on * 0.01, ChapterSelect.TWINKLE_ON, 0.03, "stage %d twinkles briefly once a beat" % stage)
+		assert_false(twinkled_at.has(first), "stage %d on a beat of its own" % stage)
+		twinkled_at.append(first)
+
+
+func test_the_point_to_play_flares_brighter_once_a_beat() -> void:
+	var steps: Array[int] = []
+	var t: float = 0.0
+	while t < ChapterSelect.FLARE_PERIOD:
+		var step: int = ChapterSelect.flare_step(t)
+		if steps.is_empty() or steps[-1] != step:
+			steps.append(step)
+		t += 0.01
+	assert_eq(steps, [1, 2, 1, 0] as Array[int], "rises, flares, falls, rests")
+	var rest: Dictionary[Vector2i, Color] = ChapterSelect.main_star_pixels(Chapter.PointState.AVAILABLE, 0)
+	var flare: Dictionary[Vector2i, Color] = ChapterSelect.main_star_pixels(Chapter.PointState.AVAILABLE, 2)
+	assert_gt(flare.size(), rest.size(), "longer arms and glints")
+	assert_eq(flare[Vector2i(0, -3)], Palette.C0, "whiter")
+
+
+func test_some_background_stars_twinkle_at_their_own_times() -> void:
+	var screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
+	var stars: Array[Vector2i] = ChapterSelect.space_stars(screen)
+	var twinklers: Array[Vector2i] = ChapterSelect.twinkling_stars(screen)
+	assert_gt(twinklers.size(), 20)
+	assert_lt(twinklers.size(), stars.size(), "only some")
+	for p: Vector2i in twinklers:
+		assert_true(stars.has(p))
+	for t: float in [0.0, 0.7, 1.9]:
+		var lit: int = twinklers.filter(func(p: Vector2i) -> bool: return ChapterSelect.sky_twinkles(p, t)).size()
+		assert_between(lit, 1, twinklers.size() / 3, "a few at a time (%s s)" % t)
+
+
+func test_a_shooting_star_flies_now_and_then_behind_the_chart() -> void:
+	chart.fit_screen(Rect2i(Vector2i.ZERO, ScreenZones.SCREEN))
+	chart.setup(Chapter.new())
+	chart.meteor_rng.seed = 3
+	var waited: float = 0.0
+	while not chart.is_meteor_flying() and waited < ChapterSelect.METEOR_WAIT.y + 1.0:
+		chart.advance(STEP)
+		waited += STEP
+	assert_true(chart.is_meteor_flying(), "one comes within the longest wait")
+	chart.advance(STEP * 3)
+	var dots: Dictionary[Vector2i, Color] = chart.meteor_pixels()
+	assert_gt(dots.size(), 3)
+	for p: Vector2i in dots:
+		assert_true(dots[p] in ChapterSelect.METEOR_TRAIL or dots[p] == Palette.M5, "cool colours only")
+	var flown: float = 0.0
+	while chart.is_meteor_flying() and flown < 2.0:
+		chart.advance(STEP)
+		flown += STEP
+	assert_false(chart.is_meteor_flying(), "it streaks past quickly")
+	assert_lt(flown, 1.0)
+	assert_true(chart.meteor_pixels().is_empty())
+	chart.advance(ChapterSelect.METEOR_WAIT.x - STEP)
+	assert_false(chart.is_meteor_flying(), "the next waits its turn")
+
+
 func test_app_opens_on_the_chart_then_stage_1_then_back() -> void:
 	var app: App = _app()
 	var app_chart: ChapterSelect = app.get_node("ChapterSelect")
