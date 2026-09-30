@@ -227,9 +227,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"pack_load")
 		&"pack_launched":
 			play(&"launch")
-		&"pack_burst", &"big_bang_started":
+		&"pack_burst", &"big_bang_started", &"hunt_intro_burst":
 			# A Big Bang opens exactly like a normal burst, to keep the surprise.
 			play(&"burst")
+		&"hunt_intro_launched":
+			play(&"launch")
 		&"combo_collected":
 			play(&"link_collect")
 		&"link_rejected":
@@ -238,7 +240,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"star_select", 1.5)
 		&"string_built":
 			play(&"pack_ready")
-		&"star_marked":
+		&"star_marked", &"area_marked":
 			play(&"link_reject", 0.6)
 
 

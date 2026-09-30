@@ -238,11 +238,29 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_launch_view(event.args[0], event.args[1])
 		&"pack_burst", &"big_bang_started":
 			_burst_view(event.args[0] if event.type == &"big_bang_started" else event.args[1])
+		&"hunt_intro_launched":
+			_demo_launch_view(event.args[0], event.args[1])
+		&"hunt_intro_burst":
+			_burst_view(event.args[0])
 
 
 func _launch_view(kind: String, burst: Vector2i) -> void:
 	_owned[kind] = _owned.get(kind, 0) - 1
 	_rest_pack.visible = false
+	_flying_pack.kind = kind
+	_flying_pack.grown = false
+	_flying_pack.bright = false
+	_flying_pack.position = Vector2(_flight_from())
+	_flying_pack.visible = true
+	_flight = Flight.FLYING
+	_flight_time = 0.0
+	_flight_to = burst - origin()
+	_sequencer.hold(FLIGHT_TIME + TREMBLE_TIME)
+
+
+## The hunting intro's demo launch (#71): a pack of `kind` flies to `burst` and trembles like a real
+## one, but none is used: the loaded one stays.
+func _demo_launch_view(kind: String, burst: Vector2i) -> void:
 	_flying_pack.kind = kind
 	_flying_pack.grown = false
 	_flying_pack.bright = false

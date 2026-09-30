@@ -113,6 +113,54 @@ func test_the_next_launch_strikes_the_ring_and_marks_a_new_one() -> void:
 	assert_true(orion.has_area(), "a new ring")
 
 
+func test_the_stage_opens_with_the_whole_cycle_once() -> void:
+	var data: Dictionary = Fixtures.balance_dict()
+	data["packs"]["blue"]["big_bang_chance"] = 0.0
+	data["packs"]["red"]["big_bang_chance"] = 0.0
+	data["start_packs"] = {"blue": 6, "red": 0}
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "sun_target": 75, "max_link_distance": 56}
+	data["hunt"] = {"radius": 40, "intro_stars": 3}
+	main.start_run(Balance.from_dict(data))
+	run = main.run
+	var telescope: Telescope = main.get_node("Telescope")
+	telescope.set_process(false)
+	assert_true(run.stars.is_empty(), "the intro already played in the run")
+	sequencer.advance(0.0)
+	assert_eq(_shown_stars(), 3, "the sky shows its stars first")
+	assert_false(orion.has_area(), "a beat before the circle")
+	var seen: Dictionary = {}
+	var waited: float = 0.0
+	while sequencer.is_busy() and waited < 10.0:
+		sequencer.advance(1.0 / 60.0)
+		orion.advance(1.0 / 60.0)
+		telescope.advance(1.0 / 60.0)
+		waited += 1.0 / 60.0
+		if orion.has_area():
+			seen["ring"] = true
+			if hud.message() == Hud.HUNT_MESSAGE:
+				seen["text"] = true
+		if (telescope.get_node("FlyingPack") as CanvasItem).visible:
+			seen["demo launch"] = true
+			assert_true(seen.has("ring"), "the circle is marked before the demo launch")
+		if _shown_stars() == 6:
+			seen["demo burst"] = true
+		if orion.is_shooting():
+			seen["strike"] = true
+			assert_true(seen.has("demo burst"), "the arrow comes after the burst")
+	assert_eq(seen.keys().size(), 5, "ring, text, demo launch, demo burst and strike all played: %s" % [seen.keys()])
+	assert_false(orion.has_area(), "no circle left")
+	assert_eq(run.owned_packs["blue"], 6, "no pack used")
+	assert_eq(telescope.shown_pack(), "blue", "the telescope keeps its planet")
+
+
+func _shown_stars() -> int:
+	var shown: int = 0
+	for view: Node in sky.get_node("StarLayer").get_children():
+		if view is StarView and not view.is_queued_for_deletion():
+			shown += 1
+	return shown
+
+
 func _play() -> void:
 	var elapsed: float = 0.0
 	sequencer.advance(0.0)

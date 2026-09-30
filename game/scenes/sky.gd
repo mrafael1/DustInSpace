@@ -232,6 +232,13 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_orion.show_volley_charge(event.args[0], _run.volley.interval)
 		&"area_struck":
 			_strike_area(event.args[1])
+		&"hunt_intro_placed":
+			for star: Star in event.args[0]:
+				_spawn(star)
+			# A beat to see the stars before Orion marks his circle round them.
+			_sequencer.hold(INTRO_HOLD)
+		&"hunt_intro_burst":
+			_burst(event.args[0], event.args[1])
 		&"area_marked":
 			_orion.mark_area(event.args[0], event.args[1])
 			_sequencer.hold(OrionView.MARK_TIME)
