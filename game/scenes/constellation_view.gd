@@ -297,6 +297,8 @@ static func scorpion_drawing(map: StarMap = null) -> Array[Vector2i]:
 			strokes = _tail_strokes(m)
 		StarMap.Drawing.BODY:
 			strokes = _body_strokes(m)
+		StarMap.Drawing.HEART:
+			strokes = _heart_strokes(m)
 		_:
 			strokes = _scorpion_strokes(m)
 	var pixels: Array[Vector2i] = []
@@ -400,6 +402,34 @@ static func _body_strokes(m: StarMap) -> Array:
 		var knee: Vector2 = Vector2(marks[leg]) + out * 5.0
 		var down := Vector2(-out.y, out.x) if out.x < 0.0 else Vector2(out.y, -out.x)
 		strokes.append([knee, knee + out * 3.0 + down * 4.0, knee + out * 2.0 + down * 7.0])
+	return strokes
+
+
+## A heart map (#71): a heart (two lobes up, its point down) round its biggest-hub star (Antares,
+## where the most strings meet), and a forked vessel out past each star at the end of a string,
+## but the first (it joins the Body).
+static func _heart_strokes(m: StarMap) -> Array:
+	var marks: Array[Vector2i] = m.landmarks
+	var hub: int = 0
+	for i: int in m.count():
+		if m.neighbours(i).size() > m.neighbours(hub).size():
+			hub = i
+	var centre := Vector2(marks[hub]) + Vector2(0.0, 1.0)
+	var outline: Array = []
+	for k: int in 25:
+		var t: float = TAU * k / 24.0
+		var s: float = sin(t)
+		var y: float = 13.0 * cos(t) - 5.0 * cos(2.0 * t) - 2.0 * cos(3.0 * t) - cos(4.0 * t)
+		outline.append(centre + Vector2(16.0 * s * s * s, -y) * 0.9)
+	var strokes: Array = [outline]
+	for leaf: int in range(1, m.count()):
+		if m.neighbours(leaf).size() != 1:
+			continue
+		var out: Vector2 = (Vector2(marks[leaf]) - Vector2(marks[m.neighbours(leaf)[0]])).normalized()
+		var root: Vector2 = Vector2(marks[leaf]) + out * 5.0
+		var fork: Vector2 = root + out * 4.0
+		strokes.append([root, fork, fork + out.rotated(0.6) * 4.0])
+		strokes.append([fork, fork + out.rotated(-0.6) * 4.0])
 	return strokes
 
 
