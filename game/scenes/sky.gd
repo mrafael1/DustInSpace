@@ -307,8 +307,10 @@ func _show_link() -> void:
 	var reach: int = _run.link_reach() if _run != null else 0
 	_link_layer.show_reach(points[_gesture.selected.size() - 1] if open else Vector2i.ZERO, reach if open else 0)
 	_show_preview()
-	# Orion readies his bow while the link would leave his mark behind.
-	_orion.ready_bow(_run != null and (_run.link_shoots(_gesture.selected) or _run.link_fires_volley(_gesture.selected)))
+	# Orion readies his bow while the link would leave his mark behind (the sight line holds on it),
+	# or loose the volley.
+	if _run != null:
+		_orion.ready_bow(_run.link_shoots(_gesture.selected), _run.link_fires_volley(_gesture.selected))
 
 
 ## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it

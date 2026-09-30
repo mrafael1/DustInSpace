@@ -10,6 +10,8 @@ extends Node2D
 ## On the Body (#70) he looses volleys instead: his bow charges as the countdown drops (at rest, then
 ## an arrow nocked, then three nocked and the bow blinking bright on the last link; steady bright
 ## while a traced link would loose it), then a fan of arrows flies to the stars the volley takes.
+## On the Heart (#71) he does both: the crosshair marks the single target (and only a link that
+## would shoot it holds the sight line), while the nocked arrows and the countdown announce the volley.
 ## Owns no rules: SkyView tells it what the events say.
 
 ## Orion bent his bow: the arrow is off. Feedback only (sound).
@@ -64,8 +66,9 @@ var _arrow_to: Vector2i = Vector2i.ZERO
 var _arrow_age: float = -1.0
 ## The shot star's size: its crosshair stays on it until the arrow lands.
 var _arrow_size: int = 0
-## The traced link would leave the marked star behind (or loose the volley).
-var _bow_ready: bool = false
+## The traced link would leave the marked star behind, or loose the volley.
+var _shot_ready: bool = false
+var _volley_ready: bool = false
 ## The volley's charge: 0 at rest, 1 building, 2 on the last link before it (VOLLEY_* only).
 var _charge: int = 0
 var _charge_age: float = 0.0
@@ -90,7 +93,8 @@ func setup(hunts: bool, sky: Rect2i) -> void:
 	_figure_at = sky.position + FIGURE_AT
 	_marked = null
 	_arrow_age = -1.0
-	_bow_ready = false
+	_shot_ready = false
+	_volley_ready = false
 	_charge = 0
 	_volley_to.clear()
 	_volley_age = -1.0
@@ -121,22 +125,30 @@ func marked() -> StarView:
 
 func clear_mark() -> void:
 	_marked = null
-	_bow_ready = false
+	_shot_ready = false
 	queue_redraw()
 	_figure_layer.queue_redraw()
 
 
-## The link being traced would (`on`) or wouldn't leave the marked star to his arrow.
-func ready_bow(on: bool) -> void:
-	if on == _bow_ready:
+## The link being traced would leave the marked star to his arrow (`shot`), or loose the volley
+## (`volley`). Either lights his figure; only a shot holds the sight line on the mark, so a link that
+## saves the mark but looses the volley (the Heart, #71) never aims at the star it saves.
+func ready_bow(shot: bool, volley: bool = false) -> void:
+	if shot == _shot_ready and volley == _volley_ready:
 		return
-	_bow_ready = on
+	_shot_ready = shot
+	_volley_ready = volley
 	queue_redraw()
 	_figure_layer.queue_redraw()
 
 
 func is_bow_ready() -> bool:
-	return _bow_ready and (marked() != null or _charge > 0)
+	return is_shot_ready() or (_volley_ready and _charge > 0)
+
+
+## The traced link would have his arrow take the marked star.
+func is_shot_ready() -> bool:
+	return _shot_ready and marked() != null
 
 
 ## The volley's countdown: `links_left` successful links until it (of `interval`).
@@ -161,7 +173,8 @@ func volley_charge() -> int:
 func fire_volley(targets: Array[Vector2i]) -> Array[float]:
 	_volley_to = targets.duplicate()
 	_volley_age = 0.0
-	_bow_ready = false
+	_shot_ready = false
+	_volley_ready = false
 	var landings: Array[float] = []
 	for i: int in targets.size():
 		landings.append(DRAW_TIME + i * VOLLEY_STAGGER + FLIGHT_TIME)
@@ -205,7 +218,8 @@ func is_aiming() -> bool:
 ## crosshair stays on it until it lands. Returns how long until it lands.
 func shoot(at: Vector2i, size: int) -> float:
 	_marked = null
-	_bow_ready = false
+	_shot_ready = false
+	_volley_ready = false
 	_arrow_from = bow_hand()
 	_arrow_to = at
 	_arrow_size = size
@@ -281,12 +295,12 @@ func shows_reticle() -> bool:
 ## of where the reticle closes in from.
 func sight_pixels() -> Array[Vector2i]:
 	var dots: Array[Vector2i] = []
-	if not is_aiming() and not is_bow_ready():
+	if not is_aiming() and not is_shot_ready():
 		return dots
 	var line: Array[Vector2i] = LinkLayer.line_pixels(bow_hand(), Vector2i(_marked.position.round()))
 	var short: int = StarView.half_extent(_marked.size as Star.Size) + 3 + LOCK_STEPS + TICK
 	var reach: int = maxi(line.size() - short, 0)
-	var shown: int = reach if is_bow_ready() else ceili(reach * minf(_mark_age / TRACE_TIME, 1.0))
+	var shown: int = reach if is_shot_ready() else ceili(reach * minf(_mark_age / TRACE_TIME, 1.0))
 	for i: int in range(0, shown, SIGHT_GAP):
 		dots.append(line[i])
 	return dots
