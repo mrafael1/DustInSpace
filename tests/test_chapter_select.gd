@@ -154,11 +154,13 @@ func test_every_part_won_lights_the_whole_figure() -> void:
 		assert_eq(leg, ChapterSelect.Leg.LIT, "every string lights, the claws' through the head too")
 
 
-func test_the_stage_panel_holds_the_name_and_play() -> void:
+func test_the_stage_label_holds_the_name_and_play() -> void:
 	chart.setup(Chapter.new())
 	assert_true(ChapterSelect.PANEL.encloses(ChapterSelect.PLAY))
 	var info: Label = _label("Info")
 	assert_true(ChapterSelect.PANEL.has_point(Vector2i(info.position)))
+	assert_true(ChapterSelect.label_areas()[0].has_point(Vector2i(info.position)), "the name keeps its row clear of stars")
+	assert_true(ChapterSelect.label_areas()[1].encloses(ChapterSelect.PLAY))
 
 
 ## The chart sits in space: opaque, cool night colours only (warm is for the route and stages),
@@ -181,16 +183,17 @@ func test_the_space_background_is_cool_opaque_and_clear_of_the_chart() -> void:
 	var stars: Array[Vector2i] = ChapterSelect.space_stars(screen)
 	assert_gt(stars.size(), 100, "a starry sky")
 	for star: Vector2i in stars:
-		assert_false(ChapterSelect.PANEL.has_point(star), "off the stage panel")
+		for area: Rect2i in ChapterSelect.label_areas():
+			assert_false(area.has_point(star), "off the stage label")
 		for point: Vector2i in Scorpio.LANDMARKS + [ChapterSelect.FINAL_AT]:
 			assert_gte((point - star).length(), float(ChapterSelect.STAR_CLEAR), "clear of %s" % point)
 
 
-## Each part's point is its main star: bigger than the other chart stars (a 3x3 block), the point
-## to play next the biggest; locked ones stay cool.
+## Each part's point is its main star: bigger than the other chart stars (a 3x3 block) and in its
+## own tone, the point to play next the biggest; locked ones are icy blue, unlike the purple chart.
 func test_main_stars_are_bigger_and_the_one_to_play_the_biggest() -> void:
 	var warm: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
-	var cool: Array[Color] = [Palette.M5, Palette.M6, Palette.N6, Palette.N8]
+	var cool: Array[Color] = [Palette.M4, Palette.M5, Palette.M6]
 	var sizes: Dictionary = {}
 	for state: Chapter.PointState in [Chapter.PointState.LOCKED, Chapter.PointState.COMPLETED, Chapter.PointState.AVAILABLE]:
 		for step: int in 3:
@@ -247,6 +250,26 @@ func test_some_background_stars_twinkle_at_their_own_times() -> void:
 	for t: float in [0.0, 0.7, 1.9]:
 		var lit: int = twinklers.filter(func(p: Vector2i) -> bool: return ChapterSelect.sky_twinkles(p, t)).size()
 		assert_between(lit, 1, twinklers.size() / 3, "a few at a time (%s s)" % t)
+
+
+func test_dust_motes_drift_slowly_along_the_milky_way() -> void:
+	var motes: Array[Vector3] = ChapterSelect.mote_layout()
+	assert_eq(motes.size(), ChapterSelect.MOTE_COUNT)
+	assert_eq(ChapterSelect.mote_layout(), motes, "the same layout every time")
+	var a := Vector2(ChapterSelect.MILKY_WAY[0])
+	var along: Vector2 = Vector2(ChapterSelect.MILKY_WAY[1] - ChapterSelect.MILKY_WAY[0]).normalized()
+	var start: Dictionary[Vector2i, Color] = ChapterSelect.mote_pixels(motes, 0.0)
+	var later: Dictionary[Vector2i, Color] = ChapterSelect.mote_pixels(motes, 2.0)
+	assert_ne(start.keys(), later.keys(), "they move")
+	for p: Vector2i in later:
+		assert_true(later[p] in ChapterSelect.MOTE_COLOURS, "cool, a step above the band")
+		assert_lte(absf((Vector2(p) - a).dot(along.orthogonal())), ChapterSelect.MOTE_SPREAD + 1.0, "in the band")
+	var moved: Array[float] = []
+	for i: int in motes.size():
+		var m: Vector3 = motes[i]
+		assert_between(m.z, ChapterSelect.MOTE_SPEED.x, ChapterSelect.MOTE_SPEED.y, "slow")
+		moved.append(m.z * 2.0)
+	assert_lt(moved.max(), 9.0, "a few pixels in two seconds")
 
 
 func test_a_shooting_star_flies_now_and_then_behind_the_chart() -> void:

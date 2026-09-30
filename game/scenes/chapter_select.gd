@@ -8,13 +8,16 @@ extends CanvasLayer
 ## Locked stages can be selected to see what they are, never played.
 ## A stage's stars are gold once it's won; the stage to play next shows warm, with a breathing
 ## ring round its point (its first star from the tail); locked ones are cool and quieter. Each
-## part's point is its main star: bigger than the rest, twinkling on its own beat; the point to play
-## next is the biggest and flares brighter once a beat (solid steps, no fades). The
+## part's point is its main star: bigger than the rest and in its own tone (icy blue while locked,
+## white gold once won), twinkling on its own beat; the point to play next is the biggest and flares
+## brighter once a beat (solid steps, no fades). The
 ## selected stage's point wears C0 corner brackets. The path is solid: gold between won stars,
 ## warm through and into the stage to play next, a cool guide elsewhere. Numbers (3x5, UI text)
-## count the stages from the tail. The selected stage's name and PLAY sit on their own panel.
-## The space behind is alive: some background stars twinkle, and now and then a cool shooting star
-## streaks across behind the chart.
+## count the stages from the tail. The selected stage sits in a chart label at the bottom, with no
+## box: its name between two thin rules tipped with little stars, and PLAY below in the game's
+## button style (N0 fill, C2 border).
+## The space behind is alive: dust motes drift slowly along the milky way, some background stars
+## twinkle, and now and then a cool shooting star streaks across behind the chart.
 ## Back from a won stage (show_progress), its point flashes as its stars light, then a comet
 ## travels to the stage it opened. Owns no rules: Chapter says what's won and available.
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
@@ -27,16 +30,19 @@ enum Leg { GUIDE, NEXT, LIT }
 
 const TITLE_Y: int = 30
 const SUBTITLE_Y: int = 42
-const INFO_Y: int = 251
-const PLAY := Rect2i(58, 264, 64, 22)
-## The stage panel behind the name and PLAY: M1 fill, N6 border, clipped corners.
-const PANEL := Rect2i(26, 242, 128, 50)
+## The stage label: the name, and PLAY below; both inside PANEL (no box drawn).
+const INFO_Y: int = 250
+const PLAY := Rect2i(58, 265, 64, 21)
+const PANEL := Rect2i(26, 236, 128, 52)
+## The rules either side of the name: RULE px long, RULE_GAP px from it, a small star at the far end.
+const RULE: int = 14
+const RULE_GAP: int = 5
 ## Press circle around a point: 44 pt at 2 pt per px.
 const HIT_RADIUS: int = 12
 ## The breathing ring round the point to play next: radius RING_RADIUS or one more, swapping every
 ## RING_STEP.
 const RING_STEP: float = 0.45
-const RING_RADIUS: int = 8
+const RING_RADIUS: int = 9
 ## A part's main star twinkles (step 1) for TWINKLE_ON once every TWINKLE_PERIOD, each part
 ## TWINKLE_OFFSET later than the one before, so they never all twinkle together.
 const TWINKLE_PERIOD: float = 1.6
@@ -85,9 +91,17 @@ const METEOR_TOP: int = 200
 const METEOR_SPEED: float = 200.0
 const METEOR_LENGTH := Vector2i(60, 110)
 const METEOR_TRAIL: Array[Color] = [Palette.M6, Palette.M6, Palette.M5, Palette.M5, Palette.M5, Palette.N8, Palette.N8, Palette.N8, Palette.N7, Palette.N7, Palette.N6, Palette.N6]
+## Dust motes drifting along the milky way: MOTE_COUNT 1 px motes, N4 or N5 (a step above the band),
+## each MOTE_SPREAD px or less from its line and moving along it at MOTE_SPEED px a second (x to y),
+## wrapping round. Their layout is the same every time (MOTE_SEED).
+const MOTE_COUNT: int = 30
+const MOTE_SPREAD: int = 14
+const MOTE_SPEED := Vector2(1.5, 4.0)
+const MOTE_COLOURS: Array[Color] = [Palette.N4, Palette.N5]
+const MOTE_SEED: int = 0x5C0
 
 ## Where a stage's number sits from its point.
-const NUMBER_OFFSET := Vector2i(9, -15)
+const NUMBER_OFFSET := Vector2i(10, -16)
 ## The final stage's crown point, above the figure.
 const FINAL_AT := Vector2i(90, 66)
 
@@ -117,6 +131,8 @@ var meteor_rng := RandomNumberGenerator.new()
 var _meteor: Array[Vector2i] = []
 var _meteor_age: float = -1.0
 var _meteor_wait: float = 0.0
+## The milky way's motes: where each starts along the band and across it, and its speed.
+var _motes: Array[Vector3] = []
 
 @onready var _chart: Node2D = $Chart
 @onready var _title: Label = $Title
@@ -132,7 +148,8 @@ func _ready() -> void:
 	_title.label_settings = HudText.primary(Palette.C1)
 	_subtitle.label_settings = HudText.primary(Palette.N8)
 	_info.label_settings = HudText.primary(Palette.C1)
-	_play.label_settings = HudText.primary(Palette.C0)
+	_play.label_settings = HudText.primary(Palette.C1)
+	_motes = mote_layout()
 	_title.text = "SCORPIO"
 	_subtitle.text = "CHAPTER 1"
 	_centre(_title, TITLE_Y)
@@ -181,6 +198,31 @@ static func twinkling_stars(screen: Rect2i) -> Array[Vector2i]:
 		if h % GLINT_ODDS != 0 and (h / GLINT_ODDS) % SKY_TWINKLE_ODDS == 0:
 			twinklers.append(p)
 	return twinklers
+
+
+## The milky way's motes: x how far along the band each starts, y how far across it, z its speed.
+static func mote_layout() -> Array[Vector3]:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = MOTE_SEED
+	var motes: Array[Vector3] = []
+	var length: float = Vector2(MILKY_WAY[1] - MILKY_WAY[0]).length()
+	for i: int in MOTE_COUNT:
+		motes.append(Vector3(rng.randf() * length, rng.randf_range(-MOTE_SPREAD, MOTE_SPREAD), rng.randf_range(MOTE_SPEED.x, MOTE_SPEED.y)))
+	return motes
+
+
+## Where the motes are at `time`, with their colours: whole pixels drifting up the band.
+static func mote_pixels(motes: Array[Vector3], time: float) -> Dictionary[Vector2i, Color]:
+	var a := Vector2(MILKY_WAY[0])
+	var along: Vector2 = Vector2(MILKY_WAY[1] - MILKY_WAY[0])
+	var length: float = along.length()
+	along /= length
+	var dots: Dictionary[Vector2i, Color] = {}
+	for i: int in motes.size():
+		var m: Vector3 = motes[i]
+		var at: Vector2 = a + along * fposmod(m.x + m.z * time, length) + along.orthogonal() * m.y
+		dots[Vector2i(at.round())] = MOTE_COLOURS[i % MOTE_COLOURS.size()]
+	return dots
 
 
 ## Whether the background star at `p` is lit up at `time` (its own phase, from its hash).
@@ -243,16 +285,20 @@ static func space_image(screen: Rect2i) -> Image:
 	return image
 
 
+## Where the stage label draws (the name with its rules, PLAY): background stars keep off these.
+static func label_areas() -> Array[Rect2i]:
+	return [Rect2i(PANEL.position.x, INFO_Y - 3, PANEL.size.x, 13), PLAY.grow(3)]
+
+
 ## Where the background stars are in `screen`: a fixed hash per pixel, clear of the stage points
 ## and the stage panel.
 static func space_stars(screen: Rect2i) -> Array[Vector2i]:
 	var stars: Array[Vector2i] = []
-	var panel: Rect2i = PANEL.grow(3)
 	var title := Rect2i(40, TITLE_Y - 3, 100, SUBTITLE_Y - TITLE_Y + 13)
 	for y: int in range(screen.position.y, screen.end.y):
 		for x: int in range(screen.position.x, screen.end.x):
 			var p := Vector2i(x, y)
-			if _hash(p) % STAR_ODDS != 0 or panel.has_point(p) or title.has_point(p):
+			if _hash(p) % STAR_ODDS != 0 or title.has_point(p) or label_areas().any(func(r: Rect2i) -> bool: return r.has_point(p)):
 				continue
 			var clear: bool = true
 			for star: Vector2i in Scorpio.LANDMARKS + [FINAL_AT]:
@@ -468,41 +514,42 @@ static func flare_step(time: float) -> int:
 
 
 ## A part's main star (its point), centred on 0,0, in `state` at animation `step`: a 4-point star,
-## bigger than the other chart stars. Locked: cool, twinkling to a longer, lighter cross (step 1).
-## Won: gold, twinkling the same. To play next: the biggest, flaring (steps 1 and 2) longer and
-## whiter, with diagonal glints.
+## bigger than the other chart stars and in its own tone. Locked: icy blue (the land ramp, unlike
+## the chart's purple), twinkling longer and whiter (step 1). Won: white gold with diagonal glints,
+## twinkling the same. To play next: the biggest, flaring (steps 1 and 2) longer and whiter.
 static func main_star_pixels(state: Chapter.PointState, step: int) -> Dictionary[Vector2i, Color]:
-	var core: Color
+	var core: Color = Palette.C0
 	var corners: Color
 	var arms: Array[Color] = []
 	var glints: Array[Color] = []
 	match state:
 		Chapter.PointState.LOCKED:
 			core = Palette.M6
-			corners = Palette.N6
+			corners = Palette.M4
 			if step == 0:
-				arms = [Palette.N8, Palette.N6]
+				arms = [Palette.M6, Palette.M5, Palette.M4]
 			else:
-				arms = [Palette.M5, Palette.N8, Palette.N6]
+				arms = [Palette.M6, Palette.M6, Palette.M5, Palette.M4]
 		Chapter.PointState.COMPLETED:
-			core = Palette.C0
-			corners = Palette.C2
+			corners = Palette.C1
 			if step == 0:
-				arms = [Palette.C1, Palette.C1, Palette.C2]
-			else:
 				arms = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+				glints = [Palette.C3]
+			else:
+				arms = [Palette.C0, Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+				glints = [Palette.C2]
 		_:
-			core = Palette.C0
 			corners = Palette.C1
 			match step:
 				0:
-					arms = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
-				1:
 					arms = [Palette.C0, Palette.C0, Palette.C1, Palette.C2, Palette.C3]
 					glints = [Palette.C2]
-				_:
+				1:
 					arms = [Palette.C0, Palette.C0, Palette.C0, Palette.C1, Palette.C2, Palette.C3]
 					glints = [Palette.C1, Palette.C3]
+				_:
+					arms = [Palette.C0, Palette.C0, Palette.C0, Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+					glints = [Palette.C0, Palette.C2]
 	var dots: Dictionary[Vector2i, Color] = {}
 	for d: Vector2i in [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]:
 		dots[d] = corners
@@ -537,7 +584,7 @@ func _refresh() -> void:
 	_play.visible = can_play()
 	_play.text = "REPLAY" if _chapter.is_completed(_selected) else "PLAY"
 	_play.size = _play.get_minimum_size()
-	_play.position = Vector2(PLAY.position.x + floori((PLAY.size.x - _play.size.x) / 2.0), PLAY.position.y + 8)
+	_play.position = Vector2(PLAY.position.x + floori((PLAY.size.x - _play.size.x) / 2.0), PLAY.position.y + 7)
 	_chart.queue_redraw()
 
 
@@ -550,6 +597,9 @@ func _draw_chart() -> void:
 	if _space == null:
 		_space = ImageTexture.create_from_image(space_image(_screen))
 	_chart.draw_texture(_space, Vector2(_screen.position))
+	var motes: Dictionary[Vector2i, Color] = mote_pixels(_motes, _time)
+	for p: Vector2i in motes:
+		_dot(p, motes[p])
 	for p: Vector2i in _twinklers:
 		if sky_twinkles(p, _time):
 			_dot(p, Palette.M6)
@@ -574,9 +624,27 @@ func _draw_chart() -> void:
 		for d: Vector2i in ConstellationView.circle_pixels(radius):
 			_dot(stage_position(_light_point) + d, colour)
 	_draw_comet()
-	_draw_plaque(PANEL, Palette.M1, Palette.N6)
+	_draw_label_rules()
 	if can_play():
-		_draw_plaque(PLAY, Palette.C4 if _pressed_play else Palette.C5, Palette.C2)
+		_draw_plaque(PLAY, Palette.M3 if _pressed_play else Palette.N0, Palette.C2)
+
+
+## The thin rules either side of the stage name, each tipped with a small star: warm for a stage
+## that can be played, cool otherwise.
+func _draw_label_rules() -> void:
+	if _info == null:
+		return
+	var y: int = INFO_Y + 3
+	var half: int = floori(_info.size.x / 2.0)
+	var tip: Color = Palette.C2 if can_play() else Palette.N8
+	for side: int in [-1, 1]:
+		var start: int = ScreenZones.SCREEN.x / 2 + side * (half + RULE_GAP)
+		var end: int = start + side * RULE
+		for p: Vector2i in LinkLayer.line_pixels(Vector2i(start, y), Vector2i(end, y)):
+			_dot(p, Palette.N6)
+		for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			_dot(Vector2i(end + side * 2, y) + n, tip)
+		_dot(Vector2i(end + side * 2, y), Palette.C0 if can_play() else Palette.M6)
 
 
 ## How each string shows (Scorpio.SEGMENTS order): LIT between two won stars, NEXT through
