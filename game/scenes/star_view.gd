@@ -48,9 +48,8 @@ const RING_SHEETS: Array[Texture2D] = [
 	preload("res://assets/art/selection_ring_medium.png"),
 	preload("res://assets/art/selection_ring_big.png"),
 ]
-## "unlit" is an unlit Scorpio landmark (ConstellationView); sky stars never show it. A lit
-## landmark shows "idle", like the sky star of its size.
-const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flare_core", &"fade_core", &"fade_dot", &"dim", &"dim_core", &"unlit"]
+## Scorpio's landmarks (ConstellationView) use "idle" and "glint" too: they look like sky stars.
+const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flare_core", &"fade_core", &"fade_dot", &"dim", &"dim_core"]
 ## Which dissolve and collapse frames play, in order.
 const DISSOLVE_SEQUENCE: Array[StringName] = [&"flare", &"flare_core", &"fade_core", &"fade_dot"]
 const COLLAPSE_SEQUENCE: Array[StringName] = [&"glint", &"dim", &"dim_core"]

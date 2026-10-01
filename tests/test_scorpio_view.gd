@@ -103,30 +103,30 @@ func test_built_strings_glow_and_open_ones_dont() -> void:
 	assert_gt(pixels.size(), ConstellationView.GLOW_SPACING, "room for glints")
 
 
-func test_landmarks_keep_their_sky_stars_colour_a_step_dimmer_until_lit() -> void:
-	# Playtest: a constellation star must read as the sky star it stands in for.
-	var hues: Array = [[Palette.C3, Palette.C4], [Palette.C1, Palette.C2, Palette.C3], [Palette.M6, Palette.M5, Palette.M4]]
-	var cores: Array = []
+func test_a_landmark_looks_like_its_sky_star_lit_or_not() -> void:
+	# Playtest: a constellation star must read as the sky star it stands in for; lighting it adds
+	# the sky star's effects (halo, twinkle) and never changes its colour.
 	for size: int in 3:
-		var idle: Dictionary[Vector2i, Color] = ConstellationView.star_pixels(size)
-		var unlit: Dictionary[Vector2i, Color] = ConstellationView.landmark_pixels(size, false)
-		assert_eq(unlit.keys(), idle.keys(), "same shape as the sky star")
-		for p: Vector2i in unlit:
-			assert_true(unlit[p] in hues[size], "size %d: its own hue, %s" % [size, unlit[p]])
-			assert_ne(unlit[p], Palette.C0, "no white core until lit")
-		assert_ne(unlit, idle, "dimmer than the sky star")
-		cores.append(unlit[Vector2i.ZERO])
-	assert_eq(cores, [Palette.C3, Palette.C1, Palette.M6], "orange, gold, blue-white: the sky's colours")
+		assert_eq(ConstellationView.landmark_pixels(size), ConstellationView.star_pixels(size, &"idle"), "the sky star's own frame")
+		assert_eq(ConstellationView.landmark_pixels(size, true), ConstellationView.star_pixels(size, &"glint"), "its twinkle")
+		var halo: Dictionary[Vector2i, Color] = StarView.halo_pixels(size as Star.Size)
+		assert_false(halo.is_empty(), "lit, it wears its halo")
+		for p: Vector2i in halo:
+			assert_false(ConstellationView.star_pixels(size).has(p), "the halo stays off the star")
 	assert_gt(ConstellationView.star_pixels(Star.Size.BIG).size(), ConstellationView.star_pixels(Star.Size.SMALL).size())
 
 
-func test_a_lit_landmark_shines_like_its_sky_star() -> void:
-	for size: int in 3:
-		assert_eq(ConstellationView.landmark_pixels(size, true), ConstellationView.star_pixels(size, &"idle"), "the sky star's own frame")
-		var halo: Dictionary[Vector2i, Color] = StarView.halo_pixels(size as Star.Size)
-		assert_false(halo.is_empty(), "and its halo")
-		for p: Vector2i in halo:
-			assert_false(ConstellationView.star_pixels(size).has(p), "the halo stays off the star")
+func test_a_lit_landmark_twinkles_like_a_sky_star() -> void:
+	var glints: int = 0
+	var steps: int = 240
+	for k: int in steps:
+		if ConstellationView.twinkles(5, StarView.TWINKLE_PERIOD * k / steps):
+			glints += 1
+	assert_almost_eq(float(glints) / steps, StarView.GLINT_TIME / StarView.TWINKLE_PERIOD, 0.01, "a glint for GLINT_TIME every TWINKLE_PERIOD")
+	var phases: Array[bool] = []
+	for index: int in 4:
+		phases.append(ConstellationView.twinkles(index, 0.0))
+	assert_true(phases.has(false), "each at its own phase, not all at once")
 
 
 func test_a_full_sun_ignites_lights_its_landmark_then_bursts_the_stars_left_for_dust() -> void:

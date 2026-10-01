@@ -12,7 +12,6 @@
     "fade_core",
     "fade_dot",
     "dim",
-    "dim_core",
-    "unlit"
+    "dim_core"
   ]
 }

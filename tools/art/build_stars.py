@@ -39,19 +39,9 @@ RAMPS = {
     "big": ([C0, M6, M5, M4], [0, 1, 1, 2]),
 }
 
-# Scorpio's landmarks (constellation stars) keep their size's colour, so a constellation star
-# reads as the sky star it stands in for (playtest: the medium one was lavender there but gold in
-# the sky). Lit, a landmark is the idle frame (and wears its halo, drawn in code); not lit yet, it
-# is one more frame, "unlit": the same hue a step dimmer, with no white core:
-#   small  C3 core, C4 arms         (dim orange)
-#   medium C1 core, C2 body, C3 tips (dim gold)
-#   big    M6 core, M5 body, M4 tips (dim blue-white)
-C4 = (164, 90, 120)
-UNLIT = {
-    "small": ([C3, C4], [0, 1, 1, 1]),
-    "medium": ([C1, C2, C3], [0, 1, 1, 2]),
-    "big": ([M6, M5, M4], [0, 1, 1, 2]),
-}
+# Scorpio's landmarks (constellation stars) are drawn with these same frames: unlit, the idle
+# frame; lit, the same frame with the sky star's halo and twinkle (ConstellationView). So a
+# constellation star always reads as the sky star it stands in for (playtest feedback).
 
 # Digits are shape steps (0 = core); "." is empty. Centred, odd sizes.
 SHAPES = {
@@ -104,8 +94,6 @@ SHAPES = {
 #   fade_dot    last dissolve frame: a single pixel of the first ring's colour (drawn specially)
 #   dim         Big Bang redshift: a step darker as it nears the hole
 #   dim_core    Big Bang swallow: only the core, three steps dimmer
-#   unlit       an unlit Scorpio landmark (UNLIT chain; a lit one shows idle)
-# Optional 4th field: the chain to draw on instead of the size's own.
 FRAMES = [
     ("idle", 3, 0),
     ("glint", 3, -1),
@@ -116,7 +104,6 @@ FRAMES = [
     ("fade_dot", -1, 1),
     ("dim", 3, 1),
     ("dim_core", 0, 3),
-    ("unlit", 3, 0, "unlit"),
 ]
 
 # Selection ring: a dashed C1 circle this far outside the sprite, dashes swapping per frame.
@@ -126,8 +113,8 @@ RING_DASHES = 16
 RING_FRAMES = 2
 
 
-def frame_pixels(size_name: str, rows: list[str], max_step: int, shift: int, chain_name: str = "") -> dict[tuple[int, int], tuple]:
-    chain, place = {"unlit": UNLIT.get(size_name)}.get(chain_name) or RAMPS[size_name]
+def frame_pixels(size_name: str, rows: list[str], max_step: int, shift: int) -> dict[tuple[int, int], tuple]:
+    chain, place = RAMPS[size_name]
     size = len(rows)
     if max_step < 0:
         # A single pixel at the centre, one step down from the core.
