@@ -90,7 +90,8 @@ The Stinger's first play is guided. Each step shows one line above the launcher 
 
 - **The combos are taught with a card** at the top of the sky (playtest: the two kinds of link weren't clear): a plaque (N0, N6 border) with the sky stars' own art in a row, no sign between them (a plus sign read as one more small star).
 - Rules in the core (`Tutorial`, asked by `RunState`; each new step is a run event, `tutorial_step`), so the line and hand change once the animations have played.
-- Reaching free play saves it (`user://progress.json`, `"tutorial": {"done": true}`): later Stinger runs aren't guided. A restart or MAP before then guides the next run again. There is no skip button.
+- Reaching free play saves it (`user://progress.json`, `"tutorial": {"done": true}`): later Stinger runs aren't guided. A restart or MAP before then guides the next run again.
+- **Retry:** once it's been finished, a TUTORIAL plaque (the MAP button's style) in the chart's top-right corner plays it again: the Stinger, guided, its win counting as usual. PLAY on the Stinger stays unguided. There is no skip button.
 
 ### Final stage: Orion, the boss (stage 6, a prototype)
 
