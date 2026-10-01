@@ -31,6 +31,8 @@ strike always takes the prey if it's still there (a star of its size: the bots d
 first). Where the other stars are isn't modelled, so each (the new ones too) is lost with the chance
 a random point lies in the circle: its share of the sky (--hunt-share overrides it). The bots never
 link a threatened star out first nor aim away from the circle.
+The Claws (#74) run all three: the mark, the volley and the hunting circle. On a launch a standing
+mark is struck with the circle's prey, or else at the circle's share of the sky.
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
 """
@@ -51,12 +53,13 @@ MAPS = {
     "tail": (("medium", "small", "medium", "small", "big", "small"), (0,), True),
     "body": (("big", "medium", "big", "medium", "small", "small", "small", "medium", "small"), (0,), False),
     "heart": (("small", "medium", "big", "medium", "small", "small", "medium"), (0,), False),
+    "claws": (("small", "medium", "big", "small", "medium", "small", "medium"), (0,), True),
 }
 # The maps where Orion looses his volley (#70), and the balance.json block that tunes it there.
-VOLLEY_MAPS = {"body": "volley"}
+VOLLEY_MAPS = {"body": "volley", "claws": "volley"}
 VOLLEY = ""
 # The maps where Orion hunts an area (#71).
-HUNT_MAPS = {"heart"}
+HUNT_MAPS = {"heart", "claws"}
 HUNT = False
 # The home sky's inner rect (game/core/scorpio.gd HOME_SKY less StarScatter.EDGE_MARGIN), for the
 # share of the sky a hunting circle covers.
@@ -225,9 +228,18 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
             sky += [draw(pack) for _ in range(int(pack["stars"]))]
         # The hunting circle marked after the last launch is struck once this pack has burst.
         if struck_share and opened > 1:
+            # The Claws: the marked star is in the circle at its share of the sky (or as its prey);
+            # struck, it's gone, and a new mark follows below.
+            if marked is not None and marked in sky and (prey == marked or random.random() < struck_share):
+                sky.remove(marked)
+                if prey == marked:
+                    prey = None
+                marked = None
             if prey in sky:
                 sky.remove(prey)
             sky = [s for s in sky if random.random() >= struck_share]
+            if marked not in sky:
+                marked = None
         if struck_share:
             prey = random.choice(sky) if sky else None
         if first_mark and opened >= first_mark and sky and marked is None:
