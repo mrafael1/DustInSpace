@@ -5,6 +5,8 @@ extends Node
 ## once (Main.stage_won): the chapter records it and saves it (ProgressStore), and back on the
 ## chart its stars light and a comet travels to the stage it opened. Owns no rules: Chapter keeps the progress.
 ## Fills the window like Main (a whole-number scale, the game's screen on the bottom edge).
+## The Stinger's first play is the guided first run (Main.tutorial) until it's finished once; that
+## is saved with the progress ("tutorial": {"done": true}).
 ## Debug builds, on the chart: U previews every part won and plays the final's unlock; F previews
 ## the final won too and plays its painted Scorpio rising. A preview is a copy of the chapter shown
 ## on the chart only: it is never saved and never unlocks a stage; opening a stage drops it.
@@ -13,11 +15,15 @@ extends Node
 signal stage_opened(point: int)
 
 const MainScene := preload("res://game/scenes/main.tscn")
+## Where the guided first run's state is saved, beside the chapter's.
+const TUTORIAL_ID: String = "tutorial"
 
 ## Where progress is kept. Tests point it at a file of their own.
 @export var progress_path: String = ProgressStore.DEFAULT_PATH
 
 var chapter: Chapter
+## The guided first run was finished once.
+var tutorial_done: bool = false
 var _store: ProgressStore
 ## The stage in play, or null on the chart.
 var _stage: Main
@@ -35,6 +41,7 @@ func _ready() -> void:
 	_store = ProgressStore.new(progress_path)
 	chapter = Chapter.new()
 	chapter.from_save(_store.load_chapter(Chapter.ID))
+	tutorial_done = _store.load_chapter(TUTORIAL_ID).get("done", false) == true
 	_chart.setup(chapter)
 	_chart.stage_chosen.connect(open_stage)
 	get_window().size_changed.connect(fit_screen)
@@ -103,6 +110,8 @@ func open_stage(point: int) -> void:
 	_stage = MainScene.instantiate()
 	_stage.in_chapter = true
 	_stage.star_map = chapter.map_id(point)
+	_stage.tutorial = point == 0 and not tutorial_done
+	_stage.tutorial_finished.connect(_on_tutorial_finished)
 	_stage.stage_won.connect(_on_stage_won)
 	_stage.map_requested.connect(back_to_chart)
 	_show_chart(false)
@@ -131,6 +140,11 @@ func fit_screen() -> void:
 	var visible: Vector2 = get_viewport().get_visible_rect().size
 	var offset: Vector2i = ScreenZones.game_offset(visible)
 	_chart.fit_screen(Rect2i(-offset, Vector2i(visible)))
+
+
+func _on_tutorial_finished() -> void:
+	tutorial_done = true
+	_store.save_chapter(TUTORIAL_ID, {"done": true})
 
 
 func _on_stage_won() -> void:
