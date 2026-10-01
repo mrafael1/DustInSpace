@@ -346,20 +346,22 @@ func buy_button_at(kind: String) -> Vector2i:
 ## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
 ## launch at, the stars to link, the constellation star to launch by and light, the buy button.
 func _show_tutorial_step(step: int) -> void:
+	var card_top: int = _run.sky_rect.position.y + TutorialView.CARD_TOP
 	match step:
 		Tutorial.Step.LAUNCH:
 			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12), true)
 		Tutorial.Step.LINK:
 			var star: Star = _run.stars[0] if not _run.stars.is_empty() else null
-			_guide.show_step(step, star.position if star != null else Vector2i.ZERO, star != null)
+			_guide.show_step(step, star.position if star != null else Vector2i.ZERO, star != null, TutorialView.Point.DOWN, card_top)
 		Tutorial.Step.LAUNCH_NEAR, Tutorial.Step.LIGHT:
 			var index: int = _run.tutorial.landmark
 			var at: Vector2i = _run.scorpio.landmark_position(index)
-			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(_run.scorpio.map.sizes[index] as Star.Size)), true)
+			var size: int = _run.scorpio.map.sizes[index]
+			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size)), true, TutorialView.Point.DOWN, card_top, size)
 		Tutorial.Step.BUY:
 			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT)
 		_:
-			_guide.show_step(step)
+			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, card_top)
 
 
 func boss_banner() -> BossBanner:
