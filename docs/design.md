@@ -38,9 +38,10 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 
 | | Blue | Red |
 |---|---|---|
-| Role | Cheap and sustaining; favours small stars | Expensive; favours big stars; 4 stars; slightly higher Big Bang chance |
+| Role | Cheap and sustaining; favours small stars; one burst of 3 | Expensive; favours big stars; **twin burst**, 3 + 3 stars; slightly higher Big Bang chance |
 
 - Each star is drawn independently from the pack's weights.
+- **Red's twin burst:** one aim; the planet flies and trembles at the aim like any pack, then splits into twin planets that dart apart and burst `burst_spread` px apart across the aim (slid back together at a sky edge), each with `stars` stars. The aim previews both scatter rings. It's still one launch: one Big Bang roll (a red Big Bang splits too, then collapses at the aim, so it keeps its surprise), one count for Orion, and the hunting circle strikes once, after both bursts. Sound: the launch whoosh, a higher whoosh as it splits, a burst for each. Tuning: `packs.red.stars` (3), `bursts` (2), `burst_spread` (44: the two scatter rings sit side by side and stay within link reach of each other). The icon may change after playtesting.
 - The slingshot controls **where** a pack bursts, never its contents.
 - Buying a pack loads it into the launcher. The player chooses which owned pack to load.
 - In the HUD, tapping a pack's icon **loads** it if the player owns one (free, never a purchase), or **buys** it if they own none and can afford it.
@@ -178,8 +179,10 @@ Sound effects only, no music. Soft chiptune: square and triangle voices, bell-li
 
 | Strategy | Win % | Packs to win |
 |---|---|---|
-| Blue packs only | ~88% | ~8 |
-| Red whenever affordable | ~87% | ~6 |
+| Blue packs only | 100% | 7.0 |
+| Red whenever affordable | 100% | 4.7 |
+
+With the twin burst, the plain Sun stage is won in every run (it was ~88% / ~87%): it's now too easy, and the chapter's stages are where the challenge is. Chapter (constellation stages), blue only / red when affordable: Stinger 100 / 100% (3.4 / 3.3 packs), Tail 100 / 100% (3.9 / 3.7), Body 99.1 / 99.8% (7.2 / 5.6), Heart 81.6 / 97.9% (5.5 / 4.5), Claws 64.7 / 84.3% (5.9 / 5.0), final 37.4 / 40.1% (10.2 / 7.8). Before the twin burst (4 stars), red when affordable was the worse strategy on the Body (74%) and the final (4%).
 
 Both strategies should stay viable: red is faster, blue is safer. Rerun the simulator after every change to `balance.json`.
 
