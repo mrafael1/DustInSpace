@@ -263,7 +263,7 @@ func launch(target: Vector2i) -> bool:
 	# arrow is about to take.
 	if hunt != null:
 		_hunt_strike()
-		area_marked.emit(hunt.mark(sky_rect), hunt.radius)
+		area_marked.emit(hunt.mark(sky_rect, stars), hunt.radius)
 	if orion != null and not orion.has_target():
 		_orion_mark()
 	_auto_load()

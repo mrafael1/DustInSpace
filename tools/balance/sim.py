@@ -26,9 +26,11 @@ Orion's volley (#70, the Body map): every volley.interval-th combo, once it and 
 resolve, destroys a random volley.fraction of the sky's stars (rounded up) for nothing; the winning
 combo skips it. The bots don't play around it (they never hold a combo back or launch first).
 Orion's hunting area (#71, the Heart): from the second launch, once the pack has burst, his arrow
-strikes a circle of hunt.radius. Where stars are isn't modelled, so each loose star (the new ones
-too) is lost with the chance a random point lies in the circle: its share of the sky (--hunt-share
-overrides it). The bots never link a threatened star out first nor aim away from the circle.
+strikes a circle of hunt.radius. He marks each circle round a random loose star (its prey), so the
+strike always takes the prey if it's still there (a star of its size: the bots don't link it out
+first). Where the other stars are isn't modelled, so each (the new ones too) is lost with the chance
+a random point lies in the circle: its share of the sky (--hunt-share overrides it). The bots never
+link a threatened star out first nor aim away from the circle.
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
 """
@@ -142,6 +144,8 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
     counted = 0
     # The hunt: the chance each loose star is in the circle when a launch strikes it.
     struck_share = hunt_share(cfg, hunt_override) if on else 0.0
+    # The size of the star the standing circle was marked round, or None.
+    prey = None
     while True:
         # resolve every available combination (best first)
         while True:
@@ -221,7 +225,11 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
             sky += [draw(pack) for _ in range(int(pack["stars"]))]
         # The hunting circle marked after the last launch is struck once this pack has burst.
         if struck_share and opened > 1:
+            if prey in sky:
+                sky.remove(prey)
             sky = [s for s in sky if random.random() >= struck_share]
+        if struck_share:
+            prey = random.choice(sky) if sky else None
         if first_mark and opened >= first_mark and sky and marked is None:
             marked = random.choice(sky)
 
