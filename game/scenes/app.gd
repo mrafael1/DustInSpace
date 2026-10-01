@@ -5,6 +5,8 @@ extends Node
 ## once (Main.stage_won): the chapter records it and saves it (ProgressStore), and back on the
 ## chart its stars light and a comet travels to the stage it opened. Owns no rules: Chapter keeps the progress.
 ## Fills the window like Main (a whole-number scale, the game's screen on the bottom edge).
+## Debug builds, on the chart: U wins every part (not saved) and plays the final's unlock; F wins
+## the final too (not saved) and plays its painted Scorpio rising.
 
 ## A stage was opened (tests and feedback).
 signal stage_opened(point: int)
@@ -34,6 +36,33 @@ func _ready() -> void:
 	_chart.stage_chosen.connect(open_stage)
 	get_window().size_changed.connect(fit_screen)
 	fit_screen()
+	set_process_unhandled_key_input(OS.is_debug_build())
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo or _stage != null:
+		return
+	if key.keycode == KEY_U:
+		debug_win_parts()
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_F:
+		debug_win_final()
+		get_viewport().set_input_as_handled()
+
+
+## Debug: every part won (not saved), then the chart plays the final's unlock.
+func debug_win_parts() -> void:
+	for stage: int in Chapter.FINAL:
+		chapter.complete(stage)
+	_chart.show_progress(Chapter.FINAL - 1, Chapter.FINAL)
+
+
+## Debug: every stage won (not saved), then the chart plays the final's win.
+func debug_win_final() -> void:
+	for stage: int in Chapter.stage_count():
+		chapter.complete(stage)
+	_chart.show_progress(Chapter.FINAL, -1)
 
 
 ## The stage in play, or null on the chart.

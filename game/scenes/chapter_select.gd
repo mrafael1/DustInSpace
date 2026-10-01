@@ -20,6 +20,13 @@ extends CanvasLayer
 ## twinkle, and now and then a cool shooting star streaks across behind the chart.
 ## Back from a won stage (show_progress), its point flashes as its stars light, then a comet
 ## travels to the stage it opened. Owns no rules: Chapter says what's won and available.
+## The final's unlock (back from the win that opened it) plays bigger: after the point lights, a
+## comet flies from every part's main star into the crown at once (UNLOCK_STAGGER apart, from the
+## tail), rings close in on it, then it bursts: a ring thrown out to the screen's edge, eight rays,
+## and every string flashing C0 for a beat. Then the final is selected. While it's open and not yet
+## won, the crown is the boss's point: bigger, with diagonal glints, wearing an ember ring (S4).
+## Once the final is won, the painted Scorpio (ConstellationView.FIGURE) lies behind the chart's
+## stars; back from that win it rises from its tail to its claws first, as in the stage.
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
 
 ## The player asked to play stage `stage`.
@@ -103,6 +110,20 @@ const MOTE_SPEED := Vector2(1.5, 4.0)
 const MOTE_COLOURS: Array[Color] = [Palette.N4, Palette.N5]
 const MOTE_SEED: int = 0x5C0
 
+## The final's unlock, after its point lights: comets converge on the crown over UNLOCK_FLIGHT
+## (each part's leaving UNLOCK_STAGGER after the one before), rings close in over UNLOCK_CHARGE,
+## then the burst throws a ring out UNLOCK_BURST_GROWTH px over UNLOCK_BURST with UNLOCK_RAYS rays,
+## and the strings flash C0 for UNLOCK_FLASH.
+const UNLOCK_STAGGER: float = 0.08
+const UNLOCK_FLIGHT: float = 0.6
+const UNLOCK_CHARGE: float = 0.45
+const UNLOCK_BURST: float = 0.6
+const UNLOCK_BURST_GROWTH: int = 120
+const UNLOCK_FLASH: float = 0.12
+const UNLOCK_RAYS: int = 8
+const UNLOCK_TIME: float = UNLOCK_STAGGER * 4 + UNLOCK_FLIGHT + UNLOCK_CHARGE + UNLOCK_BURST
+const BURST_COLOURS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.C4]
+
 ## Where a stage's number sits from its point.
 const NUMBER_OFFSET := Vector2i(10, -16)
 ## The final stage's crown point, above the figure.
@@ -121,6 +142,12 @@ var _light_time: float = 0.0
 var _then_travel_to: int = -1
 var _pressed_point: int = -1
 var _pressed_play: bool = false
+## The final's unlock playing: seconds since it began (-1: none), and whether one waits for the
+## point lighting to end.
+var _unlock_time: float = -1.0
+var _unlock_next: bool = false
+## The painted Scorpio rising after the final's win: seconds since it began (-1: none).
+var _figure_time: float = -1.0
 ## The visible screen in the chart's coordinates (fit_screen): the 9:16 layout, with any extra
 ## height split above and below it.
 var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
@@ -180,6 +207,9 @@ func setup(chapter: Chapter) -> void:
 	_travel.clear()
 	_light_point = -1
 	_then_travel_to = -1
+	_unlock_time = -1.0
+	_unlock_next = false
+	_figure_time = -1.0
 	_selected = chapter.current()
 	_refresh()
 
@@ -381,16 +411,58 @@ static func _hash(p: Vector2i) -> int:
 
 ## Back from a stage: `lit` (a stage just won, or -1) flashes as its stars light, then a comet
 ## travels to `unlocked` (the stage it opened, or -1) and selects it.
+## The final's own moments play bigger: its unlock (unlock_sequence), and the painted Scorpio rising
+## once it's won.
 func show_progress(lit: int, unlocked: int) -> void:
 	_travel.clear()
+	_unlock_time = -1.0
+	_unlock_next = false
+	_figure_time = -1.0
 	if lit >= 0:
 		_selected = lit
 		_light_point = lit
 		_light_time = 0.0
-		_then_travel_to = unlocked
+		_unlock_next = Chapter.is_final(unlocked)
+		_then_travel_to = -1 if _unlock_next else unlocked
+		if Chapter.is_final(lit):
+			_figure_time = 0.0
 	else:
 		_selected = _chapter.current()
 	_refresh()
+
+
+func is_unlocking() -> bool:
+	return _unlock_time >= 0.0 or _unlock_next
+
+
+## Whether the painted Scorpio shows: once the final is won.
+func shows_figure() -> bool:
+	return _chapter != null and _chapter.is_completed(Chapter.FINAL)
+
+
+func is_figure_rising() -> bool:
+	return _figure_time >= 0.0
+
+
+## The final's unlock at `t` seconds: where each part's comet is (its head, along its line to the
+## crown, or -1 before it leaves / after it lands).
+static func unlock_comet_heads(t: float) -> Array[int]:
+	var heads: Array[int] = []
+	for stage: int in Chapter.FINAL:
+		var k: float = (t - stage * UNLOCK_STAGGER) / UNLOCK_FLIGHT
+		var line: Array[Vector2i] = LinkLayer.line_pixels(stage_position(stage), FINAL_AT)
+		heads.append(roundi(k * (line.size() - 1)) if k >= 0.0 and k < 1.0 else -1)
+	return heads
+
+
+## The final's unlock at `t`: 0 comets flying, 1 charging, 2 bursting, -1 over.
+static func unlock_phase(t: float) -> int:
+	var charge_at: float = UNLOCK_STAGGER * 4 + UNLOCK_FLIGHT
+	if t < 0.0 or t >= UNLOCK_TIME:
+		return -1
+	if t < charge_at:
+		return 0
+	return 1 if t < charge_at + UNLOCK_CHARGE else 2
 
 
 func selected() -> int:
@@ -478,7 +550,7 @@ func handle_pointer(event: InputEvent) -> bool:
 		return used
 	if _pressed_play and play_rect(_screen).has_point(at) and can_play():
 		stage_chosen.emit(_selected)
-	elif _pressed_point >= 0 and stage_at(at) == _pressed_point and not is_travelling() and not is_lighting():
+	elif _pressed_point >= 0 and stage_at(at) == _pressed_point and not is_travelling() and not is_lighting() and not is_unlocking():
 		select(_pressed_point)
 	_pressed_play = false
 	_pressed_point = -1
@@ -503,10 +575,25 @@ func advance(delta: float) -> void:
 		redraw = true
 		if _light_time >= LIGHT_TIME:
 			_light_point = -1
+			if _unlock_next:
+				_unlock_next = false
+				_unlock_time = 0.0
 			if _then_travel_to >= 0:
 				var to: int = _then_travel_to
 				_then_travel_to = -1
 				select(to)
+	if _unlock_time >= 0.0:
+		_unlock_time += delta
+		redraw = true
+		if _unlock_time >= UNLOCK_TIME:
+			_unlock_time = -1.0
+			_selected = Chapter.FINAL
+			_refresh()
+	if _figure_time >= 0.0:
+		_figure_time += delta
+		redraw = true
+		if _figure_time >= ConstellationView.FIGURE_RISE + ConstellationView.FIGURE_FLASH:
+			_figure_time = -1.0
 	if redraw:
 		_chart.queue_redraw()
 
@@ -646,11 +733,16 @@ func _draw_chart() -> void:
 		_dot(p, meteor[p])
 	if _chapter == null:
 		return
+	_draw_figure()
 	var legs: Array[Leg] = string_legs()
 	for leg: Leg in [Leg.GUIDE, Leg.NEXT, Leg.LIT]:
 		for segment: int in Scorpio.segment_count():
 			if legs[segment] == leg:
 				_draw_string(segment, leg)
+	if unlock_phase(_unlock_time) == 2 and _unlock_time - (UNLOCK_TIME - UNLOCK_BURST) < UNLOCK_FLASH:
+		for segment: int in Scorpio.segment_count():
+			for p: Vector2i in LinkLayer.line_pixels(Scorpio.LANDMARKS[Scorpio.SEGMENTS[segment].x], Scorpio.LANDMARKS[Scorpio.SEGMENTS[segment].y]):
+				_dot(p, Palette.C0)
 	for landmark: int in Scorpio.LANDMARKS.size():
 		_draw_star(landmark)
 	_draw_crown()
@@ -662,6 +754,7 @@ func _draw_chart() -> void:
 		for d: Vector2i in ConstellationView.circle_pixels(radius):
 			_dot(stage_position(_light_point) + d, colour)
 	_draw_comet()
+	_draw_unlock()
 	_draw_label_rules()
 	if can_play():
 		_draw_plaque(play_rect(_screen), Palette.M3 if _pressed_play else Palette.N0, Palette.C2)
@@ -757,10 +850,22 @@ func _draw_main_star(stage: int) -> void:
 		_ring(at)
 
 
-## The final stage's crown point: a star with 3 px arms (gold once won, warm and ringed while
-## playable, cool while locked).
+## The final stage's crown point: a star with 3 px arms (gold once won, cool while locked). While
+## it's open and not won it's the boss's point: arms of 5 px stepping down the warm ramp, diagonal
+## glints, the flare of the point to play next, and an ember ring (S4) instead of the warm one.
+## Hidden while its unlock charges; it appears with the burst.
 func _draw_crown() -> void:
 	var state: Chapter.PointState = _chapter.state(Chapter.FINAL)
+	var phase: int = unlock_phase(_unlock_time)
+	if (phase == 0 or phase == 1 or _unlock_next):
+		state = Chapter.PointState.LOCKED
+	if state == Chapter.PointState.AVAILABLE:
+		var dots: Dictionary[Vector2i, Color] = main_star_pixels(state, flare_step(_time))
+		for d: Vector2i in dots:
+			_dot(FINAL_AT + d, dots[d])
+		for d: Vector2i in ConstellationView.circle_pixels(RING_RADIUS + 2 + _ring_frame()):
+			_dot(FINAL_AT + d, Palette.S4)
+		return
 	var core: Color = Palette.N8
 	var arms: Color = Palette.N6
 	if state == Chapter.PointState.COMPLETED:
@@ -774,6 +879,75 @@ func _draw_crown() -> void:
 		for d: Vector2i in [Vector2i(0, -k), Vector2i(0, k), Vector2i(-k, 0), Vector2i(k, 0)]:
 			_dot(FINAL_AT + d, core if k == 1 else arms)
 	_dot(FINAL_AT, Palette.C0 if state != Chapter.PointState.LOCKED else Palette.M6)
+
+
+## The final's unlock: the comets flying into the crown, the rings closing in on it, then the burst
+## (a ring thrown out, cooling down the warm ramp, and rays).
+func _draw_unlock() -> void:
+	var phase: int = unlock_phase(_unlock_time)
+	if phase < 0:
+		return
+	if phase == 0:
+		var heads: Array[int] = unlock_comet_heads(_unlock_time)
+		for stage: int in heads.size():
+			if heads[stage] < 0:
+				continue
+			var line: Array[Vector2i] = LinkLayer.line_pixels(stage_position(stage), FINAL_AT)
+			for k: int in range(TRAIL.size() - 1, -1, -1):
+				var i: int = heads[stage] - k
+				if i >= 0:
+					_dot(line[i], TRAIL[k])
+			for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				_dot(line[heads[stage]] + n, Palette.C1)
+			_dot(line[heads[stage]], Palette.C0)
+		return
+	var start: float = UNLOCK_STAGGER * 4 + UNLOCK_FLIGHT
+	if phase == 1:
+		var k: float = (_unlock_time - start) / UNLOCK_CHARGE
+		for ring: int in 3:
+			var radius: int = roundi((1.0 - fposmod(k * 2.0 + ring / 3.0, 1.0)) * 18.0) + 2
+			for d: Vector2i in ConstellationView.circle_pixels(radius):
+				_dot(FINAL_AT + d, Palette.C2 if ring == 0 else Palette.C3)
+		for d: Vector2i in [Vector2i.ZERO, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			_dot(FINAL_AT + d, Palette.C0)
+		return
+	var b: float = (_unlock_time - start - UNLOCK_CHARGE) / UNLOCK_BURST
+	var colour: Color = BURST_COLOURS[mini(floori(b * BURST_COLOURS.size()), BURST_COLOURS.size() - 1)]
+	for d: Vector2i in ConstellationView.circle_pixels(6 + roundi(b * UNLOCK_BURST_GROWTH)):
+		_dot(FINAL_AT + d, colour)
+	var reach: int = 8 + roundi(b * 26.0)
+	for r: int in UNLOCK_RAYS:
+		var dir: Vector2 = Vector2.from_angle(TAU * r / UNLOCK_RAYS)
+		var tip := Vector2i((dir * reach).round())
+		var tail := Vector2i((dir * maxf(reach - 10.0, 4.0)).round())
+		for p: Vector2i in LinkLayer.line_pixels(FINAL_AT + tail, FINAL_AT + tip):
+			_dot(p, colour)
+
+
+## The painted Scorpio behind the chart once the final is won; rising (from its tail) right after the
+## win, its front row C0 and the next C1, then one C0 flash.
+func _draw_figure() -> void:
+	if not shows_figure():
+		return
+	var tex: Texture2D = ConstellationView.FIGURE
+	if _figure_time < 0.0:
+		_chart.draw_texture(tex, Vector2.ZERO)
+		return
+	var rows: Dictionary = ConstellationView.figure_rows()
+	if _figure_time >= ConstellationView.FIGURE_RISE:
+		for y: int in rows:
+			for x: int in rows[y]:
+				_dot(Vector2i(x, y), Palette.C0)
+		return
+	var front: int = ConstellationView.figure_front(_figure_time / ConstellationView.FIGURE_RISE)
+	var edge: Array[Color] = ConstellationView.FIGURE_EDGE
+	var below: int = front + edge.size()
+	var size: Vector2 = tex.get_size()
+	if below < size.y:
+		_chart.draw_texture_rect_region(tex, Rect2(0, below, size.x, size.y - below), Rect2(0, below, size.x, size.y - below))
+	for k: int in edge.size():
+		for x: int in rows.get(front + k, []):
+			_dot(Vector2i(x, front + k), edge[k])
 
 
 func _ring(at: Vector2i) -> void:
