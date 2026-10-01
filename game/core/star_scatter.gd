@@ -32,6 +32,20 @@ static func clamp_to_sky(point: Vector2i, sky: Rect2i) -> Vector2i:
 	)
 
 
+## Where a pack that splits into `count` bursts bursts, aimed at `aim`: points `spread` px apart in a
+## row across the aim, centred on it, slid back together into the inner sky at an edge so the
+## spread holds (unless the sky is narrower than it).
+static func split_points(aim: Vector2i, spread: int, count: int, sky: Rect2i) -> Array[Vector2i]:
+	var inner: Rect2i = inner_rect(sky)
+	var centre: Vector2i = clamp_to_sky(aim, sky)
+	var width: int = spread * (count - 1)
+	var left: int = clampi(centre.x - width / 2, inner.position.x, maxi(inner.end.x - 1 - width, inner.position.x))
+	var points: Array[Vector2i] = []
+	for i: int in count:
+		points.append(clamp_to_sky(Vector2i(left + i * spread, centre.y), sky))
+	return points
+
+
 static func place(
 	count: int,
 	burst: Vector2i,

@@ -13,7 +13,12 @@ class PackDef:
 	extends RefCounted
 	var kind: String = ""
 	var cost: int = 0
+	## Stars per burst.
 	var stars: int = 0
+	## How many bursts the pack splits into (the red pack's twin burst): one aim, `bursts` burst
+	## points `burst_spread` px apart across it, each with `stars` stars. Optional: 1.
+	var bursts: int = 1
+	var burst_spread: int = 0
 	## Indexed by Star.Size (small, medium, big).
 	var weights: Array[int] = [0, 0, 0]
 	var big_bang_chance: float = 0.0
@@ -148,6 +153,9 @@ func _parse_packs(raw: Dictionary) -> void:
 		pack.cost = _read_int(entry, "cost", ctx, 1)
 		pack.stars = _read_int(entry, "stars", ctx, 1)
 		pack.big_bang_chance = _read_chance(entry, "big_bang_chance", ctx)
+		if entry.has("bursts"):
+			pack.bursts = _read_int(entry, "bursts", ctx, 1)
+			pack.burst_spread = _read_int(entry, "burst_spread", ctx, 1) if pack.bursts > 1 else 0
 		var raw_weights: Dictionary = _read_dict(entry, "weights", ctx)
 		pack.weights = [
 			_read_int(raw_weights, "small", ctx + "weights.", 0),

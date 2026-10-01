@@ -227,6 +227,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"pack_load")
 		&"pack_launched":
 			play(&"launch")
+		&"pack_split":
+			# The red pack's twin burst: a quick, higher whoosh as it splits.
+			play(&"launch", 1.8)
 		&"pack_burst", &"big_bang_started", &"hunt_intro_burst":
 			# A Big Bang opens exactly like a normal burst, to keep the surprise.
 			play(&"burst")

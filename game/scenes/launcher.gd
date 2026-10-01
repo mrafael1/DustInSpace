@@ -6,6 +6,9 @@ extends Node2D
 ## Owns no rules: which pack is loaded comes from pack_loaded / pack_bought / pack_launched events.
 ## Works in its own coordinates: the pack rests at (0, 0), which is where this node sits.
 ## Its signals are for feedback only (sound): the pull and the tremble aren't run events.
+## A pack that splits (the red pack's twin burst): it flies and trembles at the aim as usual, then
+## (pack_split) splits into twin planets that dart apart to their burst points over SPLIT_TIME, and
+## each bursts there as its pack_burst plays.
 
 signal pull_started
 ## The pull reached a new gem frame, 1 to PULL_FRAMES - 1 (only as it grows).
@@ -38,6 +41,8 @@ const TREMBLE_STEP: float = 0.04
 ## Burst ring radii, one per frame.
 const BURST_RADII: Array[int] = [5, 9, 13]
 const BURST_FRAME_TIME: float = 0.05
+## The twin planets dart from the aim to their burst points in SPLIT_TIME, eased out.
+const SPLIT_TIME: float = 0.16
 ## Fork tips, where the bands attach and the star gems sit (the fork is about 30x36).
 const FORK_TIPS: Array[Vector2i] = [Vector2i(-11, -4), Vector2i(11, -4)]
 
@@ -55,6 +60,11 @@ var _flight_time: float = 0.0
 var _flight_to: Vector2i = Vector2i.ZERO
 var _burst_time: float = -1.0
 var _burst_at: Vector2i = Vector2i.ZERO
+## The twin planets of a split pack: where they split, where each goes, and how long since.
+var _twins: Array[PackView] = []
+var _split_from: Vector2i = Vector2i.ZERO
+var _split_to: Array[Vector2i] = []
+var _split_time: float = -1.0
 
 @onready var _rest_pack: PackView = $RestPack
 @onready var _flying_pack: PackView = $FlyingPack
@@ -91,6 +101,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	# A restart rebinds the sequencer, which drops a pending pack_burst: nothing else would
 	# end a flight or burst ring from the old run.
 	_end_flight()
+	_end_split()
 	_burst_time = -1.0
 	cancel_pull()
 	_show_rest_pack()
@@ -156,6 +167,10 @@ func advance(delta: float) -> void:
 			_flight = Flight.TREMBLING
 			_flight_time -= FLIGHT_TIME
 			tremble_started.emit()
+	if _split_time >= 0.0:
+		_split_time += delta
+		for i: int in _split_to.size():
+			_twins[i].position = Vector2(split_offset(i))
 	if _burst_time >= 0.0:
 		_burst_time += delta
 		if _burst_time >= BURST_RADII.size() * BURST_FRAME_TIME:
@@ -172,6 +187,32 @@ func flight_offset() -> Vector2i:
 	var eased: float = 1.0 - (1.0 - k) * (1.0 - k)
 	var point: Vector2 = Vector2(_flight_from()).lerp(Vector2(_flight_to), eased)
 	return Vector2i(point.round()) + Vector2i(0, -roundi(sin(k * PI) * ARC_HEIGHT))
+
+
+## Twin `i`'s offset from this node now: eased out from the split to its burst point.
+func split_offset(i: int) -> Vector2i:
+	var k: float = clampf(_split_time / SPLIT_TIME, 0.0, 1.0)
+	var eased: float = 1.0 - (1.0 - k) * (1.0 - k)
+	return Vector2i(Vector2(_split_from).lerp(Vector2(_split_to[i]), eased).round())
+
+
+## The twin planets in the air (a split pack, before each bursts).
+func twins_shown() -> int:
+	var count: int = 0
+	for twin: PackView in _twins:
+		if twin.visible:
+			count += 1
+	return count
+
+
+## Where the loaded pack will burst for the aim at burst_preview(): its one burst point, or each
+## point a splitting pack bursts at (the core's StarScatter.split_points).
+func burst_points() -> Array[Vector2i]:
+	var aim: Vector2i = burst_preview()
+	var pack: Balance.PackDef = _run.balance.packs.get(shown_pack()) if _run != null else null
+	if pack == null or pack.bursts <= 1:
+		return [aim]
+	return StarScatter.split_points(aim, pack.burst_spread, pack.bursts, _run.sky_rect)
 
 
 ## Pull frame 0 (at rest) to PULL_FRAMES - 1 (full pull).
@@ -236,8 +277,14 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_show_rest_pack()
 		&"pack_launched":
 			_launch_view(event.args[0], event.args[1])
-		&"pack_burst", &"big_bang_started":
-			_burst_view(event.args[0] if event.type == &"big_bang_started" else event.args[1])
+		&"pack_split":
+			_split_view(event.args[0], event.args[1], event.args[2])
+		&"pack_burst":
+			_burst_view(event.args[1])
+		&"big_bang_started":
+			# A Big Bang bursts at the aim: the twins go with it, wherever they are.
+			_end_split()
+			_burst_view(event.args[0])
 		&"hunt_intro_launched":
 			_demo_launch_view(event.args[0], event.args[1])
 		&"hunt_intro_burst":
@@ -277,8 +324,41 @@ func _flight_from() -> Vector2i:
 	return Vector2i.ZERO
 
 
+## The trembling pack splits into twin planets that dart apart to `points`.
+func _split_view(kind: String, at: Vector2i, points: Array[Vector2i]) -> void:
+	_end_flight()
+	_split_from = at - origin()
+	_split_to.clear()
+	for i: int in points.size():
+		if i >= _twins.size():
+			var twin := PackView.new()
+			twin.name = "Twin%d" % i
+			add_child(twin)
+			_twins.append(twin)
+		_twins[i].kind = kind
+		_twins[i].bright = true
+		_twins[i].position = Vector2(_split_from)
+		_twins[i].visible = true
+		_split_to.append(points[i] - origin())
+	_split_time = 0.0
+	_sequencer.hold(SPLIT_TIME)
+
+
+func _end_split() -> void:
+	_split_time = -1.0
+	_split_to.clear()
+	for twin: PackView in _twins:
+		twin.visible = false
+
+
 func _burst_view(burst: Vector2i) -> void:
 	_end_flight()
+	# A twin bursts: it leaves; the split ends once both have.
+	var twin: int = _split_to.find(burst - origin())
+	if twin >= 0:
+		_twins[twin].visible = false
+	if twins_shown() == 0:
+		_end_split()
 	_burst_at = burst - origin()
 	_burst_time = 0.0
 	_show_rest_pack()

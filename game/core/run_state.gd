@@ -11,6 +11,9 @@ signal pack_bought(kind: String, dust_after: int)
 signal pack_loaded(kind: String)
 signal pack_launched(kind: String, burst_position: Vector2i)
 signal pack_burst(kind: String, burst_position: Vector2i, stars: Array[Star])
+## A pack that splits (the red pack's twin burst) split at `at` into planets that burst at `points`
+## (a pack_burst for each follows; a Big Bang splits too, then collapses at `at`).
+signal pack_split(kind: String, at: Vector2i, points: Array[Vector2i])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
@@ -243,7 +246,9 @@ func load_pack(kind: String) -> bool:
 	return true
 
 
-## Launches the loaded pack toward `target`. The burst point is clamped into the sky.
+## Launches the loaded pack toward `target`. The burst point is clamped into the sky. A pack that
+## splits (bursts > 1) bursts at points across it instead, one pack_burst each; it is still one
+## launch: one Big Bang roll, one Orion count, one strike after every burst.
 ## With Orion: no arrow; after the pack opens he marks a loose star if none is marked. With his
 ## hunting area (#71): once the pack has opened, his arrow strikes the circle he marked (the new
 ## stars too), then he marks a new one. Win and loss are checked once, at the end.
@@ -258,8 +263,17 @@ func launch(target: Vector2i) -> bool:
 		orion.count_launch()
 	var result: PackOpener.PackResult = PackOpener.open(balance.packs[kind], _rng, force_next_big_bang)
 	force_next_big_bang = false
+	var pack: Balance.PackDef = balance.packs[kind]
+	var points: Array[Vector2i] = []
+	if pack.bursts > 1:
+		points = StarScatter.split_points(burst, pack.burst_spread, pack.bursts, sky_rect)
+		# A Big Bang splits too, so it opens like any red pack and keeps its surprise.
+		pack_split.emit(kind, burst, points)
 	if result.big_bang:
 		_big_bang(burst)
+	elif pack.bursts > 1:
+		for i: int in points.size():
+			_burst(kind, points[i], result.sizes.slice(i * pack.stars, (i + 1) * pack.stars))
 	else:
 		_burst(kind, burst, result.sizes)
 	# The hunting area's strike comes before any single mark, so a mark never lands on a star the

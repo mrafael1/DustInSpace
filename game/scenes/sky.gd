@@ -446,7 +446,7 @@ func _big_bang(burst: Vector2i, cleared: Array[Star]) -> void:
 ## negative so they never match a star in the run.
 func _decoys(burst: Vector2i) -> Array[Star]:
 	var pack: Balance.PackDef = _run.balance.packs.get(_launched_kind)
-	var count: int = pack.stars if pack != null else 3
+	var count: int = pack.stars * pack.bursts if pack != null else 3
 	var weights: Array[int] = pack.weights if pack != null else [1, 1, 1] as Array[int]
 	var places: Array[Vector2i] = StarScatter.place(count, burst, _run.sky_rect, [] as Array[Vector2i], _decoy_rng)
 	var decoys: Array[Star] = []
