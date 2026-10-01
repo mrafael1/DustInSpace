@@ -316,6 +316,14 @@ func start_tutorial() -> void:
 	tutorial_step.emit(tutorial.step)
 
 
+## The player tapped on through a tutorial step that only explains something.
+func tutorial_continue() -> bool:
+	if tutorial == null or not tutorial.continue_info():
+		return false
+	tutorial_step.emit(tutorial.step)
+	return true
+
+
 func _tutorial_landmark_at() -> Vector2i:
 	return scorpio.landmark_position(tutorial.landmark) if tutorial.landmark >= 0 else Vector2i.ZERO
 

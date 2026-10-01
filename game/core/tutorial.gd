@@ -1,12 +1,14 @@
 class_name Tutorial
 extends RefCounted
 ## The guided first run (the Stinger, played for the first time): a few steps teach the loop, each
-## allowing only its own action. Launch a pack (scripted: one of each size, a sequence), link its 3
-## stars, launch next to the constellation star to light next (scripted: two stars of its size and
-## one other), link it with two of them, buy a planet, then play freely. Pure rules; RunState asks
-## it what's allowed and tells it what happened, and announces each new step (tutorial_step).
+## allowing only its own action. The goal first (lighting every constellation star wins; a tap goes
+## on), then launch a pack (scripted: one of each size, a sequence), link its 3 stars, what links give
+## (light and dust; a full Sun lights a star; a tap goes on), launch next to the constellation star
+## to light next (scripted: two stars of its size and one other), link it with two of them, spend
+## dust on a planet, then play freely. Pure rules; RunState asks it what's allowed and tells it what
+## happened, and announces each new step (tutorial_step).
 
-enum Step { LAUNCH, LINK, LAUNCH_NEAR, LIGHT, BUY, DONE }
+enum Step { GOAL, LAUNCH, LINK, SUN, LAUNCH_NEAR, LIGHT, BUY, DONE }
 
 ## The near launch must be aimed within this many px of the landmark to light, so its stars land in
 ## reach of it. Tutorial layout, not balance.
@@ -14,7 +16,7 @@ const NEAR: int = 20
 ## The first pack: one star of each size, a sequence.
 const FIRST_PACK: Array[int] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
 
-var step: Step = Step.LAUNCH
+var step: Step = Step.GOAL
 ## The landmark the near launch aims at and the light step lights (-1 before then).
 var landmark: int = -1
 
@@ -24,8 +26,24 @@ static func aims(at_step: Step) -> bool:
 	return at_step == Step.LAUNCH or at_step == Step.LAUNCH_NEAR or at_step == Step.DONE
 
 
+## Whether `at_step` only explains something: a tap goes on, and nothing else is allowed.
+static func is_info(at_step: Step) -> bool:
+	return at_step == Step.GOAL or at_step == Step.SUN
+
+
 func is_done() -> bool:
 	return step == Step.DONE
+
+
+## The player tapped on through an explaining step. Returns true if the step moved on.
+func continue_info() -> bool:
+	if step == Step.GOAL:
+		step = Step.LAUNCH
+		return true
+	if step == Step.SUN:
+		step = Step.LAUNCH_NEAR
+		return true
+	return false
 
 
 ## A launch at `target` is allowed: the launch step, or the near launch close to its landmark (at
@@ -82,7 +100,7 @@ func launched() -> bool:
 ## launch should aim at now. Returns true if the step moved on.
 func linked(lit: bool, next_landmark: int, can_buy: bool) -> bool:
 	if step == Step.LINK:
-		step = Step.LAUNCH_NEAR
+		step = Step.SUN
 		landmark = next_landmark
 		return true
 	if step == Step.LIGHT and lit:
