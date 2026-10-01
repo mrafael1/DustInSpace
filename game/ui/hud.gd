@@ -83,6 +83,8 @@ var _orion_told: bool = false
 var _volley := VolleyCounter.new()
 ## The boss's title card, in the middle of the sky.
 var _banner := BossBanner.new()
+## The guided first run's guide: a line and a pointing hand.
+var _guide := TutorialView.new()
 
 @onready var _dust: Label = $Dust
 @onready var _slot_layer: Node2D = $Slots
@@ -102,6 +104,8 @@ func _ready() -> void:
 	add_child(_volley)
 	_banner.name = "BossBanner"
 	add_child(_banner)
+	_guide.name = "TutorialGuide"
+	add_child(_guide)
 
 
 func _process(delta: float) -> void:
@@ -144,6 +148,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_volley.reset(run.volley.links_left(), run.volley.interval)
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
+	_guide.hide_guide()
 	_press([])
 	refresh()
 
@@ -310,6 +315,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"boss_appeared":
 			_banner.play()
 			return
+		&"tutorial_step":
+			_show_tutorial_step(event.args[0])
+			return
 		&"star_marked":
 			if not _orion_told:
 				_orion_told = true
@@ -323,6 +331,35 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		_:
 			return
 	_show()
+
+
+func tutorial_guide() -> TutorialView:
+	return _guide
+
+
+## Where the buy button of `kind` sits (its plate's left middle), in the HUD's coordinates.
+func buy_button_at(kind: String) -> Vector2i:
+	var slot: Vector2i = Vector2i(_slot_layer.position + _slots[kind].position)
+	return slot + Vector2i(PackSlot.BUY_PLATE.position.x, PackSlot.BUY_PLATE.get_center().y)
+
+
+## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
+## launch at, the stars to link, the constellation star to launch by and light, the buy button.
+func _show_tutorial_step(step: int) -> void:
+	match step:
+		Tutorial.Step.LAUNCH:
+			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12), true)
+		Tutorial.Step.LINK:
+			var star: Star = _run.stars[0] if not _run.stars.is_empty() else null
+			_guide.show_step(step, star.position if star != null else Vector2i.ZERO, star != null)
+		Tutorial.Step.LAUNCH_NEAR, Tutorial.Step.LIGHT:
+			var index: int = _run.tutorial.landmark
+			var at: Vector2i = _run.scorpio.landmark_position(index)
+			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(_run.scorpio.map.sizes[index] as Star.Size)), true)
+		Tutorial.Step.BUY:
+			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT)
+		_:
+			_guide.show_step(step)
 
 
 func boss_banner() -> BossBanner:
