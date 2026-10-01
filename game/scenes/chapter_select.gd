@@ -488,9 +488,10 @@ func select(stage: int) -> void:
 	_refresh()
 
 
-## Whether PLAY shows for the selected stage: its map exists and it's available or done.
+## Whether PLAY shows for the selected stage: its map exists and it's available or done, and the
+## final's unlock isn't playing (the stage that opened it is still selected until it ends).
 func can_play() -> bool:
-	return _chapter != null and _chapter.state(_selected) != Chapter.PointState.LOCKED
+	return _chapter != null and _chapter.state(_selected) != Chapter.PointState.LOCKED and not is_unlocking()
 
 
 ## Where stage `stage`'s point is drawn (game coordinates): a part's first star from the tail,
