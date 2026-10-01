@@ -9,7 +9,7 @@ class PackResult:
 	extends RefCounted
 	var kind: String = ""
 	var big_bang: bool = false
-	## Star.Size values. Empty when the pack is a Big Bang.
+	## Star.Size values, burst after burst (stars per burst each). Empty when the pack is a Big Bang.
 	var sizes: Array[int] = []
 
 
@@ -21,7 +21,7 @@ static func open(pack: Balance.PackDef, rng: RandomNumberGenerator, force_big_ba
 	result.big_bang = rolled or force_big_bang
 	if result.big_bang:
 		return result
-	for i: int in pack.stars:
+	for i: int in pack.stars * pack.bursts:
 		result.sizes.append(draw_size(pack.weights, rng))
 	return result
 

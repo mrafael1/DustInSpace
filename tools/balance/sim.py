@@ -258,7 +258,7 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
             sky = []
             marked = None
         else:
-            sky += [draw(pack) for _ in range(int(pack["stars"]))]
+            sky += [draw(pack) for _ in range(int(pack["stars"]) * int(pack.get("bursts", 1)))]
         # The hunting circle marked after the last launch is struck once this pack has burst.
         if struck_share and opened > 1:
             # Each star is struck once: the prey for sure, any other (the mark too) at the circle's
