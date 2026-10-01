@@ -166,3 +166,60 @@ func test_the_card_fits_the_screen() -> void:
 		for combo: Array in TutorialView.card_combos(step, Star.Size.BIG):
 			width += TutorialView.row_width(combo) + 30
 		assert_lt(width, ScreenZones.SCREEN.x, "step %d" % step)
+
+
+func test_the_chart_offers_the_tutorial_again_once_finished() -> void:
+	var app: App = AppScene.instantiate()
+	app.progress_path = store_path
+	add_child_autofree(app)
+	var chart: ChapterSelect = app.get_node("ChapterSelect")
+	assert_false(chart.is_tutorial_button_shown(), "the first Stinger run is guided anyway")
+	app.open_stage(0)
+	app.stage().run.tutorial_step.emit(Tutorial.Step.DONE)
+	app.back_to_chart()
+	assert_true(chart.is_tutorial_button_shown(), "finished once: it can be played again")
+	assert_lte(chart.tutorial_target().end.x - 4, chart.get("_screen").end.x, "in the top-right corner")
+	watch_signals(chart)
+	_tap_chart(chart, chart.tutorial_target().get_center())
+	assert_signal_emitted(chart, "tutorial_requested")
+	assert_not_null(app.stage(), "the Stinger opens")
+	assert_eq(app.stage().star_map, "stinger")
+	assert_not_null(app.stage().run.tutorial, "guided again")
+	app.stage().stage_won.emit()
+	assert_true(app.chapter.is_completed(0), "a guided win counts as usual")
+
+
+func test_a_saved_tutorial_shows_the_button_and_a_plain_stinger_isnt_guided() -> void:
+	ProgressStore.new(store_path).save_chapter(App.TUTORIAL_ID, {"done": true})
+	var app: App = AppScene.instantiate()
+	app.progress_path = store_path
+	add_child_autofree(app)
+	assert_true((app.get_node("ChapterSelect") as ChapterSelect).is_tutorial_button_shown())
+	app.open_stage(0)
+	assert_null(app.stage().run.tutorial, "PLAY isn't guided")
+	app.back_to_chart()
+	app.replay_tutorial()
+	assert_not_null(app.stage().run.tutorial, "TUTORIAL is")
+
+
+func test_the_button_waits_for_the_finals_unlock() -> void:
+	var chart: ChapterSelect = (load("res://game/scenes/chapter_select.tscn") as PackedScene).instantiate()
+	add_child_autofree(chart)
+	chart.set_process(false)
+	var chapter := Chapter.new()
+	for stage: int in Chapter.FINAL:
+		chapter.complete(stage)
+	chart.setup(chapter)
+	chart.show_tutorial_button(true)
+	chart.show_progress(4, Chapter.FINAL)
+	watch_signals(chart)
+	_tap_chart(chart, chart.tutorial_target().get_center())
+	assert_signal_not_emitted(chart, "tutorial_requested")
+
+
+func _tap_chart(chart: ChapterSelect, at: Vector2i) -> void:
+	for pressed: bool in [true, false]:
+		var touch := InputEventScreenTouch.new()
+		touch.position = Vector2(at)
+		touch.pressed = pressed
+		chart.handle_pointer(touch)
