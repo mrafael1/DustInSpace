@@ -49,7 +49,23 @@ func test_the_guide_follows_each_step() -> void:
 	_start()
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
+	assert_eq(guide.text(), "LIGHT EVERY STAR OF THE
+CONSTELLATION TO WIN", "the goal first")
+	assert_true(guide.shows_tap_hint())
+	assert_true(guide.waits_for_tap())
+	var landmark: int = run.rekindle_target()
+	assert_eq(guide.target().x, run.scorpio.landmark_position(landmark).x, "the hand on the next constellation star")
+	hud.show_map_button(true)
+	var map: Vector2i = hud.map_target().get_center()
+	var press := InputEventScreenTouch.new()
+	press.position = Vector2(map)
+	press.pressed = true
+	hud.handle_pointer(press)
+	assert_true(guide.waits_for_tap(), "MAP isn't a tap on")
+	_tap_hud(Vector2i(90, 150))
+	_settle()
 	assert_eq(guide.text(), "TAP THE SKY TO LAUNCH")
+	assert_false(guide.shows_tap_hint())
 	assert_true(guide.has_hand())
 	assert_true(scope.is_aiming(), "the launch step aims")
 	assert_true(run.launch(Vector2i(90, 170)))
@@ -57,13 +73,27 @@ func test_the_guide_follows_each_step() -> void:
 	assert_eq(guide.text(), "LINK ONE OF EACH SIZE")
 	assert_eq(guide.combos(), [[Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]], "the card shows one of each size")
 	assert_true(run.sky_rect.has_point(guide.card_rect().position), "at the top of the sky")
-	assert_eq(guide.fingertip().x, run.stars[0].position.x, "the hand over a star to link")
 	assert_false(scope.is_aiming(), "touches reach the stars")
 	assert_false(scope.start_aim(), "the telescope waits for the next launch step")
-	var ids: Array[int] = []
-	for star: Star in run.stars:
-		ids.append(star.id)
-	run.link(_order(ids))
+	var path: Array[int] = guide.get("_path")
+	assert_eq(path.size(), 3, "a path through the pack's three stars")
+	assert_true(run.link_in_reach(path), "in an order that stays in reach")
+	assert_eq(guide.target().x, run.find_star(path[0]).position.x, "the hand on the first")
+	hud.follow_link([path[0]])
+	assert_eq(guide.text(), "SHINING STARS CAN COME NEXT", "once one is picked: the shine")
+	assert_eq(guide.target().x, run.find_star(path[1]).position.x, "the hand moves on to the second")
+	hud.follow_link([path[0], path[1]])
+	assert_eq(guide.target().x, run.find_star(path[2]).position.x, "then the third")
+	hud.follow_link([])
+	assert_eq(guide.text(), "LINK ONE OF EACH SIZE", "a dropped link starts over")
+	assert_eq(guide.target().x, run.find_star(path[0]).position.x)
+	run.link(path)
+	_settle()
+	assert_eq(guide.text(), "LINKS GIVE LIGHT AND DUST
+A FULL SUN LIGHTS A STAR")
+	assert_true(guide.waits_for_tap())
+	assert_lt(guide.fingertip().x, hud.sun_at.x, "the hand at the Sun, from the left")
+	_tap_hud(Vector2i(90, 150))
 	_settle()
 	assert_eq(guide.text(), "LAUNCH NEXT TO THIS STAR")
 	assert_eq(guide.combos(), [], "no card while launching")
@@ -84,7 +114,7 @@ func test_the_buy_step_points_at_the_buy_button() -> void:
 	run.tutorial_step.emit(run.tutorial.step)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "BUY A PLANET")
+	assert_eq(guide.text(), "SPEND DUST ON A PLANET")
 	var button: Vector2i = hud.buy_button_at("blue")
 	assert_eq(guide.fingertip().y, button.y)
 	assert_lt(guide.fingertip().x, button.x, "from the left, pointing right")
@@ -96,7 +126,7 @@ func test_free_play_shows_its_line_then_clears() -> void:
 	run.tutorial_step.emit(Tutorial.Step.DONE)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "LIGHT EVERY STAR")
+	assert_eq(guide.text(), "LIGHT EVERY STAR TO WIN")
 	assert_false(guide.has_hand())
 	assert_eq(guide.combos().size(), 2, "both combos, OR between them")
 	guide.advance(TutorialView.DONE_TIME + 0.1)
@@ -152,12 +182,18 @@ func test_lighting_the_star_teaches_three_of_its_size() -> void:
 	_settle()
 	run.tutorial.step = Tutorial.Step.LIGHT
 	run.tutorial.landmark = 1
+	run.add_star(run.scorpio.map.sizes[1] as Star.Size, run.scorpio.landmark_position(1) + Vector2i(16, -10))
+	run.add_star(run.scorpio.map.sizes[1] as Star.Size, run.scorpio.landmark_position(1) + Vector2i(-16, -12))
 	run.tutorial_step.emit(Tutorial.Step.LIGHT)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
 	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE")
 	var size: int = run.scorpio.map.sizes[1]
 	assert_eq(guide.combos(), [[size, size, size]], "three stars of the constellation star's size")
+	var path: Array[int] = guide.get("_path")
+	assert_eq(path.size(), 3)
+	assert_true(path.has(Scorpio.landmark_id(1)), "the constellation star is on the hand's path")
+	assert_true(run.link_in_reach(path))
 
 
 func test_the_card_fits_the_screen() -> void:
@@ -223,3 +259,11 @@ func _tap_chart(chart: ChapterSelect, at: Vector2i) -> void:
 		touch.position = Vector2(at)
 		touch.pressed = pressed
 		chart.handle_pointer(touch)
+
+
+func _tap_hud(at: Vector2i) -> void:
+	for pressed: bool in [true, false]:
+		var touch := InputEventScreenTouch.new()
+		touch.position = Vector2(at)
+		touch.pressed = pressed
+		assert_true(hud.handle_pointer(touch), "the explaining step takes the tap")

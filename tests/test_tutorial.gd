@@ -19,7 +19,13 @@ func test_no_tutorial_no_gates() -> void:
 
 func test_the_whole_tutorial() -> void:
 	var run: RunState = _run()
-	assert_eq(steps, [Tutorial.Step.LAUNCH] as Array[int], "it announces its first step")
+	assert_eq(steps, [Tutorial.Step.GOAL] as Array[int], "it announces its first step: the goal")
+	# The goal: nothing but a tap on.
+	assert_false(run.launch(Vector2i(90, 160)), "the goal only explains")
+	assert_eq(run.link([1, 2, 3]), Combos.INVALID)
+	assert_true(run.tutorial_continue())
+	assert_eq(steps.back(), Tutorial.Step.LAUNCH)
+	assert_false(run.tutorial_continue(), "only the explaining steps tap on")
 	# Step 1: only a launch.
 	assert_false(run.load_pack("red"), "no switching packs yet")
 	assert_false(run.buy("blue"), "no buying yet")
@@ -30,6 +36,9 @@ func test_the_whole_tutorial() -> void:
 	# Step 2: only a link.
 	assert_false(run.launch(Vector2i(90, 160)), "no launch while linking")
 	assert_ne(run.link(_order(run, _ids(run.stars))), Combos.INVALID)
+	assert_eq(steps.back(), Tutorial.Step.SUN, "what links give")
+	assert_false(run.launch(Vector2i(90, 160)), "the Sun step only explains")
+	assert_true(run.tutorial_continue())
 	assert_eq(steps.back(), Tutorial.Step.LAUNCH_NEAR)
 	assert_eq(run.tutorial.landmark, run.rekindle_target(), "the next star to light")
 	# Step 3: launch next to that star, only.
@@ -69,8 +78,10 @@ func test_a_buy_it_cant_afford_skips_to_free_play() -> void:
 	data["packs"]["red"]["cost"] = 99
 	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.stinger())
 	run.start_tutorial()
+	run.tutorial_continue()
 	run.launch(Vector2i(90, 160))
 	run.link(_order(run, _ids(run.stars)))
+	run.tutorial_continue()
 	var at: Vector2i = run.scorpio.landmark_position(run.tutorial.landmark)
 	run.launch(at)
 	var size: int = run.scorpio.map.sizes[run.tutorial.landmark]
@@ -80,6 +91,15 @@ func test_a_buy_it_cant_afford_skips_to_free_play() -> void:
 			pair.append(star.id)
 	run.link(_order(run, [pair[0], pair[1], Scorpio.landmark_id(run.tutorial.landmark)]))
 	assert_true(run.tutorial.is_done(), "no stuck buy step")
+
+
+func test_only_the_goal_and_the_sun_wait_for_a_tap() -> void:
+	assert_true(Tutorial.is_info(Tutorial.Step.GOAL))
+	assert_true(Tutorial.is_info(Tutorial.Step.SUN))
+	for step: int in [Tutorial.Step.LAUNCH, Tutorial.Step.LINK, Tutorial.Step.LIGHT, Tutorial.Step.BUY, Tutorial.Step.DONE]:
+		assert_false(Tutorial.is_info(step))
+	assert_false(Tutorial.aims(Tutorial.Step.GOAL), "no aiming while it explains")
+	assert_false(Tutorial.aims(Tutorial.Step.SUN))
 
 
 func test_only_the_aiming_steps_aim() -> void:
@@ -93,6 +113,7 @@ func test_only_the_aiming_steps_aim() -> void:
 
 func test_the_scripted_packs_fit_any_pack_size() -> void:
 	var tutorial := Tutorial.new()
+	tutorial.step = Tutorial.Step.LAUNCH
 	assert_eq(tutorial.pack_sizes(3, Star.Size.SMALL).size(), 3)
 	assert_eq(tutorial.pack_sizes(6, Star.Size.SMALL).size(), 6, "a twin burst gets six")
 	tutorial.step = Tutorial.Step.LINK
