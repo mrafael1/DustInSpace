@@ -2,10 +2,10 @@ class_name ConstellationView
 extends Node2D
 ## Draws the Scorpio map (#40) under the stars. Each landmark is drawn with the star art of its
 ## size, so a small, medium or big landmark has the shape of the sky star it can stand in for.
-## Unlit (usable in a combo), it uses the art's "unlit" frame, a cool tint per size (small pink,
-## medium lavender, big blue), and four small corner brackets in the dim halo tones (C4/C5, swapping
-## every CUE_STEP) say "you can pick this". Lit, it uses the "gold" frame: the same gold on every
-## size, so gold only ever means lit. Strings between two lit landmarks glow C1 with a C0 glint
+## It keeps its size's colour, like the sky star it stands in for (small orange, medium gold, big
+## blue-white). Unlit (usable in a combo), it uses the art's "unlit" frame, that colour a step
+## dimmer, and four small corner brackets in the dim halo tones (C4/C5, swapping every CUE_STEP)
+## say "you can pick this". Lit, it shines like a sky star: the "idle" frame and its halo. Strings between two lit landmarks glow C1 with a C0 glint
 ## running along them; strings still to form are dotted N8. While a link is traced, the landmarks
 ## in it show gold and the strings it would form are dashed C2. Like the HUD and the Sun it keeps
 ## a shown copy of what's lit, moved only by played landmark_lit events, so a landmark the Sun
@@ -579,9 +579,9 @@ static func star_pixels(size: int, frame: StringName = &"idle") -> Dictionary[Ve
 	return dots
 
 
-## A landmark's pixels: gold when lit (or in the link being traced), its size's cool tint otherwise.
+## A landmark's pixels: its sky star's when lit (or in the link being traced), a step dimmer otherwise.
 static func landmark_pixels(size: int, lit: bool) -> Dictionary[Vector2i, Color]:
-	return star_pixels(size, &"gold" if lit else &"unlit")
+	return star_pixels(size, &"idle" if lit else &"unlit")
 
 
 func _draw_string(segment: int) -> void:
@@ -646,6 +646,10 @@ func _draw_landmark(index: int) -> void:
 			_dot(_map().landmarks[index] + d, colour)
 	var lit: bool = shows_lit(index) or _selected.has(index)
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
+	if lit and not flash:
+		var halo: Dictionary[Vector2i, Color] = StarView.halo_pixels(_map().sizes[index] as Star.Size)
+		for d: Vector2i in halo:
+			_dot(_map().landmarks[index] + d, halo[d])
 	var dots: Dictionary = _art[_map().sizes[index]][1 if lit else 0]
 	for d: Vector2i in dots:
 		_dot(_map().landmarks[index] + d, Palette.C0 if flash else dots[d])

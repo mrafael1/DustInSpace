@@ -3,7 +3,7 @@ extends Node2D
 ## Orion the hunter (#64), on stages he hunts: his figure, dim in the sky's top-left corner (drawn
 ## on the FigureLayer, under the stars); when he marks a star his figure flashes bright and a dotted
 ## ember sight line runs from his bow to it, then the ember crosshair closes on it and stays (a cue
-## unlike the warm selection ring, the gold lit landmarks and the unlit landmarks' corner hints),
+## unlike the warm selection ring, the lit landmarks and the unlit landmarks' corner hints),
 ## his bow held drawn while it stands. While the player traces a link that would leave the marked
 ## star behind, his bow readies: the figure lights up and the sight line holds on the star. Then his
 ## arrow flying to it.

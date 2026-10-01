@@ -28,7 +28,7 @@ The palette has 40 colours in 7 ramps (the dust ramp reuses N7 and N8). Files: `
 
 ### Colour rules
 
-1. Warm (C0–C3) means interactive or valuable. Never use it for decoration. One exception: collectible stars are coloured by size, like a star's temperature, so the sizes read at a glance. Small is orange (C2 core, C3 arms), medium gold (C0 core, C1 body, C2 tips), and big blue-white (C0 core, M6 body, M5 tips, with a cool M4/M3 halo instead of C4/C5). The selection ring stays C1 on every size.
+1. Warm (C0–C3) means interactive or valuable. Never use it for decoration. One exception: collectible stars are coloured by size, like a star's temperature, so the sizes read at a glance. Small is orange (C2 core, C3 arms), medium gold (C0 core, C1 body, C2 tips), and big blue-white (C0 core, M6 body, M5 tips, with a cool M4/M3 halo instead of C4/C5). The selection ring stays C1 on every size. Constellation stars keep their size's colour: unlit, a step dimmer with no white core (small C3/C4, medium C1/C2/C3, big M6/M5/M4) and four C4/C5 corner brackets; lit, the sky star's own frame and halo. Lit or not shows as brightness and halo, never as a change of hue.
 2. Background stars are cool, 1 px, and kept away from collectible stars. 3 px glints are allowed only in the empty top corners.
 3. Blue and red appear only on packs.
 4. The Sun moves from the S ramp to the C ramp as it heals. That change is the progress bar.

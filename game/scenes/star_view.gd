@@ -48,8 +48,9 @@ const RING_SHEETS: Array[Texture2D] = [
 	preload("res://assets/art/selection_ring_medium.png"),
 	preload("res://assets/art/selection_ring_big.png"),
 ]
-## "gold" and "unlit" are Scorpio's landmarks (ConstellationView); sky stars never show them.
-const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flare_core", &"fade_core", &"fade_dot", &"dim", &"dim_core", &"gold", &"unlit"]
+## "unlit" is an unlit Scorpio landmark (ConstellationView); sky stars never show it. A lit
+## landmark shows "idle", like the sky star of its size.
+const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flare_core", &"fade_core", &"fade_dot", &"dim", &"dim_core", &"unlit"]
 ## Which dissolve and collapse frames play, in order.
 const DISSOLVE_SEQUENCE: Array[StringName] = [&"flare", &"flare_core", &"fade_core", &"fade_dot"]
 const COLLAPSE_SEQUENCE: Array[StringName] = [&"glint", &"dim", &"dim_core"]
@@ -214,19 +215,30 @@ func halo_dots() -> Dictionary[Vector2i, Color]:
 	if not shows_halo:
 		return dots
 	var center := Vector2i(position)
-	var radius: int = HALO_RADIUS[size]
+	var halo: Dictionary[Vector2i, Color] = halo_pixels(size)
+	for offset: Vector2i in halo:
+		dots[center + offset] = halo[offset]
+	return dots
+
+
+## A settled star's halo of `star_size`, as offsets from its centre: HALO_COLOURS' near colour at
+## 50% dither inside half the radius, the far one at about 20% out to HALO_RADIUS, never on the
+## star's own pixels. Lit constellation stars wear it too (ConstellationView).
+static func halo_pixels(star_size: Star.Size) -> Dictionary[Vector2i, Color]:
+	var dots: Dictionary[Vector2i, Color] = {}
+	var radius: int = HALO_RADIUS[star_size]
 	for dy: int in range(-radius, radius + 1):
 		for dx: int in range(-radius, radius + 1):
 			var offset := Vector2i(dx, dy)
 			var dist_sq: int = dx * dx + dy * dy
-			if dist_sq > radius * radius or _is_shape_pixel(offset):
+			if dist_sq > radius * radius or _is_star_pixel(star_size, offset):
 				continue
 			var threshold: int = BAYER[posmod(dy, 4) * 4 + posmod(dx, 4)]
 			if dist_sq * 4 <= radius * radius:
 				if threshold < 8:
-					dots[center + offset] = HALO_COLOURS[size][0]
+					dots[offset] = HALO_COLOURS[star_size][0]
 			elif threshold < 3:
-				dots[center + offset] = HALO_COLOURS[size][1]
+				dots[offset] = HALO_COLOURS[star_size][1]
 	return dots
 
 
@@ -382,8 +394,12 @@ func _draw_ring() -> void:
 
 ## Whether the idle sprite covers `offset` (from the centre): the halo leaves those pixels alone.
 func _is_shape_pixel(offset: Vector2i) -> bool:
-	var mask: Image = _idle_mask(size)
-	var half: int = _half_extent()
+	return _is_star_pixel(size, offset)
+
+
+static func _is_star_pixel(star_size: Star.Size, offset: Vector2i) -> bool:
+	var mask: Image = _idle_mask(star_size)
+	var half: int = half_extent(star_size)
 	var cell: Vector2i = offset + Vector2i(half, half)
 	if cell.x < 0 or cell.y < 0 or cell.x >= mask.get_width() or cell.y >= mask.get_height():
 		return false
