@@ -291,12 +291,14 @@ def sting(S, base, tip, inward):
 
 
 def build_stinger(S, M):
-    """The Stinger: the tail's last joints, the swollen telson round the big star, the sting to the
-    tip star and its hook."""
+    """The Stinger, as the whole's: the tail's last joints come in from the right along the bottom,
+    turn up at the left, then the swollen telson runs right to the big star and the sting curls up
+    from it to the tip star."""
     tail_joints(S, M[:4], [6.6, 6.3, 6.0])
     S.ellipsoid(lerp(M[3], M[4], 0.6), v(M[4]) - v(M[3]), 16.0, 8.5, depth=6.0, lift=-1.5)
-    centre = sum(v(p) for p in M) / len(M)
-    sting(S, M[4], M[5], centre)
+    forward = unit(v(M[4]) - v(M[3]))
+    points = bezier(v(M[4]) + forward * 4.0, v(M[4]) + forward * 26.0, v(M[5]), 10)
+    S.chain(points + [v(M[5]) + v((-4.0, -5.0))], list(np.linspace(5.0, 1.8, len(points))) + [0.6], lift=-1.0)
 
 
 def build_tail(S, M):
@@ -329,14 +331,22 @@ def build_heart_stage(S, M):
 
 
 def build_claws(S, M):
-    """The Claws: the neck's plates, the carapace at the head, an arm up and an arm down, each with a
-    pincer opening on along it."""
-    plates(S, [M[0], M[1]], [9.0, 10.0])
-    S.ellipsoid(v(M[2]), v(M[2]) - v(M[1]), 13.0, 10.0, depth=8.0, lift=1.5)
-    for arm in ((2, 3, 4), (2, 5, 6)):
-        a, b, c = (M[i] for i in arm)
-        S.chain([a, b, c], [3.6, 3.0, 3.6], lift=-0.5)
-        pincer(S, c, v(c) - v(b))
+    """The Claws, as the whole's: the neck's plates, the carapace reaching back from the head, and an
+    arm up and an arm down, each bending back at its elbow, with a heavy pincer opening forward
+    (right), the way the scorpion faces. The stage spreads its stars wider than the whole's head, so
+    the carapace and pincers grow with it (`k`) to keep the whole's proportions."""
+    k = 1.3
+    plates(S, [M[0], M[1]], [10.0, 12.0])
+    S.ellipsoid(lerp(M[2], M[1], 0.3), v(M[2]) - v(M[1]), 15.0 * k, 11.0 * k, depth=8.0 * k, lift=1.5)
+    for (a, b, c), bend in (((2, 3, 4), -1.0), ((2, 5, 6), 1.0)):
+        S.chain([M[a], M[b], M[c]], [4.6, 3.8, 4.6], lift=-0.5)
+        manus = v(M[c]) + v((5.0, 0.0)) * k
+        S.ellipsoid(manus, (1.0, 0.25 * bend), 8.5 * k, 5.8 * k, depth=5.5 * k, lift=0.5)
+        tip = manus + v((7.0, 0.0)) * k
+        fixed = bezier(tip + v((-1, -2.2)) * k, tip + v((7.0, -6.0)) * k, tip + v((11.0, -1.0)) * k, 7)
+        moving = bezier(tip + v((-1, 2.2)) * k, tip + v((7.0, 6.0)) * k, tip + v((11.0, 1.0)) * k, 7)
+        S.chain(fixed, list(np.linspace(2.8, 0.7, 7) * k), lift=0.2)
+        S.chain(moving, list(np.linspace(2.5, 0.7, 7) * k), lift=0.0)
 
 
 STAGE_BUILDERS = {
