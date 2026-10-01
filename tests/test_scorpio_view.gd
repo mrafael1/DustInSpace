@@ -103,16 +103,23 @@ func test_built_strings_glow_and_open_ones_dont() -> void:
 	assert_gt(pixels.size(), ConstellationView.GLOW_SPACING, "room for glints")
 
 
-func test_a_landmark_looks_like_its_sky_star_lit_or_not() -> void:
-	# Playtest: a constellation star must read as the sky star it stands in for; lighting it adds
-	# the sky star's effects (halo, twinkle) and never changes its colour.
+func test_an_unlit_landmark_looks_like_its_sky_star_and_a_lit_one_turns_gold() -> void:
+	# Playtest: an unlit constellation star must read as the sky star it stands in for. Lit, it's
+	# done: gold whatever its size, the colour of the lit strings, which no sky star uses.
 	for size: int in 3:
-		assert_eq(ConstellationView.landmark_pixels(size), ConstellationView.star_pixels(size, &"idle"), "the sky star's own frame")
-		assert_eq(ConstellationView.landmark_pixels(size, true), ConstellationView.star_pixels(size, &"glint"), "its twinkle")
-		var halo: Dictionary[Vector2i, Color] = StarView.halo_pixels(size as Star.Size)
-		assert_false(halo.is_empty(), "lit, it wears its halo")
+		var unlit: Dictionary[Vector2i, Color] = ConstellationView.landmark_pixels(size)
+		var lit: Dictionary[Vector2i, Color] = ConstellationView.landmark_pixels(size, true)
+		assert_eq(unlit, ConstellationView.star_pixels(size, &"idle"), "unlit: the sky star's own frame")
+		assert_eq(lit.keys(), unlit.keys(), "lit: the same shape")
+		assert_true(lit.values().has(Palette.C1), "lit: gold")
+		for colour: Color in lit.values():
+			assert_true(colour in [Palette.C0, Palette.C1, Palette.C2], "lit: gold only, " + colour.to_html(false))
+		assert_ne(ConstellationView.landmark_pixels(size, true, true), lit, "lit, it twinkles")
+		var halo: Dictionary[Vector2i, Color] = ConstellationView.lit_halo_pixels(size)
+		assert_false(halo.is_empty(), "lit, it wears a halo")
 		for p: Vector2i in halo:
-			assert_false(ConstellationView.star_pixels(size).has(p), "the halo stays off the star")
+			assert_false(unlit.has(p), "the halo stays off the star")
+			assert_true(halo[p] in [Palette.C4, Palette.C5], "a warm halo on every size")
 	assert_gt(ConstellationView.star_pixels(Star.Size.BIG).size(), ConstellationView.star_pixels(Star.Size.SMALL).size())
 
 
@@ -424,7 +431,7 @@ func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:
 	var a: Star = _star(Star.Size.SMALL, Vector2i(116, 104))
 	_tap(a.position)
 	_tap(Scorpio.LANDMARKS[3])
-	assert_false(constellation.shows_cue(3), "in the link it shows lit instead")
+	assert_false(constellation.shows_cue(3), "in the link it shows the selection ring instead")
 	_tap(Vector2i(170, 240))
 	run.scorpio.lit[3] = true
 	assert_true(constellation.shows_cue(3), "lit in the core only: not shown until its event plays")
@@ -432,7 +439,7 @@ func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:
 	assert_false(constellation.shows_cue(3), "lit: no cue")
 
 
-func test_the_cue_is_four_quiet_brackets_off_the_star_art() -> void:
+func test_the_cue_is_four_ember_brackets_off_the_star_art() -> void:
 	for size: int in 3:
 		var art: Dictionary = ConstellationView.star_pixels(size)
 		var cue: Array[Vector2i] = ConstellationView.cue_pixels(size)
@@ -442,7 +449,8 @@ func test_the_cue_is_four_quiet_brackets_off_the_star_art() -> void:
 			assert_eq(maxi(absi(p.x), absi(p.y)), StarView.half_extent(size as Star.Size) + ConstellationView.CUE_GAP)
 	var frame: int = constellation.cue_frame()
 	constellation.advance(ConstellationView.CUE_STEP)
-	assert_ne(constellation.cue_frame(), frame, "it swaps C5 and C4, slowly")
+	assert_ne(constellation.cue_frame(), frame, "it swaps C3 and C4, slowly")
+	assert_eq(ConstellationView.CUE_COLOURS, [Palette.C3, Palette.C4] as Array[Color], "ember, so it shows")
 
 
 func test_the_reach_ring_shows_around_the_last_star_picked() -> void:

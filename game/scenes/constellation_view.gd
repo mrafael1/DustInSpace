@@ -2,13 +2,15 @@ class_name ConstellationView
 extends Node2D
 ## Draws the Scorpio map (#40) under the stars. Each landmark is drawn with the star art of its
 ## size, so a small, medium or big landmark has the shape of the sky star it can stand in for.
-## It looks exactly like the sky star it stands in for, in shape and colour (small orange, medium
-## gold, big blue-white): lighting it never changes its colour. Unlit (usable in a combo), it's the
-## still idle frame, with four small corner brackets in the dim halo tones (C4/C5, swapping every
-## CUE_STEP) that say "you can pick this". Lit, it comes alive like a sky star: its halo, and the
-## twinkle (the glint frame for a moment every StarView.TWINKLE_PERIOD). Strings between two lit landmarks glow C1 with a C0 glint
+## Unlit (usable in a combo), it looks exactly like that sky star, in shape and colour (small
+## orange, medium mauve, big blue-white), still, with four small corner brackets in ember (C3/C4,
+## swapping every CUE_STEP) that say "you can pick this". Lit, it turns gold whatever its size
+## (the "lit" frames), with a warm halo (LIT_HALO) and the twinkle (the lit_glint frame for a
+## moment every StarView.TWINKLE_PERIOD), and no brackets: gold in the sky means "done", like the
+## strings. Strings between two lit landmarks glow C1 with a C0 glint
 ## running along them; strings still to form are dotted N8. While a link is traced, the landmarks
-## in it show gold and the strings it would form are dashed C2. Like the HUD and the Sun it keeps
+## in it keep their colour and show their halo and the dashed C1 selection ring, like a picked sky
+## star, and the strings it would form are dashed C2. Like the HUD and the Sun it keeps
 ## a shown copy of what's lit, moved only by played landmark_lit events, so a landmark the Sun
 ## lights stays unlit until the Sun's ignition has played. Owns no rules:
 ## RunState says what's lit. Draws nothing without the map.
@@ -30,9 +32,12 @@ const OUTLINE_STEP: int = 2
 const GLOW_SPACING: int = 6
 const GLOW_STEP: float = 0.12
 ## The selectable cue: its brackets sit this far out from the star art's edge, and swap between
-## C5 and C4 every CUE_STEP.
+## C3 and C4 every CUE_STEP.
+const CUE_COLOURS: Array[Color] = [Palette.C3, Palette.C4]
 const CUE_GAP: int = 2
 const CUE_STEP: float = 0.6
+## A lit landmark's halo, near then far, on every size: warm, like its gold.
+const LIT_HALO: Array = [Palette.C4, Palette.C5]
 ## A landmark or string that just lit shows C0 this long.
 const LIT_FLASH: float = 0.25
 ## A landmark lighting throws a 1 px ring from its art's edge out LIT_RING_GROWTH px over
@@ -80,13 +85,13 @@ var _completion_time: float = -1.0
 ## The scorpion drawing is fully shown (after a completion, until the next run).
 var _revealed: bool = false
 var _drawing: Array[Vector2i] = []
-## Landmark pixels per star size, from the star art: [idle, glint].
+## Landmark pixels per star size, from the star art: [unlit, lit, lit glinting].
 var _art: Array = []
 
 
 func _ready() -> void:
 	for size: int in 3:
-		_art.append([landmark_pixels(size), landmark_pixels(size, true)])
+		_art.append([landmark_pixels(size), landmark_pixels(size, true), landmark_pixels(size, true, true)])
 
 
 func _process(delta: float) -> void:
@@ -527,8 +532,10 @@ func advance(delta: float) -> void:
 	var twinkling: Array[bool] = _twinkling()
 	_time += delta
 	var mapped: bool = _run != null and _run.scorpio != null
+	var ring: int = ring_frame()
 	var redraw: bool = mapped and ((glow_step() != step and _shown_lit.count(true) > 1) \
-		or (cue_frame() != cue and _shown_lit.has(false)) or _twinkling() != twinkling)
+		or (cue_frame() != cue and _shown_lit.has(false)) or _twinkling() != twinkling \
+		or (ring_frame() != ring and not _selected.is_empty()))
 	if _flash_left > 0.0:
 		_flash_left = maxf(_flash_left - delta, 0.0)
 		redraw = true
@@ -581,9 +588,17 @@ static func star_pixels(size: int, frame: StringName = &"idle") -> Dictionary[Ve
 	return dots
 
 
-## A landmark's pixels: the sky star's of its size, lit or not; `glinting` for its twinkle's moment.
-static func landmark_pixels(size: int, glinting: bool = false) -> Dictionary[Vector2i, Color]:
-	return star_pixels(size, &"glint" if glinting else &"idle")
+## A landmark's pixels: unlit, the sky star's of its size; lit, its gold frame, `glinting` for its
+## twinkle's moment.
+static func landmark_pixels(size: int, lit: bool = false, glinting: bool = false) -> Dictionary[Vector2i, Color]:
+	if not lit:
+		return star_pixels(size)
+	return star_pixels(size, &"lit_glint" if glinting else &"lit")
+
+
+## A lit landmark's halo of `size`, as offsets from its centre.
+static func lit_halo_pixels(size: int) -> Dictionary[Vector2i, Color]:
+	return StarView.halo_pixels(size as Star.Size, LIT_HALO)
 
 
 ## Whether lit landmark `index` shows its twinkle's glint `time` seconds in: like a sky star, for
@@ -644,7 +659,7 @@ func shows_built(segment: int) -> bool:
 	return shows_lit(ends[0]) and shows_lit(ends[1])
 
 
-## Which of the cue's two colours shows now: 0 (C5) or 1 (C4).
+## Which of the cue's two colours shows now: 0 (C3) or 1 (C4).
 func cue_frame() -> int:
 	return int(_time / CUE_STEP) % 2
 
@@ -656,21 +671,39 @@ func shows_cue(index: int) -> bool:
 		and not _selected.has(index) and _completion_time < 0.0
 
 
+## Which of the selection ring's two dash frames shows now, like a picked sky star's.
+func ring_frame() -> int:
+	return int(_time / StarView.RING_FRAME_TIME) % 2
+
+
 func _draw_landmark(index: int) -> void:
+	var size: int = _map().sizes[index]
+	var at: Vector2i = _map().landmarks[index]
 	if shows_cue(index):
-		var colour: Color = Palette.C4 if cue_frame() == 1 else Palette.C5
-		for d: Vector2i in cue_pixels(_map().sizes[index]):
-			_dot(_map().landmarks[index] + d, colour)
-	var lit: bool = shows_lit(index) or _selected.has(index)
+		for d: Vector2i in cue_pixels(size):
+			_dot(at + d, CUE_COLOURS[cue_frame()])
+	var lit: bool = shows_lit(index)
+	var picked: bool = _selected.has(index) and not lit
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
-	if lit and not flash:
-		var halo: Dictionary[Vector2i, Color] = StarView.halo_pixels(_map().sizes[index] as Star.Size)
+	if not flash and (lit or picked):
+		var halo: Dictionary[Vector2i, Color] = lit_halo_pixels(size) if lit else StarView.halo_pixels(size as Star.Size)
 		for d: Vector2i in halo:
-			_dot(_map().landmarks[index] + d, halo[d])
-	var glinting: bool = shows_lit(index) and twinkles(index, _time)
-	var dots: Dictionary = _art[_map().sizes[index]][1 if glinting else 0]
+			_dot(at + d, halo[d])
+	var dots: Dictionary = _art[size][0]
+	if lit:
+		dots = _art[size][2 if twinkles(index, _time) else 1]
 	for d: Vector2i in dots:
-		_dot(_map().landmarks[index] + d, Palette.C0 if flash else dots[d])
+		_dot(at + d, Palette.C0 if flash else dots[d])
+	if picked:
+		_draw_ring(size, at)
+
+
+## The dashed C1 selection ring around a picked landmark: the sky star's ring art for its size.
+func _draw_ring(size: int, at: Vector2i) -> void:
+	var sheet: Texture2D = StarView.RING_SHEETS[size]
+	var cell: int = sheet.get_height()
+	var corner := Vector2(at - Vector2i(cell >> 1, cell >> 1))
+	draw_texture_rect_region(sheet, Rect2(corner, Vector2(cell, cell)), Rect2(ring_frame() * cell, 0, cell, cell))
 
 
 ## Completion: the landmarks of the strings played so far flash C0.
@@ -680,7 +713,7 @@ func _draw_completion() -> void:
 	for k: int in played:
 		var segment: int = order[k]
 		for index: int in _map().segment_landmarks(segment):
-			var dots: Dictionary = _art[_map().sizes[index]][0]
+			var dots: Dictionary = _art[_map().sizes[index]][1]
 			for d: Vector2i in dots:
 				_dot(_map().landmarks[index] + d, Palette.C0 if dots[d] != Palette.C3 else Palette.C1)
 

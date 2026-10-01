@@ -81,21 +81,29 @@ func test_dissolve_frees_the_view_after_its_time() -> void:
 
 
 func test_each_size_has_its_own_colour() -> void:
-	# Small orange (C2 core), medium gold (C0 core, C1 body), big blue-white (C0 core, M6 body).
+	# Small orange (C2 core), medium mauve (D0 core, N9 body), big blue-white (C0 core, M6 body).
+	# Gold is left to Scorpio's lit landmarks.
 	var small: Dictionary = _idle_colours(Star.Size.SMALL)
 	var medium: Dictionary = _idle_colours(Star.Size.MEDIUM)
 	var big: Dictionary = _idle_colours(Star.Size.BIG)
 	assert_eq(small.keys().map(func(c: Color) -> String: return c.to_html(false)).filter(func(h: String) -> bool: return h in ["ffc062", "e88a57"]).size(), small.size(), "small: C2 and C3 only")
-	assert_true(medium.has(Palette.C1) and not medium.has(Palette.M6), "medium: gold")
+	assert_true(medium.has(Palette.N9) and medium.has(Palette.D0), "medium: mauve")
+	for colour: Color in medium:
+		assert_false(colour in [Palette.C0, Palette.C1, Palette.C2, Palette.C3], "medium: no gold or warm")
 	assert_true(big.has(Palette.M6) and not big.has(Palette.C1), "big: blue-white")
+	for colours: Dictionary in [small, big]:
+		assert_false(colours.has(Palette.C1), "no sky star is gold")
 
 
 func test_halos_match_their_star() -> void:
-	for size: int in [Star.Size.SMALL, Star.Size.MEDIUM]:
-		var dots: Dictionary[Vector2i, Color] = _view(Star.new(1, size as Star.Size, Vector2i(100, 150))).halo_dots()
-		assert_false(dots.is_empty())
-		for dot: Vector2i in dots:
-			assert_true(dots[dot] == Palette.C4 or dots[dot] == Palette.C5, "warm stars: a warm C4-C5 halo")
+	var small: Dictionary[Vector2i, Color] = _view(Star.new(1, Star.Size.SMALL, Vector2i(100, 150))).halo_dots()
+	assert_false(small.is_empty())
+	for dot: Vector2i in small:
+		assert_true(small[dot] == Palette.C4 or small[dot] == Palette.C5, "the orange star: a warm C4-C5 halo")
+	var medium: Dictionary[Vector2i, Color] = _view(Star.new(1, Star.Size.MEDIUM, Vector2i(100, 150))).halo_dots()
+	assert_false(medium.is_empty())
+	for dot: Vector2i in medium:
+		assert_true(medium[dot] == Palette.C5 or medium[dot] == Palette.N6, "the mauve star: a C5-N6 halo")
 
 
 func test_halo_shows_when_settled_and_on_the_dissolve_flare_only() -> void:
