@@ -77,7 +77,7 @@ The game opens on Scorpio's chart: the constellation drawn as a pixel-art star c
 
 ### Tutorial: the guided first run
 
-The Stinger's first play is guided. Each step shows one line above the launcher and a pointing hand (C0/C1, N0 outline, bobbing 2 px), and **only its own action is allowed**: anything else is refused like an invalid action (nothing is spent).
+The Stinger's first play is guided. Each step shows a line or two under the Sun, at the top of the sky (playtest: at the bottom it fought with the land and the telescope), with the combo card below it, and a pointing hand (C0/C1, N0 outline, bobbing 2 px), and **only its own action is allowed**: anything else is refused like an invalid action (nothing is spent).
 
 | Step | Line | Hand | Allowed |
 |---|---|---|---|

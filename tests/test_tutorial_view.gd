@@ -267,3 +267,19 @@ func _tap_hud(at: Vector2i) -> void:
 		touch.position = Vector2(at)
 		touch.pressed = pressed
 		assert_true(hud.handle_pointer(touch), "the explaining step takes the tap")
+
+
+func test_the_text_sits_under_the_sun_with_the_card_below_it() -> void:
+	_start()
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	var label: Label = guide.get("_label")
+	var tap: Label = guide.get("_tap")
+	var top: int = run.sky_rect.position.y + TutorialView.TOP
+	assert_eq(int(label.position.y), top, "at the top of the sky, under the Sun")
+	assert_gt(top, hud.sun_at.y + SunView.RADIUS, "below the Sun's disc")
+	assert_eq(int(tap.position.y), top + 2 * TutorialView.LINE_STEP, "TAP TO CONTINUE under the goal's two lines")
+	run.tutorial.step = Tutorial.Step.LINK
+	run.tutorial_step.emit(Tutorial.Step.LINK)
+	_settle()
+	assert_eq(guide.card_rect().position.y, top + TutorialView.LINE_STEP + TutorialView.CARD_GAP, "the card right under one line")

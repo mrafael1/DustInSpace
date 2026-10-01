@@ -355,18 +355,18 @@ func buy_button_at(kind: String) -> Vector2i:
 ## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
 ## launch at, the stars to link, the constellation star to launch by and light, the buy button.
 func _show_tutorial_step(step: int) -> void:
-	var card_top: int = _run.sky_rect.position.y + TutorialView.CARD_TOP
+	var top: int = _run.sky_rect.position.y + TutorialView.TOP
 	match step:
 		Tutorial.Step.GOAL:
 			var index: int = _run.rekindle_target()
-			_guide.show_step(step, _landmark_top(index), index >= 0, TutorialView.Point.DOWN, card_top)
+			_guide.show_step(step, _landmark_top(index), index >= 0, TutorialView.Point.DOWN, top)
 		Tutorial.Step.SUN:
 			# From the left: the Sun sits at the top of the screen, with no room above it.
-			_guide.show_step(step, sun_at - Vector2i(SunView.RADIUS + 2, 0), true, TutorialView.Point.RIGHT, card_top)
+			_guide.show_step(step, sun_at - Vector2i(SunView.RADIUS + 2, 0), true, TutorialView.Point.RIGHT, top)
 		Tutorial.Step.LAUNCH:
-			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12), true)
+			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12), true, TutorialView.Point.DOWN, top)
 		Tutorial.Step.LINK:
-			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, card_top)
+			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
 			var ids: Array[int] = []
 			for star: Star in _run.stars:
 				ids.append(star.id)
@@ -375,7 +375,7 @@ func _show_tutorial_step(step: int) -> void:
 			var index: int = _run.tutorial.landmark
 			var at: Vector2i = _run.scorpio.landmark_position(index)
 			var size: int = _run.scorpio.map.sizes[index]
-			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size)), true, TutorialView.Point.DOWN, card_top, size)
+			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size)), true, TutorialView.Point.DOWN, top, size)
 			if step == Tutorial.Step.LIGHT:
 				var pair: Array[int] = []
 				for star: Star in _run.stars:
@@ -385,9 +385,9 @@ func _show_tutorial_step(step: int) -> void:
 					var path: Array[int] = _reachable_order([pair[0], Scorpio.landmark_id(index), pair[1]])
 					_guide.follow_path(path, _link_positions(path))
 		Tutorial.Step.BUY:
-			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT)
+			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		_:
-			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, card_top)
+			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
 
 
 ## The link being traced changed: the tutorial's hand moves on to the next star to pick.

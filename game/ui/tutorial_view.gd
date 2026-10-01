@@ -1,7 +1,7 @@
 class_name TutorialView
 extends Node2D
-## The guided first run's guide (Tutorial), on the HUD layer: one line of text above the launcher
-## saying what to do, and a pointing hand at where to do it, bobbing BOB px every BOB_STEP. The hand
+## The guided first run's guide (Tutorial), on the HUD layer: a line or two of text under the Sun,
+## at the top of the sky, saying what to do, and a pointing hand at where to do it, bobbing BOB px every BOB_STEP. The hand
 ## points down at a spot in the sky, a star or a landmark, and points right at the buy button. Free
 ## play shows its line for a moment and no hand. Owns no rules: the HUD tells it each step as it
 ## plays, with where to point.
@@ -17,15 +17,17 @@ extends Node2D
 
 ## Where the line sits (the HUD's message line; a second line goes above it, LINE_STEP up) and how
 ## long free play's line stays.
-const LINE_Y: int = 262
+## The guide's top sits TOP px below the sky's top edge, under the Sun; the text comes first, then
+## TAP TO CONTINUE, then the combo card, CARD_GAP px below.
+const TOP: int = 6
+const CARD_GAP: int = 4
 const LINE_STEP: int = 11
 const TAP_TEXT: String = "TAP TO CONTINUE"
 ## While a link is traced: the stars that can come next shine (the link hint).
 const SHINE_TEXT: String = "SHINING STARS CAN COME NEXT"
 const DONE_TIME: float = 4.0
-## The combo card: CARD_TOP px below the sky's top edge, CARD_PAD px inside its border, STAR_GAP px
-## between two stars, OR_GAP px either side of the OR between two combos.
-const CARD_TOP: int = 6
+## The combo card: CARD_PAD px inside its border, STAR_GAP px between two stars, OR_GAP px either
+## side of the OR between two combos.
 const CARD_PAD: int = 4
 const STAR_GAP: int = 5
 const OR_GAP: int = 5
@@ -74,7 +76,9 @@ var _label: Label
 ## The combo card's combos (each a row of Star.Size values; empty: no card), where its top sits, and
 ## its OR label.
 var _combos: Array = []
-var _card_top: int = 0
+## The guide's top (the sky's top edge plus TOP) and how many lines its text takes.
+var _top: int = 78 + TOP
+var _lines: int = 1
 var _or: Label
 var _tap: Label
 ## The link the hand teaches: the ids to pick in order and where it points for each.
@@ -101,7 +105,6 @@ func _ready() -> void:
 	_tap.text = TAP_TEXT
 	add_child(_tap)
 	_tap.size = _tap.get_minimum_size()
-	_tap.position = Vector2(ScreenZones.SCREEN.x / 2 - floori(_tap.size.x / 2.0), LINE_Y + LINE_STEP)
 	hide_guide()
 
 
@@ -125,11 +128,11 @@ static func card_combos(step: int, same_size: int = Star.Size.SMALL) -> Array:
 
 
 ## Shows step `step`: its line, the hand at `target` (pointing down, or right at a button) when
-## `has_target`, and the combo card for the step, its top `card_top` (the sky's top edge plus
-## CARD_TOP), with `same_size` for the three-of-a-size combo.
-func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = false, point: Point = Point.DOWN, card_top: int = 78 + CARD_TOP, same_size: int = Star.Size.SMALL) -> void:
+## `has_target`, and the combo card for the step, with `same_size` for the three-of-a-size combo; the
+## guide's top at `top` (the sky's top edge plus TOP).
+func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = false, point: Point = Point.DOWN, top: int = 78 + TOP, same_size: int = Star.Size.SMALL) -> void:
 	_combos = card_combos(step, same_size)
-	_card_top = card_top
+	_top = top
 	_step = step
 	_target = target
 	_has_target = has_target and step != Tutorial.Step.DONE
@@ -138,9 +141,8 @@ func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = f
 	_path.clear()
 	_path_points.clear()
 	_picked = 0
-	_set_text(TEXTS.get(step, ""))
 	_tap.visible = Tutorial.is_info(step)
-	_lay_out_card()
+	_set_text(TEXTS.get(step, ""))
 	visible = true
 	queue_redraw()
 
@@ -220,7 +222,8 @@ func card_rect() -> Rect2i:
 		if k > 0:
 			width += 2 * OR_GAP + _or_width()
 	var height: int = 2 * CARD_PAD + StarView.half_extent(Star.Size.BIG) * 2 + 1
-	return Rect2i(ScreenZones.SCREEN.x / 2 - width / 2, _card_top, width, height)
+	var top: int = _top + _lines * LINE_STEP + (LINE_STEP if _tap.visible else 0) + CARD_GAP
+	return Rect2i(ScreenZones.SCREEN.x / 2 - width / 2, top, width, height)
 
 
 ## How wide one combo's row is: its stars' art, STAR_GAP apart.
@@ -280,14 +283,17 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2(p), Vector2.ONE), dots[p])
 
 
-## The line(s): one line sits on LINE_Y; a second line pushes the first up by LINE_STEP.
+## The line(s) from the guide's top, LINE_STEP apart; TAP TO CONTINUE under them, the card under that.
 func _set_text(value: String) -> void:
 	_label.text = value
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var lines: int = value.count("\n") + 1
+	_lines = value.count("\n") + 1
 	_label.size = Vector2(ScreenZones.SCREEN.x, _label.get_minimum_size().y)
-	_label.position = Vector2(0, LINE_Y - (lines - 1) * LINE_STEP)
+	_label.position = Vector2(0, _top)
 	_label.visible = true
+	_tap.size = _tap.get_minimum_size()
+	_tap.position = Vector2(ScreenZones.SCREEN.x / 2 - floori(_tap.size.x / 2.0), _top + _lines * LINE_STEP)
+	_lay_out_card()
 
 
 func _or_width() -> int:
