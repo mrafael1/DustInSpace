@@ -90,7 +90,7 @@ func test_unknown_ids_and_a_finished_run_hint_nothing() -> void:
 	assert_eq(r.link_candidates([a.id] as Array[int]), [] as Array[int])
 
 
-func test_the_sky_pulses_the_hinted_stars_and_clears_after() -> void:
+func test_the_sky_hints_the_next_stars_and_clears_after() -> void:
 	_start_scene()
 	# The lower right: no landmark in reach.
 	var a: Star = _star(Star.Size.SMALL, Vector2i(150, 236))
@@ -108,57 +108,74 @@ func test_the_sky_pulses_the_hinted_stars_and_clears_after() -> void:
 	_tap(Vector2i(150, 120))
 	for star: Star in [a, b, c, off]:
 		assert_false(sky.star_view(star.id).hinted, "a dropped link hints nothing")
+		assert_false(sky.star_view(star.id).dimmed, "nor dims anything")
 	assert_eq(constellation.hinted(), [] as Array[int])
 
 
-func test_hinted_stars_pulse_together() -> void:
+func test_tracing_dims_the_stars_that_cant_come_next_and_keeps_the_rest() -> void:
+	_start_scene()
+	var a: Star = _star(Star.Size.SMALL, Vector2i(150, 236))
+	var b: Star = _star(Star.Size.SMALL, Vector2i(168, 236))
+	_star(Star.Size.SMALL, Vector2i(159, 222))
+	var off: Star = _star(Star.Size.MEDIUM, Vector2i(140, 210))
+	assert_false(sky.star_view(off.id).dimmed, "nothing dims before the first pick")
+	_tap(a.position)
+	var next: StarView = sky.star_view(b.id)
+	var dim: StarView = sky.star_view(off.id)
+	assert_true(dim.dimmed)
+	assert_eq(dim.halo_dots(), {} as Dictionary[Vector2i, Color], "a dimmed star loses its halo")
+	assert_false(next.dimmed, "a star that can come next stays as it is")
+	assert_false(next.halo_dots().is_empty(), "and keeps its halo")
+	assert_false(sky.star_view(a.id).dimmed, "the picked star keeps its look")
+	var dim_frame: Dictionary[Vector2i, Color] = ConstellationView.star_pixels(Star.Size.MEDIUM, &"dim")
+	var idle: Dictionary[Vector2i, Color] = ConstellationView.star_pixels(Star.Size.MEDIUM)
+	assert_eq(dim_frame.keys(), idle.keys(), "the same shape")
+	assert_ne(dim_frame, idle, "a step darker on its own colours")
+
+
+func test_hinted_stars_pulse_their_halos_together() -> void:
 	_start_scene()
 	var a: Star = _star(Star.Size.SMALL, Vector2i(150, 236))
 	var b: Star = _star(Star.Size.SMALL, Vector2i(168, 236))
 	var c: Star = _star(Star.Size.SMALL, Vector2i(159, 222))
 	_tap(a.position)
 	var views: Array[StarView] = [sky.star_view(b.id), sky.star_view(c.id)]
+	var radii: Array[int] = []
 	for t: int in 6:
-		var keys: Array[bool] = []
+		var grown: Array[bool] = []
 		for view: StarView in views:
 			view.advance(StarView.HINT_PULSE / 2.0 if t == 0 else StarView.HINT_PULSE)
-			keys.append(view.hint_colour() == Palette.C1)
-		assert_eq(keys[0], keys[1], "in step")
-	for view: StarView in views:
-		assert_true(view.shows_hint(), "a diamond on every hinted star")
-	assert_true(StarView.hint_on(0.0), "lit first")
+			grown.append(view.hint_halo_radius() > StarView.HALO_RADIUS[Star.Size.SMALL])
+			radii.append(view.hint_halo_radius())
+		assert_eq(grown[0], grown[1], "in step")
+	assert_eq(radii.min(), StarView.HALO_RADIUS[Star.Size.SMALL])
+	assert_eq(radii.max(), StarView.HALO_RADIUS[Star.Size.SMALL] + StarView.HINT_HALO_GROW)
+	assert_true(StarView.hint_on(0.0), "grown first")
 	assert_false(StarView.hint_on(StarView.HINT_PULSE * 1.5))
-	assert_eq(StarView.hint_colour_at(0.0), Palette.C1)
-	assert_eq(StarView.hint_colour_at(StarView.HINT_PULSE * 1.5), Palette.C2, "dims, never vanishes")
 
 
-func test_the_hint_is_a_diamond_above_the_star_clear_of_the_other_cues() -> void:
-	for size: Star.Size in [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]:
-		var dots: Array[Vector2i] = StarView.hint_pixels(size)
-		assert_eq(dots.size(), 8, "a hollow 5 px diamond")
-		var top: int = -StarView.half_extent(size)
-		var xs: Array[int] = []
-		var ys: Array[int] = []
-		for d: Vector2i in dots:
-			xs.append(d.x)
-			ys.append(d.y)
-			assert_eq(absi(d.x) + absi(d.y - (top - StarView.HINT_GAP - 2)), 2, "on the diamond's edge")
-			assert_false(ConstellationView.cue_pixels(size).has(d), "off the corner brackets")
-		assert_eq([xs.min(), xs.max()], [-2, 2], "centred over the star")
-		assert_eq(ys.max(), top - StarView.HINT_GAP, "its tip sits clear above the art")
-
-
-func test_a_hinted_landmark_keeps_its_brackets_and_gains_the_diamond() -> void:
+func test_tracing_hides_the_brackets_and_dims_the_landmarks_that_cant_come_next() -> void:
 	_start_scene()
 	var index: int = 7
 	var at: Vector2i = run.scorpio.landmark_positions()[index]
 	var size: Star.Size = run.scorpio.map.sizes[index] as Star.Size
 	var a: Star = _star(size, at + Vector2i(-16, 10))
 	_star(size, at + Vector2i(16, 10))
+	var other: int = -1
+	for i: int in run.scorpio.map.count():
+		if i != index and not run.scorpio.is_lit(i):
+			other = i
+	assert_true(constellation.shows_cue(index), "brackets before tracing")
 	_tap(a.position)
 	assert_true(constellation.hinted().has(index))
-	assert_true(constellation.shows_cue(index), "the ember corner brackets stay")
-	assert_true(constellation.hint_colour() in [Palette.C1, Palette.C2], "gold: it can come next")
+	assert_false(constellation.hinted().has(other), "out of reach")
+	assert_false(constellation.shows_cue(index), "no brackets while tracing")
+	assert_false(constellation.shows_cue(other))
+	assert_false(constellation.shows_dimmed(index), "it can come next")
+	assert_true(constellation.shows_dimmed(other))
+	_tap(Vector2i(150, 120))
+	assert_true(constellation.shows_cue(other), "the brackets come back")
+	assert_false(constellation.shows_dimmed(other))
 
 
 func _start_scene() -> void:

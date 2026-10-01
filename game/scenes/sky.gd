@@ -275,17 +275,19 @@ func _on_selection_changed(ids: Array[int]) -> void:
 
 
 ## The link hint (playtest): while a link is traced, the stars and landmarks that could come next
-## and still make a valid combo show a blinking gold diamond (StarView.hinted, ConstellationView.show_hints). Nothing before
-## the first pick; the rest of the sky stays as it is.
+## and still make a valid combo keep their look with a pulsing halo (StarView.hinted), and every
+## other star dims (StarView.dimmed, ConstellationView.show_hints). Nothing before the first pick.
 func _show_hints(ids: Array[int]) -> void:
 	var next: Array[int] = _run.link_candidates(ids) if _run != null else ([] as Array[int])
 	var landmarks: Array[int] = []
 	for id: int in next:
 		if _run.scorpio != null and _run.scorpio.is_landmark(id):
 			landmarks.append(Scorpio.landmark_index(id))
+	var tracing: bool = not ids.is_empty()
 	for id: int in _views:
 		_views[id].hinted = next.has(id)
-	_constellation.show_hints(landmarks)
+		_views[id].dimmed = tracing and not next.has(id) and not ids.has(id)
+	_constellation.show_hints(landmarks, tracing)
 
 
 ## Scorpio: a link can hold only Scorpio.LANDMARKS_PER_COMBO landmarks; picking another is

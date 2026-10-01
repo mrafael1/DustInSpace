@@ -69,10 +69,11 @@ var _run: RunState
 var _time: float = 0.0
 var _selected: Array[int] = []
 ## The link hint: unlit landmarks (indices) that could come next in the link being traced, and
-## seconds since it started. They keep their corner brackets and gain the sky stars' hint diamond,
-## blinking in step with the hinted stars.
+## seconds since it started. Like the sky stars, they show a halo pulsing in step with the hinted
+## stars, while every other unlit landmark dims; no corner brackets while a link is traced.
 var _hinted: Array[int] = []
 var _hint_time: float = 0.0
+var _tracing: bool = false
 ## Which landmarks show lit: the run's as of setup, then each played landmark_lit.
 var _shown_lit: Array[bool] = []
 var _preview_strings: Array[int] = []
@@ -96,7 +97,7 @@ var _art: Array = []
 
 func _ready() -> void:
 	for size: int in 3:
-		_art.append([landmark_pixels(size), landmark_pixels(size, true), landmark_pixels(size, true, true)])
+		_art.append([landmark_pixels(size), landmark_pixels(size, true), landmark_pixels(size, true, true), star_pixels(size, &"dim")])
 
 
 func _process(delta: float) -> void:
@@ -165,11 +166,13 @@ func clear_preview() -> void:
 	queue_redraw()
 
 
-## The link hint: these unlit landmarks could come next in the link being traced (none: off).
-func show_hints(landmarks: Array[int]) -> void:
+## The link hint: these unlit landmarks could come next in the link being traced; `tracing` is
+## whether a link is being traced at all (the others dim and the corner brackets hide).
+func show_hints(landmarks: Array[int], tracing: bool) -> void:
 	if landmarks != _hinted:
 		_hint_time = 0.0
 	_hinted = landmarks.duplicate()
+	_tracing = tracing
 	queue_redraw()
 
 
@@ -177,9 +180,9 @@ func hinted() -> Array[int]:
 	return _hinted.duplicate()
 
 
-## The colour of a hinted landmark's diamond now.
-func hint_colour() -> Color:
-	return StarView.hint_colour_at(_hint_time)
+## Whether unlit landmark `index` shows dimmed: a link is traced and it can't come next.
+func shows_dimmed(index: int) -> bool:
+	return _tracing and not shows_lit(index) and not _selected.has(index) and not _hinted.has(index)
 
 
 ## A landmark_lit event played: it shows lit from now, with a C0 flash and a ring spreading out.
@@ -690,11 +693,11 @@ func cue_frame() -> int:
 	return int(_time / CUE_STEP) % 2
 
 
-## Whether landmark `index` shows the selectable cue: unlit, not in the link being traced, and
-## not while the constellation plays.
+## Whether landmark `index` shows the selectable cue: unlit, not while a link is traced (the
+## strings still show it belongs), and not while the constellation plays.
 func shows_cue(index: int) -> bool:
 	return _run != null and _run.scorpio != null and not shows_lit(index) \
-		and not _selected.has(index) and _completion_time < 0.0
+		and not _tracing and not _selected.has(index) and _completion_time < 0.0
 
 
 ## Which of the selection ring's two dash frames shows now, like a picked sky star's.
@@ -708,17 +711,18 @@ func _draw_landmark(index: int) -> void:
 	if shows_cue(index):
 		for d: Vector2i in cue_pixels(size):
 			_dot(at + d, CUE_COLOURS[cue_frame()])
-		if _hinted.has(index):
-			for d: Vector2i in StarView.hint_pixels(size as Star.Size):
-				_dot(at + d, hint_colour())
 	var lit: bool = shows_lit(index)
 	var picked: bool = _selected.has(index) and not lit
+	var hinted: bool = _hinted.has(index) and not lit and not picked
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
-	if not flash and (lit or picked):
-		var halo: Dictionary[Vector2i, Color] = lit_halo_pixels(size) if lit else StarView.halo_pixels(size as Star.Size)
+	if not flash and (lit or picked or hinted):
+		var halo: Dictionary[Vector2i, Color] = lit_halo_pixels(size)
+		if not lit:
+			var grown: bool = hinted and StarView.hint_on(_hint_time)
+			halo = StarView.halo_pixels(size as Star.Size, [], StarView.hinted_halo_radius(size as Star.Size, grown))
 		for d: Vector2i in halo:
 			_dot(at + d, halo[d])
-	var dots: Dictionary = _art[size][0]
+	var dots: Dictionary = _art[size][3 if shows_dimmed(index) else 0]
 	if lit:
 		dots = _art[size][2 if twinkles(index, _time) else 1]
 	for d: Vector2i in dots:
