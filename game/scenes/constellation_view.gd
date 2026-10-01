@@ -530,9 +530,9 @@ func advance(delta: float) -> void:
 	var step: int = glow_step()
 	var cue: int = cue_frame()
 	var twinkling: Array[bool] = _twinkling()
+	var ring: int = ring_frame()
 	_time += delta
 	var mapped: bool = _run != null and _run.scorpio != null
-	var ring: int = ring_frame()
 	var redraw: bool = mapped and ((glow_step() != step and _shown_lit.count(true) > 1) \
 		or (cue_frame() != cue and _shown_lit.has(false)) or _twinkling() != twinkling \
 		or (ring_frame() != ring and not _selected.is_empty()))

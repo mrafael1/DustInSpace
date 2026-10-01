@@ -453,6 +453,19 @@ func test_the_cue_is_four_ember_brackets_off_the_star_art() -> void:
 	assert_eq(ConstellationView.CUE_COLOURS, [Palette.C3, Palette.C4] as Array[Color], "ember, so it shows")
 
 
+func test_a_selected_landmarks_ring_redraws_on_its_own_frame_change() -> void:
+	constellation.show_link_preview([3] as Array[int], [] as Array[int])
+	var t: float = _ring_only_flip()
+	assert_gt(t, 0.0, "a ring flip with the glow, cue and twinkles still")
+	constellation.set("_time", t - 0.01)
+	await wait_process_frames(2)
+	var redraws: Array[int] = [0]
+	constellation.draw.connect(func() -> void: redraws[0] += 1)
+	constellation.advance(0.02)
+	await wait_process_frames(2)
+	assert_gt(redraws[0], 0, "the ring's next dash frame is drawn")
+
+
 func test_the_reach_ring_shows_around_the_last_star_picked() -> void:
 	_reach_run()
 	var link_layer: LinkLayer = main.get_node("Sky/LinkLayer")
@@ -597,3 +610,18 @@ func _touch(at: Vector2i, pressed: bool) -> void:
 	e.position = Vector2(at)
 	e.pressed = pressed
 	sky.handle_pointer(e)
+
+
+## A time where the selection ring changes frame and nothing else that redraws does (0 if none).
+func _ring_only_flip() -> float:
+	var lit: Array[bool] = constellation.get("_shown_lit")
+	for k: int in range(1, 200):
+		var t: float = k * StarView.RING_FRAME_TIME
+		var before: float = t - 0.01
+		var after: float = t + 0.01
+		var still: bool = int(before / ConstellationView.GLOW_STEP) == int(after / ConstellationView.GLOW_STEP) 			and int(before / ConstellationView.CUE_STEP) == int(after / ConstellationView.CUE_STEP)
+		for i: int in lit.size():
+			still = still and ConstellationView.twinkles(i, before) == ConstellationView.twinkles(i, after)
+		if still and int(before / StarView.RING_FRAME_TIME) != int(after / StarView.RING_FRAME_TIME):
+			return t
+	return 0.0
