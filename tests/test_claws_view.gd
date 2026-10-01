@@ -1,0 +1,82 @@
+extends GutTest
+## The Claws in the scenes (#74): Orion's figure with all three of his cues at once. The volley
+## countdown above his head from the start, then after the first burst the dotted ring of his
+## hunting area and the crosshair on the star he marks. No intro plays.
+
+const MainScene := preload("res://game/scenes/main.tscn")
+const Fixtures := preload("res://tests/fixtures.gd")
+
+var main: Main
+var run: RunState
+var hud: Hud
+var sequencer: EventSequencer
+var orion: OrionView
+
+
+func before_each() -> void:
+	main = MainScene.instantiate()
+	main.seed_override = 5
+	main.star_map = "claws"
+	add_child_autofree(main)
+	var data: Dictionary = Fixtures.balance_dict()
+	data["packs"]["blue"]["big_bang_chance"] = 0.0
+	data["packs"]["red"]["big_bang_chance"] = 0.0
+	data["start_packs"] = {"blue": 6, "red": 0}
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "sun_target": 75, "max_link_distance": 56}
+	data["orion"] = {"first_mark_launch": 1}
+	data["volley"] = {"interval": 2, "fraction": 1.0, "intro_stars": 6}
+	data["hunt"] = {"radius": 40, "intro_stars": 3}
+	assert_true(main.start_run(Balance.from_dict(data)))
+	run = main.run
+	hud = main.get_node("HUD")
+	sequencer = main.get_node("EventSequencer")
+	orion = main.get_node("Sky/OrionLayer")
+	for node: Node in [sequencer, orion, main.get_node("CollectParticles"), main.get_node("Sfx"), main.get_node("Sun")]:
+		node.set_process(false)
+
+
+func test_the_claws_open_quietly_with_the_countdown_shown() -> void:
+	assert_true(orion.is_figure_shown())
+	assert_true(run.stars.is_empty(), "no intro stars")
+	assert_ne(hud.volley_countdown(), "", "the countdown is up from the start")
+	assert_false(orion.has_area())
+	assert_null(orion.marked())
+
+
+func test_the_first_burst_shows_the_ring_and_the_crosshair_together() -> void:
+	run.launch(Vector2i(100, 190))
+	_settle()
+	assert_true(orion.has_area(), "the ring")
+	assert_not_null(orion.marked(), "the crosshair's star")
+	assert_ne(hud.volley_countdown(), "", "and the countdown")
+	assert_true(orion.shows_reticle())
+	var ring: Array[Vector2i] = orion.area_pixels()
+	assert_false(ring.is_empty())
+	var figure: Dictionary[Vector2i, Color] = orion.figure_pixels()
+	for p: Vector2i in ring:
+		assert_false(figure.has(p), "the ring keeps off his figure")
+
+
+func test_the_strike_takes_a_marked_star_in_the_ring_and_the_crosshair_moves_on() -> void:
+	run.launch(Vector2i(100, 190))
+	_settle()
+	var target: Star = run.marked_star()
+	run.hunt.centre = target.position
+	run.launch(Vector2i(140, 210) if target.position.x < 90 else Vector2i(50, 210))
+	_settle()
+	assert_false(run.stars.has(target))
+	if run.marked_star() != null:
+		assert_eq(orion.marked().star_id, run.marked_star().id, "the crosshair follows the new mark")
+	else:
+		assert_null(orion.marked(), "no crosshair over an empty spot")
+
+
+## Plays the queued events and Orion's animations out.
+func _settle() -> void:
+	sequencer.advance(0.0)
+	for frame: int in 600:
+		sequencer.advance(1.0 / 60.0)
+		orion.advance(1.0 / 60.0)
+		if not sequencer.is_busy():
+			break
+	orion.advance(OrionView.MARK_TIME)

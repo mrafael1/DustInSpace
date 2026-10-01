@@ -299,6 +299,8 @@ static func scorpion_drawing(map: StarMap = null) -> Array[Vector2i]:
 			strokes = _body_strokes(m)
 		StarMap.Drawing.HEART:
 			strokes = _heart_strokes(m)
+		StarMap.Drawing.CLAWS:
+			strokes = _claws_strokes(m)
 		_:
 			strokes = _scorpion_strokes(m)
 	var pixels: Array[Vector2i] = []
@@ -430,6 +432,28 @@ static func _heart_strokes(m: StarMap) -> Array:
 		var fork: Vector2 = root + out * 4.0
 		strokes.append([root, fork, fork + out.rotated(0.6) * 4.0])
 		strokes.append([fork, fork + out.rotated(-0.6) * 4.0])
+	return strokes
+
+
+## A claws map (#74): an open pincer at each claw star (each string's end but the first, which joins
+## the Heart), its gap facing on along the arm, and a bulb on each arm's string from the head.
+static func _claws_strokes(m: StarMap) -> Array:
+	var marks: Array[Vector2i] = m.landmarks
+	var strokes: Array = []
+	for claw: int in range(1, m.count()):
+		if m.neighbours(claw).size() != 1:
+			continue
+		var elbow: int = m.neighbours(claw)[0]
+		var forward: Vector2 = (Vector2(marks[claw]) - Vector2(marks[elbow])).normalized()
+		var centre: Vector2 = Vector2(marks[claw]) + forward * 7.0
+		var arc: Array = []
+		for k: int in 9:
+			var angle: float = forward.angle() + 0.8 + (TAU - 1.6) * k / 8.0
+			arc.append(centre + Vector2.from_angle(angle) * 5.0)
+		strokes.append(arc)
+		for root: int in m.neighbours(elbow):
+			if root != claw:
+				strokes.append(_circle((Vector2(marks[elbow]) + Vector2(marks[root])) / 2.0, 4.0))
 	return strokes
 
 

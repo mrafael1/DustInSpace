@@ -20,7 +20,7 @@ const STAGES: Array[Dictionary] = [
 	{"name": "TAIL", "map": "tail", "stars": [10, 9, 8]},
 	{"name": "BODY", "map": "body", "stars": [7, 6, 5]},
 	{"name": "HEART", "map": "heart", "stars": [4, 3]},
-	{"name": "CLAWS", "map": "", "stars": [1, 0, 2]},
+	{"name": "CLAWS", "map": "claws", "stars": [1, 0, 2]},
 	{"name": "SCORPIO", "map": "scorpio", "stars": []},
 ]
 ## The final stage: the full Scorpio.
