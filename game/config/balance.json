@@ -5,7 +5,7 @@
   "start_packs": { "blue": 2, "red": 1 },
   "packs": {
     "blue": { "cost": 4, "stars": 3, "weights": { "small": 60, "medium": 30, "big": 10 }, "big_bang_chance": 0.02 },
-    "red":  { "cost": 7, "stars": 4, "weights": { "small": 20, "medium": 40, "big": 40 }, "big_bang_chance": 0.04 }
+    "red":  { "cost": 7, "stars": 3, "bursts": 2, "burst_spread": 44, "weights": { "small": 20, "medium": 40, "big": 40 }, "big_bang_chance": 0.04 }
   },
   "combos": {
     "small_triple":  { "dust": 3, "light": 5 },
