@@ -355,10 +355,7 @@ func test_the_body_map_is_more_connected_than_the_tail() -> void:
 	for segment: int in map.segment_count():
 		var ends: Array[Vector2i] = map.segment_ends(segment)
 		assert_between(Vector2(ends[0]).distance_to(Vector2(ends[1])), 24.0, 40.0)
-	var drawing: Array[Vector2i] = ConstellationView.scorpion_drawing(map)
-	assert_gt(drawing.size(), 60, "plated sides and legs")
-	for p: Vector2i in drawing:
-		assert_true(Scorpio.HOME_SKY.has_point(p))
+	assert_eq(map.painting, StarMap.PART_PAINTING % "body")
 	assert_eq(ConstellationView.song_order(map).size(), map.segment_count())
 
 

@@ -17,10 +17,9 @@ extends Node2D
 ## RunState says what's lit. Draws nothing without the map.
 ## Completion plays the constellation like an instrument once every payout has landed (the Sky
 ## waits): string by string from the bottom of the sky to the top, each flashing C0 and vibrating
-## as its note sounds (string_sung). Then a drawing of the scorpion is traced around the lit
-## stars, stroke by stroke, and stays. The final (Drawing.FIGURE) paints it instead: the Scorpio
-## (assets/art/scorpio_figure.png) rises behind the stars from its tail to its claws, a bright edge
-## leading (C0, then C1), then the whole figure flashes C0 once and stays.
+## as its note sounds (string_sung). Then the map's painting (StarMap.painting: the whole Scorpio,
+## or a part stage's own piece of it) rises behind the stars from the bottom up, a bright edge
+## leading (C0, then C1), flashes C0 once and stays.
 
 ## The sunbeam reached its landmark, at `at`. Feedback only.
 signal sunbeam_landed(at: Vector2i)
@@ -60,14 +59,10 @@ const BEAM_TRAIL: int = 14
 const BEAM_RAMP: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
 const SUN_RIM: int = 20
 ## Completion: every string in TUNE_TIME, bottom to top (string_step apart, whatever the map's
-## string count); then the drawing is traced over REVEAL_TIME; then CODA_TIME with everything shown.
+## string count); then the painting rises.
 const TUNE_TIME: float = 1.7
-const REVEAL_TIME: float = 1.2
-const CODA_TIME: float = 0.6
-const COMPLETION_TIME: float = TUNE_TIME + REVEAL_TIME + CODA_TIME
-## The painted Scorpio (Drawing.FIGURE): it rises over FIGURE_RISE, then flashes C0 for
-## FIGURE_FLASH, then holds for FIGURE_CODA. Drawn in home layout, like the map.
-const FIGURE := preload("res://assets/art/scorpio_figure.png")
+## The painting: it rises over FIGURE_RISE, then flashes C0 for FIGURE_FLASH, then holds for
+## FIGURE_CODA. Drawn in home layout, like the map.
 const FIGURE_RISE: float = 1.8
 const FIGURE_FLASH: float = 0.1
 ## The finished figure holds the screen this long before the end screen.
@@ -102,14 +97,14 @@ var _beam_from: Vector2i = Vector2i.ZERO
 var _beam_to: Vector2i = Vector2i.ZERO
 var _beam_time: float = -1.0
 var _completion_time: float = -1.0
-## The scorpion drawing is fully shown (after a completion, until the next run).
+## The painting is fully shown (after a completion, until the next run).
 var _revealed: bool = false
-var _drawing: Array[Vector2i] = []
 ## Landmark pixels per star size, from the star art: [unlit, lit, lit glinting].
 var _art: Array = []
-## The painted figure's opaque pixels, row by row (y -> xs), and its top and bottom rows.
+## Each painting's opaque pixels, row by row (path -> {y -> xs}), and its top and bottom rows.
 static var _figure_rows: Dictionary = {}
-static var _figure_span := Vector2i.ZERO
+static var _figure_spans: Dictionary = {}
+static var _paintings: Dictionary = {}
 
 
 func _ready() -> void:
@@ -125,7 +120,6 @@ func _draw() -> void:
 	if _run == null or _run.scorpio == null:
 		return
 	_draw_figure()
-	_draw_scorpion()
 	var map: StarMap = _map()
 	for segment: int in map.segment_count():
 		_draw_string(segment)
@@ -145,7 +139,8 @@ func setup(run: RunState) -> void:
 	# The map sits where the run's sky puts it (a taller sky moves it up); everything here is drawn
 	# in its home layout, so the whole view moves with it.
 	position = Vector2(run.scorpio.shift) if run.scorpio != null else Vector2.ZERO
-	_drawing = scorpion_drawing(_map())
+	painting(_map().painting)
+	figure_rows(_map().painting)
 	_shown_lit.clear()
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
@@ -162,22 +157,24 @@ func _map() -> StarMap:
 	return _run.scorpio.map if _run != null and _run.scorpio != null else StarMap.scorpio()
 
 
-## How long the completion plays on `map`: the tune, the drawing or the rising figure, the coda.
-static func completion_time(map: StarMap = null) -> float:
-	if paints_figure(_or_full(map)):
-		return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + FIGURE_CODA
-	return COMPLETION_TIME
+## How long the completion plays: the tune, the painting rising and flashing, the hold.
+static func completion_time() -> float:
+	return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + FIGURE_CODA
 
 
-## Whether `map` reveals the painted figure instead of a line drawing.
-static func paints_figure(map: StarMap) -> bool:
-	return map != null and map.drawing == StarMap.Drawing.FIGURE
+## The painting at `path` (a StarMap.painting), loaded once. Views load theirs before they draw
+## (setup, _ready): a texture loaded in the middle of a draw call broke the whole canvas layer.
+static func painting(path: String = StarMap.FIGURE) -> Texture2D:
+	if not _paintings.has(path):
+		_paintings[path] = load(path) as Texture2D
+	return _paintings[path]
 
 
-## The painted figure's opaque pixels by row (y -> Array of x), read once from its image.
-static func figure_rows() -> Dictionary:
-	if _figure_rows.is_empty():
-		var image: Image = FIGURE.get_image()
+## A painting's opaque pixels by row (y -> Array of x), read once from its image.
+static func figure_rows(path: String = StarMap.FIGURE) -> Dictionary:
+	if not _figure_rows.has(path):
+		var image: Image = painting(path).get_image()
+		var rows: Dictionary = {}
 		var top: int = image.get_height()
 		var bottom: int = -1
 		for y: int in image.get_height():
@@ -186,22 +183,23 @@ static func figure_rows() -> Dictionary:
 				if image.get_pixel(x, y).a > 0.5:
 					xs.append(x)
 			if not xs.is_empty():
-				_figure_rows[y] = xs
+				rows[y] = xs
 				top = mini(top, y)
 				bottom = maxi(bottom, y)
-		_figure_span = Vector2i(top, bottom)
-	return _figure_rows
+		_figure_rows[path] = rows
+		_figure_spans[path] = Vector2i(top, bottom)
+	return _figure_rows[path]
 
 
-## The figure's top and bottom rows.
-static func figure_span() -> Vector2i:
-	figure_rows()
-	return _figure_span
+## A painting's top and bottom rows.
+static func figure_span(path: String = StarMap.FIGURE) -> Vector2i:
+	figure_rows(path)
+	return _figure_spans[path]
 
 
-## The row the rising figure has reached `k` (0-1) of the way up: rows from it down show.
-static func figure_front(k: float) -> int:
-	var span: Vector2i = figure_span()
+## The row a rising painting has reached `k` (0-1) of the way up: rows from it down show.
+static func figure_front(k: float, path: String = StarMap.FIGURE) -> int:
+	var span: Vector2i = figure_span(path)
 	return span.y + 1 - roundi(clampf(k, 0.0, 1.0) * (span.y + 1 - span.x))
 
 
@@ -360,10 +358,8 @@ func is_revealed() -> bool:
 	return _revealed
 
 
-## Where the painted figure stands now: -1 hidden, 0-1 rising, 2 flashing, 3 shown.
+## Where the painting stands now: -1 hidden, 0-1 rising, 2 flashing, 3 shown.
 func figure_stage() -> float:
-	if not paints_figure(_map()):
-		return -1.0
 	if _revealed:
 		return 3.0
 	if _completion_time < TUNE_TIME:
@@ -374,15 +370,6 @@ func figure_stage() -> float:
 	return 2.0 if t < FIGURE_RISE + FIGURE_FLASH else 3.0
 
 
-## How many of the drawing's pixels show now.
-func drawing_shown() -> int:
-	if _revealed:
-		return _drawing.size()
-	if _completion_time < TUNE_TIME:
-		return 0
-	return mini(floori((_completion_time - TUNE_TIME) / REVEAL_TIME * _drawing.size()), _drawing.size())
-
-
 ## How far string pixel `i` of `count` is pushed across the string `age` seconds after its note.
 static func vibration(i: int, count: int, age: float) -> int:
 	if age < 0.0 or age >= VIBRATE_TIME or count < 2:
@@ -390,241 +377,6 @@ static func vibration(i: int, count: int, age: float) -> int:
 	var envelope: float = VIBRATE_AMPLITUDE * (1.0 - age / VIBRATE_TIME)
 	var swing: float = cos(TAU * VIBRATE_CYCLES * age / VIBRATE_TIME)
 	return roundi(envelope * swing * sin(PI * i / (count - 1)))
-
-
-## The drawing traced around the landmarks when the map is complete, as the pen traces it, for
-## the map's Drawing style. The whole scorpion: a pincer at each claw star (beta and pi, opening
-## forward), the body's sides from the head to mu, three pairs of legs, the tail's bulbs and the
-## stinger's hook. A stinger (#62): a bulb on each tail string and the sting's hook past the last
-## star. A tail (#64): a tapering bulb on each string. Whole pixels, in order, no repeats, clear
-## of the landmarks.
-static func scorpion_drawing(map: StarMap = null) -> Array[Vector2i]:
-	var m: StarMap = _or_full(map)
-	var strokes: Array
-	match m.drawing:
-		StarMap.Drawing.STINGER:
-			strokes = _stinger_strokes(m)
-		StarMap.Drawing.TAIL:
-			strokes = _tail_strokes(m)
-		StarMap.Drawing.BODY:
-			strokes = _body_strokes(m)
-		StarMap.Drawing.HEART:
-			strokes = _heart_strokes(m)
-		StarMap.Drawing.CLAWS:
-			strokes = _claws_strokes(m)
-		StarMap.Drawing.FIGURE:
-			strokes = []
-		_:
-			strokes = _scorpion_strokes(m)
-	var pixels: Array[Vector2i] = []
-	var seen: Dictionary = {}
-	for stroke: Array in strokes:
-		for k: int in range(1, stroke.size()):
-			for p: Vector2i in LinkLayer.line_pixels(Vector2i((stroke[k - 1] as Vector2).round()), Vector2i((stroke[k] as Vector2).round())):
-				if not seen.has(p) and not _near_landmark(m, p):
-					seen[p] = true
-					pixels.append(p)
-	return pixels
-
-
-static func _scorpion_strokes(m: StarMap) -> Array:
-	var marks: Array[Vector2i] = m.landmarks
-	var spine: Array[int] = _spine(m)
-	var strokes: Array = []
-	var heart := Vector2(marks[Scorpio.ANTARES])
-	for claw: int in m.neighbours(Scorpio.HEAD):
-		if claw == spine[1]:
-			continue
-		# An open C at the claw star, its gap facing away from the heart.
-		var forward: Vector2 = (Vector2(marks[claw]) - heart).normalized()
-		var centre: Vector2 = Vector2(marks[claw]) + forward * 6.0
-		var arc: Array = []
-		for k: int in 9:
-			var angle: float = forward.angle() + 0.7 + (TAU - 1.4) * k / 8.0
-			arc.append(centre + Vector2.from_angle(angle) * 4.0)
-		strokes.append(arc)
-	# The body: from the head down to mu (spine positions 0-5), widest at the heart.
-	var widths: Array[float] = [4.0, 6.0, 8.0, 7.0, 6.0, 4.0]
-	for side: float in [-1.0, 1.0]:
-		var edge: Array = []
-		for k: int in widths.size():
-			edge.append(Vector2(marks[spine[k]]) + _body_normal(m, spine, k) * widths[k] * side)
-		strokes.append(edge)
-	for k: int in [2, 3, 4]:
-		for side: float in [-1.0, 1.0]:
-			var root: Vector2 = Vector2(marks[spine[k]]) + _body_normal(m, spine, k) * widths[k] * side
-			var knee: Vector2 = root + _body_normal(m, spine, k) * 6.0 * side
-			var back: Vector2 = (Vector2(marks[spine[k + 1]]) - Vector2(marks[spine[k]])).normalized()
-			strokes.append([root, knee, knee + back * 5.0 + _body_normal(m, spine, k) * 3.0 * side])
-	# The tail: a bulb on each string from mu to the stinger.
-	for k: int in range(widths.size() - 1, spine.size() - 1):
-		strokes.append(_circle((Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0, 4.0))
-	strokes.append(_sting(m, spine, heart))
-	return strokes
-
-
-## A stinger map: its landmarks are one line from the tail joint to the sting's tip.
-static func _stinger_strokes(m: StarMap) -> Array:
-	var marks: Array[Vector2i] = m.landmarks
-	var spine: Array[int] = m.path(0, m.count() - 1)
-	var strokes: Array = []
-	for k: int in spine.size() - 2:
-		strokes.append(_circle((Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0, 4.0))
-	# The telson: a wider bulb round the star before the tip.
-	strokes.append(_circle(Vector2(marks[spine[-2]]), 7.0))
-	var centre := Vector2.ZERO
-	for p: Vector2i in marks:
-		centre += Vector2(p)
-	strokes.append(_sting(m, spine, centre / marks.size()))
-	return strokes
-
-
-## A tail map: its landmarks are one line from the body to the stinger; each string is a segment
-## of the tail, a bulb that tapers towards the stinger.
-static func _tail_strokes(m: StarMap) -> Array:
-	var marks: Array[Vector2i] = m.landmarks
-	var spine: Array[int] = m.path(0, m.count() - 1)
-	var strokes: Array = []
-	for k: int in spine.size() - 1:
-		var radius: float = 6.0 if k < 2 else 5.0
-		strokes.append(_circle((Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0, radius))
-	return strokes
-
-
-## A body map (#70): its spine is landmarks 0-4 and the rest are legs. The body's plated sides run
-## along the spine, widest in the middle, with a cross plate at each inner spine star; each leg
-## star grows a jointed claw out past it.
-static func _body_strokes(m: StarMap) -> Array:
-	var marks: Array[Vector2i] = m.landmarks
-	var spine: Array[int] = m.path(0, 4)
-	var widths: Array[float] = [5.0, 8.0, 9.0, 8.0, 5.0]
-	var strokes: Array = []
-	for side: float in [-1.0, 1.0]:
-		var edge: Array = []
-		for k: int in spine.size():
-			edge.append(Vector2(marks[spine[k]]) + _body_normal(m, spine, k) * widths[k] * side)
-		strokes.append(edge)
-	for k: int in range(1, spine.size() - 1):
-		var mid: Vector2 = (Vector2(marks[spine[k]]) + Vector2(marks[spine[k + 1]])) / 2.0
-		var normal: Vector2 = _body_normal(m, spine, k)
-		var half: float = (widths[k] + widths[k + 1]) / 2.0
-		strokes.append([mid - normal * half, mid + normal * half])
-	for leg: int in m.count():
-		if spine.has(leg):
-			continue
-		var root: Vector2 = Vector2(marks[m.neighbours(leg)[0]])
-		var out: Vector2 = (Vector2(marks[leg]) - root).normalized()
-		var knee: Vector2 = Vector2(marks[leg]) + out * 5.0
-		var down := Vector2(-out.y, out.x) if out.x < 0.0 else Vector2(out.y, -out.x)
-		strokes.append([knee, knee + out * 3.0 + down * 4.0, knee + out * 2.0 + down * 7.0])
-	return strokes
-
-
-## A heart map (#71): a heart (two lobes up, its point down) round its biggest-hub star (Antares,
-## where the most strings meet), and a forked vessel out past each star at the end of a string,
-## but the first (it joins the Body).
-static func _heart_strokes(m: StarMap) -> Array:
-	var marks: Array[Vector2i] = m.landmarks
-	var hub: int = 0
-	for i: int in m.count():
-		if m.neighbours(i).size() > m.neighbours(hub).size():
-			hub = i
-	var centre := Vector2(marks[hub]) + Vector2(0.0, 1.0)
-	var outline: Array = []
-	for k: int in 25:
-		var t: float = TAU * k / 24.0
-		var s: float = sin(t)
-		var y: float = 13.0 * cos(t) - 5.0 * cos(2.0 * t) - 2.0 * cos(3.0 * t) - cos(4.0 * t)
-		outline.append(centre + Vector2(16.0 * s * s * s, -y) * 0.9)
-	var strokes: Array = [outline]
-	for leaf: int in range(1, m.count()):
-		if m.neighbours(leaf).size() != 1:
-			continue
-		var out: Vector2 = (Vector2(marks[leaf]) - Vector2(marks[m.neighbours(leaf)[0]])).normalized()
-		var root: Vector2 = Vector2(marks[leaf]) + out * 5.0
-		var fork: Vector2 = root + out * 4.0
-		strokes.append([root, fork, fork + out.rotated(0.6) * 4.0])
-		strokes.append([fork, fork + out.rotated(-0.6) * 4.0])
-	return strokes
-
-
-## A claws map (#74): an open pincer at each claw star (each string's end but the first, which joins
-## the Heart), its gap facing on along the arm, and a bulb on each arm's string from the head.
-static func _claws_strokes(m: StarMap) -> Array:
-	var marks: Array[Vector2i] = m.landmarks
-	var strokes: Array = []
-	for claw: int in range(1, m.count()):
-		if m.neighbours(claw).size() != 1:
-			continue
-		var elbow: int = m.neighbours(claw)[0]
-		var forward: Vector2 = (Vector2(marks[claw]) - Vector2(marks[elbow])).normalized()
-		var centre: Vector2 = Vector2(marks[claw]) + forward * 7.0
-		var arc: Array = []
-		for k: int in 9:
-			var angle: float = forward.angle() + 0.8 + (TAU - 1.6) * k / 8.0
-			arc.append(centre + Vector2.from_angle(angle) * 5.0)
-		strokes.append(arc)
-		for root: int in m.neighbours(elbow):
-			if root != claw:
-				strokes.append(_circle((Vector2(marks[elbow]) + Vector2(marks[root])) / 2.0, 4.0))
-	return strokes
-
-
-## The sting's hook past the spine's last star, curling towards `inward`.
-static func _sting(m: StarMap, spine: Array[int], inward: Vector2) -> Array:
-	var tip := Vector2(m.landmarks[spine[-1]])
-	var tail: Vector2 = (tip - Vector2(m.landmarks[spine[-2]])).normalized()
-	var sting: Vector2 = tip + tail * 7.0
-	var hook_side: Vector2 = tail.orthogonal()
-	if hook_side.dot(inward - tip) < 0.0:
-		hook_side = -hook_side
-	return [tip + tail * 4.0, sting, sting + tail * 3.0 + hook_side * 4.0, sting + hook_side * 7.0]
-
-
-## The scorpion's spine, head to stinger: the head, then every landmark down the strings that
-## don't lead to a claw (the head's first string past the claws, then one line).
-static func _spine(m: StarMap) -> Array[int]:
-	var spine: Array[int] = [Scorpio.HEAD]
-	var previous: int = -1
-	var current: int = Scorpio.HEAD
-	while true:
-		var next: int = -1
-		for n: int in m.neighbours(current):
-			if n == previous or spine.has(n):
-				continue
-			# From the head, follow the string toward the heart; past it there is only one way on.
-			if current == Scorpio.HEAD and m.neighbours(n).size() < 2:
-				continue
-			next = n
-			break
-		if next < 0:
-			return spine
-		spine.append(next)
-		previous = current
-		current = next
-	return spine
-
-
-## The body's sideways direction at spine position `k`, averaged over its neighbouring strings.
-static func _body_normal(m: StarMap, spine: Array[int], k: int) -> Vector2:
-	var a: Vector2 = Vector2(m.landmarks[spine[maxi(k - 1, 0)]])
-	var b: Vector2 = Vector2(m.landmarks[spine[mini(k + 1, spine.size() - 1)]])
-	return (b - a).normalized().orthogonal()
-
-
-static func _circle(centre: Vector2, radius: float) -> Array:
-	var points: Array = []
-	for k: int in 13:
-		points.append(centre + Vector2.from_angle(TAU * k / 12.0) * radius)
-	return points
-
-
-## The drawing leaves each landmark's star clear.
-static func _near_landmark(m: StarMap, p: Vector2i) -> bool:
-	for landmark: Vector2i in m.landmarks:
-		if maxi(absi(p.x - landmark.x), absi(p.y - landmark.y)) <= 3:
-			return true
-	return false
 
 
 ## Where the built strings' glints are now, as a step 0 to GLOW_SPACING - 1.
@@ -669,7 +421,7 @@ func advance(delta: float) -> void:
 		var order: Array[int] = song_order(_map())
 		for k: int in range(before + 1, mini(now, order.size() - 1) + 1):
 			string_sung.emit(order[k], k)
-		if _completion_time >= completion_time(_map()):
+		if _completion_time >= completion_time():
 			_completion_time = -1.0
 			_revealed = true
 		redraw = true
@@ -857,38 +609,31 @@ func _draw_vibrating(segment: int, pixels: Array[Vector2i], age: float) -> void:
 		_dot(pixels[i] + across * vibration(i, pixels.size(), age), Palette.C0)
 
 
-## The painted Scorpio, as far as it has risen: the rows from its front down, the front row C0 and
+## The map's painting, as far as it has risen: the rows from its front down, the front row C0 and
 ## the next C1; flashing, every pixel C0; then the painting itself.
 func _draw_figure() -> void:
 	var stage: float = figure_stage()
 	if stage < 0.0:
 		return
-	var rows: Dictionary = figure_rows()
+	var path: String = _map().painting
+	var rows: Dictionary = figure_rows(path)
 	if stage == 2.0:
 		for y: int in rows:
 			for x: int in rows[y]:
 				_dot(Vector2i(x, y), Palette.C0)
 		return
+	var art: Texture2D = painting(path)
 	if stage >= 3.0:
-		draw_texture(FIGURE, Vector2.ZERO)
+		draw_texture(art, Vector2.ZERO)
 		return
-	var size: Vector2 = FIGURE.get_size()
-	var front: int = figure_front(stage)
+	var size: Vector2 = art.get_size()
+	var front: int = figure_front(stage, path)
 	var below: int = front + FIGURE_EDGE.size()
 	if below < size.y:
-		draw_texture_rect_region(FIGURE, Rect2(0, below, size.x, size.y - below), Rect2(0, below, size.x, size.y - below))
+		draw_texture_rect_region(art, Rect2(0, below, size.x, size.y - below), Rect2(0, below, size.x, size.y - below))
 	for k: int in FIGURE_EDGE.size():
 		for x: int in rows.get(front + k, []):
 			_dot(Vector2i(x, front + k), FIGURE_EDGE[k])
-
-
-## The scorpion drawing, as much of it as the pen has traced: soft N9 lines behind the stars.
-func _draw_scorpion() -> void:
-	var shown: int = drawing_shown()
-	for i: int in shown:
-		_dot(_drawing[i], Palette.N9)
-	if shown > 0 and shown < _drawing.size():
-		_dot(_drawing[shown - 1], Palette.C0)
 
 
 func _dot(p: Vector2i, colour: Color) -> void:

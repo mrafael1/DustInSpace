@@ -173,8 +173,9 @@ func _show_end() -> void:
 	var shift: Vector2i = _shift()
 	var centre_x: int = CENTRE_X + shift.x
 	_panel = Rect2i(centre_x - WIDTH / 2, TOP + shift.y, WIDTH, height)
-	# The painted Scorpio stays in view: its panel sits on the bottom edge, over the land and HUD.
-	if won and _run.scorpio != null and ConstellationView.paints_figure(_run.scorpio.map):
+	# A completed constellation's painting stays in view: the panel sits on the bottom edge, over
+	# the land and the HUD.
+	if won and _run.scorpio != null:
 		var drop: int = _screen.end.y - height - _panel.position.y
 		_panel.position.y += drop
 		for line: Label in _lines.get_children():

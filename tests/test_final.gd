@@ -20,7 +20,7 @@ func test_the_final_map_keeps_orions_corner_clear() -> void:
 	assert_eq(StarMap.by_id("final").id, "final")
 	for i: int in map.count():
 		assert_gt(Vector2(map.landmarks[i]).distance_to(Vector2(CORNER)), 56.0, "the corner is Orion's")
-	assert_eq(ConstellationView.scorpion_drawing(map).size(), 0, "no line drawing: the painted figure")
+	assert_eq(map.painting, StarMap.FIGURE, "the whole painted Scorpio")
 
 
 func test_a_final_run_brings_every_threat() -> void:

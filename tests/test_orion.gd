@@ -307,10 +307,7 @@ func test_the_tail_map_is_a_curling_tail_with_room_for_orion() -> void:
 	for segment: int in map.segment_count():
 		var ends: Array[Vector2i] = map.segment_ends(segment)
 		assert_between(Vector2(ends[0]).distance_to(Vector2(ends[1])), 24.0, 40.0)
-	var drawing: Array[Vector2i] = ConstellationView.scorpion_drawing(map)
-	assert_gt(drawing.size(), 40, "a bulb on each string")
-	for p: Vector2i in drawing:
-		assert_true(Scorpio.HOME_SKY.has_point(p))
+	assert_eq(map.painting, StarMap.PART_PAINTING % "tail")
 	assert_eq(ConstellationView.song_order(map).size(), 5)
 
 

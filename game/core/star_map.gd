@@ -6,11 +6,11 @@ extends RefCounted
 ## smaller "false constellation" shaped like that part (the Stinger first). Layout, not balance.
 ## Positions are on the 180x320 grid in Scorpio.HOME_SKY; a taller sky shifts them (Scorpio.shift).
 
-## How the finished drawing is traced: the whole scorpion, or only a stinger (tail bulbs and a
-## hooked sting), or a tail (a row of bulbs), or a body (plated sides and legs), or a heart (a heart
-## round Antares, with forked vessels), or claws (a pincer opening at each claw star, #74). The
-## final's FIGURE is no line drawing: a painted scorpion (ScorpioFigure) rises behind the stars.
-enum Drawing { SCORPION, STINGER, TAIL, BODY, HEART, CLAWS, FIGURE }
+## The painted art that rises behind the stars when the map is complete
+## (tools/art/build_scorpio_figure.py): the whole Scorpio for the full maps, or the stage's own
+## piece of it, fitted to its stars, for a part stage.
+const FIGURE := "res://assets/art/scorpio_figure.png"
+const PART_PAINTING := "res://assets/art/scorpio_part_%s.png"
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -21,7 +21,8 @@ var segments: Array[Vector2i] = []
 ## Star.Size per landmark.
 var sizes: Array[int] = []
 var starting_lit: Array[int] = []
-var drawing: Drawing = Drawing.SCORPION
+## The painting shown once the map is complete (a res:// path).
+var painting: String = FIGURE
 ## Orion (#64) hunts this stage: he marks a loose star; the next link saves it or has it shot. With
 ## a volley too, both threats run (the Claws bring every one).
 var orion: bool = false
@@ -48,23 +49,23 @@ static func scorpio() -> StarMap:
 	map.segments = Scorpio.SEGMENTS
 	map.sizes = Scorpio.SIZES
 	map.starting_lit = Scorpio.STARTING_LIT
-	map.drawing = Drawing.SCORPION
 	return map
 
 
 ## The Stinger, the chapter's first stage: a false constellation of six stars shaped like the
-## scorpion's stinger. The tail's last joints run along the bottom of the sky and rise to the
-## telson (big), then the sting hooks back up and left. The first joint starts lit, so five are
-## left to light (tools/balance/sim.py: about 3.8 packs). Strings are 30-33 px.
+## scorpion's stinger, laid out as the whole Scorpio's is: the tail's last joints come in from the
+## right along the bottom of the sky and turn up at the left, then the telson runs right to the big
+## star and the sting curls up from it. The first joint starts lit, so five are left to light
+## (tools/balance/sim.py: about 3.8 packs). Strings are 31-34 px.
 static func stinger() -> StarMap:
 	var map := StarMap.new()
 	map.id = "stinger"
 	map.title = "STINGER"
-	map.landmarks = [Vector2i(36, 224), Vector2i(66, 236), Vector2i(98, 232), Vector2i(124, 212), Vector2i(138, 184), Vector2i(126, 156)]
+	map.landmarks = [Vector2i(112, 236), Vector2i(80, 234), Vector2i(52, 216), Vector2i(66, 188), Vector2i(98, 180), Vector2i(112, 152)]
 	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
 	map.sizes = [Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.MEDIUM]
 	map.starting_lit = [0]
-	map.drawing = Drawing.STINGER
+	map.painting = PART_PAINTING % "stinger"
 	return map
 
 
@@ -79,7 +80,7 @@ static func tail() -> StarMap:
 	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
 	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL]
 	map.starting_lit = [0]
-	map.drawing = Drawing.TAIL
+	map.painting = PART_PAINTING % "tail"
 	map.orion = true
 	return map
 
@@ -96,7 +97,7 @@ static func body() -> StarMap:
 	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(1, 5), Vector2i(1, 6), Vector2i(2, 7), Vector2i(2, 8)]
 	map.sizes = [Star.Size.BIG, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
 	map.starting_lit = [0]
-	map.drawing = Drawing.BODY
+	map.painting = PART_PAINTING % "body"
 	map.volley = "volley"
 	return map
 
@@ -114,25 +115,25 @@ static func heart() -> StarMap:
 	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5), Vector2i(2, 6)]
 	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM]
 	map.starting_lit = [0]
-	map.drawing = Drawing.HEART
+	map.painting = PART_PAINTING % "heart"
 	map.hunt = true
 	return map
 
 
 ## The Claws, stage 5 (#74): seven stars. A neck climbs from the lower left (towards the Heart) to
-## Dschubba (the head, big), which forks into two arms: one up to beta, one down to pi, each claw
-## a pincer in the finished drawing. Orion keeps the top left and brings all three of his threats:
+## Dschubba (the head, big), which forks into two arms: one up to beta, one down to pi, each
+## bending back at its elbow, as in the whole Scorpio, with a pincer opening right in the painting. Orion keeps the top left and brings all three of his threats:
 ## the single mark, the volley and the hunting area. No intros (each stage before introduced one).
 ## The neck's first star starts lit: six to light.
 static func claws() -> StarMap:
 	var map := StarMap.new()
 	map.id = "claws"
 	map.title = "CLAWS"
-	map.landmarks = [Vector2i(62, 206), Vector2i(90, 182), Vector2i(116, 160), Vector2i(124, 130), Vector2i(146, 106), Vector2i(146, 170), Vector2i(156, 200)]
+	map.landmarks = [Vector2i(64, 194), Vector2i(94, 178), Vector2i(124, 160), Vector2i(104, 140), Vector2i(116, 114), Vector2i(118, 188), Vector2i(136, 210)]
 	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5), Vector2i(5, 6)]
 	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
 	map.starting_lit = [0]
-	map.drawing = Drawing.CLAWS
+	map.painting = PART_PAINTING % "claws"
 	map.orion = true
 	map.volley = "volley"
 	map.hunt = true
@@ -142,11 +143,10 @@ static func claws() -> StarMap:
 
 ## The final, stage 6: the full Scorpio as a boss stage. Every star of the figure (11 to light,
 ## the claw arc lit), with all three of Orion's threats at once, as on the Claws: the single mark,
-## the volley and the hunting area, and no intros. Completing it reveals the painted Scorpio.
+## the volley and the hunting area, and no intros.
 static func final() -> StarMap:
 	var map := scorpio()
 	map.id = "final"
-	map.drawing = Drawing.FIGURE
 	map.orion = true
 	map.volley = "volley"
 	map.hunt = true

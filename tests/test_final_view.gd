@@ -159,7 +159,7 @@ func test_the_painting_is_palette_locked_and_crisp() -> void:
 		var fields: PackedStringArray = line.strip_edges().replace("\t", " ").split(" ", false)
 		if fields.size() >= 4 and fields[0].is_valid_int():
 			allowed[Color8(fields[0].to_int(), fields[1].to_int(), fields[2].to_int()).to_html(false)] = true
-	var image: Image = ConstellationView.FIGURE.get_image()
+	var image: Image = ConstellationView.painting().get_image()
 	assert_eq(image.get_size(), ScreenZones.SCREEN, "the game's screen, in home layout")
 	var bad: int = 0
 	for y: int in image.get_height():
@@ -180,7 +180,6 @@ func test_the_figure_rises_from_its_tail() -> void:
 	assert_eq(ConstellationView.figure_front(0.0), span.y + 1, "nothing yet")
 	assert_eq(ConstellationView.figure_front(1.0), span.x, "all of it")
 	assert_lt(ConstellationView.figure_front(0.5), ConstellationView.figure_front(0.25), "rising")
-	assert_gt(ConstellationView.completion_time(StarMap.final()), ConstellationView.completion_time(StarMap.claws()))
 
 
 func test_the_chart_plays_the_finals_unlock() -> void:

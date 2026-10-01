@@ -72,7 +72,7 @@ func test_the_final_is_the_boss_stage() -> void:
 	assert_eq(map.volley, "volley", "the volley")
 	assert_true(map.hunt, "the hunting area")
 	assert_false(map.intros, "each threat was introduced on its own stage")
-	assert_eq(map.drawing, StarMap.Drawing.FIGURE, "completion paints the Scorpio, no line drawing")
+	assert_eq(map.painting, StarMap.FIGURE, "completion paints the whole Scorpio")
 	assert_false(StarMap.scorpio().boss, "the plain full Scorpio stays plain")
 	assert_false(StarMap.scorpio().orion)
 
@@ -176,11 +176,12 @@ func test_the_stinger_map_is_a_hooked_tail_with_room_to_pick_each_star() -> void
 	for segment: int in map.segment_count():
 		var ends: Array[Vector2i] = map.segment_ends(segment)
 		assert_between(Vector2(ends[0]).distance_to(Vector2(ends[1])), 24.0, 40.0)
-	# The shape: along the bottom, up to the telson, then the sting hooks back up and left.
-	assert_gt(map.landmarks[3].x, map.landmarks[0].x + 60, "the tail runs right along the bottom")
-	assert_lt(map.landmarks[4].y, map.landmarks[3].y - 20, "rises to the telson")
-	assert_lt(map.landmarks[5].x, map.landmarks[4].x, "the sting hooks back")
-	assert_lt(map.landmarks[5].y, map.landmarks[4].y)
+	# The shape, as the whole Scorpio's: in from the right along the bottom, up at the left, then
+	# the telson runs right and the sting curls up.
+	assert_lt(map.landmarks[2].x, map.landmarks[0].x - 50, "the tail runs left along the bottom")
+	assert_lt(map.landmarks[3].y, map.landmarks[2].y - 20, "turns up at the left")
+	assert_gt(map.landmarks[4].x, map.landmarks[3].x + 20, "the telson runs right")
+	assert_lt(map.landmarks[5].y, map.landmarks[4].y - 20, "the sting curls up")
 	assert_eq(StarMap.by_id("stinger").title, "STINGER")
 	assert_eq(StarMap.by_id("anything").id, "scorpio", "unknown ids play the full map")
 
@@ -208,13 +209,7 @@ func test_a_stinger_run_is_won_by_lighting_its_five_stars() -> void:
 	assert_not_null(s1)
 
 
-func test_the_stinger_drawing_is_a_stinger_clear_of_its_stars() -> void:
+func test_the_stinger_paints_its_piece_of_the_scorpio() -> void:
 	var map: StarMap = StarMap.stinger()
-	var drawing: Array[Vector2i] = ConstellationView.scorpion_drawing(map)
-	assert_gt(drawing.size(), 40, "tail bulbs, a telson and the hooked sting")
-	assert_lt(drawing.size(), ConstellationView.scorpion_drawing().size(), "much less than the whole scorpion")
-	for p: Vector2i in drawing:
-		assert_true(Scorpio.HOME_SKY.has_point(p), "%s inside the sky" % p)
-		for star: Vector2i in map.landmarks:
-			assert_gt(maxi(absi(p.x - star.x), absi(p.y - star.y)), 3)
+	assert_eq(map.painting, StarMap.PART_PAINTING % "stinger")
 	assert_eq(ConstellationView.song_order(map).size(), 5, "its completion tune plays its five strings")
