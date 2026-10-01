@@ -267,10 +267,27 @@ func _on_selection_changed(ids: Array[int]) -> void:
 		return
 	for id: int in _views:
 		_views[id].selected = ids.has(id)
+	_show_hints(ids)
 	if ids.size() > _selected_count:
 		star_selected.emit(ids.size())
 	_selected_count = ids.size()
 	_show_link()
+
+
+## The link hint (playtest): while a link is traced, the stars and landmarks that could come next
+## and still make a valid combo keep their look with a pulsing halo (StarView.hinted), and every
+## other star dims (StarView.dimmed, ConstellationView.show_hints). Nothing before the first pick.
+func _show_hints(ids: Array[int]) -> void:
+	var next: Array[int] = _run.link_candidates(ids) if _run != null else ([] as Array[int])
+	var landmarks: Array[int] = []
+	for id: int in next:
+		if _run.scorpio != null and _run.scorpio.is_landmark(id):
+			landmarks.append(Scorpio.landmark_index(id))
+	var tracing: bool = not ids.is_empty()
+	for id: int in _views:
+		_views[id].hinted = next.has(id)
+		_views[id].dimmed = tracing and not next.has(id) and not ids.has(id)
+	_constellation.show_hints(landmarks, tracing)
 
 
 ## Scorpio: a link can hold only Scorpio.LANDMARKS_PER_COMBO landmarks; picking another is
@@ -307,18 +324,16 @@ func _on_join_refused(ids: Array[int], id: int) -> void:
 
 
 ## Line through the selected stars (and to the finger while dragging), plus the reward preview.
-## With a reach, the ring around the last star picked shows how far the next step can go, and the
-## line to the finger goes loose past it.
+## With a reach, the line to the finger goes loose past it.
 func _show_link() -> void:
 	var points: Array[Vector2i] = _positions_of_ids(_gesture.selected)
-	var open: bool = not points.is_empty() and points.size() < Combos.LINK_LENGTH
 	var loose: bool = false
+	var reach: int = 0
 	if _gesture.is_dragging() and points.size() < Combos.LINK_LENGTH:
 		loose = not points.is_empty() and not _run.in_reach(points[-1], _finger)
+		reach = _run.link_reach()
 		points.append(_finger)
-	_link_layer.show_path(points, loose)
-	var reach: int = _run.link_reach() if _run != null else 0
-	_link_layer.show_reach(points[_gesture.selected.size() - 1] if open else Vector2i.ZERO, reach if open else 0)
+	_link_layer.show_path(points, loose, reach)
 	_show_preview()
 	# Orion readies his bow while the link would leave his mark behind (the sight line holds on it),
 	# or loose the volley.

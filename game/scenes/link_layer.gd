@@ -4,9 +4,10 @@ extends Node2D
 ## Sits under the StarLayer, so a line runs between stars without covering them.
 ## Link line (art-direction.md): 1 px C1 with a C0 pulse every 5 px and a C5 checker glow alongside.
 ## Owns no rules: Sky tells it which points to join and whether a link was collected or rejected.
-## Reach (Scorpio): while a link is traced, a dotted M5 ring shows how far its next step can go,
-## and the line to the finger turns into sparse M5 dots when the finger is out of reach. Cool and
-## light, so it reads on every band of the sky without looking like a link.
+## Reach (Scorpio): the line to the finger strains as it nears the reach, warming C1 to C2 to C3
+## over the last part of it, so the limit is felt before it's hit. Past the reach, the line stops
+## at the limit with a flickering ember spark where it broke, and runs on to the finger as sparse
+## M5 dots. (Which stars are in reach shows through the link hint: the others dim.)
 
 ## A travelling C0 pixel every PULSE_SPACING px along the line.
 const PULSE_SPACING: int = 5
@@ -19,10 +20,11 @@ const REJECT_TIME: float = 0.45
 const REJECT_SHAKE: Array[int] = [2, -2, 2, -1, 1, -1, 1, 0]
 const REJECT_SHAKE_STEP: float = 0.04
 const NEIGHBOURS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
-## The reach ring: one pixel every REACH_DOT_SPACING px around it. An out-of-reach line: one pixel
-## every LOOSE_DOT_SPACING px.
-const REACH_DOT_SPACING: int = 4
+## An out-of-reach line: one pixel every LOOSE_DOT_SPACING px.
 const LOOSE_DOT_SPACING: int = 3
+## Strain: the line to the finger turns C2 from this share of the reach, and C3 from STRAIN_HARD.
+const STRAIN_FROM: float = 0.7
+const STRAIN_HARD: float = 0.85
 
 
 ## A resolved link's line, shown for a moment.
@@ -44,7 +46,7 @@ class Flash:
 var _path: Array[Vector2i] = []
 ## The path's last step (to the finger) is out of reach.
 var _loose_end: bool = false
-var _reach_center: Vector2i = Vector2i.ZERO
+## How long the last step (to the finger) may be, in px; 0 for no reach shown.
 var _reach: int = 0
 var _flashes: Array[Flash] = []
 var _time: float = 0.0
@@ -56,14 +58,9 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	if _reach > 0:
-		for p: Vector2i in reach_ring(_reach_center, _reach):
-			_dot(p, Palette.M5)
-	if _loose_end and _path.size() > 1:
+	if (_loose_end or _reach > 0) and _path.size() > 1:
 		_draw_link(path_pixels(_path.slice(0, -1)))
-		var loose: Array[Vector2i] = line_pixels(_path[-2], _path[-1])
-		for i: int in range(LOOSE_DOT_SPACING, loose.size(), LOOSE_DOT_SPACING):
-			_dot(loose[i], Palette.M5)
+		_draw_finger_step(_path[-2], _path[-1])
 	else:
 		_draw_link(path_pixels(_path))
 	for flash: Flash in _flashes:
@@ -71,41 +68,19 @@ func _draw() -> void:
 
 
 ## Shows the link being traced through `points` (star centres, then the finger while dragging).
-## `loose_end`: the last step, to the finger, is out of reach.
-func show_path(points: Array[Vector2i], loose_end: bool = false) -> void:
-	if points == _path and loose_end == _loose_end:
+## `loose_end`: the last step, to the finger, is out of reach. `reach`: how long that step may be,
+## so the line can strain toward it (0: none).
+func show_path(points: Array[Vector2i], loose_end: bool = false, reach: int = 0) -> void:
+	if points == _path and loose_end == _loose_end and reach == _reach:
 		return
 	_path = points.duplicate()
 	_loose_end = loose_end
+	_reach = reach
 	queue_redraw()
-
-
-## Shows the reach ring of radius `radius` around `center`; a radius of 0 hides it.
-func show_reach(center: Vector2i, radius: int) -> void:
-	if center == _reach_center and radius == _reach:
-		return
-	_reach_center = center
-	_reach = radius
-	queue_redraw()
-
-
-func reach_radius() -> int:
-	return _reach
 
 
 func is_loose_end() -> bool:
 	return _loose_end
-
-
-## The reach ring's dots: whole pixels on the circle, one every REACH_DOT_SPACING px, no repeats.
-static func reach_ring(center: Vector2i, radius: int) -> Array[Vector2i]:
-	var dots: Array[Vector2i] = []
-	var count: int = maxi(roundi(TAU * radius / REACH_DOT_SPACING), 4)
-	for k: int in count:
-		var p: Vector2i = center + Vector2i((Vector2.from_angle(TAU * k / count) * radius).round())
-		if not dots.has(p):
-			dots.append(p)
-	return dots
 
 
 func flash_collected(points: Array[Vector2i]) -> void:
@@ -154,6 +129,22 @@ static func line_pixels(a: Vector2i, b: Vector2i) -> Array[Vector2i]:
 	return pixels
 
 
+## The colour of the line to the finger at `share` of the reach from the last star: C1, then
+## straining C2, then C3 near the limit.
+static func strain_colour(share: float) -> Color:
+	if share >= STRAIN_HARD:
+		return Palette.C3
+	return Palette.C2 if share >= STRAIN_FROM else Palette.C1
+
+
+## The pixels of the line from `a` toward `b` that are within `reach` of `a` (all with no reach).
+static func reach_part(a: Vector2i, b: Vector2i, reach: int) -> Array[Vector2i]:
+	var pixels: Array[Vector2i] = line_pixels(a, b)
+	if reach <= 0:
+		return pixels
+	return pixels.filter(func(p: Vector2i) -> bool: return (p - a).length_squared() <= reach * reach)
+
+
 ## The pixels of a path through `points`, in order, with each joint counted once.
 static func path_pixels(points: Array[Vector2i]) -> Array[Vector2i]:
 	var pixels: Array[Vector2i] = []
@@ -172,6 +163,31 @@ func _flash(flash: Flash) -> void:
 
 
 func _draw_link(pixels: Array[Vector2i]) -> void:
+	_draw_glow(pixels)
+	for i: int in pixels.size():
+		_dot(pixels[i], _pulse_colour(i))
+
+
+## The step from the last star `a` to the finger `b`: it strains toward the reach, and past it
+## breaks at the limit with an ember spark, then runs on as sparse dots.
+func _draw_finger_step(a: Vector2i, b: Vector2i) -> void:
+	var solid: Array[Vector2i] = reach_part(a, b, _reach)
+	_draw_glow(solid)
+	for i: int in solid.size():
+		var share: float = (solid[i] - a).length() / _reach if _reach > 0 else 0.0
+		_dot(solid[i], _pulse_colour(i) if share < STRAIN_FROM else strain_colour(share))
+	if not _loose_end:
+		return
+	var loose: Array[Vector2i] = line_pixels(a, b).slice(solid.size())
+	for i: int in range(LOOSE_DOT_SPACING - 1, loose.size(), LOOSE_DOT_SPACING):
+		_dot(loose[i], Palette.M5)
+	if not solid.is_empty():
+		var spark: Color = Palette.C3 if _pulse_frame % 2 == 0 else Palette.C2
+		for n: Vector2i in NEIGHBOURS:
+			_dot(solid[-1] + n, spark)
+
+
+func _draw_glow(pixels: Array[Vector2i]) -> void:
 	var on_line: Dictionary[Vector2i, bool] = {}
 	for p: Vector2i in pixels:
 		on_line[p] = true
@@ -180,9 +196,12 @@ func _draw_link(pixels: Array[Vector2i]) -> void:
 			var glow: Vector2i = p + n
 			if not on_line.has(glow) and posmod(glow.x + glow.y, 2) == 0:
 				_dot(glow, Palette.C5)
+
+
+## The travelling pulse: C0 on every PULSE_SPACING-th pixel of the line, moving along; C1 elsewhere.
+func _pulse_colour(i: int) -> Color:
 	var pulse: int = int(_time / PULSE_STEP_TIME) % PULSE_SPACING
-	for i: int in pixels.size():
-		_dot(pixels[i], Palette.C0 if (i + PULSE_SPACING - pulse) % PULSE_SPACING == 0 else Palette.C1)
+	return Palette.C0 if (i + PULSE_SPACING - pulse) % PULSE_SPACING == 0 else Palette.C1
 
 
 ## Fades by ordered dither: fewer pixels each frame, never a blended colour.

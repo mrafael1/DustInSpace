@@ -10,7 +10,8 @@ extends Node2D
 ## strings. Strings between two lit landmarks glow C1 with a C0 glint
 ## running along them; strings still to form are dotted N8. While a link is traced, the landmarks
 ## in it keep their colour and show their halo and the dashed C1 selection ring, like a picked sky
-## star, and the strings it would form are dashed C2. Like the HUD and the Sun it keeps
+## star, and the strings it would form are dashed C2; every other string thins (TRACE_THIN) so
+## the gold trace reads over it. Like the HUD and the Sun it keeps
 ## a shown copy of what's lit, moved only by played landmark_lit events, so a landmark the Sun
 ## lights stays unlit until the Sun's ignition has played. Owns no rules:
 ## RunState says what's lit. Draws nothing without the map.
@@ -28,6 +29,9 @@ signal string_sung(segment: int, order: int)
 const LANDMARK_CLEAR: int = 5
 ## A string still to form: one pixel in OUTLINE_STEP.
 const OUTLINE_STEP: int = 2
+## While a link is traced, strings not in it keep one pixel in TRACE_THIN of their usual ones, and
+## built strings hold still (no glint), so the player's gold path stands out where they run beside it.
+const TRACE_THIN: int = 2
 ## Built strings' idle glow: a C0 glint every GLOW_SPACING px moves one pixel per GLOW_STEP.
 const GLOW_SPACING: int = 6
 const GLOW_STEP: float = 0.12
@@ -68,6 +72,12 @@ const VIBRATE_CYCLES: float = 3.0
 var _run: RunState
 var _time: float = 0.0
 var _selected: Array[int] = []
+## The link hint: unlit landmarks (indices) that could come next in the link being traced, and
+## seconds since it started. Like the sky stars, they keep their halo and shine in step with the
+## hinted stars, while every other unlit landmark dims; no corner brackets while a link is traced.
+var _hinted: Array[int] = []
+var _hint_time: float = 0.0
+var _tracing: bool = false
 ## Which landmarks show lit: the run's as of setup, then each played landmark_lit.
 var _shown_lit: Array[bool] = []
 var _preview_strings: Array[int] = []
@@ -91,7 +101,7 @@ var _art: Array = []
 
 func _ready() -> void:
 	for size: int in 3:
-		_art.append([landmark_pixels(size), landmark_pixels(size, true), landmark_pixels(size, true, true)])
+		_art.append([landmark_pixels(size), landmark_pixels(size, true), landmark_pixels(size, true, true), star_pixels(size, &"dim"), star_pixels(size, &"glint")])
 
 
 func _process(delta: float) -> void:
@@ -158,6 +168,30 @@ func clear_preview() -> void:
 	_selected.clear()
 	_preview_strings.clear()
 	queue_redraw()
+
+
+## The link hint: these unlit landmarks could come next in the link being traced; `tracing` is
+## whether a link is being traced at all (the others dim and the corner brackets hide).
+func show_hints(landmarks: Array[int], tracing: bool) -> void:
+	if landmarks != _hinted:
+		_hint_time = 0.0
+	_hinted = landmarks.duplicate()
+	_tracing = tracing
+	queue_redraw()
+
+
+func hinted() -> Array[int]:
+	return _hinted.duplicate()
+
+
+## Whether string `segment` shows thinned: a link is traced and it wouldn't form the string.
+func shows_thin(segment: int) -> bool:
+	return _tracing and not _preview_strings.has(segment)
+
+
+## Whether unlit landmark `index` shows dimmed: a link is traced and it can't come next.
+func shows_dimmed(index: int) -> bool:
+	return _tracing and not shows_lit(index) and not _selected.has(index) and not _hinted.has(index)
 
 
 ## A landmark_lit event played: it shows lit from now, with a C0 flash and a ring spreading out.
@@ -531,7 +565,11 @@ func advance(delta: float) -> void:
 	var cue: int = cue_frame()
 	var twinkling: Array[bool] = _twinkling()
 	var ring: int = ring_frame()
+	var shine: int = StarView.shine_stage(_hint_time)
 	_time += delta
+	_hint_time += delta
+	if not _hinted.is_empty() and StarView.shine_stage(_hint_time) != shine:
+		queue_redraw()
 	var mapped: bool = _run != null and _run.scorpio != null
 	var redraw: bool = mapped and ((glow_step() != step and _shown_lit.count(true) > 1) \
 		or (cue_frame() != cue and _shown_lit.has(false)) or _twinkling() != twinkling \
@@ -614,18 +652,24 @@ func _draw_string(segment: int) -> void:
 	if age >= 0.0 and age < VIBRATE_TIME:
 		_draw_vibrating(segment, pixels, age)
 		return
+	var preview: bool = _preview_strings.has(segment)
+	var quiet: bool = shows_thin(segment)
 	if shows_built(segment):
 		var flash: bool = segment == _flash_string and _flash_left > 0.0
 		var step: int = glow_step()
 		for i: int in pixels.size():
+			if quiet and not flash:
+				if i % TRACE_THIN == 0:
+					_dot(pixels[i], Palette.C1)
+				continue
 			var glint: bool = (i + GLOW_SPACING - step) % GLOW_SPACING == 0
 			_dot(pixels[i], Palette.C0 if flash or glint else Palette.C1)
 		return
-	var preview: bool = _preview_strings.has(segment)
+	var spacing: int = OUTLINE_STEP * (TRACE_THIN if quiet else 1)
 	for i: int in pixels.size():
 		if preview and i % 3 != 2:
 			_dot(pixels[i], Palette.C2)
-		elif not preview and i % OUTLINE_STEP == 0:
+		elif not preview and i % spacing == 0:
 			_dot(pixels[i], Palette.N8)
 
 
@@ -664,11 +708,11 @@ func cue_frame() -> int:
 	return int(_time / CUE_STEP) % 2
 
 
-## Whether landmark `index` shows the selectable cue: unlit, not in the link being traced, and
-## not while the constellation plays.
+## Whether landmark `index` shows the selectable cue: unlit, not while a link is traced (the
+## strings still show it belongs), and not while the constellation plays.
 func shows_cue(index: int) -> bool:
 	return _run != null and _run.scorpio != null and not shows_lit(index) \
-		and not _selected.has(index) and _completion_time < 0.0
+		and not _tracing and not _selected.has(index) and _completion_time < 0.0
 
 
 ## Which of the selection ring's two dash frames shows now, like a picked sky star's.
@@ -684,16 +728,21 @@ func _draw_landmark(index: int) -> void:
 			_dot(at + d, CUE_COLOURS[cue_frame()])
 	var lit: bool = shows_lit(index)
 	var picked: bool = _selected.has(index) and not lit
+	var hinted: bool = _hinted.has(index) and not lit and not picked
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
-	if not flash and (lit or picked):
+	if not flash and (lit or picked or hinted):
 		var halo: Dictionary[Vector2i, Color] = lit_halo_pixels(size) if lit else StarView.halo_pixels(size as Star.Size)
 		for d: Vector2i in halo:
 			_dot(at + d, halo[d])
-	var dots: Dictionary = _art[size][0]
+	var shine: int = StarView.shine_stage(_hint_time) if hinted else -1
+	var dots: Dictionary = _art[size][3 if shows_dimmed(index) else (4 if shine >= 0 else 0)]
 	if lit:
 		dots = _art[size][2 if twinkles(index, _time) else 1]
 	for d: Vector2i in dots:
 		_dot(at + d, Palette.C0 if flash else dots[d])
+	var rays: Dictionary[Vector2i, Color] = StarView.shine_pixels(size as Star.Size, shine)
+	for d: Vector2i in rays:
+		_dot(at + d, rays[d])
 	if picked:
 		_draw_ring(size, at)
 

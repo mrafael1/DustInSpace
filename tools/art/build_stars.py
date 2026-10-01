@@ -29,16 +29,17 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "assets" / "art"
 
-C0, C1, C2, C3 = (255, 251, 234), (255, 229, 154), (255, 192, 98), (232, 138, 87)
+C0, C1, C2, C3, C4 = (255, 251, 234), (255, 229, 154), (255, 192, 98), (232, 138, 87), (164, 90, 120)
 M4, M5, M6 = (74, 90, 168), (159, 176, 238), (217, 226, 255)
 N7, N8, N9, N10 = (126, 104, 200), (167, 127, 216), (208, 143, 200), (242, 169, 194)
 D0 = (217, 204, 255)
 
 # Each size's colour chain, brightest first, and where each shape step (0 = core) sits on it.
-# Frames brighten or dim by moving along the chain; every chain starts at C0, so a flare is white.
+# Frames brighten or dim by moving along the chain; every chain starts at C0, so a flare is white,
+# and runs a step past the idle star's darkest colour, so "dim" darkens every pixel.
 RAMPS = {
-    "small": ([C0, C1, C2, C3], [2, 3, 3, 3]),
-    "medium": ([C0, D0, N9, N8], [1, 2, 2, 3]),
+    "small": ([C0, C1, C2, C3, C4], [2, 3, 3, 3]),
+    "medium": ([C0, D0, N9, N8, N7], [1, 2, 2, 3]),
     "big": ([C0, M6, M5, M4], [0, 1, 1, 2]),
 }
 
@@ -99,7 +100,7 @@ SHAPES = {
 #   flare_core  second dissolve frame: core and inner ring, white
 #   fade_core   third dissolve frame: core only, a step down its chain
 #   fade_dot    last dissolve frame: a single pixel of the first ring's colour (drawn specially)
-#   dim         Big Bang redshift: a step darker as it nears the hole
+#   dim         Big Bang redshift, and the link hint's stars that can't come next: a step darker
 #   dim_core    Big Bang swallow: only the core, three steps dimmer
 #   lit         a lit Scorpio landmark: the idle shape in gold
 #   lit_glint   its twinkle
