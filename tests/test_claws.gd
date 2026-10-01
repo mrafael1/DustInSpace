@@ -46,22 +46,8 @@ func test_the_claws_map() -> void:
 	assert_eq(ConstellationView.song_order(map).size(), map.segment_count())
 
 
-func test_the_claws_drawing_opens_a_pincer_past_each_claw() -> void:
-	var map: StarMap = StarMap.claws()
-	var drawing: Array[Vector2i] = ConstellationView.scorpion_drawing(map)
-	assert_gt(drawing.size(), 40, "two pincers and two bulbs")
-	for p: Vector2i in drawing:
-		assert_true(Scorpio.HOME_SKY.has_point(p))
-	for claw: int in [4, 6]:
-		var elbow: Vector2 = Vector2(map.landmarks[map.neighbours(claw)[0]])
-		var tip := Vector2(map.landmarks[claw])
-		var past: int = 0
-		for p: Vector2i in drawing:
-			if Vector2(p).distance_to(tip) <= 13.0 and (Vector2(p) - tip).dot(tip - elbow) > 0.0:
-				past += 1
-		assert_gt(past, 8, "a pincer out past landmark %d" % claw)
-	var neck: Vector2 = Vector2(map.landmarks[0])
-	assert_false(drawing.any(func(p: Vector2i) -> bool: return Vector2(p).distance_to(neck) < 10.0), "nothing past the neck: it joins the Heart")
+func test_the_claws_paint_their_piece_of_the_scorpio() -> void:
+	assert_eq(StarMap.claws().painting, StarMap.PART_PAINTING % "claws")
 
 
 func test_the_claws_bring_all_three_threats_and_open_without_an_intro() -> void:

@@ -119,13 +119,9 @@ func test_every_unlit_landmark_has_room_for_a_link_in_reach() -> void:
 		assert_true(pair, "landmark %d has room for two stars in reach" % i)
 
 
-## The finished drawing (claws, body, legs, tail and stinger) stays inside the play sky, and so on
-## every phone: a taller sky moves the whole map with it.
-func test_the_scorpion_drawing_stays_in_the_sky() -> void:
-	var drawing: Array[Vector2i] = ConstellationView.scorpion_drawing()
-	assert_gt(drawing.size(), 100)
-	for p: Vector2i in drawing:
-		assert_true(Scorpio.HOME_SKY.has_point(p), "%s inside the sky" % p)
+## The finished painting stays inside the play sky (paintings: tests/test_paintings.gd).
+func test_the_full_map_paints_the_whole_scorpio() -> void:
+	assert_eq(StarMap.scorpio().painting, StarMap.FIGURE)
 
 
 func test_an_unlit_landmark_stands_in_for_a_star_and_lights_up() -> void:

@@ -392,8 +392,8 @@ func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_th
 			moved = moved or ConstellationView.vibration(i, 10, age) != 0
 	assert_true(moved, "a sung string vibrates")
 	assert_eq(ConstellationView.vibration(5, 10, ConstellationView.VIBRATE_TIME), 0, "then rests")
-	assert_eq(constellation.drawing_shown(), 0, "the drawing waits for the tune")
-	for i: int in 120:
+	assert_eq(constellation.figure_stage(), -1.0, "the painting waits for the tune")
+	for i: int in 150:
 		constellation.advance(1.0 / 30.0)
 	assert_eq(sung, ConstellationView.song_order(), "every string, once, bottom to top")
 	var ys: Array[int] = []
@@ -402,10 +402,10 @@ func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_th
 		ys.append(ends[0].y + ends[1].y)
 	for k: int in range(1, ys.size()):
 		assert_lte(ys[k], ys[k - 1])
-	assert_true(constellation.is_revealed(), "the scorpion is drawn and stays")
-	assert_eq(constellation.drawing_shown(), ConstellationView.scorpion_drawing().size())
+	assert_true(constellation.is_revealed(), "the scorpion is painted and stays")
+	assert_eq(constellation.figure_stage(), 3.0)
 	var sun: SunView = main.get_node("Sun")
-	for i: int in 150:
+	for i: int in 220:
 		_tick([sequencer, sun], 1.0 / 30.0)
 	assert_false(sun.is_igniting() or sun.is_ignited(), "no Sun ignition for this win")
 	var end: EndScreen = main.get_node("EndScreen")
@@ -413,16 +413,10 @@ func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_th
 	assert_eq(end.lines(), ["SCORPIO COMPLETE", "STRINGS 13/13"] as Array[String])
 
 
-func test_the_scorpion_drawing_stays_in_the_sky_and_off_the_stars() -> void:
-	var drawing: Array[Vector2i] = ConstellationView.scorpion_drawing()
-	assert_gt(drawing.size(), 150, "pincers, body, legs, tail and stinger")
-	var seen: Dictionary = {}
-	for p: Vector2i in drawing:
-		assert_true(ScreenZones.SKY.has_point(p), "%s in the sky" % p)
-		assert_false(seen.has(p), "each pixel once")
-		seen[p] = true
-		for landmark: Vector2i in Scorpio.LANDMARKS:
-			assert_gt(maxi(absi(p.x - landmark.x), absi(p.y - landmark.y)), 3)
+func test_the_painting_rises_from_the_bottom() -> void:
+	var span: Vector2i = ConstellationView.figure_span()
+	assert_eq(ConstellationView.figure_front(0.0), span.y + 1)
+	assert_eq(ConstellationView.figure_front(1.0), span.x)
 
 
 func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:

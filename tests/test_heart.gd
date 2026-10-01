@@ -381,20 +381,7 @@ func test_the_heart_map() -> void:
 	for segment: int in map.segment_count():
 		var ends: Array[Vector2i] = map.segment_ends(segment)
 		assert_between(Vector2(ends[0]).distance_to(Vector2(ends[1])), 24.0, 40.0)
-	var drawing: Array[Vector2i] = ConstellationView.scorpion_drawing(map)
-	assert_gt(drawing.size(), 60, "a heart and its vessels")
-	for p: Vector2i in drawing:
-		assert_true(Scorpio.HOME_SKY.has_point(p))
-	var left: int = 0
-	var right: int = 0
-	for p: Vector2i in drawing:
-		if absi(p.y - map.landmarks[antares].y) <= 14:
-			if p.x < map.landmarks[antares].x - 8:
-				left += 1
-			elif p.x > map.landmarks[antares].x + 8:
-				right += 1
-	assert_gt(left, 4, "the heart wraps Antares' left")
-	assert_gt(right, 4, "and its right")
+	assert_eq(map.painting, StarMap.PART_PAINTING % "heart")
 	assert_eq(ConstellationView.song_order(map).size(), map.segment_count())
 
 
