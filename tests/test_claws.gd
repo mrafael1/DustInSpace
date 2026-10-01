@@ -347,7 +347,7 @@ func test_the_claws_unlock_after_the_heart() -> void:
 	assert_eq(chapter.state(4), Chapter.PointState.LOCKED, "until the Heart is won")
 	assert_eq(chapter.complete(3), 4, "winning the Heart opens the Claws")
 	assert_eq(chapter.state(4), Chapter.PointState.AVAILABLE)
-	assert_eq(chapter.complete(4), -1, "the final is already open for playtesting")
+	assert_eq(chapter.complete(4), Chapter.FINAL, "winning the Claws opens the final")
 	var saved := Chapter.new()
 	saved.from_save(chapter.to_save())
 	assert_true(saved.is_completed(4), "the win is saved")

@@ -35,7 +35,7 @@ func test_every_part_and_the_final_are_built() -> void:
 	assert_eq(chapter.map_id(2), "body")
 	assert_eq(chapter.map_id(3), "heart")
 	assert_eq(chapter.map_id(4), "claws")
-	assert_eq(chapter.map_id(Chapter.FINAL), "scorpio")
+	assert_eq(chapter.map_id(Chapter.FINAL), "final")
 	assert_eq(chapter.state(1), Chapter.PointState.LOCKED, "until the Stinger is won")
 	assert_eq(chapter.state(2), Chapter.PointState.LOCKED, "until the Tail is won")
 	assert_eq(chapter.state(3), Chapter.PointState.LOCKED, "until the Body is won")
@@ -44,10 +44,37 @@ func test_every_part_and_the_final_are_built() -> void:
 	assert_eq(chapter.current(), 0, "start at the stinger")
 
 
-func test_the_final_is_open_for_playtesting_while_the_parts_are_built() -> void:
+func test_the_final_stays_locked_until_every_part_is_won() -> void:
 	var chapter := Chapter.new()
-	assert_true(Chapter.FINAL_OPEN)
+	assert_eq(chapter.state(Chapter.FINAL), Chapter.PointState.LOCKED)
+	assert_eq(chapter.complete(Chapter.FINAL), -1, "a locked final can't be won")
+	assert_false(chapter.is_completed(Chapter.FINAL))
+	for stage: int in 4:
+		chapter.complete(stage)
+	assert_false(chapter.parts_done())
+	assert_eq(chapter.state(Chapter.FINAL), Chapter.PointState.LOCKED, "four parts aren't enough")
+	assert_eq(chapter.complete(4), Chapter.FINAL, "winning the fifth part unlocks the final")
+	assert_true(chapter.parts_done())
 	assert_eq(chapter.state(Chapter.FINAL), Chapter.PointState.AVAILABLE)
+	assert_eq(chapter.current(), Chapter.FINAL, "the final is next to play")
+	assert_eq(chapter.complete(4), -1, "a replay of the Claws unlocks nothing new")
+
+
+func test_the_final_is_the_boss_stage() -> void:
+	var map: StarMap = StarMap.by_id(Chapter.new().map_id(Chapter.FINAL))
+	assert_eq(map.id, "final")
+	assert_eq(map.title, "SCORPIO")
+	assert_true(map.boss)
+	assert_eq(map.count(), Scorpio.LANDMARKS.size(), "the full figure")
+	assert_eq(map.landmarks, Scorpio.LANDMARKS)
+	assert_eq(map.starting_lit, Scorpio.STARTING_LIT)
+	assert_true(map.orion, "the single mark")
+	assert_eq(map.volley, "volley", "the volley")
+	assert_true(map.hunt, "the hunting area")
+	assert_false(map.intros, "each threat was introduced on its own stage")
+	assert_eq(map.drawing, StarMap.Drawing.FIGURE, "completion paints the Scorpio, no line drawing")
+	assert_false(StarMap.scorpio().boss, "the plain full Scorpio stays plain")
+	assert_false(StarMap.scorpio().orion)
 
 
 func test_winning_a_part_unlocks_the_next_built_part() -> void:
@@ -64,7 +91,8 @@ func test_with_only_the_stinger_built_winning_it_opens_no_part() -> void:
 	var chapter := Chapter.new()
 	chapter.set_built(1, false)
 	assert_eq(chapter.complete(0), -1)
-	assert_eq(chapter.current(), Chapter.FINAL, "the final is next to play")
+	assert_eq(chapter.current(), 0, "nothing new to play: the last won")
+	assert_eq(chapter.state(Chapter.FINAL), Chapter.PointState.LOCKED)
 
 
 func test_a_locked_stage_cant_be_won_and_a_replay_opens_nothing_new() -> void:
@@ -79,6 +107,8 @@ func test_a_locked_stage_cant_be_won_and_a_replay_opens_nothing_new() -> void:
 
 func test_the_final_can_be_won_and_replayed() -> void:
 	var chapter := Chapter.new()
+	for stage: int in Chapter.FINAL:
+		chapter.complete(stage)
 	assert_eq(chapter.complete(Chapter.FINAL), -1)
 	assert_true(chapter.is_completed(Chapter.FINAL))
 	assert_true(chapter.is_available(Chapter.FINAL))
@@ -86,11 +116,11 @@ func test_the_final_can_be_won_and_replayed() -> void:
 
 func test_progress_round_trips_through_a_save() -> void:
 	var chapter := Chapter.new()
-	chapter.complete(0)
-	chapter.complete(Chapter.FINAL)
+	for stage: int in Chapter.stage_count():
+		chapter.complete(stage)
 	var again := Chapter.new()
 	again.from_save(chapter.to_save())
-	assert_eq(again.completed_count(), 2)
+	assert_eq(again.completed_count(), Chapter.stage_count())
 	assert_true(again.is_completed(0) and again.is_completed(Chapter.FINAL))
 
 
@@ -106,6 +136,9 @@ func test_a_bad_save_reads_as_what_it_can_prove() -> void:
 	chapter.set_built(4, false)
 	chapter.from_save({"completed": [0, 1, 2, 3, 4]})
 	assert_eq(chapter.completed_count(), 4, "not past the parts built")
+	chapter.set_built(4, true)
+	chapter.from_save({"completed": [0, 1, 2, Chapter.FINAL]})
+	assert_false(chapter.is_completed(Chapter.FINAL), "a final saved without every part doesn't count")
 
 
 func test_the_store_keeps_progress_across_instances() -> void:

@@ -87,6 +87,8 @@ func start_run(balance: Balance) -> bool:
 	for child: Node in get_children():
 		if child.has_method("setup"):
 			child.setup(run, _sequencer)
+	# The boss stage opens with Orion's entrance, once every view is bound.
+	run.play_boss_intro()
 	# A volley stage opens by showing its volley (#70), once every view is bound.
 	run.play_volley_intro()
 	# So does a hunting stage (#71): the whole cycle once, with a demo launch.

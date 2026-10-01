@@ -8,8 +8,9 @@ extends RefCounted
 
 ## How the finished drawing is traced: the whole scorpion, or only a stinger (tail bulbs and a
 ## hooked sting), or a tail (a row of bulbs), or a body (plated sides and legs), or a heart (a heart
-## round Antares, with forked vessels), or claws (a pincer opening at each claw star, #74).
-enum Drawing { SCORPION, STINGER, TAIL, BODY, HEART, CLAWS }
+## round Antares, with forked vessels), or claws (a pincer opening at each claw star, #74). The
+## final's FIGURE is no line drawing: a painted scorpion (ScorpioFigure) rises behind the stars.
+enum Drawing { SCORPION, STINGER, TAIL, BODY, HEART, CLAWS, FIGURE }
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -33,6 +34,9 @@ var hunt: bool = false
 ## Whether the stage opens by playing its threats' intros (the volley's, the hunting area's). The
 ## Claws (#74) bring threats each earlier stage already introduced, so they open without one.
 var intros: bool = true
+## The chapter's boss stage (the final): Orion opens it by showing himself and fights for the sky.
+## Presentation only; the threats above are its rules.
+var boss: bool = false
 
 
 ## The full Scorpio (#61): every star of Scorpius's figure.
@@ -136,6 +140,21 @@ static func claws() -> StarMap:
 	return map
 
 
+## The final, stage 6: the full Scorpio as a boss stage. Every star of the figure (11 to light,
+## the claw arc lit), with all three of Orion's threats at once, as on the Claws: the single mark,
+## the volley and the hunting area, and no intros. Completing it reveals the painted Scorpio.
+static func final() -> StarMap:
+	var map := scorpio()
+	map.id = "final"
+	map.drawing = Drawing.FIGURE
+	map.orion = true
+	map.volley = "volley"
+	map.hunt = true
+	map.intros = false
+	map.boss = true
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -149,6 +168,8 @@ static func by_id(p_id: String) -> StarMap:
 			return heart()
 		"claws":
 			return claws()
+		"final":
+			return final()
 	return scorpio()
 
 

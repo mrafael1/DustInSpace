@@ -53,6 +53,8 @@ signal hunt_intro_placed(stars: Array[Star])
 signal hunt_intro_launched(kind: String, burst: Vector2i)
 ## Orion's hunting intro: the demo pack burst at `burst` into `stars` (area_struck takes them next).
 signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
+## The boss stage (the final) opened: Orion shows himself before play starts. Presentation only.
+signal boss_appeared
 signal run_won
 signal run_lost
 
@@ -89,6 +91,7 @@ var hunt: Hunt
 var _rng: RandomNumberGenerator
 var _layout_rng := RandomNumberGenerator.new()
 var _next_star_id: int = 1
+var _boss_shown: bool = false
 
 
 ## `p_map`: the constellation layout when balance.json turns the constellation on (the full
@@ -500,6 +503,16 @@ func _count_for_volley() -> void:
 			stars.erase(star)
 		volley_fired.emit(victims)
 	volley_counted.emit(volley.links_left())
+
+
+## The boss stage's entrance, as it opens (the scene calls it once its views are bound, before the
+## other intros): Orion shows himself. It changes nothing in the run. Does nothing on a map that
+## isn't a boss stage, or once the run has begun.
+func play_boss_intro() -> void:
+	if scorpio == null or not scorpio.map.boss or not stars.is_empty() or is_over() or _boss_shown:
+		return
+	_boss_shown = true
+	boss_appeared.emit()
 
 
 ## Orion's volley intro, as a volley stage opens (the scene calls it once its views are bound): a

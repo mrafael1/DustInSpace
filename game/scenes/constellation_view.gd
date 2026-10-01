@@ -341,6 +341,8 @@ static func scorpion_drawing(map: StarMap = null) -> Array[Vector2i]:
 			strokes = _heart_strokes(m)
 		StarMap.Drawing.CLAWS:
 			strokes = _claws_strokes(m)
+		StarMap.Drawing.FIGURE:
+			strokes = []
 		_:
 			strokes = _scorpion_strokes(m)
 	var pixels: Array[Vector2i] = []
