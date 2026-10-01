@@ -18,7 +18,9 @@ extends Node2D
 ## Completion plays the constellation like an instrument once every payout has landed (the Sky
 ## waits): string by string from the bottom of the sky to the top, each flashing C0 and vibrating
 ## as its note sounds (string_sung). Then a drawing of the scorpion is traced around the lit
-## stars, stroke by stroke, and stays.
+## stars, stroke by stroke, and stays. The final (Drawing.FIGURE) paints it instead: the Scorpio
+## (assets/art/scorpio_figure.png) rises behind the stars from its tail to its claws, a bright edge
+## leading (C0, then C1), then the whole figure flashes C0 once and stays.
 
 ## The sunbeam reached its landmark, at `at`. Feedback only.
 signal sunbeam_landed(at: Vector2i)
@@ -63,6 +65,14 @@ const TUNE_TIME: float = 1.7
 const REVEAL_TIME: float = 1.2
 const CODA_TIME: float = 0.6
 const COMPLETION_TIME: float = TUNE_TIME + REVEAL_TIME + CODA_TIME
+## The painted Scorpio (Drawing.FIGURE): it rises over FIGURE_RISE, then flashes C0 for
+## FIGURE_FLASH, then holds for FIGURE_CODA. Drawn in home layout, like the map.
+const FIGURE := preload("res://assets/art/scorpio_figure.png")
+const FIGURE_RISE: float = 1.8
+const FIGURE_FLASH: float = 0.1
+## The finished figure holds the screen this long before the end screen.
+const FIGURE_CODA: float = 1.6
+const FIGURE_EDGE: Array[Color] = [Palette.C0, Palette.C1]
 ## A sung string vibrates: a standing wave of VIBRATE_AMPLITUDE px, VIBRATE_CYCLES swings, dying
 ## out over VIBRATE_TIME. Whole pixels, across the string.
 const VIBRATE_TIME: float = 0.5
@@ -97,6 +107,9 @@ var _revealed: bool = false
 var _drawing: Array[Vector2i] = []
 ## Landmark pixels per star size, from the star art: [unlit, lit, lit glinting].
 var _art: Array = []
+## The painted figure's opaque pixels, row by row (y -> xs), and its top and bottom rows.
+static var _figure_rows: Dictionary = {}
+static var _figure_span := Vector2i.ZERO
 
 
 func _ready() -> void:
@@ -111,6 +124,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if _run == null or _run.scorpio == null:
 		return
+	_draw_figure()
 	_draw_scorpion()
 	var map: StarMap = _map()
 	for segment: int in map.segment_count():
@@ -146,6 +160,49 @@ func setup(run: RunState) -> void:
 ## The layout drawn: the run's map (#62), or the full Scorpio without one.
 func _map() -> StarMap:
 	return _run.scorpio.map if _run != null and _run.scorpio != null else StarMap.scorpio()
+
+
+## How long the completion plays on `map`: the tune, the drawing or the rising figure, the coda.
+static func completion_time(map: StarMap = null) -> float:
+	if paints_figure(_or_full(map)):
+		return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + FIGURE_CODA
+	return COMPLETION_TIME
+
+
+## Whether `map` reveals the painted figure instead of a line drawing.
+static func paints_figure(map: StarMap) -> bool:
+	return map != null and map.drawing == StarMap.Drawing.FIGURE
+
+
+## The painted figure's opaque pixels by row (y -> Array of x), read once from its image.
+static func figure_rows() -> Dictionary:
+	if _figure_rows.is_empty():
+		var image: Image = FIGURE.get_image()
+		var top: int = image.get_height()
+		var bottom: int = -1
+		for y: int in image.get_height():
+			var xs: Array[int] = []
+			for x: int in image.get_width():
+				if image.get_pixel(x, y).a > 0.5:
+					xs.append(x)
+			if not xs.is_empty():
+				_figure_rows[y] = xs
+				top = mini(top, y)
+				bottom = maxi(bottom, y)
+		_figure_span = Vector2i(top, bottom)
+	return _figure_rows
+
+
+## The figure's top and bottom rows.
+static func figure_span() -> Vector2i:
+	figure_rows()
+	return _figure_span
+
+
+## The row the rising figure has reached `k` (0-1) of the way up: rows from it down show.
+static func figure_front(k: float) -> int:
+	var span: Vector2i = figure_span()
+	return span.y + 1 - roundi(clampf(k, 0.0, 1.0) * (span.y + 1 - span.x))
 
 
 ## Seconds between the completion tune's strings: the whole tune takes TUNE_TIME.
@@ -301,6 +358,20 @@ func is_completing() -> bool:
 
 func is_revealed() -> bool:
 	return _revealed
+
+
+## Where the painted figure stands now: -1 hidden, 0-1 rising, 2 flashing, 3 shown.
+func figure_stage() -> float:
+	if not paints_figure(_map()):
+		return -1.0
+	if _revealed:
+		return 3.0
+	if _completion_time < TUNE_TIME:
+		return -1.0
+	var t: float = _completion_time - TUNE_TIME
+	if t < FIGURE_RISE:
+		return t / FIGURE_RISE
+	return 2.0 if t < FIGURE_RISE + FIGURE_FLASH else 3.0
 
 
 ## How many of the drawing's pixels show now.
@@ -598,7 +669,7 @@ func advance(delta: float) -> void:
 		var order: Array[int] = song_order(_map())
 		for k: int in range(before + 1, mini(now, order.size() - 1) + 1):
 			string_sung.emit(order[k], k)
-		if _completion_time >= COMPLETION_TIME:
+		if _completion_time >= completion_time(_map()):
 			_completion_time = -1.0
 			_revealed = true
 		redraw = true
@@ -784,6 +855,31 @@ func _draw_vibrating(segment: int, pixels: Array[Vector2i], age: float) -> void:
 	var across := Vector2i(1, 0) if absi(along.y) > absi(along.x) else Vector2i(0, 1)
 	for i: int in pixels.size():
 		_dot(pixels[i] + across * vibration(i, pixels.size(), age), Palette.C0)
+
+
+## The painted Scorpio, as far as it has risen: the rows from its front down, the front row C0 and
+## the next C1; flashing, every pixel C0; then the painting itself.
+func _draw_figure() -> void:
+	var stage: float = figure_stage()
+	if stage < 0.0:
+		return
+	var rows: Dictionary = figure_rows()
+	if stage == 2.0:
+		for y: int in rows:
+			for x: int in rows[y]:
+				_dot(Vector2i(x, y), Palette.C0)
+		return
+	if stage >= 3.0:
+		draw_texture(FIGURE, Vector2.ZERO)
+		return
+	var size: Vector2 = FIGURE.get_size()
+	var front: int = figure_front(stage)
+	var below: int = front + FIGURE_EDGE.size()
+	if below < size.y:
+		draw_texture_rect_region(FIGURE, Rect2(0, below, size.x, size.y - below), Rect2(0, below, size.x, size.y - below))
+	for k: int in FIGURE_EDGE.size():
+		for x: int in rows.get(front + k, []):
+			_dot(Vector2i(x, front + k), FIGURE_EDGE[k])
 
 
 ## The scorpion drawing, as much of it as the pen has traced: soft N9 lines behind the stars.

@@ -16,6 +16,8 @@ extends CanvasLayer
 ## Costs light up against the shown counter: as the dust lands, the pack reacts (its one-off cue
 ## plays on the crossing). Buying works on the dust owned (shown + in flight - debt), which is never
 ## less, so a lit cost always buys; right after a collect, a grey one may buy too.
+## The boss stage (the final): as Orion enters, his title card stamps onto the middle of the sky
+## (BossBanner).
 
 ## A pack tap the run refused (the icon nudges). Feedback only (sound).
 signal tap_refused(kind: String)
@@ -79,6 +81,8 @@ var _message_left: float = 0.0
 var _orion_told: bool = false
 ## The volley countdown above Orion, shown on stages with a volley.
 var _volley := VolleyCounter.new()
+## The boss's title card, in the middle of the sky.
+var _banner := BossBanner.new()
 
 @onready var _dust: Label = $Dust
 @onready var _slot_layer: Node2D = $Slots
@@ -96,6 +100,8 @@ func _ready() -> void:
 	_volley.name = "VolleyCountdown"
 	_volley.visible = false
 	add_child(_volley)
+	_banner.name = "BossBanner"
+	add_child(_banner)
 
 
 func _process(delta: float) -> void:
@@ -136,6 +142,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	if run.volley != null:
 		_volley.position = Vector2(run.sky_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
 		_volley.reset(run.volley.links_left(), run.volley.interval)
+	_banner.position = Vector2(run.sky_rect.get_center())
+	_banner.hide_card()
 	_press([])
 	refresh()
 
@@ -299,6 +307,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"volley_fired":
 			_volley.fire()
 			return
+		&"boss_appeared":
+			_banner.play()
+			return
 		&"star_marked":
 			if not _orion_told:
 				_orion_told = true
@@ -312,6 +323,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		_:
 			return
 	_show()
+
+
+func boss_banner() -> BossBanner:
+	return _banner
 
 
 func volley_countdown() -> String:
