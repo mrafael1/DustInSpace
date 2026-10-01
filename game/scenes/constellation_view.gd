@@ -2,10 +2,11 @@ class_name ConstellationView
 extends Node2D
 ## Draws the Scorpio map (#40) under the stars. Each landmark is drawn with the star art of its
 ## size, so a small, medium or big landmark has the shape of the sky star it can stand in for.
-## Unlit (usable in a combo), it uses the art's "unlit" frame, a cool tint per size (small pink,
-## medium lavender, big blue), and four small corner brackets in the dim halo tones (C4/C5, swapping
-## every CUE_STEP) say "you can pick this". Lit, it uses the "gold" frame: the same gold on every
-## size, so gold only ever means lit. Strings between two lit landmarks glow C1 with a C0 glint
+## It looks exactly like the sky star it stands in for, in shape and colour (small orange, medium
+## gold, big blue-white): lighting it never changes its colour. Unlit (usable in a combo), it's the
+## still idle frame, with four small corner brackets in the dim halo tones (C4/C5, swapping every
+## CUE_STEP) that say "you can pick this". Lit, it comes alive like a sky star: its halo, and the
+## twinkle (the glint frame for a moment every StarView.TWINKLE_PERIOD). Strings between two lit landmarks glow C1 with a C0 glint
 ## running along them; strings still to form are dotted N8. While a link is traced, the landmarks
 ## in it show gold and the strings it would form are dashed C2. Like the HUD and the Sun it keeps
 ## a shown copy of what's lit, moved only by played landmark_lit events, so a landmark the Sun
@@ -79,13 +80,13 @@ var _completion_time: float = -1.0
 ## The scorpion drawing is fully shown (after a completion, until the next run).
 var _revealed: bool = false
 var _drawing: Array[Vector2i] = []
-## Landmark pixels per star size, from the star art: [unlit, lit].
+## Landmark pixels per star size, from the star art: [idle, glint].
 var _art: Array = []
 
 
 func _ready() -> void:
 	for size: int in 3:
-		_art.append([landmark_pixels(size, false), landmark_pixels(size, true)])
+		_art.append([landmark_pixels(size), landmark_pixels(size, true)])
 
 
 func _process(delta: float) -> void:
@@ -523,10 +524,11 @@ func glow_step() -> int:
 func advance(delta: float) -> void:
 	var step: int = glow_step()
 	var cue: int = cue_frame()
+	var twinkling: Array[bool] = _twinkling()
 	_time += delta
 	var mapped: bool = _run != null and _run.scorpio != null
 	var redraw: bool = mapped and ((glow_step() != step and _shown_lit.count(true) > 1) \
-		or (cue_frame() != cue and _shown_lit.has(false)))
+		or (cue_frame() != cue and _shown_lit.has(false)) or _twinkling() != twinkling)
 	if _flash_left > 0.0:
 		_flash_left = maxf(_flash_left - delta, 0.0)
 		redraw = true
@@ -579,9 +581,16 @@ static func star_pixels(size: int, frame: StringName = &"idle") -> Dictionary[Ve
 	return dots
 
 
-## A landmark's pixels: gold when lit (or in the link being traced), its size's cool tint otherwise.
-static func landmark_pixels(size: int, lit: bool) -> Dictionary[Vector2i, Color]:
-	return star_pixels(size, &"gold" if lit else &"unlit")
+## A landmark's pixels: the sky star's of its size, lit or not; `glinting` for its twinkle's moment.
+static func landmark_pixels(size: int, glinting: bool = false) -> Dictionary[Vector2i, Color]:
+	return star_pixels(size, &"glint" if glinting else &"idle")
+
+
+## Whether lit landmark `index` shows its twinkle's glint `time` seconds in: like a sky star, for
+## StarView.GLINT_TIME every StarView.TWINKLE_PERIOD, each landmark at its own phase.
+static func twinkles(index: int, time: float) -> bool:
+	var phase: float = fposmod(index * 0.618, 1.0) * StarView.TWINKLE_PERIOD
+	return fposmod(time + phase, StarView.TWINKLE_PERIOD) < StarView.GLINT_TIME
 
 
 func _draw_string(segment: int) -> void:
@@ -616,6 +625,14 @@ static func cue_pixels(size: int) -> Array[Vector2i]:
 	return dots
 
 
+## Which landmarks show their twinkle's glint now (lit ones only).
+func _twinkling() -> Array[bool]:
+	var found: Array[bool] = []
+	for i: int in _shown_lit.size():
+		found.append(_shown_lit[i] and twinkles(i, _time))
+	return found
+
+
 ## Whether landmark `index` shows lit: its landmark_lit event has played (or it was lit at setup).
 func shows_lit(index: int) -> bool:
 	return index < _shown_lit.size() and _shown_lit[index]
@@ -646,7 +663,12 @@ func _draw_landmark(index: int) -> void:
 			_dot(_map().landmarks[index] + d, colour)
 	var lit: bool = shows_lit(index) or _selected.has(index)
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
-	var dots: Dictionary = _art[_map().sizes[index]][1 if lit else 0]
+	if lit and not flash:
+		var halo: Dictionary[Vector2i, Color] = StarView.halo_pixels(_map().sizes[index] as Star.Size)
+		for d: Vector2i in halo:
+			_dot(_map().landmarks[index] + d, halo[d])
+	var glinting: bool = shows_lit(index) and twinkles(index, _time)
+	var dots: Dictionary = _art[_map().sizes[index]][1 if glinting else 0]
 	for d: Vector2i in dots:
 		_dot(_map().landmarks[index] + d, Palette.C0 if flash else dots[d])
 
@@ -658,7 +680,7 @@ func _draw_completion() -> void:
 	for k: int in played:
 		var segment: int = order[k]
 		for index: int in _map().segment_landmarks(segment):
-			var dots: Dictionary = _art[_map().sizes[index]][1]
+			var dots: Dictionary = _art[_map().sizes[index]][0]
 			for d: Vector2i in dots:
 				_dot(_map().landmarks[index] + d, Palette.C0 if dots[d] != Palette.C3 else Palette.C1)
 
