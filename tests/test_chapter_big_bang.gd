@@ -1,7 +1,8 @@
 extends GutTest
-## Big Bangs are off on constellation stages (scorpio.big_bang false): the roll is still made, so
-## every pack's contents stay the same, but it never comes up. The debug trigger still forces one,
-## and the plain Sun stage keeps them.
+## Big Bangs are off on constellation stages (scorpio.big_bang false): the roll is still made but
+## never comes up. Packs open as they would with them on until a roll that would have come up; that
+## pack draws its stars instead, so the stream moves on from there. The debug trigger still forces
+## one, and the plain Sun stage keeps them.
 
 const Fixtures := preload("res://tests/fixtures.gd")
 
@@ -45,7 +46,7 @@ func test_the_plain_stage_keeps_them() -> void:
 	assert_eq(bangs.size(), 1, "a certain Big Bang comes up")
 
 
-func test_switching_them_off_keeps_every_packs_stars() -> void:
+func test_switching_them_off_keeps_the_packs_whose_roll_fails() -> void:
 	var data: Dictionary = _data(true)
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
 	data["packs"]["red"]["big_bang_chance"] = 0.0
@@ -62,6 +63,25 @@ func test_switching_them_off_keeps_every_packs_stars() -> void:
 	assert_eq(skies[0], skies[1], "the same RNG stream either way")
 
 
+## A roll that would have come up: the pack draws its stars instead of opening empty, and those
+## draws move the stream on, so the next pack differs from the one it follows with the switch on.
+func test_a_stopped_big_bang_draws_its_stars_and_moves_the_stream_on() -> void:
+	var pack: Balance.PackDef = _balance(true).packs["blue"]
+	var calm: Balance.PackDef = _balance_with_chance(0.0).packs["blue"]
+	var on_rng: RandomNumberGenerator = Fixtures.rng(3)
+	var off_rng: RandomNumberGenerator = Fixtures.rng(3)
+	var on: PackOpener.PackResult = PackOpener.open(pack, on_rng, false, true)
+	var off: PackOpener.PackResult = PackOpener.open(pack, off_rng, false, false)
+	assert_true(on.big_bang)
+	assert_true(on.sizes.is_empty())
+	assert_false(off.big_bang, "stopped")
+	assert_eq(off.sizes.size(), pack.stars, "it opens into its stars instead")
+	var next_on: PackOpener.PackResult = PackOpener.open(calm, on_rng, false, true)
+	var next_off: PackOpener.PackResult = PackOpener.open(calm, off_rng, false, false)
+	assert_eq(next_on.sizes.size(), next_off.sizes.size())
+	assert_ne(next_on.sizes, next_off.sizes, "seed 3: the stopped pack's draws shifted the next one")
+
+
 ## Every pack opens as a Big Bang unless the switch stops it.
 func _data(big_bang: bool) -> Dictionary:
 	var data: Dictionary = Fixtures.balance_dict()
@@ -73,3 +93,9 @@ func _data(big_bang: bool) -> Dictionary:
 
 func _balance(big_bang: bool) -> Balance:
 	return Balance.from_dict(_data(big_bang))
+
+
+func _balance_with_chance(chance: float) -> Balance:
+	var data: Dictionary = _data(true)
+	data["packs"]["blue"]["big_bang_chance"] = chance
+	return Balance.from_dict(data)

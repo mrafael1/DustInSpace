@@ -3,8 +3,9 @@ extends RefCounted
 ## Opens a pack: rolls the Big Bang once, before any stars are drawn, then draws
 ## each star independently from the pack's weights. Positions are not decided here,
 ## so where a pack bursts can never change what is inside it.
-## Where Big Bangs are off (a constellation stage, scorpio.big_bang), the roll is still made, so the
-## RNG stream and every pack's contents stay the same, but it never comes up.
+## Where Big Bangs are off (a constellation stage, scorpio.big_bang), the roll is still made but
+## never comes up. A pack whose roll fails opens exactly as it would with them on. One whose roll
+## succeeds draws its stars instead of opening empty, so the packs after it differ from then on.
 
 
 class PackResult:
