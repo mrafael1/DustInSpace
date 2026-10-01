@@ -85,6 +85,8 @@ var _volley := VolleyCounter.new()
 var _banner := BossBanner.new()
 ## The guided first run's guide: a line and a pointing hand.
 var _guide := TutorialView.new()
+## Where the Sun is (Main sets it), for the guide's hand.
+var sun_at: Vector2i = Vector2i(90, 39)
 
 @onready var _dust: Label = $Dust
 @onready var _slot_layer: Node2D = $Slots
@@ -229,6 +231,13 @@ func slot(kind: String) -> PackSlot:
 
 ## Feeds one touch (in screen coordinates). Returns true if it was used.
 func handle_pointer(event: InputEvent) -> bool:
+	# A tutorial step that only explains takes every touch but MAP's: a tap goes on.
+	var on_map: bool = event is InputEventScreenTouch and _map.visible and _map.target().has_point(Vector2i((event as InputEventScreenTouch).position.floor()))
+	if _guide.waits_for_tap() and _run != null and not on_map:
+		var tap := event as InputEventScreenTouch
+		if tap != null and not tap.pressed and not tap.canceled:
+			_run.tutorial_continue()
+		return event is InputEventScreenTouch or event is InputEventScreenDrag
 	var touch := event as InputEventScreenTouch
 	if touch == null or touch.index != 0 or _run == null:
 		return false
@@ -348,20 +357,72 @@ func buy_button_at(kind: String) -> Vector2i:
 func _show_tutorial_step(step: int) -> void:
 	var card_top: int = _run.sky_rect.position.y + TutorialView.CARD_TOP
 	match step:
+		Tutorial.Step.GOAL:
+			var index: int = _run.rekindle_target()
+			_guide.show_step(step, _landmark_top(index), index >= 0, TutorialView.Point.DOWN, card_top)
+		Tutorial.Step.SUN:
+			# From the left: the Sun sits at the top of the screen, with no room above it.
+			_guide.show_step(step, sun_at - Vector2i(SunView.RADIUS + 2, 0), true, TutorialView.Point.RIGHT, card_top)
 		Tutorial.Step.LAUNCH:
 			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12), true)
 		Tutorial.Step.LINK:
-			var star: Star = _run.stars[0] if not _run.stars.is_empty() else null
-			_guide.show_step(step, star.position if star != null else Vector2i.ZERO, star != null, TutorialView.Point.DOWN, card_top)
+			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, card_top)
+			var ids: Array[int] = []
+			for star: Star in _run.stars:
+				ids.append(star.id)
+			_guide.follow_path(_reachable_order(ids), _link_positions(_reachable_order(ids)))
 		Tutorial.Step.LAUNCH_NEAR, Tutorial.Step.LIGHT:
 			var index: int = _run.tutorial.landmark
 			var at: Vector2i = _run.scorpio.landmark_position(index)
 			var size: int = _run.scorpio.map.sizes[index]
 			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size)), true, TutorialView.Point.DOWN, card_top, size)
+			if step == Tutorial.Step.LIGHT:
+				var pair: Array[int] = []
+				for star: Star in _run.stars:
+					if star.size == size and pair.size() < 2:
+						pair.append(star.id)
+				if pair.size() == 2:
+					var path: Array[int] = _reachable_order([pair[0], Scorpio.landmark_id(index), pair[1]])
+					_guide.follow_path(path, _link_positions(path))
 		Tutorial.Step.BUY:
 			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT)
 		_:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, card_top)
+
+
+## The link being traced changed: the tutorial's hand moves on to the next star to pick.
+func follow_link(ids: Array[int]) -> void:
+	_guide.follow(ids)
+
+
+## Where the hand points above a landmark (its art's top).
+func _landmark_top(index: int) -> Vector2i:
+	if index < 0:
+		return Vector2i.ZERO
+	return _run.scorpio.landmark_position(index) - Vector2i(0, StarView.half_extent(_run.scorpio.map.sizes[index] as Star.Size))
+
+
+## `ids` in an order whose every step is in reach (the order the hand teaches).
+func _reachable_order(ids: Array[int]) -> Array[int]:
+	if ids.size() != 3:
+		return ids
+	for p: Array in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]]:
+		var order: Array[int] = [ids[p[0]], ids[p[1]], ids[p[2]]]
+		if _run.link_in_reach(order):
+			return order
+	return ids
+
+
+## Where the hand points above each of `ids` (a sky star or a landmark): its art's top.
+func _link_positions(ids: Array[int]) -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	for id: int in ids:
+		if _run.scorpio != null and _run.scorpio.is_landmark(id):
+			points.append(_landmark_top(Scorpio.landmark_index(id)))
+		else:
+			var star: Star = _run.find_star(id)
+			points.append(star.position - Vector2i(0, StarView.half_extent(star.size)) if star != null else Vector2i.ZERO)
+	return points
 
 
 func boss_banner() -> BossBanner:

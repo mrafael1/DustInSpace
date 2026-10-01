@@ -31,6 +31,9 @@ signal star_selected(count: int)
 signal sunbeam_launched
 ## Scorpio: the sunbeam reached its landmark at `at` (it lights now). Feedback only (sparks, sound).
 signal sunbeam_landed(at: Vector2i)
+## The link being traced changed: `ids` are in it now, in order (empty once it ends). Feedback only
+## (the tutorial's hand follows it).
+signal link_traced(ids: Array[int])
 ## Scorpio: a second landmark was picked for one link; the link was dropped at once. Feedback only.
 signal link_refused
 ## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
@@ -283,6 +286,7 @@ func _on_selection_changed(ids: Array[int]) -> void:
 		star_selected.emit(ids.size())
 	_selected_count = ids.size()
 	_show_link()
+	link_traced.emit(ids)
 
 
 ## The link hint (playtest): while a link is traced, the stars and landmarks that could come next

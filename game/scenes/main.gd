@@ -70,6 +70,7 @@ func _ready() -> void:
 	_hud.map_requested.connect(map_requested.emit)
 	_end_screen.watch_payouts(_collect)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
+	_sky.link_traced.connect(_hud.follow_link)
 	_telescope.message_shown.connect(_hud.show_message)
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
 	switch_launcher(use_telescope)
@@ -132,6 +133,7 @@ func fit_screen() -> void:
 	# sky: the next one (RESTART) takes the new size.
 	_extra = offset.y
 	_sun.position = Vector2(ScreenZones.sun_centre(_extra))
+	_hud.sun_at = ScreenZones.sun_centre(_extra)
 	_collect.light_target = ScreenZones.sun_centre(_extra)
 
 

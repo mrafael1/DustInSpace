@@ -10,9 +10,18 @@ extends Node2D
 ## same size as the constellation star is lit, and both, with OR between them, as free play starts.
 ## The card is a plaque (N0 fill, N6 border, clipped corners) with the stars spaced in a row: no sign
 ## between them (a plus read as one more small star, which is plus-shaped).
+## While a link is taught, the hand goes from star to star in an order that stays in reach
+## (follow_path), moving on as each is picked (follow); once one is picked the line explains the link
+## hint: the stars that can come next shine. The steps that only explain something (the goal, what
+## links give) take a line or two and say TAP TO CONTINUE (N8) below; the HUD sends the tap.
 
-## Where the line sits (the HUD's message line) and how long free play's line stays.
+## Where the line sits (the HUD's message line; a second line goes above it, LINE_STEP up) and how
+## long free play's line stays.
 const LINE_Y: int = 262
+const LINE_STEP: int = 11
+const TAP_TEXT: String = "TAP TO CONTINUE"
+## While a link is traced: the stars that can come next shine (the link hint).
+const SHINE_TEXT: String = "SHINING STARS CAN COME NEXT"
 const DONE_TIME: float = 4.0
 ## The combo card: CARD_TOP px below the sky's top edge, CARD_PAD px inside its border, STAR_GAP px
 ## between two stars, OR_GAP px either side of the OR between two combos.
@@ -21,13 +30,16 @@ const CARD_PAD: int = 4
 const STAR_GAP: int = 5
 const OR_GAP: int = 5
 const OR_TEXT: String = "OR"
+## Each step's line (the 5x7 font has letters, digits and + - / only: no punctuation).
 const TEXTS: Dictionary = {
+	Tutorial.Step.GOAL: "LIGHT EVERY STAR OF THE\nCONSTELLATION TO WIN",
 	Tutorial.Step.LAUNCH: "TAP THE SKY TO LAUNCH",
 	Tutorial.Step.LINK: "LINK ONE OF EACH SIZE",
+	Tutorial.Step.SUN: "LINKS GIVE LIGHT AND DUST\nA FULL SUN LIGHTS A STAR",
 	Tutorial.Step.LAUNCH_NEAR: "LAUNCH NEXT TO THIS STAR",
 	Tutorial.Step.LIGHT: "LINK 3 OF THE SAME SIZE",
-	Tutorial.Step.BUY: "BUY A PLANET",
-	Tutorial.Step.DONE: "LIGHT EVERY STAR",
+	Tutorial.Step.BUY: "SPEND DUST ON A PLANET",
+	Tutorial.Step.DONE: "LIGHT EVERY STAR TO WIN",
 }
 ## The hand, pointing down, as rows (top to bottom): X outline (N0), C fill (C0), S shade (C1); its
 ## fingertip is the bottom pixel of column TIP_X. It stands GAP px off what it points at.
@@ -64,18 +76,32 @@ var _label: Label
 var _combos: Array = []
 var _card_top: int = 0
 var _or: Label
+var _tap: Label
+## The link the hand teaches: the ids to pick in order and where it points for each.
+var _path: Array[int] = []
+var _path_points: Array[Vector2i] = []
+var _picked: int = 0
 
 
 func _ready() -> void:
 	_label = Label.new()
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_label.label_settings = HudText.primary(Palette.C1)
+	# Two lines sit LINE_STEP apart: the font's 7 px, its shadow and a gap.
+	_label.label_settings.line_spacing = LINE_STEP - 7 - 2
 	add_child(_label)
 	_or = Label.new()
 	_or.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_or.label_settings = HudText.primary(Palette.C1)
 	_or.text = OR_TEXT
 	add_child(_or)
+	_tap = Label.new()
+	_tap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tap.label_settings = HudText.primary(Palette.N8)
+	_tap.text = TAP_TEXT
+	add_child(_tap)
+	_tap.size = _tap.get_minimum_size()
+	_tap.position = Vector2(ScreenZones.SCREEN.x / 2 - floori(_tap.size.x / 2.0), LINE_Y + LINE_STEP)
 	hide_guide()
 
 
@@ -109,10 +135,11 @@ func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = f
 	_has_target = has_target and step != Tutorial.Step.DONE
 	_point = point
 	_time = 0.0
-	_label.text = TEXTS.get(step, "")
-	_label.size = _label.get_minimum_size()
-	_label.position = Vector2(ScreenZones.SCREEN.x / 2 - floori(_label.size.x / 2.0), LINE_Y)
-	_label.visible = true
+	_path.clear()
+	_path_points.clear()
+	_picked = 0
+	_set_text(TEXTS.get(step, ""))
+	_tap.visible = Tutorial.is_info(step)
 	_lay_out_card()
 	visible = true
 	queue_redraw()
@@ -128,8 +155,50 @@ func step() -> int:
 	return _step
 
 
+## Whether the step only explains something and waits for a tap.
+func waits_for_tap() -> bool:
+	return visible and _step >= 0 and Tutorial.is_info(_step)
+
+
+## The link this step teaches: `ids` to pick in this order, the hand pointing at `points` (one each).
+func follow_path(ids: Array[int], points: Array[Vector2i]) -> void:
+	_path = ids.duplicate()
+	_path_points = points.duplicate()
+	follow([])
+
+
+## The link being traced now holds `selected`: the hand points at the first star of the path not in
+## it, and once one is picked the line says the stars that can come next shine.
+func follow(selected: Array[int]) -> void:
+	if _path.is_empty() or not visible:
+		return
+	_picked = 0
+	for k: int in _path.size():
+		if selected.has(_path[k]):
+			_picked += 1
+	var next: int = -1
+	for k: int in _path.size():
+		if not selected.has(_path[k]):
+			next = k
+			break
+	_has_target = next >= 0
+	if next >= 0:
+		_target = _path_points[next]
+	_set_text(SHINE_TEXT if not selected.is_empty() else TEXTS.get(_step, ""))
+	queue_redraw()
+
+
+## Where the hand points now (its target, before the bob and gap).
+func target() -> Vector2i:
+	return _target
+
+
 func text() -> String:
 	return _label.text if visible and _label.visible else ""
+
+
+func shows_tap_hint() -> bool:
+	return visible and _tap.visible
 
 
 func has_hand() -> bool:
@@ -209,6 +278,16 @@ func _draw() -> void:
 	var dots: Dictionary[Vector2i, Color] = hand_pixels(fingertip(), _point)
 	for p: Vector2i in dots:
 		draw_rect(Rect2(Vector2(p), Vector2.ONE), dots[p])
+
+
+## The line(s): one line sits on LINE_Y; a second line pushes the first up by LINE_STEP.
+func _set_text(value: String) -> void:
+	_label.text = value
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var lines: int = value.count("\n") + 1
+	_label.size = Vector2(ScreenZones.SCREEN.x, _label.get_minimum_size().y)
+	_label.position = Vector2(0, LINE_Y - (lines - 1) * LINE_STEP)
+	_label.visible = true
 
 
 func _or_width() -> int:
