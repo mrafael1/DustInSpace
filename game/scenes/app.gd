@@ -5,8 +5,9 @@ extends Node
 ## once (Main.stage_won): the chapter records it and saves it (ProgressStore), and back on the
 ## chart its stars light and a comet travels to the stage it opened. Owns no rules: Chapter keeps the progress.
 ## Fills the window like Main (a whole-number scale, the game's screen on the bottom edge).
-## Debug builds, on the chart: U wins every part (not saved) and plays the final's unlock; F wins
-## the final too (not saved) and plays its painted Scorpio rising.
+## Debug builds, on the chart: U previews every part won and plays the final's unlock; F previews
+## the final won too and plays its painted Scorpio rising. A preview is a copy of the chapter shown
+## on the chart only: it is never saved and never unlocks a stage; opening a stage drops it.
 
 ## A stage was opened (tests and feedback).
 signal stage_opened(point: int)
@@ -24,6 +25,8 @@ var _stage_point: int = -1
 ## Back from a win: the point it completed and the one it unlocked (-1 for none).
 var _won_point: int = -1
 var _unlocked: int = -1
+## Debug: the chapter copy the chart previews, or null.
+var _preview: Chapter
 
 @onready var _chart: ChapterSelect = $ChapterSelect
 
@@ -51,18 +54,37 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Debug: every part won (not saved), then the chart plays the final's unlock.
+## Debug: previews every part won, then the chart plays the final's unlock.
 func debug_win_parts() -> void:
-	for stage: int in Chapter.FINAL:
-		chapter.complete(stage)
+	_show_preview(Chapter.FINAL)
 	_chart.show_progress(Chapter.FINAL - 1, Chapter.FINAL)
 
 
-## Debug: every stage won (not saved), then the chart plays the final's win.
+## Debug: previews every stage won, then the chart plays the final's win.
 func debug_win_final() -> void:
-	for stage: int in Chapter.stage_count():
-		chapter.complete(stage)
+	_show_preview(Chapter.stage_count())
 	_chart.show_progress(Chapter.FINAL, -1)
+
+
+func is_previewing() -> bool:
+	return _preview != null
+
+
+## The chart shows a copy of the chapter with the first `stages` stages won; the chapter itself
+## (what's saved and what opens) is untouched.
+func _show_preview(stages: int) -> void:
+	_preview = Chapter.new()
+	_preview.from_save(chapter.to_save())
+	for stage: int in stages:
+		_preview.complete(stage)
+	_chart.setup(_preview)
+
+
+func _end_preview() -> void:
+	if _preview == null:
+		return
+	_preview = null
+	_chart.setup(chapter)
 
 
 ## The stage in play, or null on the chart.
@@ -72,6 +94,7 @@ func stage() -> Main:
 
 ## Opens stage `point` (only one that can be played).
 func open_stage(point: int) -> void:
+	_end_preview()
 	if _stage != null or chapter.state(point) == Chapter.PointState.LOCKED:
 		return
 	_stage_point = point
