@@ -86,7 +86,27 @@ func test_it_is_one_launch_for_orions_circle() -> void:
 
 
 func test_the_twins_dart_apart_and_burst_where_they_land() -> void:
-	var run: RunState = _run()
+	for aim: Vector2i in [Vector2i(90, 150), Vector2i(8, 150), Vector2i(172, 150)]:
+		var run: RunState = _run()
+		var played: Array = _play_launch(run, aim)
+		assert_eq(played[0], 2, "two planets after the split at %s" % aim)
+		assert_eq(played[1], 0, "both burst at %s" % aim)
+		assert_false(played[2], "the sequence ends at %s" % aim)
+
+
+func test_a_big_bang_takes_both_twins_even_at_an_edge() -> void:
+	for aim: Vector2i in [Vector2i(90, 150), Vector2i(8, 150), Vector2i(172, 150)]:
+		var run: RunState = _run()
+		run.force_next_big_bang = true
+		var played: Array = _play_launch(run, aim)
+		assert_eq(played[0], 2, "it splits first at %s" % aim)
+		assert_eq(played[1], 0, "no twin left behind at %s" % aim)
+		assert_false(played[2], "the sequence ends at %s" % aim)
+
+
+## Launches `run`'s loaded pack at `aim` through a telescope and plays it out. Returns
+## [most twins shown, twins shown at the end, sequencer still busy].
+func _play_launch(run: RunState, aim: Vector2i) -> Array:
 	var sequencer := EventSequencer.new()
 	add_child_autofree(sequencer)
 	sequencer.set_process(false)
@@ -96,17 +116,15 @@ func test_the_twins_dart_apart_and_burst_where_they_land() -> void:
 	add_child_autofree(scope)
 	scope.set_process(false)
 	scope.setup(run, sequencer)
-	scope.aim_at(Vector2i(90, 150))
+	scope.aim_at(aim)
 	assert_eq(scope.burst_points(), StarScatter.split_points(scope.burst_preview(), 44, 2, Fixtures.SKY), "the aim previews both bursts")
 	run.launch(scope.burst_preview())
 	var most: int = 0
-	for frame: int in 240:
+	for frame: int in 600:
 		sequencer.advance(STEP)
 		scope.advance(STEP)
 		most = maxi(most, scope.twins_shown())
-	assert_eq(most, 2, "two planets after the split")
-	assert_eq(scope.twins_shown(), 0, "both burst")
-	assert_false(sequencer.is_busy())
+	return [most, scope.twins_shown(), sequencer.is_busy()]
 
 
 func _record(run: RunState) -> void:

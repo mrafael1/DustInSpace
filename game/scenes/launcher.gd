@@ -279,8 +279,12 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_launch_view(event.args[0], event.args[1])
 		&"pack_split":
 			_split_view(event.args[0], event.args[1], event.args[2])
-		&"pack_burst", &"big_bang_started":
-			_burst_view(event.args[0] if event.type == &"big_bang_started" else event.args[1])
+		&"pack_burst":
+			_burst_view(event.args[1])
+		&"big_bang_started":
+			# A Big Bang bursts at the aim: the twins go with it, wherever they are.
+			_end_split()
+			_burst_view(event.args[0])
 		&"hunt_intro_launched":
 			_demo_launch_view(event.args[0], event.args[1])
 		&"hunt_intro_burst":
@@ -353,8 +357,7 @@ func _burst_view(burst: Vector2i) -> void:
 	var twin: int = _split_to.find(burst - origin())
 	if twin >= 0:
 		_twins[twin].visible = false
-	# A Big Bang bursts at the aim: the twins go with it.
-	if twin < 0 or twins_shown() == 0:
+	if twins_shown() == 0:
 		_end_split()
 	_burst_at = burst - origin()
 	_burst_time = 0.0
