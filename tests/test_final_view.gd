@@ -228,3 +228,63 @@ func test_the_chart_paints_the_scorpio_once_the_final_is_won() -> void:
 		chart.advance(STEP)
 	assert_false(chart.is_figure_rising())
 	assert_true(chart.shows_figure())
+
+
+func test_play_waits_for_the_finals_unlock() -> void:
+	var chart: ChapterSelect = ChartScene.instantiate()
+	add_child_autofree(chart)
+	chart.set_process(false)
+	var chapter := Chapter.new()
+	for stage: int in Chapter.FINAL:
+		chapter.complete(stage)
+	chart.setup(chapter)
+	chart.show_progress(4, Chapter.FINAL)
+	watch_signals(chart)
+	var play: Vector2i = ChapterSelect.play_rect().get_center()
+	# While the Claws light, then while the comets fly and the crown charges.
+	for wait: float in [0.1, ChapterSelect.LIGHT_TIME + 0.1, ChapterSelect.LIGHT_TIME + ChapterSelect.UNLOCK_TIME - 0.2]:
+		while chart.get("_time") < wait:
+			chart.advance(STEP)
+		assert_true(chart.is_unlocking())
+		assert_false(chart.can_play(), "no PLAY while the unlock plays")
+		assert_false((chart.get_node("Play") as Label).visible)
+		_tap(chart, play)
+	assert_signal_not_emitted(chart, "stage_chosen", "the Claws never reopen mid-unlock")
+	for frame: int in 30:
+		chart.advance(STEP)
+	assert_false(chart.is_unlocking())
+	assert_eq(chart.selected(), Chapter.FINAL)
+	assert_true((chart.get_node("Play") as Label).visible)
+	_tap(chart, play)
+	assert_signal_emitted_with_parameters(chart, "stage_chosen", [Chapter.FINAL])
+
+
+func test_debug_previews_never_reach_the_save() -> void:
+	var path: String = "user://test_final_preview_%d.json" % randi()
+	var app: App = (load("res://game/scenes/app.tscn") as PackedScene).instantiate()
+	app.progress_path = path
+	add_child_autofree(app)
+	app.debug_win_final()
+	assert_true(app.is_previewing())
+	assert_false(app.chapter.is_completed(0), "the chapter itself is untouched")
+	app.open_stage(Chapter.FINAL)
+	assert_null(app.stage(), "a preview never opens the final")
+	assert_false(app.is_previewing(), "opening a stage drops the preview")
+	app.debug_win_parts()
+	app.open_stage(0)
+	assert_not_null(app.stage())
+	app.stage().stage_won.emit()
+	var again := Chapter.new()
+	again.from_save(ProgressStore.new(path).load_chapter(Chapter.ID))
+	assert_eq(again.completed_count(), 1, "only the stage really won")
+	assert_true(again.is_completed(0))
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _tap(chart: ChapterSelect, at: Vector2i) -> void:
+	for pressed: bool in [true, false]:
+		var touch := InputEventScreenTouch.new()
+		touch.position = Vector2(at)
+		touch.pressed = pressed
+		chart.handle_pointer(touch)
