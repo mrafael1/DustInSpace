@@ -324,18 +324,14 @@ func _on_join_refused(ids: Array[int], id: int) -> void:
 
 
 ## Line through the selected stars (and to the finger while dragging), plus the reward preview.
-## With a reach, the ring around the last star picked shows how far the next step can go, and the
-## line to the finger goes loose past it.
+## With a reach, the line to the finger goes loose past it.
 func _show_link() -> void:
 	var points: Array[Vector2i] = _positions_of_ids(_gesture.selected)
-	var open: bool = not points.is_empty() and points.size() < Combos.LINK_LENGTH
 	var loose: bool = false
 	if _gesture.is_dragging() and points.size() < Combos.LINK_LENGTH:
 		loose = not points.is_empty() and not _run.in_reach(points[-1], _finger)
 		points.append(_finger)
 	_link_layer.show_path(points, loose)
-	var reach: int = _run.link_reach() if _run != null else 0
-	_link_layer.show_reach(points[_gesture.selected.size() - 1] if open else Vector2i.ZERO, reach if open else 0)
 	_show_preview()
 	# Orion readies his bow while the link would leave his mark behind (the sight line holds on it),
 	# or loose the volley.

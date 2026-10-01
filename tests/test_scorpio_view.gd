@@ -466,18 +466,17 @@ func test_a_selected_landmarks_ring_redraws_on_its_own_frame_change() -> void:
 	assert_gt(redraws[0], 0, "the ring's next dash frame is drawn")
 
 
-func test_the_reach_ring_shows_around_the_last_star_picked() -> void:
+func test_the_reach_shows_as_the_stars_out_of_it_dimming() -> void:
 	_reach_run()
-	var link_layer: LinkLayer = main.get_node("Sky/LinkLayer")
 	var a: Star = _star(Star.Size.SMALL, Vector2i(40, 120))
-	assert_eq(link_layer.reach_radius(), 0, "nothing picked: no ring")
+	var b: Star = _star(Star.Size.SMALL, Vector2i(60, 120))
+	_star(Star.Size.SMALL, Vector2i(50, 135))
+	var far: Star = _star(Star.Size.SMALL, Vector2i(170, 240))
 	_tap(a.position)
-	assert_eq(link_layer.reach_radius(), 56)
-	assert_eq(link_layer.get("_reach_center"), a.position)
-	for p: Vector2i in LinkLayer.reach_ring(a.position, 56):
-		assert_almost_eq(Vector2(p - a.position).length(), 56.0, 1.0, "on the ring, whole pixels")
-	_tap(Vector2i(170, 240))
-	assert_eq(link_layer.reach_radius(), 0, "gone with the link")
+	assert_false(sky.star_view(b.id).dimmed, "in reach")
+	assert_true(sky.star_view(far.id).dimmed, "the same size, out of reach")
+	_tap(a.position)
+	assert_false(sky.star_view(far.id).dimmed, "playable again once the pick is released")
 
 
 func test_dragging_past_the_reach_loosens_the_line() -> void:

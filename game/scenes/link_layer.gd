@@ -4,9 +4,9 @@ extends Node2D
 ## Sits under the StarLayer, so a line runs between stars without covering them.
 ## Link line (art-direction.md): 1 px C1 with a C0 pulse every 5 px and a C5 checker glow alongside.
 ## Owns no rules: Sky tells it which points to join and whether a link was collected or rejected.
-## Reach (Scorpio): while a link is traced, a dotted M5 ring shows how far its next step can go,
-## and the line to the finger turns into sparse M5 dots when the finger is out of reach. Cool and
-## light, so it reads on every band of the sky without looking like a link.
+## Reach (Scorpio): the line to the finger turns into sparse M5 dots when the finger is out of
+## reach. Cool and light, so it reads on every band of the sky without looking like a link. (Which
+## stars are in reach shows through the link hint: the others dim.)
 
 ## A travelling C0 pixel every PULSE_SPACING px along the line.
 const PULSE_SPACING: int = 5
@@ -19,9 +19,7 @@ const REJECT_TIME: float = 0.45
 const REJECT_SHAKE: Array[int] = [2, -2, 2, -1, 1, -1, 1, 0]
 const REJECT_SHAKE_STEP: float = 0.04
 const NEIGHBOURS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
-## The reach ring: one pixel every REACH_DOT_SPACING px around it. An out-of-reach line: one pixel
-## every LOOSE_DOT_SPACING px.
-const REACH_DOT_SPACING: int = 4
+## An out-of-reach line: one pixel every LOOSE_DOT_SPACING px.
 const LOOSE_DOT_SPACING: int = 3
 
 
@@ -44,8 +42,6 @@ class Flash:
 var _path: Array[Vector2i] = []
 ## The path's last step (to the finger) is out of reach.
 var _loose_end: bool = false
-var _reach_center: Vector2i = Vector2i.ZERO
-var _reach: int = 0
 var _flashes: Array[Flash] = []
 var _time: float = 0.0
 var _pulse_frame: int = -1
@@ -56,9 +52,6 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	if _reach > 0:
-		for p: Vector2i in reach_ring(_reach_center, _reach):
-			_dot(p, Palette.M5)
 	if _loose_end and _path.size() > 1:
 		_draw_link(path_pixels(_path.slice(0, -1)))
 		var loose: Array[Vector2i] = line_pixels(_path[-2], _path[-1])
@@ -80,32 +73,8 @@ func show_path(points: Array[Vector2i], loose_end: bool = false) -> void:
 	queue_redraw()
 
 
-## Shows the reach ring of radius `radius` around `center`; a radius of 0 hides it.
-func show_reach(center: Vector2i, radius: int) -> void:
-	if center == _reach_center and radius == _reach:
-		return
-	_reach_center = center
-	_reach = radius
-	queue_redraw()
-
-
-func reach_radius() -> int:
-	return _reach
-
-
 func is_loose_end() -> bool:
 	return _loose_end
-
-
-## The reach ring's dots: whole pixels on the circle, one every REACH_DOT_SPACING px, no repeats.
-static func reach_ring(center: Vector2i, radius: int) -> Array[Vector2i]:
-	var dots: Array[Vector2i] = []
-	var count: int = maxi(roundi(TAU * radius / REACH_DOT_SPACING), 4)
-	for k: int in count:
-		var p: Vector2i = center + Vector2i((Vector2.from_angle(TAU * k / count) * radius).round())
-		if not dots.has(p):
-			dots.append(p)
-	return dots
 
 
 func flash_collected(points: Array[Vector2i]) -> void:
