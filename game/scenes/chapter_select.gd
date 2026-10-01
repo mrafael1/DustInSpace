@@ -25,8 +25,11 @@ extends CanvasLayer
 ## tail), rings close in on it, then it bursts: a ring thrown out to the screen's edge, eight rays,
 ## and every string flashing C0 for a beat. Then the final is selected. While it's open and not yet
 ## won, the crown is the boss's point: bigger, with diagonal glints, wearing an ember ring (S4).
-## Once the final is won, the painted Scorpio (ConstellationView.FIGURE) lies behind the chart's
-## stars; back from that win it rises from its tail to its claws first, as in the stage.
+## The chart assembles the painted Scorpio as the parts are won: each won part's piece of it
+## (assets/art/scorpio_piece_<part>.png) lies behind the chart's stars, dormant (a few steps darker
+## on the N ramp); back from a part's win its piece rises first, as a stage's painting does. Winning
+## the final brings the scorpion to life: the whole figure flashes C0 twice, then shows in full
+## colour from then on.
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
 
 ## The player asked to play stage `stage`.
@@ -123,6 +126,20 @@ const UNLOCK_FLASH: float = 0.12
 const UNLOCK_RAYS: int = 8
 const UNLOCK_TIME: float = UNLOCK_STAGGER * 4 + UNLOCK_FLIGHT + UNLOCK_CHARGE + UNLOCK_BURST
 const BURST_COLOURS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.C4]
+## A won part's piece of the Scorpio, dormant until the final is won: each colour a few steps down
+## the N ramp.
+const PIECE := "res://assets/art/scorpio_piece_%s.png"
+const DORMANT: Dictionary = {
+	Palette.N10: Palette.N7, Palette.N9: Palette.N6, Palette.N8: Palette.N6, Palette.N7: Palette.N5,
+	Palette.N6: Palette.N4, Palette.N5: Palette.N3, Palette.N4: Palette.N3, Palette.N3: Palette.N2,
+	Palette.N2: Palette.N1, Palette.N1: Palette.N1, Palette.D0: Palette.N6,
+}
+## The final's win brings it to life: C0 flashes at these times (start, end), then full colour.
+const LIFE_FLASHES: Array[Vector2] = [Vector2(0.0, 0.1), Vector2(0.22, 0.32)]
+const LIFE_TIME: float = 0.5
+
+## Dormant pieces, built once per part.
+static var _dormant: Dictionary = {}
 
 ## Where a stage's number sits from its point.
 const NUMBER_OFFSET := Vector2i(10, -16)
@@ -146,7 +163,9 @@ var _pressed_play: bool = false
 ## point lighting to end.
 var _unlock_time: float = -1.0
 var _unlock_next: bool = false
-## The painted Scorpio rising after the final's win: seconds since it began (-1: none).
+## The painting moving after a win: the stage whose piece rises (or FINAL: the scorpion coming to
+## life), and seconds since it began (-1: none).
+var _figure_stage: int = -1
 var _figure_time: float = -1.0
 ## The visible screen in the chart's coordinates (fit_screen): the 9:16 layout, with any extra
 ## height split above and below it.
@@ -181,6 +200,11 @@ func _ready() -> void:
 	_info.label_settings = HudText.primary(Palette.C1)
 	_play.label_settings = HudText.primary(Palette.C1)
 	_motes = mote_layout()
+	# The paintings load before any draw call uses them.
+	ConstellationView.figure_rows()
+	for stage: int in Chapter.FINAL:
+		ConstellationView.figure_rows(piece_path(stage))
+		dormant_piece(stage)
 	_title.text = "SCORPIO"
 	_subtitle.text = "CHAPTER 1"
 	_place_heading()
@@ -210,6 +234,7 @@ func setup(chapter: Chapter) -> void:
 	_unlock_time = -1.0
 	_unlock_next = false
 	_figure_time = -1.0
+	_figure_stage = -1
 	_selected = chapter.current()
 	_refresh()
 
@@ -418,14 +443,15 @@ func show_progress(lit: int, unlocked: int) -> void:
 	_unlock_time = -1.0
 	_unlock_next = false
 	_figure_time = -1.0
+	_figure_stage = -1
 	if lit >= 0:
 		_selected = lit
 		_light_point = lit
 		_light_time = 0.0
 		_unlock_next = Chapter.is_final(unlocked)
 		_then_travel_to = -1 if _unlock_next else unlocked
-		if Chapter.is_final(lit):
-			_figure_time = 0.0
+		_figure_stage = lit
+		_figure_time = 0.0
 	else:
 		_selected = _chapter.current()
 	_refresh()
@@ -435,13 +461,46 @@ func is_unlocking() -> bool:
 	return _unlock_time >= 0.0 or _unlock_next
 
 
-## Whether the painted Scorpio shows: once the final is won.
+## Whether the whole Scorpio shows alive: once the final is won.
 func shows_figure() -> bool:
 	return _chapter != null and _chapter.is_completed(Chapter.FINAL)
 
 
+## Whether part `stage`'s piece of the Scorpio shows (dormant until the final is won).
+func shows_piece(stage: int) -> bool:
+	return _chapter != null and not Chapter.is_final(stage) and _chapter.is_completed(stage)
+
+
 func is_figure_rising() -> bool:
 	return _figure_time >= 0.0
+
+
+## Part `stage`'s piece of the Scorpio, in full colour (the chart's own coordinates).
+static func piece_path(stage: int) -> String:
+	return PIECE % Chapter.STAGES[stage]["map"]
+
+
+## Part `stage`'s piece, dormant: each colour stepped down (DORMANT).
+static func dormant_piece(stage: int) -> Texture2D:
+	if not _dormant.has(stage):
+		# A copy: get_image() can hand back the texture's own cached image.
+		var image: Image = ConstellationView.painting(piece_path(stage)).get_image().duplicate()
+		image.convert(Image.FORMAT_RGBA8)
+		for y: int in image.get_height():
+			for x: int in image.get_width():
+				var c: Color = image.get_pixel(x, y)
+				if c.a > 0.5:
+					image.set_pixel(x, y, DORMANT.get(Color(c.r, c.g, c.b), c))
+		_dormant[stage] = ImageTexture.create_from_image(image)
+	return _dormant[stage]
+
+
+## Whether the scorpion coming to life flashes C0 at `t` seconds.
+static func life_flashing(t: float) -> bool:
+	for flash: Vector2 in LIFE_FLASHES:
+		if t >= flash.x and t < flash.y:
+			return true
+	return false
 
 
 ## The final's unlock at `t` seconds: where each part's comet is (its head, along its line to the
@@ -593,8 +652,10 @@ func advance(delta: float) -> void:
 	if _figure_time >= 0.0:
 		_figure_time += delta
 		redraw = true
-		if _figure_time >= ConstellationView.FIGURE_RISE + ConstellationView.FIGURE_FLASH:
+		var length: float = LIFE_TIME if Chapter.is_final(_figure_stage) else ConstellationView.FIGURE_RISE + ConstellationView.FIGURE_FLASH
+		if _figure_time >= length:
 			_figure_time = -1.0
+			_figure_stage = -1
 	if redraw:
 		_chart.queue_redraw()
 
@@ -925,22 +986,40 @@ func _draw_unlock() -> void:
 			_dot(p, colour)
 
 
-## The painted Scorpio behind the chart once the final is won; rising (from its tail) right after the
-## win, its front row C0 and the next C1, then one C0 flash.
+## The Scorpio behind the chart: alive in full colour once the final is won (flashing C0 twice as
+## it comes to life); before that, each won part's dormant piece, the one just won rising from the
+## bottom up with a bright edge, then one C0 flash.
 func _draw_figure() -> void:
-	if not shows_figure():
+	if shows_figure():
+		if _figure_stage == Chapter.FINAL and life_flashing(_figure_time):
+			var rows: Dictionary = ConstellationView.figure_rows()
+			for y: int in rows:
+				for x: int in rows[y]:
+					_dot(Vector2i(x, y), Palette.C0)
+			return
+		_chart.draw_texture(ConstellationView.painting(), Vector2.ZERO)
 		return
-	var tex: Texture2D = ConstellationView.FIGURE
-	if _figure_time < 0.0:
-		_chart.draw_texture(tex, Vector2.ZERO)
-		return
-	var rows: Dictionary = ConstellationView.figure_rows()
+	for stage: int in Chapter.FINAL:
+		if not shows_piece(stage):
+			continue
+		if stage == _figure_stage and _figure_time >= 0.0:
+			_draw_rising_piece(stage)
+		else:
+			_chart.draw_texture(dormant_piece(stage), Vector2.ZERO)
+
+
+## Part `stage`'s piece rising after its win: the rows from its front down, the front row C0 and the
+## next C1; then one C0 flash.
+func _draw_rising_piece(stage: int) -> void:
+	var path: String = piece_path(stage)
+	var rows: Dictionary = ConstellationView.figure_rows(path)
 	if _figure_time >= ConstellationView.FIGURE_RISE:
 		for y: int in rows:
 			for x: int in rows[y]:
 				_dot(Vector2i(x, y), Palette.C0)
 		return
-	var front: int = ConstellationView.figure_front(_figure_time / ConstellationView.FIGURE_RISE)
+	var tex: Texture2D = dormant_piece(stage)
+	var front: int = ConstellationView.figure_front(_figure_time / ConstellationView.FIGURE_RISE, path)
 	var edge: Array[Color] = ConstellationView.FIGURE_EDGE
 	var below: int = front + edge.size()
 	var size: Vector2 = tex.get_size()
