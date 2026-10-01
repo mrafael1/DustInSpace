@@ -75,6 +75,22 @@ The game opens on Scorpio's chart: the constellation drawn as a pixel-art star c
 - **Progression:** a stage counts as won as soon as the core decides it, and is saved on the device (`user://progress.json`). The chart's progress is separate from the constellation built inside a stage. No upgrades, currencies or buffs.
 - **Built so far:** every part (the Stinger, the Tail, the Body, the Heart and the Claws) and the final (the boss stage).
 
+### Tutorial: the guided first run
+
+The Stinger's first play is guided. Each step shows one line above the launcher and a pointing hand (C0/C1, N0 outline, bobbing 2 px), and **only its own action is allowed**: anything else is refused like an invalid action (nothing is spent).
+
+| Step | Line | Hand | Allowed |
+|---|---|---|---|
+| 1 | TAP THE SKY TO LAUNCH | a spot in the sky | a launch; the pack is scripted: one small, one medium, one big (a sequence) |
+| 2 | DRAG THROUGH 3 STARS | a star of that pack | a link (the telescope stops aiming so touches reach the stars) |
+| 3 | LAUNCH NEXT TO THIS STAR | the next constellation star to light | a launch aimed within 20 px of it (a farther one is refused with the refused buzz, still aiming); scripted: two stars of its size and one other |
+| 4 | LINK IT WITH 2 STARS | that star | a link; the step ends when it lights a constellation star |
+| 5 | BUY A PLANET | the blue buy button (from the left) | buying a blue planet (skipped if the dust isn't there) |
+| 6 | LIGHT EVERY STAR | none, for 2.5 s | everything: free play |
+
+- Rules in the core (`Tutorial`, asked by `RunState`; each new step is a run event, `tutorial_step`), so the line and hand change once the animations have played.
+- Reaching free play saves it (`user://progress.json`, `"tutorial": {"done": true}`): later Stinger runs aren't guided. A restart or MAP before then guides the next run again. There is no skip button.
+
 ### Final stage: Orion, the boss (stage 6, a prototype)
 
 The **final** is the full Scorpio (`StarMap.final`: the 14 landmarks, the claw arc lit, so 11 to light) and the chapter's boss stage. Orion brings **every threat at once**, as on the Claws, each with its shared tuning: the single mark, the volley and the hunting area, with no intros. It should feel like a boss: the fight is framed around him.
