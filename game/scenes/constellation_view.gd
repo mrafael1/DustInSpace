@@ -69,7 +69,8 @@ var _run: RunState
 var _time: float = 0.0
 var _selected: Array[int] = []
 ## The link hint: unlit landmarks (indices) that could come next in the link being traced, and
-## seconds since it started. Their corner brackets pulse warm (C1, then C3) with the hinted stars.
+## seconds since it started. They keep their corner brackets and gain the sky stars' hint diamond,
+## blinking in step with the hinted stars.
 var _hinted: Array[int] = []
 var _hint_time: float = 0.0
 ## Which landmarks show lit: the run's as of setup, then each played landmark_lit.
@@ -176,9 +177,9 @@ func hinted() -> Array[int]:
 	return _hinted.duplicate()
 
 
-## The colour of a hinted landmark's brackets now.
+## The colour of a hinted landmark's diamond now.
 func hint_colour() -> Color:
-	return Palette.C1 if StarView.hint_on(_hint_time) else Palette.C3
+	return StarView.hint_colour_at(_hint_time)
 
 
 ## A landmark_lit event played: it shows lit from now, with a C0 flash and a ring spreading out.
@@ -705,9 +706,11 @@ func _draw_landmark(index: int) -> void:
 	var size: int = _map().sizes[index]
 	var at: Vector2i = _map().landmarks[index]
 	if shows_cue(index):
-		var colour: Color = hint_colour() if _hinted.has(index) else CUE_COLOURS[cue_frame()]
 		for d: Vector2i in cue_pixels(size):
-			_dot(at + d, colour)
+			_dot(at + d, CUE_COLOURS[cue_frame()])
+		if _hinted.has(index):
+			for d: Vector2i in StarView.hint_pixels(size as Star.Size):
+				_dot(at + d, hint_colour())
 	var lit: bool = shows_lit(index)
 	var picked: bool = _selected.has(index) and not lit
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0

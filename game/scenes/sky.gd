@@ -275,7 +275,7 @@ func _on_selection_changed(ids: Array[int]) -> void:
 
 
 ## The link hint (playtest): while a link is traced, the stars and landmarks that could come next
-## and still make a valid combo pulse (StarView.hinted, ConstellationView.show_hints). Nothing before
+## and still make a valid combo show a blinking gold diamond (StarView.hinted, ConstellationView.show_hints). Nothing before
 ## the first pick; the rest of the sky stays as it is.
 func _show_hints(ids: Array[int]) -> void:
 	var next: Array[int] = _run.link_candidates(ids) if _run != null else ([] as Array[int])

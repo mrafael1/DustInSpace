@@ -27,10 +27,13 @@ const TWINKLE_PERIOD: float = 2.4
 const GLINT_TIME: float = 0.16
 ## Selection ring: 2-frame rotate.
 const RING_FRAME_TIME: float = 0.2
-## The link hint: a star that could come next in the link being traced shows four corner brackets
-## (the unlit landmarks' "you can pick this" cue) pulsing warm, C1 then C3, this long each, in step
-## with every other hinted star and landmark (they all start together).
-const HINT_PULSE: float = 0.3
+## The link hint: a star that could come next in the link being traced shows a small gold diamond
+## above it (a shape no other cue uses), blinking C1 then C2, this long each, in step with every
+## other hinted star and landmark (they all start together).
+const HINT_PULSE: float = 0.4
+## The hint diamond's bottom tip sits this many pixels above the star art's top edge (clear of the
+## landmarks' corner brackets).
+const HINT_GAP: int = 3
 const EASE_BACK: float = 1.70158
 ## Collapse: stars dim from here, and are swallowed from here to the end.
 const REDSHIFT_AT: float = 0.5
@@ -349,19 +352,34 @@ func _is_glinting() -> bool:
 	return fposmod(_time + _twinkle_phase, TWINKLE_PERIOD) < GLINT_TIME
 
 
-## Whether this star shows the link hint's brackets: hinted, and not picked yet.
+## Whether this star shows the link hint's diamond: hinted, and not picked yet.
 func shows_hint() -> bool:
 	return hinted and not selected
 
 
-## The colour of the link hint's brackets now: C1 while its pulse is on, C3 while off.
+## The colour of the link hint's diamond now: C1 while its blink is on, C2 while off.
 func hint_colour() -> Color:
-	return Palette.C1 if hint_on(_hint_time) else Palette.C3
+	return StarView.hint_colour_at(_hint_time)
+
+
+## The link hint's diamond colour `t` seconds after it started: both gold, so it never vanishes.
+static func hint_colour_at(t: float) -> Color:
+	return Palette.C1 if hint_on(t) else Palette.C2
 
 
 ## Whether the link hint's pulse is lit `t` seconds after it started: lit first, then off, in turn.
 static func hint_on(t: float) -> bool:
 	return int(t / HINT_PULSE) % 2 == 0
+
+
+## The link hint's diamond over a star of `star_size`, as offsets from its centre: a hollow 5 px
+## diamond, its bottom tip HINT_GAP pixels above the art.
+static func hint_pixels(star_size: Star.Size) -> Array[Vector2i]:
+	var centre := Vector2i(0, -(half_extent(star_size) + HINT_GAP + 2))
+	var dots: Array[Vector2i] = []
+	for d: Vector2i in [Vector2i(0, -2), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-2, 0), 			Vector2i(2, 0), Vector2i(-1, 1), Vector2i(1, 1), Vector2i(0, 2)]:
+		dots.append(centre + d)
+	return dots
 
 
 func _ring_frame() -> int:
@@ -398,7 +416,7 @@ func _draw_idle() -> void:
 		_draw_ring()
 	elif shows_hint():
 		var colour: Color = hint_colour()
-		for p: Vector2i in ConstellationView.cue_pixels(size):
+		for p: Vector2i in hint_pixels(size):
 			draw_rect(Rect2(Vector2(p), Vector2.ONE), colour)
 
 

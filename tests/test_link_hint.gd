@@ -125,12 +125,30 @@ func test_hinted_stars_pulse_together() -> void:
 			keys.append(view.hint_colour() == Palette.C1)
 		assert_eq(keys[0], keys[1], "in step")
 	for view: StarView in views:
-		assert_true(view.shows_hint(), "brackets on every hinted star")
+		assert_true(view.shows_hint(), "a diamond on every hinted star")
 	assert_true(StarView.hint_on(0.0), "lit first")
 	assert_false(StarView.hint_on(StarView.HINT_PULSE * 1.5))
+	assert_eq(StarView.hint_colour_at(0.0), Palette.C1)
+	assert_eq(StarView.hint_colour_at(StarView.HINT_PULSE * 1.5), Palette.C2, "dims, never vanishes")
 
 
-func test_a_hinted_landmarks_brackets_pulse_warm() -> void:
+func test_the_hint_is_a_diamond_above_the_star_clear_of_the_other_cues() -> void:
+	for size: Star.Size in [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]:
+		var dots: Array[Vector2i] = StarView.hint_pixels(size)
+		assert_eq(dots.size(), 8, "a hollow 5 px diamond")
+		var top: int = -StarView.half_extent(size)
+		var xs: Array[int] = []
+		var ys: Array[int] = []
+		for d: Vector2i in dots:
+			xs.append(d.x)
+			ys.append(d.y)
+			assert_eq(absi(d.x) + absi(d.y - (top - StarView.HINT_GAP - 2)), 2, "on the diamond's edge")
+			assert_false(ConstellationView.cue_pixels(size).has(d), "off the corner brackets")
+		assert_eq([xs.min(), xs.max()], [-2, 2], "centred over the star")
+		assert_eq(ys.max(), top - StarView.HINT_GAP, "its tip sits clear above the art")
+
+
+func test_a_hinted_landmark_keeps_its_brackets_and_gains_the_diamond() -> void:
 	_start_scene()
 	var index: int = 7
 	var at: Vector2i = run.scorpio.landmark_positions()[index]
@@ -139,7 +157,8 @@ func test_a_hinted_landmarks_brackets_pulse_warm() -> void:
 	_star(size, at + Vector2i(16, 10))
 	_tap(a.position)
 	assert_true(constellation.hinted().has(index))
-	assert_true(constellation.hint_colour() in [Palette.C1, Palette.C3], "warm: you can pick it")
+	assert_true(constellation.shows_cue(index), "the ember corner brackets stay")
+	assert_true(constellation.hint_colour() in [Palette.C1, Palette.C2], "gold: it can come next")
 
 
 func _start_scene() -> void:
