@@ -82,12 +82,13 @@ The Stinger's first play is guided. Each step shows one line above the launcher 
 | Step | Line | Hand | Allowed |
 |---|---|---|---|
 | 1 | TAP THE SKY TO LAUNCH | a spot in the sky | a launch; the pack is scripted: one small, one medium, one big (a sequence) |
-| 2 | DRAG THROUGH 3 STARS | a star of that pack | a link (the telescope stops aiming so touches reach the stars) |
+| 2 | LINK ONE OF EACH SIZE | a star of that pack; the card shows small, medium, big | a link (the telescope stops aiming so touches reach the stars) |
 | 3 | LAUNCH NEXT TO THIS STAR | the next constellation star to light | a launch aimed within 20 px of it (a farther one is refused with the refused buzz, still aiming); scripted: two stars of its size and one other |
-| 4 | LINK IT WITH 2 STARS | that star | a link; the step ends when it lights a constellation star |
+| 4 | LINK 3 OF THE SAME SIZE | that star; the card shows three of its size | a link; the step ends when it lights a constellation star |
 | 5 | BUY A PLANET | the blue buy button (from the left) | buying a blue planet (skipped if the dust isn't there) |
-| 6 | LIGHT EVERY STAR | none, for 2.5 s | everything: free play |
+| 6 | LIGHT EVERY STAR | none; the card shows both combos, OR between them, for 4 s | everything: free play |
 
+- **The combos are taught with a card** at the top of the sky (playtest: the two kinds of link weren't clear): a plaque (N0, N6 border) with the sky stars' own art in a row, no sign between them (a plus sign read as one more small star).
 - Rules in the core (`Tutorial`, asked by `RunState`; each new step is a run event, `tutorial_step`), so the line and hand change once the animations have played.
 - Reaching free play saves it (`user://progress.json`, `"tutorial": {"done": true}`): later Stinger runs aren't guided. A restart or MAP before then guides the next run again. There is no skip button.
 
