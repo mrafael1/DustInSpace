@@ -10,7 +10,8 @@ extends Node2D
 ## strings. Strings between two lit landmarks glow C1 with a C0 glint
 ## running along them; strings still to form are dotted N8. While a link is traced, the landmarks
 ## in it keep their colour and show their halo and the dashed C1 selection ring, like a picked sky
-## star, and the strings it would form are dashed C2. Like the HUD and the Sun it keeps
+## star, and the strings it would form are dashed C2; every other string thins (TRACE_THIN) so
+## the gold trace reads over it. Like the HUD and the Sun it keeps
 ## a shown copy of what's lit, moved only by played landmark_lit events, so a landmark the Sun
 ## lights stays unlit until the Sun's ignition has played. Owns no rules:
 ## RunState says what's lit. Draws nothing without the map.
@@ -28,6 +29,9 @@ signal string_sung(segment: int, order: int)
 const LANDMARK_CLEAR: int = 5
 ## A string still to form: one pixel in OUTLINE_STEP.
 const OUTLINE_STEP: int = 2
+## While a link is traced, strings not in it keep one pixel in TRACE_THIN of their usual ones, and
+## built strings hold still (no glint), so the player's gold path stands out where they run beside it.
+const TRACE_THIN: int = 2
 ## Built strings' idle glow: a C0 glint every GLOW_SPACING px moves one pixel per GLOW_STEP.
 const GLOW_SPACING: int = 6
 const GLOW_STEP: float = 0.12
@@ -178,6 +182,11 @@ func show_hints(landmarks: Array[int], tracing: bool) -> void:
 
 func hinted() -> Array[int]:
 	return _hinted.duplicate()
+
+
+## Whether string `segment` shows thinned: a link is traced and it wouldn't form the string.
+func shows_thin(segment: int) -> bool:
+	return _tracing and not _preview_strings.has(segment)
 
 
 ## Whether unlit landmark `index` shows dimmed: a link is traced and it can't come next.
@@ -643,18 +652,24 @@ func _draw_string(segment: int) -> void:
 	if age >= 0.0 and age < VIBRATE_TIME:
 		_draw_vibrating(segment, pixels, age)
 		return
+	var preview: bool = _preview_strings.has(segment)
+	var quiet: bool = shows_thin(segment)
 	if shows_built(segment):
 		var flash: bool = segment == _flash_string and _flash_left > 0.0
 		var step: int = glow_step()
 		for i: int in pixels.size():
+			if quiet and not flash:
+				if i % TRACE_THIN == 0:
+					_dot(pixels[i], Palette.C1)
+				continue
 			var glint: bool = (i + GLOW_SPACING - step) % GLOW_SPACING == 0
 			_dot(pixels[i], Palette.C0 if flash or glint else Palette.C1)
 		return
-	var preview: bool = _preview_strings.has(segment)
+	var spacing: int = OUTLINE_STEP * (TRACE_THIN if quiet else 1)
 	for i: int in pixels.size():
 		if preview and i % 3 != 2:
 			_dot(pixels[i], Palette.C2)
-		elif not preview and i % OUTLINE_STEP == 0:
+		elif not preview and i % spacing == 0:
 			_dot(pixels[i], Palette.N8)
 
 

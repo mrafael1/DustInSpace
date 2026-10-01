@@ -206,9 +206,15 @@ func test_tracing_hides_the_brackets_and_dims_the_landmarks_that_cant_come_next(
 	assert_false(constellation.shows_cue(other))
 	assert_false(constellation.shows_dimmed(index), "it can come next")
 	assert_true(constellation.shows_dimmed(other))
+	for segment: int in run.scorpio.map.segment_count():
+		assert_true(constellation.shows_thin(segment), "the strings thin so the trace reads")
+	constellation.show_link_preview([] as Array[int], [0] as Array[int])
+	assert_false(constellation.shows_thin(0), "a string the link would form stays bright")
+	assert_true(constellation.shows_thin(1))
 	_tap(Vector2i(150, 120))
 	assert_true(constellation.shows_cue(other), "the brackets come back")
 	assert_false(constellation.shows_dimmed(other))
+	assert_false(constellation.shows_thin(0), "and the strings")
 
 
 func _start_scene() -> void:
