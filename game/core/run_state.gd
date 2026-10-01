@@ -261,7 +261,8 @@ func launch(target: Vector2i) -> bool:
 	pack_launched.emit(kind, burst)
 	if orion != null:
 		orion.count_launch()
-	var result: PackOpener.PackResult = PackOpener.open(balance.packs[kind], _rng, force_next_big_bang)
+	var big_bangs: bool = scorpio == null or balance.scorpio_big_bang
+	var result: PackOpener.PackResult = PackOpener.open(balance.packs[kind], _rng, force_next_big_bang, big_bangs)
 	force_next_big_bang = false
 	var pack: Balance.PackDef = balance.packs[kind]
 	var points: Array[Vector2i] = []

@@ -3,6 +3,9 @@ extends RefCounted
 ## Opens a pack: rolls the Big Bang once, before any stars are drawn, then draws
 ## each star independently from the pack's weights. Positions are not decided here,
 ## so where a pack bursts can never change what is inside it.
+## Where Big Bangs are off (a constellation stage, scorpio.big_bang), the roll is still made but
+## never comes up. A pack whose roll fails opens exactly as it would with them on. One whose roll
+## succeeds draws its stars instead of opening empty, so the packs after it differ from then on.
 
 
 class PackResult:
@@ -13,11 +16,11 @@ class PackResult:
 	var sizes: Array[int] = []
 
 
-static func open(pack: Balance.PackDef, rng: RandomNumberGenerator, force_big_bang: bool = false) -> PackResult:
+static func open(pack: Balance.PackDef, rng: RandomNumberGenerator, force_big_bang: bool = false, big_bangs: bool = true) -> PackResult:
 	var result := PackResult.new()
 	result.kind = pack.kind
-	# Always consume the roll so a forced Big Bang doesn't shift the RNG stream.
-	var rolled: bool = rng.randf() < pack.big_bang_chance
+	# Always consume the roll so a forced Big Bang (or none allowed) doesn't shift the RNG stream.
+	var rolled: bool = rng.randf() < pack.big_bang_chance and big_bangs
 	result.big_bang = rolled or force_big_bang
 	if result.big_bang:
 		return result

@@ -56,6 +56,9 @@ var scorpio_sun_target: int = 0
 ## The longest step (native px) between consecutive stars in a link on the Scorpio map.
 ## Optional: 0 = no limit.
 var scorpio_max_link_distance: int = 0
+## Whether packs can open as a Big Bang on a constellation stage. Optional: true. The debug trigger
+## still forces one.
+var scorpio_big_bang: bool = true
 ## Orion (#64): the launch whose burst Orion marks first, on maps that bring him (the Tail).
 ## Optional in the file: without an "orion" block he never marks (0).
 var orion_first_mark_launch: int = 0
@@ -206,6 +209,11 @@ func _parse_scorpio(raw: Dictionary) -> void:
 		scorpio_sun_target = _read_int(raw, "sun_target", "scorpio.", 1)
 	if raw.has("max_link_distance"):
 		scorpio_max_link_distance = _read_int(raw, "max_link_distance", "scorpio.", 1)
+	if raw.has("big_bang"):
+		if typeof(raw["big_bang"]) != TYPE_BOOL:
+			errors.append("scorpio.big_bang: must be true or false")
+		else:
+			scorpio_big_bang = raw["big_bang"]
 
 
 func _read_dict(data: Dictionary, key: Variant, ctx: String) -> Dictionary:
