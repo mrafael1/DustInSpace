@@ -28,11 +28,13 @@ const GLINT_TIME: float = 0.16
 ## Selection ring: 2-frame rotate.
 const RING_FRAME_TIME: float = 0.2
 ## The link hint: while a link is traced, a star that could come next keeps its normal sprite and
-## halo, and its halo grows HINT_HALO_GROW px every other HINT_PULSE, in step with every other
-## hinted star and landmark (they all start together). The other stars dim (`dimmed`), so no
-## marker is needed and the still frame already reads.
-const HINT_PULSE: float = 0.4
-const HINT_HALO_GROW: int = 2
+## halo and shines once every HINT_PERIOD, in step with every other hinted star and landmark (they
+## all start together): its glint frame, with rays shooting out of its four tips, SHINE_RAYS px
+## long for SHINE_STEP each, then gone. The other stars dim (`dimmed`), so no marker is needed and
+## the still frame already reads.
+const HINT_PERIOD: float = 0.8
+const SHINE_STEP: float = 0.12
+const SHINE_RAYS: Array[int] = [2, 1]
 const EASE_BACK: float = 1.70158
 ## Collapse: stars dim from here, and are swallowed from here to the end.
 const REDSHIFT_AT: float = 0.5
@@ -237,7 +239,7 @@ func halo_dots() -> Dictionary[Vector2i, Color]:
 	if not shows_halo or (dimmed and state == State.IDLE):
 		return dots
 	var center := Vector2i(position)
-	var halo: Dictionary[Vector2i, Color] = halo_pixels(size, [], hint_halo_radius())
+	var halo: Dictionary[Vector2i, Color] = halo_pixels(size)
 	for offset: Vector2i in halo:
 		dots[center + offset] = halo[offset]
 	return dots
@@ -246,10 +248,9 @@ func halo_dots() -> Dictionary[Vector2i, Color]:
 ## A settled star's halo of `star_size`, as offsets from its centre: HALO_COLOURS' near colour at
 ## 50% dither inside half the radius, the far one at about 20% out to HALO_RADIUS, never on the
 ## star's own pixels. Lit constellation stars wear it too, in their own `colours` (ConstellationView).
-## `grown_radius` replaces HALO_RADIUS (the link hint's pulse).
-static func halo_pixels(star_size: Star.Size, colours: Array = [], grown_radius: int = -1) -> Dictionary[Vector2i, Color]:
+static func halo_pixels(star_size: Star.Size, colours: Array = []) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
-	var radius: int = grown_radius if grown_radius > 0 else HALO_RADIUS[star_size]
+	var radius: int = HALO_RADIUS[star_size]
 	var near_far: Array = colours if not colours.is_empty() else HALO_COLOURS[star_size]
 	for dy: int in range(-radius, radius + 1):
 		for dx: int in range(-radius, radius + 1):
@@ -347,7 +348,7 @@ func _current_frame_key() -> int:
 			return _dissolve_frame()
 		State.COLLAPSING:
 			return _redshift()
-	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (int(hint_on(_hint_time)) + 1 if shows_hint() else 0)
+	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (shine_stage(_hint_time) + 2 if shows_hint() else 0)
 
 
 func _is_spark() -> bool:
@@ -358,24 +359,34 @@ func _is_glinting() -> bool:
 	return fposmod(_time + _twinkle_phase, TWINKLE_PERIOD) < GLINT_TIME
 
 
-## Whether this star shows the link hint's halo pulse: hinted, and not picked yet.
+## Whether this star shows the link hint's shine: hinted, and not picked yet.
 func shows_hint() -> bool:
 	return hinted and not selected
 
 
-## This star's halo radius now: grown while its hint pulse is on.
-func hint_halo_radius() -> int:
-	return hinted_halo_radius(size, shows_hint() and hint_on(_hint_time))
+## The step of the link hint's shine this star shows now (an index into SHINE_RAYS), or -1.
+func shine() -> int:
+	return shine_stage(_hint_time) if shows_hint() else -1
 
 
-## The halo radius of a star of `star_size`, `grown` by the link hint's pulse or not.
-static func hinted_halo_radius(star_size: Star.Size, grown: bool) -> int:
-	return HALO_RADIUS[star_size] + (HINT_HALO_GROW if grown else 0)
+## The step of the link hint's shine `t` seconds after it started (an index into SHINE_RAYS), or
+## -1 between shines. It shines at once, then every HINT_PERIOD.
+static func shine_stage(t: float) -> int:
+	var stage: int = int(fposmod(t, HINT_PERIOD) / SHINE_STEP)
+	return stage if stage < SHINE_RAYS.size() else -1
 
 
-## Whether the link hint's pulse is lit `t` seconds after it started: lit first, then off, in turn.
-static func hint_on(t: float) -> bool:
-	return int(t / HINT_PULSE) % 2 == 0
+## The shine's rays at `stage` for a star of `star_size`, as offsets from its centre: straight on
+## from its four tips, C0 next to the star and C1 beyond.
+static func shine_pixels(star_size: Star.Size, stage: int) -> Dictionary[Vector2i, Color]:
+	var dots: Dictionary[Vector2i, Color] = {}
+	if stage < 0:
+		return dots
+	var tip: int = half_extent(star_size)
+	for dir: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		for k: int in range(1, SHINE_RAYS[stage] + 1):
+			dots[dir * (tip + k)] = Palette.C0 if k == 1 else Palette.C1
+	return dots
 
 
 func _ring_frame() -> int:
@@ -410,7 +421,10 @@ func _draw_idle() -> void:
 	if dimmed:
 		_draw_frame(&"dim")
 	else:
-		_draw_frame(&"glint" if _is_glinting() else &"idle")
+		_draw_frame(&"glint" if _is_glinting() or shine() >= 0 else &"idle")
+	var rays: Dictionary[Vector2i, Color] = shine_pixels(size, shine())
+	for p: Vector2i in rays:
+		draw_rect(Rect2(Vector2(p), Vector2.ONE), rays[p])
 	if selected:
 		_draw_ring()
 

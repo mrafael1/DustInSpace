@@ -328,10 +328,12 @@ func _on_join_refused(ids: Array[int], id: int) -> void:
 func _show_link() -> void:
 	var points: Array[Vector2i] = _positions_of_ids(_gesture.selected)
 	var loose: bool = false
+	var reach: int = 0
 	if _gesture.is_dragging() and points.size() < Combos.LINK_LENGTH:
 		loose = not points.is_empty() and not _run.in_reach(points[-1], _finger)
+		reach = _run.link_reach()
 		points.append(_finger)
-	_link_layer.show_path(points, loose)
+	_link_layer.show_path(points, loose, reach)
 	_show_preview()
 	# Orion readies his bow while the link would leave his mark behind (the sight line holds on it),
 	# or loose the volley.

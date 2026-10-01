@@ -69,8 +69,8 @@ var _run: RunState
 var _time: float = 0.0
 var _selected: Array[int] = []
 ## The link hint: unlit landmarks (indices) that could come next in the link being traced, and
-## seconds since it started. Like the sky stars, they show a halo pulsing in step with the hinted
-## stars, while every other unlit landmark dims; no corner brackets while a link is traced.
+## seconds since it started. Like the sky stars, they keep their halo and shine in step with the
+## hinted stars, while every other unlit landmark dims; no corner brackets while a link is traced.
 var _hinted: Array[int] = []
 var _hint_time: float = 0.0
 var _tracing: bool = false
@@ -97,7 +97,7 @@ var _art: Array = []
 
 func _ready() -> void:
 	for size: int in 3:
-		_art.append([landmark_pixels(size), landmark_pixels(size, true), landmark_pixels(size, true, true), star_pixels(size, &"dim")])
+		_art.append([landmark_pixels(size), landmark_pixels(size, true), landmark_pixels(size, true, true), star_pixels(size, &"dim"), star_pixels(size, &"glint")])
 
 
 func _process(delta: float) -> void:
@@ -556,10 +556,10 @@ func advance(delta: float) -> void:
 	var cue: int = cue_frame()
 	var twinkling: Array[bool] = _twinkling()
 	var ring: int = ring_frame()
-	var hint: bool = StarView.hint_on(_hint_time)
+	var shine: int = StarView.shine_stage(_hint_time)
 	_time += delta
 	_hint_time += delta
-	if not _hinted.is_empty() and StarView.hint_on(_hint_time) != hint:
+	if not _hinted.is_empty() and StarView.shine_stage(_hint_time) != shine:
 		queue_redraw()
 	var mapped: bool = _run != null and _run.scorpio != null
 	var redraw: bool = mapped and ((glow_step() != step and _shown_lit.count(true) > 1) \
@@ -716,17 +716,18 @@ func _draw_landmark(index: int) -> void:
 	var hinted: bool = _hinted.has(index) and not lit and not picked
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0
 	if not flash and (lit or picked or hinted):
-		var halo: Dictionary[Vector2i, Color] = lit_halo_pixels(size)
-		if not lit:
-			var grown: bool = hinted and StarView.hint_on(_hint_time)
-			halo = StarView.halo_pixels(size as Star.Size, [], StarView.hinted_halo_radius(size as Star.Size, grown))
+		var halo: Dictionary[Vector2i, Color] = lit_halo_pixels(size) if lit else StarView.halo_pixels(size as Star.Size)
 		for d: Vector2i in halo:
 			_dot(at + d, halo[d])
-	var dots: Dictionary = _art[size][3 if shows_dimmed(index) else 0]
+	var shine: int = StarView.shine_stage(_hint_time) if hinted else -1
+	var dots: Dictionary = _art[size][3 if shows_dimmed(index) else (4 if shine >= 0 else 0)]
 	if lit:
 		dots = _art[size][2 if twinkles(index, _time) else 1]
 	for d: Vector2i in dots:
 		_dot(at + d, Palette.C0 if flash else dots[d])
+	var rays: Dictionary[Vector2i, Color] = StarView.shine_pixels(size as Star.Size, shine)
+	for d: Vector2i in rays:
+		_dot(at + d, rays[d])
 	if picked:
 		_draw_ring(size, at)
 

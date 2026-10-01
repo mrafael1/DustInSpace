@@ -133,25 +133,58 @@ func test_tracing_dims_the_stars_that_cant_come_next_and_keeps_the_rest() -> voi
 	assert_ne(dim_frame, idle, "a step darker on its own colours")
 
 
-func test_hinted_stars_pulse_their_halos_together() -> void:
+func test_hinted_stars_shine_together() -> void:
 	_start_scene()
 	var a: Star = _star(Star.Size.SMALL, Vector2i(150, 236))
 	var b: Star = _star(Star.Size.SMALL, Vector2i(168, 236))
 	var c: Star = _star(Star.Size.SMALL, Vector2i(159, 222))
 	_tap(a.position)
 	var views: Array[StarView] = [sky.star_view(b.id), sky.star_view(c.id)]
-	var radii: Array[int] = []
-	for t: int in 6:
-		var grown: Array[bool] = []
+	var seen: Dictionary[int, bool] = {}
+	for t: int in 12:
 		for view: StarView in views:
-			view.advance(StarView.HINT_PULSE / 2.0 if t == 0 else StarView.HINT_PULSE)
-			grown.append(view.hint_halo_radius() > StarView.HALO_RADIUS[Star.Size.SMALL])
-			radii.append(view.hint_halo_radius())
-		assert_eq(grown[0], grown[1], "in step")
-	assert_eq(radii.min(), StarView.HALO_RADIUS[Star.Size.SMALL])
-	assert_eq(radii.max(), StarView.HALO_RADIUS[Star.Size.SMALL] + StarView.HINT_HALO_GROW)
-	assert_true(StarView.hint_on(0.0), "grown first")
-	assert_false(StarView.hint_on(StarView.HINT_PULSE * 1.5))
+			view.advance(StarView.SHINE_STEP / 2.0 if t == 0 else StarView.SHINE_STEP)
+		assert_eq(views[0].shine(), views[1].shine(), "in step")
+		seen[views[0].shine()] = true
+	assert_eq(_sorted(seen.keys() as Array[int]), [-1, 0, 1] as Array[int], "shines, fades, rests")
+	assert_eq(StarView.shine_stage(0.0), 0, "shines at once")
+	assert_eq(StarView.shine_stage(StarView.HINT_PERIOD), 0, "and every period")
+	assert_eq(sky.star_view(a.id).shine(), -1, "the picked star doesn't shine")
+
+
+func test_the_shine_is_rays_from_the_star_tips() -> void:
+	for size: Star.Size in [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]:
+		var tip: int = StarView.half_extent(size)
+		var long: Dictionary[Vector2i, Color] = StarView.shine_pixels(size, 0)
+		assert_eq(long.size(), 4 * StarView.SHINE_RAYS[0])
+		assert_eq(long[Vector2i(0, -(tip + 1))], Palette.C0, "white next to the star")
+		assert_eq(long[Vector2i(tip + 2, 0)], Palette.C1, "gold beyond")
+		assert_eq(StarView.shine_pixels(size, 1).size(), 4 * StarView.SHINE_RAYS[1], "shorter as it fades")
+		assert_true(StarView.shine_pixels(size, -1).is_empty())
+
+
+func test_the_line_to_the_finger_strains_toward_the_reach() -> void:
+	assert_eq(LinkLayer.strain_colour(0.5), Palette.C1)
+	assert_eq(LinkLayer.strain_colour(LinkLayer.STRAIN_FROM), Palette.C2)
+	assert_eq(LinkLayer.strain_colour(LinkLayer.STRAIN_HARD), Palette.C3, "ember at the limit")
+	var a := Vector2i(40, 120)
+	assert_eq(LinkLayer.reach_part(a, a + Vector2i(30, 0), 56).size(), 31, "all of it in reach")
+	var cut: Array[Vector2i] = LinkLayer.reach_part(a, a + Vector2i(80, 0), 56)
+	assert_eq(cut[-1], a + Vector2i(56, 0), "past the reach, it stops at the limit")
+
+
+func test_the_sky_shows_the_reach_on_the_finger_step_only() -> void:
+	_start_scene()
+	var link_layer: LinkLayer = main.get_node("Sky/LinkLayer")
+	var a: Star = _star(Star.Size.SMALL, Vector2i(150, 236))
+	_touch(a.position, true)
+	_drag(a.position + Vector2i(-50, 0))
+	assert_eq(link_layer.get("_reach"), 56, "dragging: the step to the finger strains")
+	assert_false(link_layer.is_loose_end())
+	_drag(a.position + Vector2i(-70, 0))
+	assert_true(link_layer.is_loose_end(), "past the reach: broken")
+	_touch(a.position + Vector2i(-70, 0), false)
+	assert_eq(link_layer.get("_reach"), 0, "no finger, no strain")
 
 
 func test_tracing_hides_the_brackets_and_dims_the_landmarks_that_cant_come_next() -> void:
@@ -217,3 +250,16 @@ func _tap(at: Vector2i) -> void:
 		e.position = Vector2(at)
 		e.pressed = pressed
 		sky.handle_pointer(e)
+
+
+func _touch(at: Vector2i, pressed: bool) -> void:
+	var e := InputEventScreenTouch.new()
+	e.position = Vector2(at)
+	e.pressed = pressed
+	sky.handle_pointer(e)
+
+
+func _drag(at: Vector2i) -> void:
+	var e := InputEventScreenDrag.new()
+	e.position = Vector2(at)
+	sky.handle_pointer(e)
