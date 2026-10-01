@@ -267,10 +267,25 @@ func _on_selection_changed(ids: Array[int]) -> void:
 		return
 	for id: int in _views:
 		_views[id].selected = ids.has(id)
+	_show_hints(ids)
 	if ids.size() > _selected_count:
 		star_selected.emit(ids.size())
 	_selected_count = ids.size()
 	_show_link()
+
+
+## The link hint (playtest): while a link is traced, the stars and landmarks that could come next
+## and still make a valid combo pulse (StarView.hinted, ConstellationView.show_hints). Nothing before
+## the first pick; the rest of the sky stays as it is.
+func _show_hints(ids: Array[int]) -> void:
+	var next: Array[int] = _run.link_candidates(ids) if _run != null else ([] as Array[int])
+	var landmarks: Array[int] = []
+	for id: int in next:
+		if _run.scorpio != null and _run.scorpio.is_landmark(id):
+			landmarks.append(Scorpio.landmark_index(id))
+	for id: int in _views:
+		_views[id].hinted = next.has(id)
+	_constellation.show_hints(landmarks)
 
 
 ## Scorpio: a link can hold only Scorpio.LANDMARKS_PER_COMBO landmarks; picking another is

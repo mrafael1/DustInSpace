@@ -68,6 +68,10 @@ const VIBRATE_CYCLES: float = 3.0
 var _run: RunState
 var _time: float = 0.0
 var _selected: Array[int] = []
+## The link hint: unlit landmarks (indices) that could come next in the link being traced, and
+## seconds since it started. Their corner brackets pulse warm (C1, then C3) with the hinted stars.
+var _hinted: Array[int] = []
+var _hint_time: float = 0.0
 ## Which landmarks show lit: the run's as of setup, then each played landmark_lit.
 var _shown_lit: Array[bool] = []
 var _preview_strings: Array[int] = []
@@ -158,6 +162,23 @@ func clear_preview() -> void:
 	_selected.clear()
 	_preview_strings.clear()
 	queue_redraw()
+
+
+## The link hint: these unlit landmarks could come next in the link being traced (none: off).
+func show_hints(landmarks: Array[int]) -> void:
+	if landmarks != _hinted:
+		_hint_time = 0.0
+	_hinted = landmarks.duplicate()
+	queue_redraw()
+
+
+func hinted() -> Array[int]:
+	return _hinted.duplicate()
+
+
+## The colour of a hinted landmark's brackets now.
+func hint_colour() -> Color:
+	return Palette.C1 if StarView.hint_on(_hint_time) else Palette.C3
 
 
 ## A landmark_lit event played: it shows lit from now, with a C0 flash and a ring spreading out.
@@ -531,7 +552,11 @@ func advance(delta: float) -> void:
 	var cue: int = cue_frame()
 	var twinkling: Array[bool] = _twinkling()
 	var ring: int = ring_frame()
+	var hint: bool = StarView.hint_on(_hint_time)
 	_time += delta
+	_hint_time += delta
+	if not _hinted.is_empty() and StarView.hint_on(_hint_time) != hint:
+		queue_redraw()
 	var mapped: bool = _run != null and _run.scorpio != null
 	var redraw: bool = mapped and ((glow_step() != step and _shown_lit.count(true) > 1) \
 		or (cue_frame() != cue and _shown_lit.has(false)) or _twinkling() != twinkling \
@@ -680,8 +705,9 @@ func _draw_landmark(index: int) -> void:
 	var size: int = _map().sizes[index]
 	var at: Vector2i = _map().landmarks[index]
 	if shows_cue(index):
+		var colour: Color = hint_colour() if _hinted.has(index) else CUE_COLOURS[cue_frame()]
 		for d: Vector2i in cue_pixels(size):
-			_dot(at + d, CUE_COLOURS[cue_frame()])
+			_dot(at + d, colour)
 	var lit: bool = shows_lit(index)
 	var picked: bool = _selected.has(index) and not lit
 	var flash: bool = index == _flash_landmark and _flash_left > 0.0

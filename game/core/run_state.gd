@@ -343,6 +343,47 @@ func _link_clears_sky(star_ids: Array[int], gain: int) -> bool:
 	return light + gain >= light_target() or not lit.has(false)
 
 
+## The link hint (playtest: show a new player what to pick next): the stars and unlit landmarks
+## (by link id) that could join a link started with `star_ids` and still let it make a valid combo,
+## every step in reach. After one pick, those in its reach that some third star could finish; after
+## two, those that finish it now. Nothing before the first pick, after the third, for a link that
+## can't be made, or once the run is over.
+func link_candidates(star_ids: Array[int]) -> Array[int]:
+	var found: Array[int] = []
+	if is_over() or star_ids.is_empty() or star_ids.size() >= Combos.LINK_LENGTH:
+		return found
+	for id: int in star_ids:
+		if _link_star(id) == null:
+			return found
+	var pool: Array[int] = []
+	for star: Star in stars:
+		pool.append(star.id)
+	if scorpio != null:
+		for i: int in scorpio.map.count():
+			if not scorpio.is_lit(i):
+				pool.append(Scorpio.landmark_id(i))
+	for next: int in pool:
+		if star_ids.has(next):
+			continue
+		var picked: Array[int] = star_ids.duplicate()
+		picked.append(next)
+		if picked.size() == Combos.LINK_LENGTH:
+			if combo_for(picked) != Combos.INVALID:
+				found.append(next)
+			continue
+		if not link_in_reach(picked):
+			continue
+		for last: int in pool:
+			if picked.has(last):
+				continue
+			var trio: Array[int] = picked.duplicate()
+			trio.append(last)
+			if combo_for(trio) != Combos.INVALID:
+				found.append(next)
+				break
+	return found
+
+
 ## The combo a link would make (Combos.INVALID if none), without making it. For previews.
 func combo_for(star_ids: Array[int]) -> String:
 	if not link_in_reach(star_ids):

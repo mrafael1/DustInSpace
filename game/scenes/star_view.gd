@@ -27,6 +27,10 @@ const TWINKLE_PERIOD: float = 2.4
 const GLINT_TIME: float = 0.16
 ## Selection ring: 2-frame rotate.
 const RING_FRAME_TIME: float = 0.2
+## The link hint: a star that could come next in the link being traced shows four corner brackets
+## (the unlit landmarks' "you can pick this" cue) pulsing warm, C1 then C3, this long each, in step
+## with every other hinted star and landmark (they all start together).
+const HINT_PULSE: float = 0.3
 const EASE_BACK: float = 1.70158
 ## Collapse: stars dim from here, and are swallowed from here to the end.
 const REDSHIFT_AT: float = 0.5
@@ -68,6 +72,13 @@ var selected: bool = false:
 	set(value):
 		selected = value
 		queue_redraw()
+## The link hint: this star could come next in the link being traced (Sky sets it).
+var hinted: bool = false:
+	set(value):
+		if value != hinted:
+			_hint_time = 0.0
+		hinted = value
+		queue_redraw()
 
 var _from: Vector2i = Vector2i.ZERO
 var _to: Vector2i = Vector2i.ZERO
@@ -75,6 +86,8 @@ var _bounds: Rect2i = Rect2i()
 ## Seconds in the current state. Negative while a staggered flight waits to start.
 var _time: float = 0.0
 var _twinkle_phase: float = 0.0
+## Seconds since the link hint started on this star.
+var _hint_time: float = 0.0
 var _frame_key: int = -1
 ## A pending collapse: where to, how long, and seconds until it starts (-1 for none).
 var _collapse_point: Vector2i = Vector2i.ZERO
@@ -188,6 +201,7 @@ func advance(delta: float) -> void:
 			_start_collapse()
 			delta = overshoot
 	_time += delta
+	_hint_time += delta
 	match state:
 		State.SETTLING:
 			_advance_flight()
@@ -324,7 +338,7 @@ func _current_frame_key() -> int:
 			return _dissolve_frame()
 		State.COLLAPSING:
 			return _redshift()
-	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0)
+	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (int(hint_on(_hint_time)) + 1 if shows_hint() else 0)
 
 
 func _is_spark() -> bool:
@@ -333,6 +347,21 @@ func _is_spark() -> bool:
 
 func _is_glinting() -> bool:
 	return fposmod(_time + _twinkle_phase, TWINKLE_PERIOD) < GLINT_TIME
+
+
+## Whether this star shows the link hint's brackets: hinted, and not picked yet.
+func shows_hint() -> bool:
+	return hinted and not selected
+
+
+## The colour of the link hint's brackets now: C1 while its pulse is on, C3 while off.
+func hint_colour() -> Color:
+	return Palette.C1 if hint_on(_hint_time) else Palette.C3
+
+
+## Whether the link hint's pulse is lit `t` seconds after it started: lit first, then off, in turn.
+static func hint_on(t: float) -> bool:
+	return int(t / HINT_PULSE) % 2 == 0
 
 
 func _ring_frame() -> int:
@@ -367,6 +396,10 @@ func _draw_idle() -> void:
 	_draw_frame(&"glint" if _is_glinting() else &"idle")
 	if selected:
 		_draw_ring()
+	elif shows_hint():
+		var colour: Color = hint_colour()
+		for p: Vector2i in ConstellationView.cue_pixels(size):
+			draw_rect(Rect2(Vector2(p), Vector2.ONE), colour)
 
 
 func _draw_dissolve() -> void:
