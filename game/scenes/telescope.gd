@@ -475,12 +475,18 @@ func _draw_sight() -> void:
 		_dot(line[i], Palette.C2)
 
 
-## The reticle at the burst point and a dotted ring where the stars will scatter.
+## The reticle at the burst point and a dotted ring where the stars will scatter: one ring per
+## burst point for a pack that splits (the red pack's twin burst), each with a small C2 core.
 func _draw_burst_preview() -> void:
 	var at: Vector2i = burst_preview() - origin()
-	for i: int in RING_DOTS:
-		var angle: float = i * TAU / RING_DOTS
-		_dot(at + Vector2i((Vector2(cos(angle), sin(angle) * StarScatter.RING_SQUASH) * RING_RADIUS).round()), Palette.M5)
+	var points: Array[Vector2i] = burst_points()
+	for point: Vector2i in points:
+		var centre: Vector2i = point - origin()
+		for i: int in RING_DOTS:
+			var angle: float = i * TAU / RING_DOTS
+			_dot(centre + Vector2i((Vector2(cos(angle), sin(angle) * StarScatter.RING_SQUASH) * RING_RADIUS).round()), Palette.M5)
+		if points.size() > 1:
+			_dot(centre, Palette.C2)
 	for corner: Vector2i in [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]:
 		var c: Vector2i = at + corner * RETICLE
 		for i: int in 3:
