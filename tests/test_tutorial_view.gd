@@ -54,7 +54,9 @@ func test_the_guide_follows_each_step() -> void:
 	assert_true(scope.is_aiming(), "the launch step aims")
 	assert_true(run.launch(Vector2i(90, 170)))
 	_settle()
-	assert_eq(guide.text(), "DRAG THROUGH 3 STARS")
+	assert_eq(guide.text(), "LINK ONE OF EACH SIZE")
+	assert_eq(guide.combos(), [[Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]], "the card shows one of each size")
+	assert_true(run.sky_rect.has_point(guide.card_rect().position), "at the top of the sky")
 	assert_eq(guide.fingertip().x, run.stars[0].position.x, "the hand over a star to link")
 	assert_false(scope.is_aiming(), "touches reach the stars")
 	assert_false(scope.start_aim(), "the telescope waits for the next launch step")
@@ -64,6 +66,7 @@ func test_the_guide_follows_each_step() -> void:
 	run.link(_order(ids))
 	_settle()
 	assert_eq(guide.text(), "LAUNCH NEXT TO THIS STAR")
+	assert_eq(guide.combos(), [], "no card while launching")
 	assert_eq(guide.fingertip().x, run.scorpio.landmark_position(run.tutorial.landmark).x, "the hand over the star")
 	assert_true(scope.is_aiming(), "aiming again")
 	scope.aim_at(Vector2i(170, 100))
@@ -95,6 +98,7 @@ func test_free_play_shows_its_line_then_clears() -> void:
 	var guide: TutorialView = hud.tutorial_guide()
 	assert_eq(guide.text(), "LIGHT EVERY STAR")
 	assert_false(guide.has_hand())
+	assert_eq(guide.combos().size(), 2, "both combos, OR between them")
 	guide.advance(TutorialView.DONE_TIME + 0.1)
 	assert_eq(guide.text(), "")
 
@@ -141,3 +145,24 @@ func _order(ids: Array[int]) -> Array[int]:
 		if run.link_in_reach(order):
 			return order
 	return ids
+
+
+func test_lighting_the_star_teaches_three_of_its_size() -> void:
+	_start()
+	_settle()
+	run.tutorial.step = Tutorial.Step.LIGHT
+	run.tutorial.landmark = 1
+	run.tutorial_step.emit(Tutorial.Step.LIGHT)
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE")
+	var size: int = run.scorpio.map.sizes[1]
+	assert_eq(guide.combos(), [[size, size, size]], "three stars of the constellation star's size")
+
+
+func test_the_card_fits_the_screen() -> void:
+	for step: int in [Tutorial.Step.LINK, Tutorial.Step.LIGHT, Tutorial.Step.DONE]:
+		var width: int = 2 * TutorialView.CARD_PAD
+		for combo: Array in TutorialView.card_combos(step, Star.Size.BIG):
+			width += TutorialView.row_width(combo) + 30
+		assert_lt(width, ScreenZones.SCREEN.x, "step %d" % step)
