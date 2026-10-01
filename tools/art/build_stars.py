@@ -1,10 +1,13 @@
 """Builds the star sprites in assets/art/ (issue #12, docs/art-direction.md "Assets").
 
-Three collectible stars, drawn at native size. Each size has its own colour, like a star's
-temperature, so the sizes tell apart at a glance (RAMPS below):
+Three collectible stars, drawn at native size. Each size has its own colour, so the sizes tell
+apart at a glance (RAMPS below):
   small  5x5   plus shape                                        orange: C2 core, C3 arms
-  medium 11x11 8-point star with a cross core                    gold: C0 core, C1 body, C2 tips
+  medium 11x11 8-point star with a cross core                    mauve: D0 core, N9 body, N8 tips
   big    15x15 round 5 px core (a plus in a disc) with long rays blue-white: C0 core, M6, M5 tips
+Gold is kept for Scorpio's lit landmarks: every size also has "lit" frames, its shape in gold
+(C0 core, C1 body, C2 tips; LIT_RAMP), so a lit constellation star reads as finished, not as a
+star to collect.
 Each size is one horizontal strip, stars_<size>.png, with one frame per state (FRAMES below),
 and a JSON sidecar naming the frames. The dashed C1 selection ring is selection_ring_<size>.png,
 2 frames (the dashes swap). StarView draws these frames; the halo stays a dithered glow in code.
@@ -35,13 +38,16 @@ D0 = (217, 204, 255)
 # Frames brighten or dim by moving along the chain; every chain starts at C0, so a flare is white.
 RAMPS = {
     "small": ([C0, C1, C2, C3], [2, 3, 3, 3]),
-    "medium": ([C0, C1, C2, C3], [0, 1, 1, 2]),
+    "medium": ([C0, D0, N9, N8], [1, 2, 2, 3]),
     "big": ([C0, M6, M5, M4], [0, 1, 1, 2]),
 }
 
+# A lit landmark's chain, for every size: gold, like the strings between lit landmarks.
+LIT_RAMP = ([C0, C1, C2, C3], [0, 1, 1, 2])
+
 # Scorpio's landmarks (constellation stars) are drawn with these same frames: unlit, the idle
-# frame; lit, the same frame with the sky star's halo and twinkle (ConstellationView). So a
-# constellation star always reads as the sky star it stands in for (playtest feedback).
+# frame, so it reads as the sky star it stands in for; lit, the gold "lit" frames with a halo and
+# twinkle (ConstellationView).
 
 # Digits are shape steps (0 = core); "." is empty. Centred, odd sizes.
 SHAPES = {
@@ -84,7 +90,8 @@ SHAPES = {
     ],
 }
 
-# Each frame: (name, highest step drawn, step shift). Negative shift = brighter.
+# Each frame: (name, highest step drawn, step shift[, chain]). Negative shift = brighter.
+# The chain is the size's own (RAMPS) unless given.
 #   idle        the settled star
 #   glint       a twinkle: every step one notch brighter
 #   spark       mid-flight after a burst: only the core
@@ -94,6 +101,8 @@ SHAPES = {
 #   fade_dot    last dissolve frame: a single pixel of the first ring's colour (drawn specially)
 #   dim         Big Bang redshift: a step darker as it nears the hole
 #   dim_core    Big Bang swallow: only the core, three steps dimmer
+#   lit         a lit Scorpio landmark: the idle shape in gold
+#   lit_glint   its twinkle
 FRAMES = [
     ("idle", 3, 0),
     ("glint", 3, -1),
@@ -104,6 +113,8 @@ FRAMES = [
     ("fade_dot", -1, 1),
     ("dim", 3, 1),
     ("dim_core", 0, 3),
+    ("lit", 3, 0, LIT_RAMP),
+    ("lit_glint", 3, -1, LIT_RAMP),
 ]
 
 # Selection ring: a dashed C1 circle this far outside the sprite, dashes swapping per frame.
@@ -113,8 +124,8 @@ RING_DASHES = 16
 RING_FRAMES = 2
 
 
-def frame_pixels(size_name: str, rows: list[str], max_step: int, shift: int) -> dict[tuple[int, int], tuple]:
-    chain, place = RAMPS[size_name]
+def frame_pixels(size_name: str, rows: list[str], max_step: int, shift: int, ramp=None) -> dict[tuple[int, int], tuple]:
+    chain, place = ramp or RAMPS[size_name]
     size = len(rows)
     if max_step < 0:
         # A single pixel at the centre, one step down from the core.

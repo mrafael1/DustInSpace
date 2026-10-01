@@ -3,8 +3,8 @@ extends RefCounted
 ## Colours from assets/palettes/stellar_sun.gpl, for views that draw in code.
 ## Add a colour here only when a view uses it; tests check each one against the .gpl.
 
-## Starlight ramp: collectibles, links, particles. C4-C5 are for halos (and the Scorpio landmarks' dim
-## selectable cue) only.
+## Starlight ramp: collectibles, links, particles. C4-C5 are for halos only (and C4 for the dim step
+## of the Scorpio landmarks' C3 selectable cue).
 const C0 := Color("#FFFBEA")
 const C1 := Color("#FFE59A")
 const C2 := Color("#FFC062")

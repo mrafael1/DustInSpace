@@ -103,16 +103,23 @@ func test_built_strings_glow_and_open_ones_dont() -> void:
 	assert_gt(pixels.size(), ConstellationView.GLOW_SPACING, "room for glints")
 
 
-func test_a_landmark_looks_like_its_sky_star_lit_or_not() -> void:
-	# Playtest: a constellation star must read as the sky star it stands in for; lighting it adds
-	# the sky star's effects (halo, twinkle) and never changes its colour.
+func test_an_unlit_landmark_looks_like_its_sky_star_and_a_lit_one_turns_gold() -> void:
+	# Playtest: an unlit constellation star must read as the sky star it stands in for. Lit, it's
+	# done: gold whatever its size, the colour of the lit strings, which no sky star uses.
 	for size: int in 3:
-		assert_eq(ConstellationView.landmark_pixels(size), ConstellationView.star_pixels(size, &"idle"), "the sky star's own frame")
-		assert_eq(ConstellationView.landmark_pixels(size, true), ConstellationView.star_pixels(size, &"glint"), "its twinkle")
-		var halo: Dictionary[Vector2i, Color] = StarView.halo_pixels(size as Star.Size)
-		assert_false(halo.is_empty(), "lit, it wears its halo")
+		var unlit: Dictionary[Vector2i, Color] = ConstellationView.landmark_pixels(size)
+		var lit: Dictionary[Vector2i, Color] = ConstellationView.landmark_pixels(size, true)
+		assert_eq(unlit, ConstellationView.star_pixels(size, &"idle"), "unlit: the sky star's own frame")
+		assert_eq(lit.keys(), unlit.keys(), "lit: the same shape")
+		assert_true(lit.values().has(Palette.C1), "lit: gold")
+		for colour: Color in lit.values():
+			assert_true(colour in [Palette.C0, Palette.C1, Palette.C2], "lit: gold only, " + colour.to_html(false))
+		assert_ne(ConstellationView.landmark_pixels(size, true, true), lit, "lit, it twinkles")
+		var halo: Dictionary[Vector2i, Color] = ConstellationView.lit_halo_pixels(size)
+		assert_false(halo.is_empty(), "lit, it wears a halo")
 		for p: Vector2i in halo:
-			assert_false(ConstellationView.star_pixels(size).has(p), "the halo stays off the star")
+			assert_false(unlit.has(p), "the halo stays off the star")
+			assert_true(halo[p] in [Palette.C4, Palette.C5], "a warm halo on every size")
 	assert_gt(ConstellationView.star_pixels(Star.Size.BIG).size(), ConstellationView.star_pixels(Star.Size.SMALL).size())
 
 
@@ -424,7 +431,7 @@ func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:
 	var a: Star = _star(Star.Size.SMALL, Vector2i(116, 104))
 	_tap(a.position)
 	_tap(Scorpio.LANDMARKS[3])
-	assert_false(constellation.shows_cue(3), "in the link it shows lit instead")
+	assert_false(constellation.shows_cue(3), "in the link it shows the selection ring instead")
 	_tap(Vector2i(170, 240))
 	run.scorpio.lit[3] = true
 	assert_true(constellation.shows_cue(3), "lit in the core only: not shown until its event plays")
@@ -432,7 +439,7 @@ func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:
 	assert_false(constellation.shows_cue(3), "lit: no cue")
 
 
-func test_the_cue_is_four_quiet_brackets_off_the_star_art() -> void:
+func test_the_cue_is_four_ember_brackets_off_the_star_art() -> void:
 	for size: int in 3:
 		var art: Dictionary = ConstellationView.star_pixels(size)
 		var cue: Array[Vector2i] = ConstellationView.cue_pixels(size)
@@ -442,7 +449,21 @@ func test_the_cue_is_four_quiet_brackets_off_the_star_art() -> void:
 			assert_eq(maxi(absi(p.x), absi(p.y)), StarView.half_extent(size as Star.Size) + ConstellationView.CUE_GAP)
 	var frame: int = constellation.cue_frame()
 	constellation.advance(ConstellationView.CUE_STEP)
-	assert_ne(constellation.cue_frame(), frame, "it swaps C5 and C4, slowly")
+	assert_ne(constellation.cue_frame(), frame, "it swaps C3 and C4, slowly")
+	assert_eq(ConstellationView.CUE_COLOURS, [Palette.C3, Palette.C4] as Array[Color], "ember, so it shows")
+
+
+func test_a_selected_landmarks_ring_redraws_on_its_own_frame_change() -> void:
+	constellation.show_link_preview([3] as Array[int], [] as Array[int])
+	var t: float = _ring_only_flip()
+	assert_gt(t, 0.0, "a ring flip with the glow, cue and twinkles still")
+	constellation.set("_time", t - 0.01)
+	await wait_process_frames(2)
+	var redraws: Array[int] = [0]
+	constellation.draw.connect(func() -> void: redraws[0] += 1)
+	constellation.advance(0.02)
+	await wait_process_frames(2)
+	assert_gt(redraws[0], 0, "the ring's next dash frame is drawn")
 
 
 func test_the_reach_ring_shows_around_the_last_star_picked() -> void:
@@ -589,3 +610,18 @@ func _touch(at: Vector2i, pressed: bool) -> void:
 	e.position = Vector2(at)
 	e.pressed = pressed
 	sky.handle_pointer(e)
+
+
+## A time where the selection ring changes frame and nothing else that redraws does (0 if none).
+func _ring_only_flip() -> float:
+	var lit: Array[bool] = constellation.get("_shown_lit")
+	for k: int in range(1, 200):
+		var t: float = k * StarView.RING_FRAME_TIME
+		var before: float = t - 0.01
+		var after: float = t + 0.01
+		var still: bool = int(before / ConstellationView.GLOW_STEP) == int(after / ConstellationView.GLOW_STEP) 			and int(before / ConstellationView.CUE_STEP) == int(after / ConstellationView.CUE_STEP)
+		for i: int in lit.size():
+			still = still and ConstellationView.twinkles(i, before) == ConstellationView.twinkles(i, after)
+		if still and int(before / StarView.RING_FRAME_TIME) != int(after / StarView.RING_FRAME_TIME):
+			return t
+	return 0.0

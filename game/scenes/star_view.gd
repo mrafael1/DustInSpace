@@ -48,15 +48,16 @@ const RING_SHEETS: Array[Texture2D] = [
 	preload("res://assets/art/selection_ring_medium.png"),
 	preload("res://assets/art/selection_ring_big.png"),
 ]
-## Scorpio's landmarks (ConstellationView) use "idle" and "glint" too: they look like sky stars.
-const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flare_core", &"fade_core", &"fade_dot", &"dim", &"dim_core"]
+## Scorpio's landmarks (ConstellationView) use "idle" unlit, so they look like sky stars, and the
+## gold "lit" and "lit_glint" frames once lit.
+const FRAMES: Array[StringName] = [&"idle", &"glint", &"spark", &"flare", &"flare_core", &"fade_core", &"fade_dot", &"dim", &"dim_core", &"lit", &"lit_glint"]
 ## Which dissolve and collapse frames play, in order.
 const DISSOLVE_SEQUENCE: Array[StringName] = [&"flare", &"flare_core", &"fade_core", &"fade_dot"]
 const COLLAPSE_SEQUENCE: Array[StringName] = [&"glint", &"dim", &"dim_core"]
 const HALO_RADIUS: Array[int] = [4, 8, 11]
-## Halo colours per size, near then far: warm around the orange and gold stars, cool around the
-## blue-white big star so its colour stays clean.
-const HALO_COLOURS: Array = [[Palette.C4, Palette.C5], [Palette.C4, Palette.C5], [Palette.M4, Palette.M3]]
+## Halo colours per size, near then far: warm around the orange star, mauve around the mauve one,
+## cool around the blue-white big star, so each star's colour stays clean.
+const HALO_COLOURS: Array = [[Palette.C4, Palette.C5], [Palette.C5, Palette.N6], [Palette.M4, Palette.M3]]
 ## Ordered-dither thresholds (0-15) for the halo.
 const BAYER: Array[int] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
 
@@ -222,10 +223,11 @@ func halo_dots() -> Dictionary[Vector2i, Color]:
 
 ## A settled star's halo of `star_size`, as offsets from its centre: HALO_COLOURS' near colour at
 ## 50% dither inside half the radius, the far one at about 20% out to HALO_RADIUS, never on the
-## star's own pixels. Lit constellation stars wear it too (ConstellationView).
-static func halo_pixels(star_size: Star.Size) -> Dictionary[Vector2i, Color]:
+## star's own pixels. Lit constellation stars wear it too, in their own `colours` (ConstellationView).
+static func halo_pixels(star_size: Star.Size, colours: Array = []) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	var radius: int = HALO_RADIUS[star_size]
+	var near_far: Array = colours if not colours.is_empty() else HALO_COLOURS[star_size]
 	for dy: int in range(-radius, radius + 1):
 		for dx: int in range(-radius, radius + 1):
 			var offset := Vector2i(dx, dy)
@@ -235,9 +237,9 @@ static func halo_pixels(star_size: Star.Size) -> Dictionary[Vector2i, Color]:
 			var threshold: int = BAYER[posmod(dy, 4) * 4 + posmod(dx, 4)]
 			if dist_sq * 4 <= radius * radius:
 				if threshold < 8:
-					dots[offset] = HALO_COLOURS[star_size][0]
+					dots[offset] = near_far[0]
 			elif threshold < 3:
-				dots[offset] = HALO_COLOURS[star_size][1]
+				dots[offset] = near_far[1]
 	return dots
 
 
