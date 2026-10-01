@@ -8,8 +8,8 @@ extends RefCounted
 
 ## How the finished drawing is traced: the whole scorpion, or only a stinger (tail bulbs and a
 ## hooked sting), or a tail (a row of bulbs), or a body (plated sides and legs), or a heart (a heart
-## round Antares, with forked vessels).
-enum Drawing { SCORPION, STINGER, TAIL, BODY, HEART }
+## round Antares, with forked vessels), or claws (a pincer opening at each claw star, #74).
+enum Drawing { SCORPION, STINGER, TAIL, BODY, HEART, CLAWS }
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -22,7 +22,7 @@ var sizes: Array[int] = []
 var starting_lit: Array[int] = []
 var drawing: Drawing = Drawing.SCORPION
 ## Orion (#64) hunts this stage: he marks a loose star; the next link saves it or has it shot. With
-## a volley too, both threats run (the Claws are planned to bring every one).
+## a volley too, both threats run (the Claws bring every one).
 var orion: bool = false
 ## Orion looses a volley (#70) every few links on this stage: the balance.json block that tunes it
 ## (Balance.VOLLEY_BLOCKS), or "" for none.
@@ -30,6 +30,9 @@ var volley: String = ""
 ## Orion marks a hunting area (#71) here: each launch, once its pack bursts, his arrow strikes it
 ## and destroys the loose stars inside, then he marks a new one.
 var hunt: bool = false
+## Whether the stage opens by playing its threats' intros (the volley's, the hunting area's). The
+## Claws (#74) bring threats each earlier stage already introduced, so they open without one.
+var intros: bool = true
 
 
 ## The full Scorpio (#61): every star of Scorpius's figure.
@@ -112,6 +115,27 @@ static func heart() -> StarMap:
 	return map
 
 
+## The Claws, stage 5 (#74): seven stars. A neck climbs from the lower left (towards the Heart) to
+## Dschubba (the head, big), which forks into two arms: one up to beta, one down to pi, each claw
+## a pincer in the finished drawing. Orion keeps the top left and brings all three of his threats:
+## the single mark, the volley and the hunting area. No intros (each stage before introduced one).
+## The neck's first star starts lit: six to light.
+static func claws() -> StarMap:
+	var map := StarMap.new()
+	map.id = "claws"
+	map.title = "CLAWS"
+	map.landmarks = [Vector2i(62, 206), Vector2i(90, 182), Vector2i(116, 160), Vector2i(124, 130), Vector2i(146, 106), Vector2i(146, 170), Vector2i(156, 200)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5), Vector2i(5, 6)]
+	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.drawing = Drawing.CLAWS
+	map.orion = true
+	map.volley = "volley"
+	map.hunt = true
+	map.intros = false
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -123,6 +147,8 @@ static func by_id(p_id: String) -> StarMap:
 			return body()
 		"heart":
 			return heart()
+		"claws":
+			return claws()
 	return scorpio()
 
 

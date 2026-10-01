@@ -306,7 +306,7 @@ func link(star_ids: Array[int]) -> String:
 		if scorpio.is_complete():
 			constellation_completed.emit()
 	# Orion: a link that left his mark behind has the arrow take it (a clear took it already), before
-	# the loss check sees the sky. Then he marks a new star if the run goes on. On the Heart (#71) he
+	# the loss check sees the sky. Then he marks a new star if the run goes on. On the Claws (#74) he
 	# also looses volleys: the single arrow flies first, so the mark is always settled (saved or shot)
 	# before the volley picks its victims, and the new mark comes after both: a volley never takes a
 	# marked star, and no star is hit twice. Saving the mark doesn't touch the volley's count.
@@ -464,9 +464,10 @@ func _count_for_volley() -> void:
 ## Orion's volley intro, as a volley stage opens (the scene calls it once its views are bound): a
 ## few random stars already in the sky, then a volley at once that destroys them all. It pays
 ## nothing, doesn't count towards the next volley, and uses the volley's own RNG stream, so packs
-## and layout never shift. Does nothing without a volley, or once the run has begun.
+## and layout never shift. Does nothing without a volley, on a map without intros, or once the run
+## has begun.
 func play_volley_intro() -> void:
-	if volley == null or volley.intro_stars <= 0 or not stars.is_empty() or is_over():
+	if volley == null or volley.intro_stars <= 0 or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
 	var sizes: Array[int] = volley.intro_sizes(volley.intro_stars)
 	var spots: Array[Vector2i] = volley.intro_spots(StarScatter.inner_rect(sky_rect), sky_rect)
@@ -493,9 +494,9 @@ func play_volley_intro() -> void:
 ## Orion marks a circle round them, a demo pack flies into it and bursts, then his arrow strikes the
 ## circle and takes them all. It pays nothing, uses no pack and leaves no circle (the first real
 ## launch marks one); it uses the hunt's own RNG stream, so packs and layout never shift. Does
-## nothing without a hunt or an intro, or once the run has begun.
+## nothing without a hunt or an intro (or on a map without intros), or once the run has begun.
 func play_hunt_intro() -> void:
-	if hunt == null or balance.hunt_intro_stars <= 0 or not stars.is_empty() or is_over():
+	if hunt == null or balance.hunt_intro_stars <= 0 or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ Hunt.SEED_SALT ^ LAYOUT_SEED_SALT

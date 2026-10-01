@@ -44,7 +44,9 @@ func test_play_on_an_available_stage_opens_it() -> void:
 
 
 func test_an_unbuilt_part_can_be_looked_at_but_never_played() -> void:
-	chart.setup(Chapter.new())
+	var chapter := Chapter.new()
+	chapter.set_built(4, false)
+	chart.setup(chapter)
 	watch_signals(chart)
 	_tap(Scorpio.LANDMARKS[1])
 	assert_eq(chart.selected(), 4, "the Claws")
@@ -72,6 +74,7 @@ func test_a_won_stage_can_be_replayed() -> void:
 	chapter.complete(1)
 	chapter.complete(2)
 	chapter.complete(3)
+	chapter.complete(4)
 	chapter.complete(Chapter.FINAL)
 	chart.setup(chapter)
 	assert_eq(chart.selected(), Chapter.FINAL, "all built stages won: the last one")
