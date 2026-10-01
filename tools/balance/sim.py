@@ -27,12 +27,12 @@ resolve, destroys a random volley.fraction of the sky's stars (rounded up) for n
 combo skips it. The bots don't play around it (they never hold a combo back or launch first).
 Orion's hunting area (#71, the Heart): from the second launch, once the pack has burst, his arrow
 strikes a circle of hunt.radius. He marks each circle round a random loose star (its prey), so the
-strike always takes the prey if it's still there (a star of its size: the bots don't link it out
-first). Where the other stars are isn't modelled, so each (the new ones too) is lost with the chance
+strike always takes the prey if it's still there (the bots don't link it out first: a combo
+takes other stars of its size before it). Where the other stars are isn't modelled, so each (the new ones too) is lost with the chance
 a random point lies in the circle: its share of the sky (--hunt-share overrides it). The bots never
 link a threatened star out first nor aim away from the circle.
 The Claws (#74) run all three: the mark, the volley and the hunting circle. On a launch a standing
-mark is struck with the circle's prey, or else at the circle's share of the sky.
+mark is struck if it's the circle's prey, or else at the circle's share of the sky, like any star.
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
 """
@@ -85,9 +85,40 @@ def load(overrides):
     return cfg
 
 
+class Star(str):
+    """A sky star: equal to its size for counting combos, but each one its own object, so the mark
+    and the circle's prey are tracked as stars (`is`), not as sizes."""
+
+
 def draw(pack):
     w = pack["weights"]
-    return random.choices(SIZES, [w[s] for s in SIZES])[0]
+    return Star(random.choices(SIZES, [w[s] for s in SIZES])[0])
+
+
+def holds(sky, star):
+    """Whether this very star is still in the sky."""
+    return star is not None and any(s is star for s in sky)
+
+
+def take(sky, star):
+    """Removes this very star from the sky."""
+    for i, s in enumerate(sky):
+        if s is star:
+            del sky[i]
+            return
+
+
+def take_size(sky, size, spare=(), first=None):
+    """Removes a star of `size` for a combo: `first` if it's that size and still there (a rescue),
+    else one that isn't in `spare` (the bots use threatened stars last), else any."""
+    if first is not None and first == size and holds(sky, first):
+        take(sky, first)
+        return
+    for i, s in enumerate(sky):
+        if s == size and not any(s is t for t in spare):
+            del sky[i]
+            return
+    sky.remove(size)
 
 
 def best_combo(cfg, sky, unlit):
@@ -138,7 +169,7 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
     dust, light = cfg["start_dust"], 0
     packs = ["blue"] * cfg["start_packs"]["blue"] + ["red"] * cfg["start_packs"]["red"]
     sky, opened, big_bangs = [], 0, 0
-    # Orion: the size of the marked star, or None; and the launch he marks first (0: never).
+    # Orion: the marked star (a Star), or None; and the launch he marks first (0: never).
     marked = None
     first_mark = cfg.get("orion", {}).get("first_mark_launch", 0) if on and ORION else 0
     # The volley: combos between volleys (0: none), the share it takes, and combos counted so far.
@@ -147,7 +178,7 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
     counted = 0
     # The hunt: the chance each loose star is in the circle when a launch strikes it.
     struck_share = hunt_share(cfg, hunt_override) if on else 0.0
-    # The size of the star the standing circle was marked round, or None.
+    # The star the standing circle was marked round (a Star), or None.
     prey = None
     while True:
         # resolve every available combination (best first)
@@ -169,9 +200,9 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
                         break
                     key, used = TRIPLE[best], [best] * 3
             # Saved when the combo has to take it (or the bots take it first, --orion-rescue).
-            saved = marked is not None and marked in used and (orion_rescue or sky.count(marked) == used.count(marked))
             for s in used:
-                sky.remove(s)
+                take_size(sky, s, spare=(marked, prey), first=marked if orion_rescue else None)
+            saved = marked is not None and not holds(sky, marked)
             # What a combo that lights a landmark pays: as usual in the game ("all"); the other
             # settings are what-ifs for the playtest (--lighting-pays).
             lights = on and bool(lit)
@@ -198,8 +229,8 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
                 return True, opened, big_bangs
             # Orion: a combo that left the mark behind has it shot (a Sun clear took it already);
             # then he marks a new one.
-            if marked is not None and not saved:
-                sky.remove(marked)
+            if marked is not None and not saved and holds(sky, marked):
+                take(sky, marked)
             marked = None
             # Orion's volley: every volley_every-th combo destroys a share of the sky, rounded up.
             if volley_every:
@@ -228,17 +259,10 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
             sky += [draw(pack) for _ in range(int(pack["stars"]))]
         # The hunting circle marked after the last launch is struck once this pack has burst.
         if struck_share and opened > 1:
-            # The Claws: the marked star is in the circle at its share of the sky (or as its prey);
-            # struck, it's gone, and a new mark follows below.
-            if marked is not None and marked in sky and (prey == marked or random.random() < struck_share):
-                sky.remove(marked)
-                if prey == marked:
-                    prey = None
-                marked = None
-            if prey in sky:
-                sky.remove(prey)
-            sky = [s for s in sky if random.random() >= struck_share]
-            if marked not in sky:
+            # Each star is struck once: the prey for sure, any other (the mark too) at the circle's
+            # share of the sky. A struck mark is gone, and a new one follows below.
+            sky = [s for s in sky if s is not prey and random.random() >= struck_share]
+            if not holds(sky, marked):
                 marked = None
         if struck_share:
             prey = random.choice(sky) if sky else None
