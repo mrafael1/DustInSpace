@@ -166,6 +166,7 @@ def hunt_share(cfg, override=None):
 def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None):
     scorpio = cfg.get("scorpio", {})
     on = scorpio.get("enabled", False)
+    big_bangs_on = not on or scorpio.get("big_bang", True)
     unlit = [size for i, size in enumerate(LANDMARK_SIZES) if i not in STARTING_LIT] if on else []
     sun_full = scorpio.get("sun_target", cfg["sun_target"]) if on else cfg["sun_target"]
     dust, light = cfg["start_dust"], 0
@@ -252,7 +253,8 @@ def run(cfg, policy, lighting_pays="all", orion_rescue=False, hunt_override=None
         kind = packs.pop(0)
         pack = cfg["packs"][kind]
         opened += 1
-        if random.random() < pack["big_bang_chance"]:
+        # A constellation stage may switch Big Bangs off (scorpio.big_bang); the roll is still made.
+        if random.random() < pack["big_bang_chance"] and big_bangs_on:
             big_bangs += 1
             dust += cfg["big_bang"]["base_dust"] + cfg["big_bang"]["dust_per_cleared_star"] * len(sky)
             sky = []
