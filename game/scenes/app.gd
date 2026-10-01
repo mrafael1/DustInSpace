@@ -6,7 +6,8 @@ extends Node
 ## chart its stars light and a comet travels to the stage it opened. Owns no rules: Chapter keeps the progress.
 ## Fills the window like Main (a whole-number scale, the game's screen on the bottom edge).
 ## The Stinger's first play is the guided first run (Main.tutorial) until it's finished once; that
-## is saved with the progress ("tutorial": {"done": true}).
+## is saved with the progress ("tutorial": {"done": true}). After that the chart's TUTORIAL button
+## plays it again (replay_tutorial): the Stinger, guided, its win counting as usual.
 ## Debug builds, on the chart: U previews every part won and plays the final's unlock; F previews
 ## the final won too and plays its painted Scorpio rising. A preview is a copy of the chapter shown
 ## on the chart only: it is never saved and never unlocks a stage; opening a stage drops it.
@@ -44,6 +45,8 @@ func _ready() -> void:
 	tutorial_done = _store.load_chapter(TUTORIAL_ID).get("done", false) == true
 	_chart.setup(chapter)
 	_chart.stage_chosen.connect(open_stage)
+	_chart.tutorial_requested.connect(replay_tutorial)
+	_chart.show_tutorial_button(tutorial_done)
 	get_window().size_changed.connect(fit_screen)
 	fit_screen()
 	set_process_unhandled_key_input(OS.is_debug_build())
@@ -99,8 +102,14 @@ func stage() -> Main:
 	return _stage
 
 
-## Opens stage `point` (only one that can be played).
-func open_stage(point: int) -> void:
+## Plays the guided first run again: the Stinger, guided.
+func replay_tutorial() -> void:
+	open_stage(0, true)
+
+
+## Opens stage `point` (only one that can be played); `guided` plays the guided first run on it (the
+## Stinger's first play is guided anyway until it's been finished once).
+func open_stage(point: int, guided: bool = false) -> void:
 	_end_preview()
 	if _stage != null or chapter.state(point) == Chapter.PointState.LOCKED:
 		return
@@ -110,7 +119,7 @@ func open_stage(point: int) -> void:
 	_stage = MainScene.instantiate()
 	_stage.in_chapter = true
 	_stage.star_map = chapter.map_id(point)
-	_stage.tutorial = point == 0 and not tutorial_done
+	_stage.tutorial = point == 0 and (guided or not tutorial_done)
 	_stage.tutorial_finished.connect(_on_tutorial_finished)
 	_stage.stage_won.connect(_on_stage_won)
 	_stage.map_requested.connect(back_to_chart)
@@ -145,6 +154,7 @@ func fit_screen() -> void:
 func _on_tutorial_finished() -> void:
 	tutorial_done = true
 	_store.save_chapter(TUTORIAL_ID, {"done": true})
+	_chart.show_tutorial_button(true)
 
 
 func _on_stage_won() -> void:
