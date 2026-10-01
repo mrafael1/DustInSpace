@@ -21,6 +21,9 @@ extends Node2D
 ## marked, his bow readying while a traced link would leave it behind, and his arrow; the shot star
 ## bursts as the arrow lands, once that link resolves. On the Heart (#71) it shows his hunting
 ## area's ring; each launch, once the pack's stars are out, his arrow strikes it.
+## The boss stage (the final): Orion enters as it opens (boss_appeared), each landmark lit hurts
+## him, and the completion starts with his fall (his stars burst one by one) before the
+## constellation plays.
 
 ## A star joined the link being traced; `count` stars are in it now. Feedback only (sound).
 signal star_selected(count: int)
@@ -83,6 +86,8 @@ func _ready() -> void:
 	_gesture.link_requested.connect(_on_link_requested)
 	_gesture.can_join = _can_join
 	_gesture.join_refused.connect(_on_join_refused)
+	_orion.star_fell.connect(func(at: Vector2i) -> void: star_exploded.emit(at))
+	_orion.fallen.connect(_constellation.play_completion)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -108,6 +113,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.sky_rect)
 	if run.volley != null:
 		_orion.show_volley_charge(run.volley.links_left(), run.volley.interval)
+	if run.scorpio != null and run.scorpio.map.boss:
+		_orion.setup_boss(run.scorpio.unlit_sizes().size())
 	for star: Star in run.stars:
 		_spawn(star)
 
@@ -201,6 +208,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_big_bang(event.args[0], event.args[1])
 		&"landmark_lit":
 			_constellation.flash_landmark(event.args[0])
+			_orion.hurt(_unlit_shown())
+		&"boss_appeared":
+			_orion.enter()
+			_sequencer.hold(OrionView.ENTER_TIME)
 		&"string_built":
 			_constellation.flash_string(event.args[0])
 		&"sun_rekindled":
@@ -209,7 +220,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_explode(event.args[0])
 		&"constellation_completed":
 			# The tune waits for every payout to land (watch_payouts); the sequence waits for it.
-			_sequencer.hold(CollectParticles.LONGEST_TRAVEL + ConstellationView.COMPLETION_TIME)
+			_sequencer.hold(CollectParticles.LONGEST_TRAVEL + _completion_time())
 			if _payouts != null and _payouts.particle_count() > 0:
 				_completion_waiting = true
 			else:
@@ -360,9 +371,30 @@ func _on_payouts_landed() -> void:
 		_play_completion()
 
 
+## The boss stage: Orion falls first, his stars bursting one by one, then the constellation plays.
 func _play_completion() -> void:
+	_sequencer.hold(_completion_time())
+	if _run != null and _run.scorpio != null and _run.scorpio.map.boss:
+		_orion.fall()
+		return
 	_constellation.play_completion()
-	_sequencer.hold(ConstellationView.COMPLETION_TIME)
+
+
+## How many landmarks show unlit: the boss's health.
+func _unlit_shown() -> int:
+	var count: int = 0
+	if _run != null and _run.scorpio != null:
+		for i: int in _run.scorpio.map.count():
+			if not _constellation.shows_lit(i):
+				count += 1
+	return count
+
+
+## How long the completion plays here: Orion's fall on the boss stage, then the constellation.
+func _completion_time() -> float:
+	var map: StarMap = _run.scorpio.map if _run != null and _run.scorpio != null else null
+	var fall: float = OrionView.FALL_TIME if map != null and map.boss else 0.0
+	return fall + ConstellationView.completion_time(map)
 
 
 func _positions(stars: Array[Star]) -> Array[Vector2i]:

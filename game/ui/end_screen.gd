@@ -160,6 +160,8 @@ func _show_end() -> void:
 		var title: String = _run.scorpio.map.title
 		_add_line(title + (" COMPLETE" if won else " UNFINISHED"), Palette.C1 if won else Palette.S4)
 		_add_line("STRINGS %d/%d" % [_run.scorpio.built_count(), _run.scorpio.map.segment_count()], Palette.C1)
+		if won and _run.scorpio.map.boss:
+			_add_line("ORION DEFEATED", Palette.C1)
 	elif won:
 		_add_line("SUN RESTORED", Palette.C1)
 		_add_line(light, Palette.C1)
@@ -171,6 +173,12 @@ func _show_end() -> void:
 	var shift: Vector2i = _shift()
 	var centre_x: int = CENTRE_X + shift.x
 	_panel = Rect2i(centre_x - WIDTH / 2, TOP + shift.y, WIDTH, height)
+	# The painted Scorpio stays in view: its panel sits on the bottom edge, over the land and HUD.
+	if won and _run.scorpio != null and ConstellationView.paints_figure(_run.scorpio.map):
+		var drop: int = _screen.end.y - height - _panel.position.y
+		_panel.position.y += drop
+		for line: Label in _lines.get_children():
+			line.position.y += drop
 	var row_y: int = _panel.end.y - PADDING - BUTTON_SIZE.y
 	if map_enabled:
 		var left: int = centre_x - (BUTTON_SIZE.x + BUTTON_GAP + MAP_SIZE.x) / 2

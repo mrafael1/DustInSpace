@@ -57,12 +57,24 @@ func test_an_unbuilt_part_can_be_looked_at_but_never_played() -> void:
 	assert_signal_not_emitted(chart, "stage_chosen")
 
 
-func test_the_final_is_playable_from_its_crown_point() -> void:
+func test_the_final_is_locked_until_the_parts_are_won() -> void:
 	chart.setup(Chapter.new())
 	_tap(ChapterSelect.FINAL_AT)
 	assert_eq(chart.selected(), Chapter.FINAL)
 	assert_eq(_label("Info").text, "SCORPIO")
-	assert_true(chart.can_play(), "open for playtesting")
+	assert_false(chart.can_play(), "locked")
+	watch_signals(chart)
+	_tap(ChapterSelect.PLAY.get_center())
+	assert_signal_not_emitted(chart, "stage_chosen")
+
+
+func test_the_final_is_playable_from_its_crown_point() -> void:
+	var chapter := Chapter.new()
+	for stage: int in Chapter.FINAL:
+		chapter.complete(stage)
+	chart.setup(chapter)
+	assert_eq(chart.selected(), Chapter.FINAL, "the final is next")
+	assert_true(chart.can_play())
 	watch_signals(chart)
 	_tap(ChapterSelect.PLAY.get_center())
 	assert_signal_emitted_with_parameters(chart, "stage_chosen", [Chapter.FINAL])
@@ -346,7 +358,12 @@ func test_a_locked_stage_never_opens() -> void:
 func test_the_final_plays_the_full_scorpio() -> void:
 	var app: App = _app()
 	app.open_stage(Chapter.FINAL)
-	assert_eq(app.stage().run.scorpio.map.id, "scorpio")
+	assert_null(app.stage(), "locked until the parts are won")
+	for stage: int in Chapter.FINAL:
+		app.chapter.complete(stage)
+	app.open_stage(Chapter.FINAL)
+	assert_eq(app.stage().run.scorpio.map.id, "final")
+	assert_true(app.stage().run.scorpio.map.boss)
 	assert_eq(app.stage().run.scorpio.map.count(), 14)
 
 

@@ -3,9 +3,9 @@ extends RefCounted
 ## A chapter (#62): Scorpio split into stages, travelled from the tail. Each part stage (Stinger,
 ## Tail, Body, Heart, Claws) is its own small "false constellation" shaped like that part
 ## (StarMap); winning it lights its group of stars on the chapter chart. The final stage is the
-## full Scorpio. Only stages whose map is built can be played (no empty stages to fill the chart);
-## completing a part unlocks the next one. While the parts are still being built the final is
-## open for playtesting (FINAL_OPEN); after that it opens once every part is won. Completed
+## full Scorpio, a boss stage (StarMap.final). Only stages whose map is built can be played (no
+## empty stages to fill the chart); completing a part unlocks the next one, and winning the fifth
+## part unlocks the final (complete() returns FINAL, so the chart plays its unlock). Completed
 ## stages can be replayed.
 ## Pure state, separate from the constellation built inside a stage. Saved as a Dictionary
 ## (to_save / from_save) by ProgressStore.
@@ -21,12 +21,10 @@ const STAGES: Array[Dictionary] = [
 	{"name": "BODY", "map": "body", "stars": [7, 6, 5]},
 	{"name": "HEART", "map": "heart", "stars": [4, 3]},
 	{"name": "CLAWS", "map": "claws", "stars": [1, 0, 2]},
-	{"name": "SCORPIO", "map": "scorpio", "stars": []},
+	{"name": "SCORPIO", "map": "final", "stars": []},
 ]
-## The final stage: the full Scorpio.
+## The final stage: the full Scorpio, Orion's boss stage.
 const FINAL: int = 5
-## While the part stages are being built, the final can be played from the start (playtesting).
-const FINAL_OPEN: bool = true
 
 var _completed: Array[bool] = []
 ## Which stages have a map (tests may build more).
@@ -85,12 +83,12 @@ func is_completed(stage: int) -> bool:
 
 
 ## Playable now: its map exists, and it's the first part, or the part before it is won; the final
-## once every part is won (or from the start while FINAL_OPEN).
+## once every part is won.
 func is_available(stage: int) -> bool:
 	if not has_stage(stage):
 		return false
 	if is_final(stage):
-		return FINAL_OPEN or _parts_done()
+		return parts_done()
 	return stage == 0 or _completed[stage - 1]
 
 
@@ -128,7 +126,7 @@ func complete(stage: int) -> int:
 	if was or is_final(stage):
 		return -1
 	var next: int = stage + 1
-	if is_available(next) and not _completed[next] and (not is_final(next) or not FINAL_OPEN):
+	if is_available(next) and not _completed[next]:
 		return next
 	return -1
 
@@ -161,7 +159,8 @@ func from_save(data: Dictionary) -> void:
 		_completed[FINAL] = true
 
 
-func _parts_done() -> bool:
+## Every part stage is won (the final is open).
+func parts_done() -> bool:
 	for stage: int in FINAL:
 		if not _completed[stage]:
 			return false

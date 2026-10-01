@@ -87,6 +87,8 @@ func start_run(balance: Balance) -> bool:
 	for child: Node in get_children():
 		if child.has_method("setup"):
 			child.setup(run, _sequencer)
+	# The boss stage opens with Orion's entrance, once every view is bound.
+	run.play_boss_intro()
 	# A volley stage opens by showing its volley (#70), once every view is bound.
 	run.play_volley_intro()
 	# So does a hunting stage (#71): the whole cycle once, with a demo launch.
@@ -169,7 +171,12 @@ func _wire_sound() -> void:
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)
-	(_sky.get_node("OrionLayer") as OrionView).arrow_loosed.connect(_sfx.play.bind(&"launch", 2.0))
+	var orion := _sky.get_node("OrionLayer") as OrionView
+	orion.arrow_loosed.connect(_sfx.play.bind(&"launch", 2.0))
+	# The boss: a rumble as his stars light, a low roar, a low buzz each time he's hurt.
+	orion.entered.connect(_sfx.play.bind(&"tremble", 0.6))
+	orion.roared.connect(_sfx.play.bind(&"big_bang_collapse", 1.5))
+	orion.hurt_taken.connect(_sfx.play.bind(&"link_reject", 0.6))
 	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
 	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
 	_sound_toggle.toggled.connect(_sfx.cycle_level)

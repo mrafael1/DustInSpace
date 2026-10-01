@@ -15,10 +15,26 @@ extends Node2D
 ## On the Heart (#71) he hunts an area: a dotted ember ring (S4, like the crosshair) on the sky (the sight line runs to it as
 ## it's marked); each launch, once its pack bursts, his arrow flies to the ring's centre and every
 ## loose star inside bursts as it lands.
+## On the boss stage (the final) he is the boss. He enters as it opens: his stars light one by one
+## from his feet to his bow, then the whole figure flashes C0 and shakes a pixel (his roar, as the
+## HUD names him). He stays ember (S2 lines, S3 bow, S4 stars) instead of dim and cool, and a row of
+## pips under his feet counts the landmarks still to light: his health. Each landmark lit hurts
+## him: he flashes and flinches and a pip breaks (C0, then an empty N3 slot). When the constellation
+## is complete he falls: one flash, then his stars burst one by one from the bow down to his feet.
 ## Owns no rules: SkyView tells it what the events say.
 
 ## Orion bent his bow: the arrow is off. Feedback only (sound).
 signal arrow_loosed
+## The boss's entrance began: his stars start to light. Feedback only (sound).
+signal entered
+## The boss's entrance: his figure is whole and he roars (flash and shake). Feedback only (sound).
+signal roared
+## A landmark lit hurt the boss. Feedback only (sound).
+signal hurt_taken
+## The boss falls: one of his stars burst at `at`. Feedback only (sparks, sound).
+signal star_fell(at: Vector2i)
+## The boss has fallen: every star of his burst. The constellation plays next.
+signal fallen
 
 ## The figure brightens and draws the bow, then the arrow flies; the star breaks as it lands.
 const DRAW_TIME: float = 0.2
@@ -49,6 +65,28 @@ const NOCKS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(2, -1), Vector2i(2, 1)]
 const RING_GAP: int = 3
 ## Where the figure sits: this far into the play sky from its top-left corner.
 const FIGURE_AT := Vector2i(6, 6)
+## The boss's entrance: a star lights every ENTER_STEP (ENTRANCE order), then he roars for ROAR_TIME
+## (C0, shaking a pixel every SHAKE_STEP), then his health fills a pip every HEALTH_STEP; the
+## entrance holds the sequence ENTER_TIME in all, while the HUD names him.
+const ENTER_STEP: float = 0.07
+const ROAR_TIME: float = 0.3
+const SHAKE_STEP: float = 0.05
+const HEALTH_STEP: float = 0.04
+const ENTER_HOLD: float = 0.9
+## His health: a pip per landmark to light, HEALTH_PIP px square, HEALTH_GAP px apart, this far below
+## the figure's top-left; colours: whole (top row, bottom row), and the empty slot.
+const HEALTH_AT := Vector2i(0, 41)
+const HEALTH_PIP: int = 2
+const HEALTH_GAP: int = 1
+const HEALTH_WHOLE: Array[Color] = [Palette.S4, Palette.S3]
+const HEALTH_EMPTY: Color = Palette.N3
+## A landmark lit hurts him: C0 and a pixel's flinch for HURT_TIME.
+const HURT_TIME: float = 0.25
+## His fall: a FALL_FLASH flash and shake, then a star bursts every FALL_STEP (the entrance in
+## reverse), then a beat.
+const FALL_FLASH: float = 0.3
+const FALL_STEP: float = 0.08
+const FALL_REST: float = 0.3
 ## Orion's stars (figure coordinates), laid out as in the sky (RA/Dec at about 1.7 px a degree):
 ## Meissa (head); Betelgeuse, Bellatrix; the belt Alnitak, Alnilam, Mintaka; Saiph, Rigel. His bow is
 ## the arc of Pi Orionis (the classic shield), held out right, towards the sky he hunts.
@@ -59,6 +97,16 @@ const BOW: Array[Vector2i] = [Vector2i(30, 0), Vector2i(31, 2), Vector2i(32, 5),
 const LINES: Array[Vector2i] = [Vector2i(0, 2), Vector2i(1, 4), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5), Vector2i(4, 6)]
 ## The arm from Bellatrix to the bow hand, gripping the bow's middle.
 const BOW_HAND := Vector2i(29, 8)
+## The boss's stars in the order they light as he enters (figure coordinates): his feet (Saiph,
+## Rigel), the belt, the shoulders, the head, then the bow from top to bottom.
+const ENTRANCE: Array[Vector2i] = [
+	Vector2i(7, 33), Vector2i(21, 31), Vector2i(10, 20), Vector2i(12, 19), Vector2i(14, 17),
+	Vector2i(4, 4), Vector2i(17, 6), Vector2i(12, 0),
+	Vector2i(30, 0), Vector2i(31, 2), Vector2i(32, 5), Vector2i(31, 7), Vector2i(30, 13), Vector2i(28, 14),
+]
+const ROAR_AT: float = ENTER_STEP * 14
+const ENTER_TIME: float = ROAR_AT + ROAR_TIME + ENTER_HOLD
+const FALL_TIME: float = FALL_FLASH + FALL_STEP * 14 + FALL_REST
 
 var _figure_shown: bool = false
 var _figure_at: Vector2i = Vector2i.ZERO
@@ -86,6 +134,14 @@ var _area_radius: int = 0
 var _area_age: float = 0.0
 ## The struck area's radius: its ring stays on the arrow's target until it lands (0: a star's shot).
 var _arrow_radius: int = 0
+## The boss stage: his health (landmarks still to light) of its full count, and how long since his
+## entrance began, he was last hurt, and his fall began (-1: not playing).
+var _boss: bool = false
+var _health: int = 0
+var _health_max: int = 0
+var _enter_age: float = -1.0
+var _hurt_age: float = -1.0
+var _fall_age: float = -1.0
 
 @onready var _figure_layer: Node2D = get_node("../FigureLayer")
 
@@ -111,8 +167,122 @@ func setup(hunts: bool, sky: Rect2i) -> void:
 	_volley_age = -1.0
 	_area_radius = 0
 	_arrow_radius = 0
+	_boss = false
+	_enter_age = -1.0
+	_hurt_age = -1.0
+	_fall_age = -1.0
 	queue_redraw()
 	_figure_layer.queue_redraw()
+
+
+## The boss stage: he is the boss, with `health` landmarks to light (after setup).
+func setup_boss(health: int) -> void:
+	_boss = true
+	_health = health
+	_health_max = health
+	_figure_layer.queue_redraw()
+
+
+func is_boss() -> bool:
+	return _boss
+
+
+## The boss enters: his stars light one by one, then he roars. Lasts ENTER_TIME.
+func enter() -> void:
+	if not _boss:
+		return
+	_enter_age = 0.0
+	entered.emit()
+	_figure_layer.queue_redraw()
+
+
+func is_entering() -> bool:
+	return _enter_age >= 0.0
+
+
+## A landmark lit hurts the boss: he has `health` left. He flashes and flinches and a pip breaks.
+func hurt(health: int) -> void:
+	if not _boss or health >= _health:
+		return
+	_health = maxi(health, 0)
+	_hurt_age = 0.0
+	hurt_taken.emit()
+	_figure_layer.queue_redraw()
+
+
+func health() -> int:
+	return _health
+
+
+## The boss falls: a flash, then his stars burst one by one (star_fell), then `fallen`. Not the
+## boss: `fallen` at once.
+func fall() -> void:
+	if not _boss:
+		fallen.emit()
+		return
+	_fall_age = 0.0
+	_enter_age = -1.0
+	_marked = null
+	_area_radius = 0
+	_charge = 0
+	queue_redraw()
+	_figure_layer.queue_redraw()
+
+
+func is_falling() -> bool:
+	return _fall_age >= 0.0
+
+
+## How many of his stars (ENTRANCE order) show now: all, but fewer while he enters, and fewer as
+## his fall bursts them (from the bow down).
+func stars_shown() -> int:
+	if _enter_age >= 0.0 and _enter_age < ROAR_AT:
+		return mini(int(_enter_age / ENTER_STEP) + 1, ENTRANCE.size())
+	if _fall_age >= FALL_FLASH:
+		return maxi(ENTRANCE.size() - int((_fall_age - FALL_FLASH) / FALL_STEP) - 1, 0)
+	return ENTRANCE.size()
+
+
+## The boss is flashing C0: roaring as he enters, hurt, or about to fall.
+func is_flashing() -> bool:
+	return (_enter_age >= ROAR_AT and _enter_age < ROAR_AT + ROAR_TIME) \
+		or (_hurt_age >= 0.0 and _hurt_age < HURT_TIME) \
+		or (_fall_age >= 0.0 and _fall_age < FALL_FLASH)
+
+
+## The figure's shake now: a pixel side to side while he flashes, else none.
+func shake() -> Vector2i:
+	if not is_flashing():
+		return Vector2i.ZERO
+	var age: float = _hurt_age if _hurt_age >= 0.0 and _hurt_age < HURT_TIME else maxf(_enter_age - ROAR_AT, _fall_age)
+	return Vector2i(1 if int(age / SHAKE_STEP) % 2 == 0 else -1, 0)
+
+
+## How many health pips show: they fill one by one after his roar; all once he has entered.
+func health_filled() -> int:
+	if _enter_age < 0.0:
+		return _health_max
+	if _enter_age < ROAR_AT + ROAR_TIME:
+		return 0
+	return mini(int((_enter_age - ROAR_AT - ROAR_TIME) / HEALTH_STEP) + 1, _health_max)
+
+
+## His health pips now, pixel by pixel: whole ones, the one breaking (C0) and empty slots. None on
+## other stages nor once he falls.
+func health_pixels() -> Dictionary[Vector2i, Color]:
+	var dots: Dictionary[Vector2i, Color] = {}
+	if not _boss or _fall_age >= 0.0:
+		return dots
+	var breaking: bool = _hurt_age >= 0.0 and _hurt_age < HURT_TIME
+	for i: int in health_filled():
+		var at: Vector2i = _figure_at + HEALTH_AT + Vector2i(i * (HEALTH_PIP + HEALTH_GAP), 0)
+		for y: int in HEALTH_PIP:
+			for x: int in HEALTH_PIP:
+				var colour: Color = HEALTH_WHOLE[y]
+				if i >= _health:
+					colour = Palette.C0 if breaking and i == _health else HEALTH_EMPTY
+				dots[at + Vector2i(x, y)] = colour
+	return dots
 
 
 func is_figure_shown() -> bool:
@@ -363,11 +533,41 @@ func advance(delta: float) -> void:
 		_area_age += delta
 		queue_redraw()
 		_figure_layer.queue_redraw()
+	_advance_boss(delta)
 	if _charge == 2:
 		var blink: int = int(_charge_age / CHARGE_BLINK)
 		_charge_age += delta
 		if int(_charge_age / CHARGE_BLINK) != blink:
 			_figure_layer.queue_redraw()
+
+
+func _advance_boss(delta: float) -> void:
+	if not _boss:
+		return
+	if _enter_age >= 0.0:
+		var roaring: bool = _enter_age >= ROAR_AT
+		_enter_age += delta
+		if not roaring and _enter_age >= ROAR_AT:
+			roared.emit()
+		if _enter_age >= ENTER_TIME:
+			_enter_age = -1.0
+		_figure_layer.queue_redraw()
+	if _hurt_age >= 0.0:
+		_hurt_age += delta
+		if _hurt_age >= HURT_TIME:
+			_hurt_age = -1.0
+		_figure_layer.queue_redraw()
+	if _fall_age >= 0.0:
+		var shown: int = stars_shown()
+		_fall_age += delta
+		for i: int in range(stars_shown(), shown):
+			star_fell.emit(_figure_at + ENTRANCE[i])
+		if _fall_age >= FALL_TIME:
+			_fall_age = -1.0
+			_figure_shown = false
+			_boss = false
+			fallen.emit()
+		_figure_layer.queue_redraw()
 
 
 ## The crosshair around a star of `size`, `lock` px further out than at rest: a tick of TICK pixels
@@ -432,6 +632,8 @@ func figure_pixels() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	if not _figure_shown:
 		return dots
+	if _boss:
+		return _boss_pixels()
 	var blinking_on: bool = _charge == 2 and int(_charge_age / CHARGE_BLINK) % 2 == 0
 	var hunting: bool = is_shooting() or is_aiming() or is_bow_ready() or is_volleying() or blinking_on
 	var line_colour: Color = Palette.N5 if hunting else Palette.N3
@@ -449,6 +651,45 @@ func figure_pixels() -> Dictionary[Vector2i, Color]:
 	for p: Vector2i in BODY:
 		dots[_figure_at + p] = Palette.N10 if hunting else Palette.N7
 	dots[_figure_at + HEAD] = Palette.N9 if hunting else Palette.N6
+	return dots
+
+
+## The boss's figure: ember at rest (S2 lines, S3 bow, S4 stars), brighter while he hunts (S4
+## lines, N10 bow, C0 stars), all C0 while he flashes, shaken a pixel. Only the stars shown so far
+## (entering, falling), and a line only once both its ends show. His health under his feet.
+func _boss_pixels() -> Dictionary[Vector2i, Color]:
+	var dots: Dictionary[Vector2i, Color] = {}
+	var shown: Array[Vector2i] = ENTRANCE.slice(0, stars_shown())
+	var blinking_on: bool = _charge == 2 and int(_charge_age / CHARGE_BLINK) % 2 == 0
+	var hunting: bool = is_shooting() or is_aiming() or is_bow_ready() or is_volleying() or blinking_on
+	var flash: bool = is_flashing()
+	var line_colour: Color = Palette.C0 if flash else (Palette.S4 if hunting else Palette.S2)
+	var bow_colour: Color = Palette.C0 if flash else (Palette.N10 if hunting else Palette.S3)
+	var star_colour: Color = Palette.C0 if flash or hunting else Palette.S4
+	var at: Vector2i = _figure_at + shake()
+	var lines: Array[Vector2i] = []
+	for pair: Vector2i in LINES:
+		lines.append_array([BODY[pair.x], BODY[pair.y]])
+	lines.append_array([HEAD, BODY[0], HEAD, BODY[1]])
+	for k: int in range(0, lines.size(), 2):
+		if shown.has(lines[k]) and shown.has(lines[k + 1]):
+			for p: Vector2i in LinkLayer.line_pixels(lines[k], lines[k + 1]):
+				dots[at + p] = line_colour
+	if shown.has(BODY[1]) and shown.has(BOW[3]):
+		for p: Vector2i in LinkLayer.line_pixels(BODY[1], BOW_HAND):
+			dots[at + p] = line_colour
+	for k: int in range(1, BOW.size()):
+		if shown.has(BOW[k - 1]) and shown.has(BOW[k]):
+			for p: Vector2i in LinkLayer.line_pixels(BOW[k - 1], BOW[k]):
+				dots[at + p] = bow_colour
+	for p: Vector2i in shown:
+		dots[at + p] = star_colour
+	# The star lighting right now as he enters shows white.
+	if _enter_age >= 0.0 and _enter_age < ROAR_AT and not shown.is_empty():
+		dots[at + shown[-1]] = Palette.C0
+	var health: Dictionary[Vector2i, Color] = health_pixels()
+	for p: Vector2i in health:
+		dots[p] = health[p]
 	return dots
 
 
