@@ -176,11 +176,12 @@ func test_the_stinger_map_is_a_hooked_tail_with_room_to_pick_each_star() -> void
 	for segment: int in map.segment_count():
 		var ends: Array[Vector2i] = map.segment_ends(segment)
 		assert_between(Vector2(ends[0]).distance_to(Vector2(ends[1])), 24.0, 40.0)
-	# The shape: along the bottom, up to the telson, then the sting hooks back up and left.
-	assert_gt(map.landmarks[3].x, map.landmarks[0].x + 60, "the tail runs right along the bottom")
-	assert_lt(map.landmarks[4].y, map.landmarks[3].y - 20, "rises to the telson")
-	assert_lt(map.landmarks[5].x, map.landmarks[4].x, "the sting hooks back")
-	assert_lt(map.landmarks[5].y, map.landmarks[4].y)
+	# The shape, as the whole Scorpio's: in from the right along the bottom, up at the left, then
+	# the telson runs right and the sting curls up.
+	assert_lt(map.landmarks[2].x, map.landmarks[0].x - 50, "the tail runs left along the bottom")
+	assert_lt(map.landmarks[3].y, map.landmarks[2].y - 20, "turns up at the left")
+	assert_gt(map.landmarks[4].x, map.landmarks[3].x + 20, "the telson runs right")
+	assert_lt(map.landmarks[5].y, map.landmarks[4].y - 20, "the sting curls up")
 	assert_eq(StarMap.by_id("stinger").title, "STINGER")
 	assert_eq(StarMap.by_id("anything").id, "scorpio", "unknown ids play the full map")
 
