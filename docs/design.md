@@ -81,13 +81,16 @@ The Stinger's first play is guided. Each step shows one line above the launcher 
 
 | Step | Line | Hand | Allowed |
 |---|---|---|---|
+| Goal | LIGHT EVERY STAR OF THE / CONSTELLATION TO WIN | the next constellation star to light | a tap on (TAP TO CONTINUE, N8, below) |
 | 1 | TAP THE SKY TO LAUNCH | a spot in the sky | a launch; the pack is scripted: one small, one medium, one big (a sequence) |
-| 2 | LINK ONE OF EACH SIZE | a star of that pack; the card shows small, medium, big | a link (the telescope stops aiming so touches reach the stars) |
+| 2 | LINK ONE OF EACH SIZE; once a star is picked, SHINING STARS CAN COME NEXT | each star in turn, in an order that stays in reach, moving on as each is picked (back to the first if the link is dropped); the card shows small, medium, big | a link (the telescope stops aiming so touches reach the stars) |
+| Sun | LINKS GIVE LIGHT AND DUST / A FULL SUN LIGHTS A STAR | the Sun, from the left | a tap on |
 | 3 | LAUNCH NEXT TO THIS STAR | the next constellation star to light | a launch aimed within 20 px of it (a farther one is refused with the refused buzz, still aiming); scripted: two stars of its size and one other |
-| 4 | LINK 3 OF THE SAME SIZE | that star; the card shows three of its size | a link; the step ends when it lights a constellation star |
-| 5 | BUY A PLANET | the blue buy button (from the left) | buying a blue planet (skipped if the dust isn't there) |
-| 6 | LIGHT EVERY STAR | none; the card shows both combos, OR between them, for 4 s | everything: free play |
+| 4 | LINK 3 OF THE SAME SIZE; then the shine line | a star, the constellation star, the other star, in turn; the card shows three of its size | a link; the step ends when it lights a constellation star |
+| 5 | SPEND DUST ON A PLANET | the blue buy button (from the left) | buying a blue planet (skipped if the dust isn't there) |
+| 6 | LIGHT EVERY STAR TO WIN | none; the card shows both combos, OR between them, for 4 s | everything: free play |
 
+- **Playtest:** the guide points at each star of the first link in turn and explains the link hint's shine as it appears; the goal (light every constellation star) and what links give (light and dust; a full Sun lights a star) are told on their own tap-on steps. The explaining steps take every touch but MAP's.
 - **The combos are taught with a card** at the top of the sky (playtest: the two kinds of link weren't clear): a plaque (N0, N6 border) with the sky stars' own art in a row, no sign between them (a plus sign read as one more small star).
 - Rules in the core (`Tutorial`, asked by `RunState`; each new step is a run event, `tutorial_step`), so the line and hand change once the animations have played.
 - Reaching free play saves it (`user://progress.json`, `"tutorial": {"done": true}`): later Stinger runs aren't guided. A restart or MAP before then guides the next run again.
