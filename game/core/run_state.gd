@@ -58,6 +58,8 @@ signal hunt_intro_launched(kind: String, burst: Vector2i)
 signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
 ## The boss stage (the final) opened: Orion shows himself before play starts. Presentation only.
 signal boss_appeared
+## The guided first run moved on to `step` (a Tutorial.Step).
+signal tutorial_step(step: int)
 signal run_won
 signal run_lost
 
@@ -90,6 +92,8 @@ var orion: Orion
 var volley: Volley
 ## Orion's hunting area (#71), or null when the map doesn't bring it (or balance.json has no "hunt").
 var hunt: Hunt
+## The guided first run (start_tutorial), or null: it says which actions are allowed.
+var tutorial: Tutorial
 
 var _rng: RandomNumberGenerator
 var _layout_rng := RandomNumberGenerator.new()
@@ -227,11 +231,14 @@ func find_star(id: int) -> Star:
 
 ## Spends dust on a pack and loads it into the launcher.
 func buy(kind: String) -> bool:
-	if is_over() or not can_afford(kind):
+	if is_over() or not can_afford(kind) or (tutorial != null and not tutorial.allows_buy(kind)):
 		return false
 	dust -= balance.packs[kind].cost
 	owned_packs[kind] += 1
 	pack_bought.emit(kind, dust)
+	# The tutorial's buy step ends here, so the bought pack may load.
+	if tutorial != null and tutorial.bought():
+		tutorial_step.emit(tutorial.step)
 	load_pack(kind)
 	return true
 
@@ -239,6 +246,8 @@ func buy(kind: String) -> bool:
 ## Puts an owned pack in the slingshot.
 func load_pack(kind: String) -> bool:
 	if is_over() or owned_packs.get(kind, 0) <= 0:
+		return false
+	if tutorial != null and not tutorial.allows_load() and loaded_pack != kind:
 		return false
 	if loaded_pack != kind:
 		loaded_pack = kind
@@ -257,6 +266,8 @@ func launch(target: Vector2i) -> bool:
 		return false
 	var kind: String = loaded_pack
 	var burst: Vector2i = StarScatter.clamp_to_sky(target, sky_rect)
+	if tutorial != null and not tutorial.allows_launch(burst, _tutorial_landmark_at()):
+		return false
 	owned_packs[kind] -= 1
 	pack_launched.emit(kind, burst)
 	if orion != null:
@@ -265,6 +276,11 @@ func launch(target: Vector2i) -> bool:
 	var result: PackOpener.PackResult = PackOpener.open(balance.packs[kind], _rng, force_next_big_bang, big_bangs)
 	force_next_big_bang = false
 	var pack: Balance.PackDef = balance.packs[kind]
+	if tutorial != null:
+		var scripted: Array[int] = tutorial.pack_sizes(pack.stars * pack.bursts, _tutorial_landmark_size())
+		if not scripted.is_empty():
+			result.big_bang = false
+			result.sizes = scripted
 	var points: Array[Vector2i] = []
 	if pack.bursts > 1:
 		points = StarScatter.split_points(burst, pack.burst_spread, pack.bursts, sky_rect)
@@ -286,7 +302,26 @@ func launch(target: Vector2i) -> bool:
 		_orion_mark()
 	_auto_load()
 	_check_end()
+	if tutorial != null and tutorial.launched():
+		tutorial_step.emit(tutorial.step)
 	return true
+
+
+## Starts the guided first run (a constellation stage): the first steps allow one action each and
+## script the first two packs. Announces its first step.
+func start_tutorial() -> void:
+	if scorpio == null or tutorial != null:
+		return
+	tutorial = Tutorial.new()
+	tutorial_step.emit(tutorial.step)
+
+
+func _tutorial_landmark_at() -> Vector2i:
+	return scorpio.landmark_position(tutorial.landmark) if tutorial.landmark >= 0 else Vector2i.ZERO
+
+
+func _tutorial_landmark_size() -> int:
+	return scorpio.map.sizes[tutorial.landmark] if tutorial.landmark >= 0 else Star.Size.SMALL
 
 
 ## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up (nor moves Orion).
@@ -300,6 +335,8 @@ func link(star_ids: Array[int]) -> String:
 	for star: Star in linked:
 		sizes.append(star.size)
 	var combo: String = Combos.INVALID if is_over() or not link_in_reach(star_ids) else Combos.evaluate(sizes)
+	if tutorial != null and not tutorial.allows_link():
+		combo = Combos.INVALID
 	if combo == Combos.INVALID:
 		link_rejected.emit(star_ids)
 		return Combos.INVALID
@@ -335,6 +372,10 @@ func link(star_ids: Array[int]) -> String:
 	_check_end()
 	if orion != null and not is_over():
 		_orion_mark()
+	if tutorial != null and not is_over():
+		var lit: bool = linked.any(func(star: Star) -> bool: return scorpio != null and scorpio.is_landmark(star.id))
+		if tutorial.linked(lit, rekindle_target() if scorpio != null else -1, can_afford("blue")):
+			tutorial_step.emit(tutorial.step)
 	return combo
 
 

@@ -1,0 +1,99 @@
+class_name Tutorial
+extends RefCounted
+## The guided first run (the Stinger, played for the first time): a few steps teach the loop, each
+## allowing only its own action. Launch a pack (scripted: one of each size, a sequence), link its 3
+## stars, launch next to the constellation star to light next (scripted: two stars of its size and
+## one other), link it with two of them, buy a planet, then play freely. Pure rules; RunState asks
+## it what's allowed and tells it what happened, and announces each new step (tutorial_step).
+
+enum Step { LAUNCH, LINK, LAUNCH_NEAR, LIGHT, BUY, DONE }
+
+## The near launch must be aimed within this many px of the landmark to light, so its stars land in
+## reach of it. Tutorial layout, not balance.
+const NEAR: int = 20
+## The first pack: one star of each size, a sequence.
+const FIRST_PACK: Array[int] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
+
+var step: Step = Step.LAUNCH
+## The landmark the near launch aims at and the light step lights (-1 before then).
+var landmark: int = -1
+
+
+## Whether the telescope may aim in `at_step` (the launch steps and free play).
+static func aims(at_step: Step) -> bool:
+	return at_step == Step.LAUNCH or at_step == Step.LAUNCH_NEAR or at_step == Step.DONE
+
+
+func is_done() -> bool:
+	return step == Step.DONE
+
+
+## A launch at `target` is allowed: the launch step, or the near launch close to its landmark (at
+## `landmark_at`), or free play.
+func allows_launch(target: Vector2i, landmark_at: Vector2i) -> bool:
+	match step:
+		Step.LAUNCH, Step.DONE:
+			return true
+		Step.LAUNCH_NEAR:
+			return Vector2(target).distance_to(Vector2(landmark_at)) <= NEAR
+	return false
+
+
+func allows_link() -> bool:
+	return step == Step.LINK or step == Step.LIGHT or step == Step.DONE
+
+
+func allows_buy(kind: String) -> bool:
+	return step == Step.DONE or (step == Step.BUY and kind == "blue")
+
+
+func allows_load() -> bool:
+	return step == Step.DONE
+
+
+## The sizes the pack now launched opens into, `count` stars, or [] for a normal draw: the first
+## pack is a sequence; the near pack two stars of `landmark_size` and one of another size.
+func pack_sizes(count: int, landmark_size: int) -> Array[int]:
+	var sizes: Array[int] = []
+	match step:
+		Step.LAUNCH:
+			sizes.assign(FIRST_PACK)
+		Step.LAUNCH_NEAR:
+			sizes = [landmark_size, landmark_size, (landmark_size + 1) % 3]
+		_:
+			return sizes
+	while sizes.size() < count:
+		sizes.append(sizes[sizes.size() % 3])
+	return sizes.slice(0, count)
+
+
+## A pack was launched. Returns true if the step moved on.
+func launched() -> bool:
+	if step == Step.LAUNCH:
+		step = Step.LINK
+		return true
+	if step == Step.LAUNCH_NEAR:
+		step = Step.LIGHT
+		return true
+	return false
+
+
+## A link was collected; `lit` says whether it lit a landmark. `next_landmark`: the landmark the near
+## launch should aim at now. Returns true if the step moved on.
+func linked(lit: bool, next_landmark: int, can_buy: bool) -> bool:
+	if step == Step.LINK:
+		step = Step.LAUNCH_NEAR
+		landmark = next_landmark
+		return true
+	if step == Step.LIGHT and lit:
+		step = Step.BUY if can_buy else Step.DONE
+		return true
+	return false
+
+
+## A pack was bought. Returns true if the step moved on.
+func bought() -> bool:
+	if step == Step.BUY:
+		step = Step.DONE
+		return true
+	return false
