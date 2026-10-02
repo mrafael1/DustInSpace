@@ -94,6 +94,10 @@ var volley: Volley
 var hunt: Hunt
 ## The guided first run (start_tutorial), or null: it says which actions are allowed.
 var tutorial: Tutorial
+## The guided run's Sun has rekindled once (its own target is spent).
+var _tutorial_rekindled: bool = false
+## The landmark the last rekindle lit, for the tutorial (-1: none since the link began).
+var _rekindled_landmark: int = -1
 
 var _rng: RandomNumberGenerator
 var _layout_rng := RandomNumberGenerator.new()
@@ -141,8 +145,11 @@ func can_afford(kind: String) -> bool:
 	return balance.packs.has(kind) and dust >= balance.packs[kind].cost
 
 
-## The light that fills the Sun: its own target on the Scorpio map, else sun_target.
+## The light that fills the Sun: its own target on the Scorpio map, else sun_target. The guided
+## first run fills it sooner the first time (scorpio.tutorial_sun_target), so a full Sun is shown.
 func light_target() -> int:
+	if tutorial != null and not _tutorial_rekindled and balance.scorpio_tutorial_sun_target > 0:
+		return balance.scorpio_tutorial_sun_target
 	if scorpio != null and balance.scorpio_sun_target > 0:
 		return balance.scorpio_sun_target
 	return balance.sun_target
@@ -302,7 +309,7 @@ func launch(target: Vector2i) -> bool:
 		_orion_mark()
 	_auto_load()
 	_check_end()
-	if tutorial != null and tutorial.launched(can_afford("blue")):
+	if tutorial != null and tutorial.launched():
 		tutorial_step.emit(tutorial.step)
 	return true
 
@@ -338,6 +345,7 @@ func _tutorial_landmark_size() -> int:
 ## landmark lights up instead of being used up. A full Sun then rekindles.
 ## Returns the combo key, or Combos.INVALID.
 func link(star_ids: Array[int]) -> String:
+	_rekindled_landmark = -1
 	var linked: Array[Star] = _stars_for_link(star_ids)
 	var sizes: Array[int] = []
 	for star: Star in linked:
@@ -382,9 +390,9 @@ func link(star_ids: Array[int]) -> String:
 		_orion_mark()
 	if tutorial != null and not is_over():
 		var lit: bool = linked.any(func(star: Star) -> bool: return scorpio != null and scorpio.is_landmark(star.id))
-		if tutorial.linked(lit, rekindle_target() if scorpio != null else -1, owned_packs.get("red", 0) > 0, can_afford("blue")):
-			# The red planet's step launches the one the run started with: it goes in the slingshot.
-			if tutorial.step == Tutorial.Step.RED and loaded_pack != "red":
+		if tutorial.linked(lit, rekindle_target() if scorpio != null else -1, owned_packs.get("red", 0) > 0, can_afford("blue"), _rekindled_landmark):
+			# The red planet's steps launch the one the run started with: it goes in the slingshot.
+			if tutorial.step == Tutorial.Step.SCOPE and loaded_pack != "red":
 				loaded_pack = "red"
 				pack_loaded.emit("red")
 			tutorial_step.emit(tutorial.step)
@@ -497,7 +505,9 @@ func _rekindle_if_full() -> bool:
 	if light < light_target():
 		return false
 	light = 0
+	_tutorial_rekindled = tutorial != null
 	var index: int = rekindle_target()
+	_rekindled_landmark = index
 	sun_rekindled.emit(index)
 	if index >= 0:
 		_light_landmark(index)

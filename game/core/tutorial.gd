@@ -6,12 +6,16 @@ extends RefCounted
 ## 3 stars by tapping each. Then the payout is shown as it lands: the dust it gave (dust buys
 ## planets), the light (it fills the Sun); each moves on by itself (or with a tap). Launch next to
 ## the constellation star to light next (scripted: two stars of its size and one other) and link it
-## with two of them by dragging through. Launch the red planet the run started with (scripted: it
-## splits in two with more big stars), spend dust on a planet, then play freely. Pure rules;
+## with two of them by dragging through. The red planet the run started with drops into the
+## telescope: the guide shows where the loaded planet shows (the telescope's window, then its
+## spinning icon). Launch it (scripted: it splits in two with more big stars) and link its stars:
+## the guided run's Sun fills sooner the first time (scorpio.tutorial_sun_target), so this link
+## fills it and the guide shows the star it lights. Spend dust on a planet, then play freely. The
+## showing steps go on by themselves (or with a tap). Pure rules;
 ## RunState asks it what's allowed and tells it what happened, and announces each new step
 ## (tutorial_step).
 
-enum Step { GOAL, LAUNCH, LINK, DUST, SUN, LAUNCH_NEAR, LIGHT, RED, BUY, DONE }
+enum Step { GOAL, LAUNCH, LINK, DUST, SUN, LAUNCH_NEAR, LIGHT, SCOPE, ICON, RED, RED_LINK, SUN_FULL, BUY, DONE }
 ## How a step's link may be made: either way, by tapping each star, or by dragging through them.
 enum LinkInput { ANY, TAP, DRAG }
 
@@ -27,6 +31,9 @@ const RED_PACK: Array[int] = [Star.Size.BIG, Star.Size.MEDIUM, Star.Size.BIG, St
 var step: Step = Step.GOAL
 ## The landmark the near launch aims at and the light step lights (-1 before then).
 var landmark: int = -1
+## Whether the dust bought a blue planet when the full Sun was shown: its step goes on to the buy
+## step, or straight to free play.
+var _can_buy: bool = false
 
 
 ## Whether the telescope may aim in `at_step` (the launch steps and free play).
@@ -41,7 +48,7 @@ static func is_info(at_step: Step) -> bool:
 
 ## Whether `at_step` shows the payout as it lands and goes on by itself (the guide's timer).
 static func is_timed(at_step: Step) -> bool:
-	return at_step == Step.DUST or at_step == Step.SUN
+	return at_step in [Step.DUST, Step.SUN, Step.SCOPE, Step.ICON, Step.SUN_FULL]
 
 
 ## How `at_step`'s link is made: the first link by tapping each star, the constellation star's by
@@ -69,6 +76,12 @@ func continue_info() -> bool:
 			step = Step.SUN
 		Step.SUN:
 			step = Step.LAUNCH_NEAR
+		Step.SCOPE:
+			step = Step.ICON
+		Step.ICON:
+			step = Step.RED
+		Step.SUN_FULL:
+			step = Step.BUY if _can_buy else Step.DONE
 		_:
 			return false
 	return true
@@ -86,7 +99,7 @@ func allows_launch(target: Vector2i, landmark_at: Vector2i) -> bool:
 
 
 func allows_link() -> bool:
-	return step == Step.LINK or step == Step.LIGHT or step == Step.DONE
+	return step in [Step.LINK, Step.LIGHT, Step.RED_LINK, Step.DONE]
 
 
 func allows_buy(kind: String) -> bool:
@@ -116,16 +129,15 @@ func pack_sizes(count: int, landmark_size: int) -> Array[int]:
 	return sizes.slice(0, count)
 
 
-## A pack was launched; `can_buy`: whether the dust buys a blue planet now. Returns true if the
-## step moved on.
-func launched(can_buy: bool) -> bool:
+## A pack was launched. Returns true if the step moved on.
+func launched() -> bool:
 	match step:
 		Step.LAUNCH:
 			step = Step.LINK
 		Step.LAUNCH_NEAR:
 			step = Step.LIGHT
 		Step.RED:
-			step = Step.BUY if can_buy else Step.DONE
+			step = Step.RED_LINK
 		_:
 			return false
 	return true
@@ -133,19 +145,30 @@ func launched(can_buy: bool) -> bool:
 
 ## A link was collected; `lit` says whether it lit a landmark. `next_landmark`: the landmark the near
 ## launch should aim at now; `has_red`: whether a red planet is owned to launch; `can_buy`: whether
-## the dust buys a blue one. Returns true if the step moved on.
-func linked(lit: bool, next_landmark: int, has_red: bool, can_buy: bool) -> bool:
-	if step == Step.LINK:
-		step = Step.DUST
-		landmark = next_landmark
-		return true
-	if step == Step.LIGHT and lit:
-		if has_red:
-			step = Step.RED
-		else:
-			step = Step.BUY if can_buy else Step.DONE
-		return true
-	return false
+## the dust buys a blue one; `rekindled`: the landmark a full Sun lit with this link (-1: none).
+## Returns true if the step moved on.
+func linked(lit: bool, next_landmark: int, has_red: bool, can_buy: bool, rekindled: int = -1) -> bool:
+	match step:
+		Step.LINK:
+			step = Step.DUST
+			landmark = next_landmark
+		Step.LIGHT:
+			if not lit:
+				return false
+			if has_red:
+				step = Step.SCOPE
+			else:
+				step = Step.BUY if can_buy else Step.DONE
+		Step.RED_LINK:
+			_can_buy = can_buy
+			if rekindled >= 0:
+				step = Step.SUN_FULL
+				landmark = rekindled
+			else:
+				step = Step.BUY if can_buy else Step.DONE
+		_:
+			return false
+	return true
 
 
 ## A pack was bought. Returns true if the step moved on.
