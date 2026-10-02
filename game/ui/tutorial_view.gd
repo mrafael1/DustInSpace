@@ -289,18 +289,26 @@ func _draw() -> void:
 
 ## The drag's demo leaves a dotted trail (C1) from the first star to the fingertip.
 func _draw_trail() -> void:
-	var tip: Vector2i = fingertip()
+	for p: Vector2i in trail_pixels(_demo, fingertip()):
+		draw_rect(Rect2(Vector2(p), Vector2.ONE), Palette.C1)
+
+
+## The dotted trail a drag's demo through `points` leaves behind its fingertip at `tip`: a dot every
+## TRAIL_GAP px along the path, up to the fingertip. The idle hint's hand (HandDemo) shares it.
+static func trail_pixels(points: Array[Vector2i], tip: Vector2i) -> Array[Vector2i]:
+	var dots: Array[Vector2i] = []
 	var count: int = 0
-	for k: int in _demo.size() - 1:
-		var on_leg: bool = _on_segment(tip, _demo[k], _demo[k + 1])
-		for p: Vector2i in LinkLayer.line_pixels(_demo[k], _demo[k + 1]):
-			if on_leg and (p - _demo[k]).length_squared() > (tip - _demo[k]).length_squared():
-				return
+	for k: int in points.size() - 1:
+		var on_leg: bool = _on_segment(tip, points[k], points[k + 1])
+		for p: Vector2i in LinkLayer.line_pixels(points[k], points[k + 1]):
+			if on_leg and (p - points[k]).length_squared() > (tip - points[k]).length_squared():
+				return dots
 			if count % TRAIL_GAP == 0:
-				draw_rect(Rect2(Vector2(p), Vector2.ONE), Palette.C1)
+				dots.append(p)
 			count += 1
 		if on_leg:
-			return
+			return dots
+	return dots
 
 
 ## Whether `p` lies on the leg from `a` to `b` (within a pixel).

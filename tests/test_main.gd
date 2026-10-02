@@ -50,9 +50,11 @@ func test_every_view_gets_the_run_and_sequencer() -> void:
 
 
 func test_sequencer_sees_input_before_every_view() -> void:
-	assert_eq(main.get_child(main.get_child_count() - 2), main.get_node("EventSequencer"))
-	assert_eq(main.get_child(main.get_child_count() - 1), main.get_node("SoundToggle"),
+	assert_eq(main.get_child(main.get_child_count() - 3), main.get_node("EventSequencer"))
+	assert_eq(main.get_child(main.get_child_count() - 2), main.get_node("SoundToggle"),
 		"only the speaker's own taps come first")
+	assert_eq(main.get_child(main.get_child_count() - 1), main.get_node("IdleHint"),
+		"and the idle hint, which watches every touch and takes none")
 
 
 func test_invalid_balance_file_shows_errors_and_starts_no_run() -> void:
