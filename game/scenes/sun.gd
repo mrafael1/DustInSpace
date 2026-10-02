@@ -55,6 +55,10 @@ var _run: RunState
 var _sequencer: EventSequencer
 ## The light as the events played so far have shown it.
 var _shown_light: int = 0
+## The target the shown light fills towards: the run's when this fill began. The core moves on to
+## the next fill's target as a link fills the Sun (the guided run's first fill is smaller), while
+## that link's light is still flying here.
+var _shown_target: int = 1
 var _pulse_left: float = 0.0
 ## Light whose combo has played but whose particles haven't landed yet.
 var _light_in_flight: int = 0
@@ -101,6 +105,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer = sequencer
 		_sequencer.event_played.connect(_on_event_played)
 	_shown_light = run.light
+	_shown_target = run.light_target()
 	_pulse_left = 0.0
 	_light_in_flight = 0
 	_ignite_waiting = false
@@ -135,7 +140,7 @@ func receive_light(amount: int) -> void:
 func progress() -> float:
 	if _run == null:
 		return 0.0
-	return clampf(float(_shown_light) / float(_run.light_target()), 0.0, 1.0)
+	return clampf(float(_shown_light) / float(_shown_target), 0.0, 1.0)
 
 
 ## Rows of the disc filled with light, from the bottom. All of them only at 100%.
@@ -247,6 +252,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"sun_rekindled":
 			_rekindling = true
 			_ignite_when_landed()
+		&"tutorial_step":
+			# The guided run starts once the Sun is bound: its first fill has its own target.
+			if event.args[0] == Tutorial.Step.GOAL:
+				_shown_target = _run.light_target()
+				queue_redraw()
 		&"run_won":
 			# Scorpio's win is the constellation's tune, not the Sun (#40).
 			if _rekindling or _run.scorpio != null:
@@ -272,6 +282,7 @@ func _rekindle_done() -> void:
 	_rekindling = false
 	_ignite_time = -1.0
 	_shown_light = 0
+	_shown_target = _run.light_target()
 	_glow_textures.clear()
 	queue_redraw()
 	rekindled.emit()
