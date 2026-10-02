@@ -77,28 +77,29 @@ The game opens on Scorpio's chart: the constellation drawn as a pixel-art star c
 
 ### Tutorial: the guided first run
 
-The Stinger's first play is guided. Each step shows a line or two under the Sun, at the top of the sky (playtest: at the bottom it fought with the land and the telescope), with the combo card below it, and a pointing hand (C0/C1, N0 outline, bobbing 2 px), and **only its own action is allowed**: anything else is refused like an invalid action (nothing is spent).
+The Stinger's first play is guided. Each step shows a line or two under the Sun, at the top of the sky (playtest: at the bottom it fought with the land and the telescope), with the combo card below it, and a pointing hand (C0/C1, N0 outline, bobbing 2 px). **Only the launches are gated**: a launch goes only on its own launch step (where it says), so the scripted packs land, and switching the loaded planet waits for free play. **Links and buys go through at any step**; only the step that asks for one moves on. A refused action is refused like an invalid one (nothing is spent).
 
 | Step | Line | Hand | Allowed |
 |---|---|---|---|
-| Goal | LIGHT EVERY STAR OF THE / CONSTELLATION TO WIN | the next constellation star to light | a tap on (TAP TO CONTINUE, N8, below) |
+| Goal | LIGHT EVERY STAR OF THE / CONSTELLATION TO WIN | the next constellation star to light | a tap on (TAP TO CONTINUE, N8, below); a tap on a planet's button goes on and does what it does too |
 | 1 | TAP THE SKY TO LAUNCH / A CHEAP BLUE PLANET | a spot in the sky | a launch; the pack is scripted: one small, one medium, one big (a sequence) |
-| 2 | LINK ONE OF EACH SIZE / TAP EACH STAR; once a star is picked, FOLLOW THE SHINING STARS | each star in turn, in an order that stays in reach, moving on as each is picked (back to the first if the link is dropped); the card shows small, medium, big | a link **by tapping each star** (a drag stays a tap); the telescope stops aiming so touches reach the stars |
-| Dust | DUST BUYS PLANETS | the dust counter, from above, once the payout has landed | nothing: it goes on by itself after 3 s (a tap goes on sooner) |
+| 2 | LINK ONE OF EACH SIZE / TAP OR DRAG THROUGH THEM; once a star is picked, FOLLOW THE SHINING STARS | acts the drag out until a star is picked: it rests on the first star, slides from star to star leaving a dotted C1 trail, rests on the last, and again; then points at each star in turn, in an order that stays in reach, moving on as each is picked (back to the first if the link is dropped); the card shows small, medium, big | a link, tapped or dragged; the telescope stops aiming so touches reach the stars |
+| Dust | DUST BUYS PLANETS | the dust counter, from above, once the payout has landed | no launch: it goes on by itself after 3 s (a tap goes on sooner) |
 | Sun | LIGHT FILLS THE SUN | the Sun, from the left | the same |
 | 3 | LAUNCH NEXT TO THIS STAR | the next constellation star to light | a launch aimed within 20 px of it (a farther one is refused with the refused buzz, still aiming); scripted: two stars of its size and one other |
-| 4 | LINK 3 OF THE SAME SIZE / NOW DRAG THROUGH THEM; then the shine line | acts the drag out until a star is picked: it rests on the first star, slides from star to star leaving a dotted C1 trail, rests on the last, and again; then points at each star in turn; the card shows three of its size | a link **by dragging through** (a tap doesn't keep its star); the step ends when it lights a constellation star |
-| Scope | THE TELESCOPE SHOWS / THE LOADED PLANET | the telescope's window, from the left, as the red planet the run started with drops in | nothing: it goes on by itself |
+| 4 | LINK 3 OF THE SAME SIZE; then the shine line | each star in turn (the constellation star among them); the card shows three of its size | a link; the step ends when it lights a constellation star |
+| Scope | THE TELESCOPE SHOWS / THE LOADED PLANET | the telescope's window, from the left, as the red planet the run started with drops in | no launch: it goes on by itself |
 | Icon | THE LOADED PLANET SPINS | the loaded planet's icon (its idle spin), from above | the same |
 | Red | LAUNCH THE RED PLANET / IT SPLITS IN TWO / WITH MORE BIG STARS | a spot in the sky | a launch; scripted: its twin bursts hold big, medium, big and big, small, medium. The red steps are skipped if no red one is owned |
 | Red link | LINK THEM TO FILL THE SUN | three big stars in turn, in an order that stays in reach | any link: it fills the Sun (below) |
-| Full Sun | A FULL SUN LIGHTS A STAR | the star it lit, once the sky has cleared | nothing: it goes on by itself |
-| 5 | SPEND DUST ON A PLANET | the blue buy button (from the left) | buying a blue planet (skipped if the dust isn't there) |
+| Full Sun | A FULL SUN LIGHTS A STAR | the star it lit, once the sky has cleared | no launch: it goes on by itself |
+| 5 | SPEND DUST ON A PLANET | the blue buy button (from the left) | a buy ends it (skipped if the dust isn't there) |
 | 6 | LIGHT EVERY STAR TO WIN | none; the card shows both combos, OR between them, for 4 s | everything: free play |
 
 - **Playtest:** the guide points at each star of the first link in turn and tells the player to follow the link hint's shine as it appears. The goal (light every constellation star) is told on a tap-on step, which takes every touch but MAP's.
 - **Show, don't tell (playtest):** what a link gives is pointed at as it lands (the dust counter, then the Sun), not explained on a text screen. The red planet is launched, not described: its twin bursts show the split and the big stars. The loaded planet is shown where it shows: the telescope's window, then the icon's idle spin. **A full Sun is shown before the stage ends:** the guided run's Sun fills at `scorpio.tutorial_sun_target` (40) the first time, then at the stage's own (75). The scripted links give 25 (the sequence) + 5 (the small constellation star's three) and the red link at least 10 (a medium three; a big three gives 15, a sequence 25), so the red link always fills it. Design guess: the run starts with one red planet and the dust can't buy one by then (about 6 against 7), so the tutorial launches the owned one, and the buy step teaches buying a blue one once the planets run out.
-- **Tap, then drag (playtest):** the two ways to link are each done once: the first link by tapping (`Tutorial.link_input`; the sky's `LinkGesture` takes taps only), the constellation star's by dragging (drags only), either way afterwards.
+- **Both ways to link, taught once:** the first link says either way works and acts the drag out; every link takes taps or drags (an earlier version made the first link tap-only and the second drag-only: it repeated itself).
+- **Fewer refusals (research, Andersen et al. CHI 2012: locking the player into one action didn't help learning):** only the launches stay gated, since the scripted packs and the guided full Sun depend on them. A buy during the tutorial stays owned but doesn't switch the loaded planet; the planet's icon buys only a planet none is owned of, so a refused switch doesn't buy another.
 - **The combos are taught with a card** at the top of the sky (playtest: the two kinds of link weren't clear): a plaque (N0, N6 border) with the sky stars' own art in a row, no sign between them (a plus sign read as one more small star).
 - Rules in the core (`Tutorial`, asked by `RunState`; each new step is a run event, `tutorial_step`), so the line and hand change once the animations have played.
 - Reaching free play saves it (`user://progress.json`, `"tutorial": {"done": true}`): later Stinger runs aren't guided. A restart or MAP before then guides the next run again.
