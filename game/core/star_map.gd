@@ -24,7 +24,7 @@ var starting_lit: Array[int] = []
 ## The painting shown once the map is complete (a res:// path).
 var painting: String = FIGURE
 ## Orion (#64) hunts this stage: he marks a loose star; the next link saves it or has it shot. With
-## a volley too, both threats run (the Claws bring every one).
+## a volley too, both threats run (the final brings every one).
 var orion: bool = false
 ## Orion looses a volley (#70) every few links on this stage: the balance.json block that tunes it
 ## (Balance.VOLLEY_BLOCKS), or "" for none.
@@ -142,7 +142,7 @@ static func claws() -> StarMap:
 
 
 ## The final, stage 6: the full Scorpio as a boss stage. Every star of the figure (11 to light,
-## the claw arc lit), with all three of Orion's threats at once, as on the Claws: the single mark,
+## the claw arc lit), with all three of Orion's threats at once: the single mark,
 ## the volley and the hunting area, and no intros.
 static func final() -> StarMap:
 	var map := scorpio()
