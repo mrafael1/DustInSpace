@@ -321,6 +321,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_dust_in_flight += event.args[1]
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
+			# The tutorial's link is made: its stars are gone, so the hand stops pointing at them.
+			_guide.drop_path()
 		&"volley_counted":
 			_volley.count(event.args[0])
 			return
@@ -332,6 +334,12 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			return
 		&"tutorial_step":
 			_show_tutorial_step(event.args[0])
+			return
+		&"sun_rekindled":
+			# The guided run's full Sun: the hand goes to the star it lights as the Sun ignites, so the
+			# lighting is seen (the step itself comes once the sky has cleared).
+			if _run.tutorial != null and not _run.tutorial.is_done() and event.args[0] >= 0:
+				_guide.show_step(Tutorial.Step.SUN_FULL, _landmark_top(event.args[0]), true, TutorialView.Point.DOWN, _run.sky_rect.position.y + TutorialView.TOP)
 			return
 		&"star_marked":
 			if not _orion_told:

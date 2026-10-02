@@ -201,6 +201,17 @@ func follow_path(ids: Array[int], points: Array[Vector2i], centres: Array[Vector
 	follow([])
 
 
+## The link taught was made (its stars may be gone): the hand stops following it until the next step.
+func drop_path() -> void:
+	if _path.is_empty():
+		return
+	_path.clear()
+	_path_points.clear()
+	_demo.clear()
+	_has_target = false
+	queue_redraw()
+
+
 ## Whether the hand is acting out the drag now (a dragged link, nothing picked yet).
 func is_demoing_drag() -> bool:
 	return visible and not _demo.is_empty() and _picked == 0
