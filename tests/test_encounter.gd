@@ -135,6 +135,58 @@ func test_no_encounter_where_there_is_no_threat_to_meet() -> void:
 		assert_eq(steps, [] as Array[Array])
 
 
+func test_a_launch_at_the_safe_spot_keeps_every_new_star_out_of_the_circle() -> void:
+	var balance: Balance = Balance.load_file()
+	var safe: int = 0
+	var tried: int = 0
+	for kind: String in ["blue", "red"]:
+		for seed_value: int in range(1, 41):
+			var run := RunState.new(balance, Fixtures.rng(seed_value), Fixtures.SKY, StarMap.heart())
+			run.launch(Vector2i(100, 190))
+			if run.is_over() or not run.hunt.has_area():
+				continue
+			run.owned_packs[kind] = maxi(run.owned_packs.get(kind, 0), 1)
+			assert_true(run.load_pack(kind))
+			var spot: Vector2i = run.safe_launch_spot()
+			tried += 1
+			if not run.is_safe_launch(spot):
+				continue
+			safe += 1
+			var born: Array[int] = []
+			run.pack_burst.connect(func(_k: String, _at: Vector2i, stars: Array[Star]) -> void:
+				for star: Star in stars:
+					born.append(star.id))
+			var struck: Array[int] = []
+			run.area_struck.connect(func(_at: Vector2i, stars: Array[Star]) -> void:
+				for star: Star in stars:
+					struck.append(star.id))
+			assert_true(run.launch(spot))
+			for id: int in born:
+				assert_false(struck.has(id), "%s, seed %d: star %d born at the safe spot was struck" % [kind, seed_value, id])
+	assert_gt(tried, 60)
+	assert_gte(safe, tried * 9 / 10, "a safe spot almost always exists")
+
+
+func test_a_split_pack_is_safe_only_if_both_its_bursts_are() -> void:
+	var run: RunState = _run(StarMap.heart())
+	run.launch(Vector2i(100, 190))
+	run.load_pack("blue")
+	var centre: Vector2i = run.hunt.centre
+	var just_clear: int = run.hunt.radius + StarScatter.RING_MAX + RunState.ENCOUNTER_CLEARANCE + 1
+	var above := Vector2i(centre.x, centre.y - just_clear)
+	if run.sky_rect.has_point(above) and StarScatter.clamp_to_sky(above, run.sky_rect) == above:
+		assert_true(run.is_safe_launch(above), "a single burst just clear of it")
+	run.owned_packs["red"] = 1
+	run.load_pack("red")
+	var beside := Vector2i(centre.x + just_clear, centre.y)
+	var points: Array[Vector2i] = StarScatter.split_points(beside, run.balance.packs["red"].burst_spread, 2, run.sky_rect)
+	var all_clear: bool = true
+	for point: Vector2i in points:
+		all_clear = all_clear and (point - centre).length() > just_clear - 1
+	assert_eq(run.is_safe_launch(beside), all_clear, "the twin burst nearer the circle decides")
+	assert_false(run.is_safe_launch(centre))
+
+
 # --- The scenes -----------------------------------------------------------------------------
 
 func test_main_plays_it_only_when_asked_and_the_guide_shows_then_goes() -> void:
@@ -156,6 +208,33 @@ func test_main_plays_it_only_when_asked_and_the_guide_shows_then_goes() -> void:
 	quiet.run.launch(Vector2i(100, 190))
 	_play(quiet)
 	assert_eq((quiet.get_node("HUD") as Hud).tutorial_guide().text(), "", "no encounter unless asked")
+
+
+func test_following_the_mark_guide_links_instead_of_launching() -> void:
+	var main: Main = _main("tail", true)
+	main.switch_launcher(true)
+	var telescope: Telescope = main.get_node("Telescope")
+	var sky: SkyView = main.get_node("Sky")
+	main.run.launch(Vector2i(100, 190))
+	_play(main)
+	for i: int in 60:
+		telescope.advance(1.0 / 30.0)
+	var guide: TutorialView = (main.get_node("HUD") as Hud).tutorial_guide()
+	assert_eq(guide.text(), Hud.ENCOUNTER_LINES[Encounter.Threat.MARK], "the mark's guide shows")
+	assert_true(telescope.is_held_for_encounter())
+	assert_false(telescope.is_aiming(), "the telescope leaves the sky to the link")
+	var target: Star = main.run.marked_star()
+	var packs: int = main.run.total_packs()
+	_tap_screen(target.position)
+	assert_eq(sky.selected_ids(), [target.id] as Array[int], "a tap on the marked star picks it")
+	assert_eq(main.run.total_packs(), packs, "and launches nothing")
+	_tap_screen(target.position)
+	main.run.link(_corner_trio(main.run))
+	_play(main)
+	assert_false(telescope.is_held_for_encounter(), "done: it lets go")
+	for i: int in 60:
+		telescope.advance(1.0 / 30.0)
+	assert_true(telescope.is_aiming() or main.run.loaded_pack == "", "and aims again as usual")
 
 
 func test_the_volley_guide_points_at_the_countdown_and_says_the_interval() -> void:
@@ -252,3 +331,20 @@ func _corner_trio(run: RunState) -> Array[int]:
 	for offset: Vector2i in [Vector2i(0, 0), Vector2i(10, 0), Vector2i(5, 8)]:
 		ids.append(run.add_star(Star.Size.SMALL, Vector2i(24, 100) + offset).id)
 	return ids
+
+
+## A tap through the real viewport, so every input gate sees it in tree order (GUT's own panel
+## would take it as GUI input before the game's _unhandled_input).
+func _tap_screen(at: Vector2i) -> void:
+	var offset: Vector2i = ScreenZones.game_offset(get_viewport().get_visible_rect().size)
+	var gut_layer: CanvasLayer = get_tree().root.get_node_or_null("GutRunner/GutLayer")
+	var shown: bool = gut_layer != null and gut_layer.visible
+	if gut_layer != null:
+		gut_layer.visible = false
+	for pressed: bool in [true, false]:
+		var e := InputEventScreenTouch.new()
+		e.position = Vector2(at + offset)
+		e.pressed = pressed
+		get_viewport().push_input(e, true)
+	if gut_layer != null:
+		gut_layer.visible = shown
