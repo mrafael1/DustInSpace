@@ -152,6 +152,42 @@ func test_a_buy_goes_through_at_any_step_without_moving_it_on() -> void:
 	assert_eq(run.tutorial.step, Tutorial.Step.RED_LINK)
 
 
+func test_a_sky_link_that_fills_the_sun_at_the_light_step_moves_on() -> void:
+	# Review (PR #86): a sky-only sequence at the light step filled the Sun and cleared the sky, and
+	# the step waited for a link that could no longer be made.
+	var run: RunState = _run_to_light()
+	var three: Array[int] = _add_sequence(run)
+	run.light = run.light_target() - 1
+	assert_ne(run.link(three), Combos.INVALID)
+	assert_true(run.stars.is_empty(), "the full Sun cleared the sky")
+	assert_eq(run.tutorial.step, Tutorial.Step.SCOPE, "a star was lit by the full Sun: on to the red planet")
+	run.tutorial_continue()
+	run.tutorial_continue()
+	assert_true(run.launch(Vector2i(90, 120)), "and the red launch goes")
+
+
+func test_a_link_that_strands_the_light_step_moves_on() -> void:
+	var run: RunState = _run_to_light()
+	var size: int = run.scorpio.map.sizes[run.tutorial.landmark]
+	var pair: Array[int] = []
+	for star: Star in run.stars:
+		if star.size == size:
+			pair.append(star.id)
+	var third: Star = run.add_star(size as Star.Size, run.find_star(pair[0]).position + Vector2i(6, 6))
+	run.light = 0
+	assert_ne(run.link(_order(run, [pair[0], pair[1], third.id])), Combos.INVALID, "a sky triple of its size")
+	assert_false(run.has_remaining_combo())
+	assert_eq(run.tutorial.step, Tutorial.Step.SCOPE, "nothing left to light it with: on")
+
+
+func test_a_sky_link_that_leaves_the_lesson_keeps_the_light_step() -> void:
+	var run: RunState = _run_to_light()
+	var three: Array[int] = _add_sequence(run)
+	run.light = 0
+	assert_ne(run.link(three), Combos.INVALID, "links go through")
+	assert_eq(run.tutorial.step, Tutorial.Step.LIGHT, "its pair and the star are still there")
+
+
 func test_only_the_buy_step_moves_on_by_a_buy() -> void:
 	var tutorial := Tutorial.new()
 	for step: Tutorial.Step in [Tutorial.Step.GOAL, Tutorial.Step.LAUNCH, Tutorial.Step.LINK, Tutorial.Step.DUST, Tutorial.Step.SCOPE, Tutorial.Step.RED, Tutorial.Step.SUN_FULL]:
@@ -233,6 +269,28 @@ func _play_to_light(run: RunState) -> void:
 	var landmark: int = run.tutorial.landmark
 	run.launch(run.scorpio.landmark_position(landmark))
 	run.link(_order(run, _pair_and(run, run.scorpio.map.sizes[landmark], landmark)))
+
+
+## A guided run at the light step: the near pack launched by its constellation star.
+func _run_to_light() -> RunState:
+	var run: RunState = _run()
+	run.tutorial_continue()
+	run.launch(Vector2i(90, 160))
+	run.link(_order(run, _ids(run.stars)))
+	run.tutorial_continue()
+	run.tutorial_continue()
+	run.launch(run.scorpio.landmark_position(run.tutorial.landmark))
+	assert_eq(run.tutorial.step, Tutorial.Step.LIGHT)
+	return run
+
+
+## Adds a small, a medium and a big star close together (a sequence in reach); returns their ids.
+func _add_sequence(run: RunState) -> Array[int]:
+	var at: Vector2i = run.sky_rect.position + Vector2i(20, 20)
+	var ids: Array[int] = []
+	for k: int in 3:
+		ids.append(run.add_star(k as Star.Size, at + Vector2i(10 * k, 0)).id)
+	return ids
 
 
 ## Three sky stars of `size`.
