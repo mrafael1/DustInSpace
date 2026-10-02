@@ -41,6 +41,24 @@ func test_the_heart_shows_orion_and_no_countdown() -> void:
 	assert_false(orion.has_area(), "no ring before the first launch")
 
 
+func test_shipped_hunting_radius_matches_the_ring_and_boundary_on_every_hunting_stage() -> void:
+	var balance: Balance = Balance.load_file()
+	for map_id: String in ["heart", "claws", "final"]:
+		main.star_map = map_id
+		assert_true(main.start_run(balance))
+		run = main.run
+		_play()
+		assert_eq(run.hunt.radius, balance.hunt_radius, map_id)
+		assert_true(run.launch(Vector2i(100, 190)))
+		_play()
+		assert_true(orion.has_area(), map_id)
+		assert_eq(orion.get("_area_radius"), balance.hunt_radius, "ring uses shipped tuning: " + map_id)
+		var centre: Vector2i = run.hunt.centre
+		for direction: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			assert_true(run.hunt.contains(centre + direction * balance.hunt_radius), "edge is hit: " + map_id)
+			assert_false(run.hunt.contains(centre + direction * (balance.hunt_radius + 1)), "one pixel beyond is safe: " + map_id)
+
+
 func test_the_first_burst_marks_a_ring_with_its_line_of_text() -> void:
 	run.launch(Vector2i(100, 190))
 	sequencer.advance(0.0)
@@ -68,7 +86,7 @@ func test_the_first_burst_marks_a_ring_with_its_line_of_text() -> void:
 
 
 func test_the_ring_is_a_clean_symmetric_dotted_circle() -> void:
-	for radius: int in [24, 40, 41]:
+	for radius: int in [24, 38, 40, 41]:
 		var ring: Array[Vector2i] = OrionView.ring_pixels(radius)
 		assert_gt(ring.size(), 24, "radius %d: dots all round" % radius)
 		var dots: Dictionary = {}
