@@ -178,8 +178,8 @@ func test_a_new_mark_flashes_the_figure_and_runs_a_sight_line_to_the_star() -> v
 	assert_eq(orion.lock_step(), 0)
 	var held: Dictionary[Vector2i, Color] = orion.figure_pixels()
 	var bow_at: Vector2i = run.sky_rect.position + OrionView.FIGURE_AT + OrionView.BOW[2]
-	assert_eq(held[bow_at], Palette.N6, "the bow stays drawn while the mark stands")
-	assert_eq(rest[bow_at], Palette.N4)
+	assert_eq(held[bow_at], Palette.S4, "the bow stays drawn while the mark stands")
+	assert_eq(rest[bow_at], Palette.S3)
 	orion.clear_mark()
 	assert_eq(orion.figure_pixels(), rest, "back at rest once the mark goes")
 
@@ -229,6 +229,17 @@ func test_a_restart_clears_the_mark_and_the_arrow() -> void:
 
 
 ## Launches until a combo of loose stars leaves the mark out. Its ids.
+func test_the_figure_is_ember_like_the_boss() -> void:
+	# Playtest: a dim cool figure went unseen.
+	var rest: Dictionary[Vector2i, Color] = orion.figure_pixels()
+	var at: Vector2i = run.sky_rect.position + OrionView.FIGURE_AT
+	assert_eq(rest[at + OrionView.BODY[0]], Palette.S4, "ember stars")
+	assert_eq(rest[at + OrionView.HEAD], Palette.S4)
+	assert_eq(rest[at + OrionView.BOW[2]], Palette.S3, "an ember bow")
+	for colour: Color in rest.values():
+		assert_true([Palette.S2, Palette.S3, Palette.S4].has(colour), "only ember at rest")
+
+
 func _launch_until_a_trio_leaves_the_mark() -> Array[int]:
 	for launch: int in 6:
 		run.launch(Vector2i(60 + 10 * launch, 150))
