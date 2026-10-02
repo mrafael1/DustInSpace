@@ -319,6 +319,11 @@ func show_idle_hint(ids: Array[int]) -> void:
 	_constellation.show_hints(landmarks, false)
 
 
+## Where the stars and landmarks of `ids` are, in order (ids no longer in the run are skipped).
+func link_points(ids: Array[int]) -> Array[Vector2i]:
+	return _positions_of_ids(ids)
+
+
 ## Scorpio: a link can hold only Scorpio.LANDMARKS_PER_COMBO landmarks; picking another is
 ## refused on the spot, with the red shake of a wrong link, so the rule shows on the first try.
 func _too_many_landmarks(ids: Array[int]) -> bool:
