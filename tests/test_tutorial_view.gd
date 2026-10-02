@@ -236,6 +236,47 @@ func test_the_red_link_points_through_three_big_stars() -> void:
 	assert_true(guide.has_hand())
 
 
+func test_a_made_link_drops_the_hand_and_a_full_sun_takes_it_to_the_star_it_lights() -> void:
+	_start()
+	_settle()
+	var bigs: Array[Star] = []
+	for at: Vector2i in [Vector2i(60, 120), Vector2i(90, 125), Vector2i(120, 120)]:
+		bigs.append(run.add_star(Star.Size.BIG, at))
+	run.tutorial.step = Tutorial.Step.RED_LINK
+	run.tutorial_step.emit(Tutorial.Step.RED_LINK)
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_true(guide.has_hand(), "the hand on the guided link")
+	# Playtest: another link than the guided one; its stars were linked, the guided ones stay.
+	run.combo_collected.emit("small_triple", [] as Array[Star], 3, 5)
+	_settle()
+	assert_false(guide.has_hand(), "the link is made: no hand on stars it no longer teaches")
+	run.sun_rekindled.emit(2)
+	_settle()
+	assert_eq(guide.text(), "A FULL SUN LIGHTS A STAR", "as the Sun ignites")
+	assert_true(guide.has_hand())
+	assert_eq(guide.target().x, run.scorpio.landmark_position(2).x, "on the star it lights")
+
+
+func test_the_sun_fills_towards_the_target_its_fill_began_with() -> void:
+	_start()
+	_settle()
+	var sun: SunView = main.get_node("Sun")
+	assert_eq(run.light_target(), 40, "the guided run's first fill")
+	sun.receive_light(30)
+	assert_almost_eq(sun.progress(), 0.75, 0.001, "the Sun was bound before the tutorial began: it fills to 40 too")
+	# The core fills the Sun with the next link and moves on to the stage's own target at once,
+	# while that link's light is still flying: the Sun keeps filling towards 40.
+	run.set("_tutorial_rekindled", true)
+	assert_eq(run.light_target(), 75)
+	assert_almost_eq(sun.progress(), 0.75, 0.001, "not 30/75")
+	sun.receive_light(10)
+	assert_eq(sun.progress(), 1.0, "full")
+	sun.call("_rekindle_done")
+	sun.receive_light(15)
+	assert_almost_eq(sun.progress(), 0.2, 0.001, "the next fill counts to 75")
+
+
 func test_every_line_fits_the_screen() -> void:
 	_start()
 	var label: Label = hud.tutorial_guide().get("_label")
