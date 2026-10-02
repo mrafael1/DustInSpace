@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://game/scenes/event_sequencer.gd" id="2_sequencer"]
@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://game/scenes/backdrop.gd" id="20_backdrop"]
 [ext_resource type="PackedScene" path="res://game/scenes/telescope.tscn" id="21_telescope"]
 [ext_resource type="Script" path="res://game/ui/payout_popups.gd" id="22_payouts"]
+[ext_resource type="Script" path="res://game/scenes/idle_hint.gd" id="23_idle_hint"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -78,3 +79,6 @@ script = ExtResource("2_sequencer")
 
 [node name="SoundToggle" type="Node" parent="."]
 script = ExtResource("14_sound_toggle")
+
+[node name="IdleHint" type="Node" parent="."]
+script = ExtResource("23_idle_hint")

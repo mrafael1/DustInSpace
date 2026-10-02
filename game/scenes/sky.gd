@@ -305,6 +305,25 @@ func _show_hints(ids: Array[int]) -> void:
 	_constellation.show_hints(landmarks, tracing)
 
 
+## The idle hint (#90, IdleHint): the stars and landmarks of `ids` shine with the link hint's shine
+## and nothing dims; empty clears it. Never while a link is traced: the link hint has the sky then.
+func show_idle_hint(ids: Array[int]) -> void:
+	if _run == null or not _gesture.selected.is_empty():
+		return
+	var landmarks: Array[int] = []
+	for id: int in ids:
+		if _run.scorpio != null and _run.scorpio.is_landmark(id):
+			landmarks.append(Scorpio.landmark_index(id))
+	for id: int in _views:
+		_views[id].hinted = ids.has(id)
+	_constellation.show_hints(landmarks, false)
+
+
+## Where the stars and landmarks of `ids` are, in order (ids no longer in the run are skipped).
+func link_points(ids: Array[int]) -> Array[Vector2i]:
+	return _positions_of_ids(ids)
+
+
 ## Scorpio: a link can hold only Scorpio.LANDMARKS_PER_COMBO landmarks; picking another is
 ## refused on the spot, with the red shake of a wrong link, so the rule shows on the first try.
 func _too_many_landmarks(ids: Array[int]) -> bool:
