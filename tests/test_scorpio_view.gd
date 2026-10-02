@@ -68,15 +68,18 @@ func test_a_bad_mix_shows_the_no_combo_cross_and_uses_nothing() -> void:
 	assert_eq(run.stars.size(), 2)
 
 
-func test_picking_a_second_landmark_is_refused_on_the_spot() -> void:
+func test_picking_a_second_landmark_is_refused_on_the_spot_and_the_line_says_why() -> void:
 	var big: Star = _star(Star.Size.BIG, Vector2i(30, 100))
-	var refused: Array[bool] = []
-	sky.link_refused.connect(func() -> void: refused.append(true))
+	var hud: Hud = main.get_node("HUD")
+	var refused: Array[RunState.PickRefusal] = []
+	sky.link_refused.connect(func(reason: RunState.PickRefusal) -> void: refused.append(reason))
 	_tap(Scorpio.LANDMARKS[3])
-	assert_eq(refused, [] as Array[bool], "one landmark is fine")
+	assert_eq(refused, [] as Array[RunState.PickRefusal], "one landmark is fine")
+	assert_eq(hud.message(), "")
 	_touch(Scorpio.LANDMARKS[4], true)
-	assert_eq(refused, [true], "the second one is refused at once, no third pick needed")
-	assert_true((main.get_node("Sky/LinkLayer") as LinkLayer).is_flashing(), "with the red shake of a wrong link")
+	assert_eq(refused, [RunState.PickRefusal.SECOND_LANDMARK] as Array[RunState.PickRefusal], "the second one is refused at once, no third pick needed")
+	assert_eq(hud.message(), Hud.REFUSAL_MESSAGES[RunState.PickRefusal.SECOND_LANDMARK], "the line says why (#91)")
+	assert_false((main.get_node("Sky/LinkLayer") as LinkLayer).is_flashing(), "instead of the red shake of a wrong link")
 	assert_eq(sky.selected_ids(), [] as Array[int], "and the link is dropped")
 	_touch(Scorpio.LANDMARKS[4], false)
 	_tap(big.position)
@@ -85,14 +88,56 @@ func test_picking_a_second_landmark_is_refused_on_the_spot() -> void:
 
 
 func test_dragging_across_two_landmarks_is_refused_too() -> void:
-	var refused: Array[bool] = []
-	sky.link_refused.connect(func() -> void: refused.append(true))
+	var refused: Array[RunState.PickRefusal] = []
+	sky.link_refused.connect(func(reason: RunState.PickRefusal) -> void: refused.append(reason))
 	_touch(Scorpio.LANDMARKS[3], true)
 	var e := InputEventScreenDrag.new()
 	e.position = Vector2(Scorpio.LANDMARKS[4])
 	sky.handle_pointer(e)
-	assert_eq(refused, [true])
+	assert_eq(refused, [RunState.PickRefusal.SECOND_LANDMARK] as Array[RunState.PickRefusal])
 	assert_eq(sky.selected_ids(), [] as Array[int])
+	assert_ne((main.get_node("HUD") as Hud).message(), "")
+
+
+func test_the_rule_line_isnt_said_again_within_a_few_seconds() -> void:
+	var hud: Hud = main.get_node("HUD")
+	var line: String = Hud.REFUSAL_MESSAGES[RunState.PickRefusal.SECOND_LANDMARK]
+	for i: int in 2:
+		_tap(Scorpio.LANDMARKS[3])
+		_tap(Scorpio.LANDMARKS[4])
+		if i == 0:
+			assert_eq(hud.message(), line)
+			hud.show_message("")
+	assert_eq(hud.message(), "", "the same refusal right after: quiet")
+	hud.advance(Hud.RULE_QUIET)
+	_tap(Scorpio.LANDMARKS[3])
+	_tap(Scorpio.LANDMARKS[4])
+	assert_eq(hud.message(), line, "said again once the quiet is over")
+
+
+func test_the_rule_line_fits_the_screen_and_sits_above_the_message_line() -> void:
+	var hud: Hud = main.get_node("HUD")
+	var line: String = Hud.REFUSAL_MESSAGES[RunState.PickRefusal.SECOND_LANDMARK]
+	assert_eq(line.replace("\n", " "), "ONE CONSTELLATION STAR PER LINK", "the issue's words")
+	hud.explain_refusal(RunState.PickRefusal.SECOND_LANDMARK)
+	var label: Label = hud.get_node("Message")
+	assert_lte(label.get_minimum_size().x, float(ScreenZones.SCREEN.x), "fits the 180 px screen")
+	assert_eq(int(label.position.y), Hud.MESSAGE_Y - Hud.MESSAGE_LINE_STEP, "its first line goes above")
+	hud.show_message(Hud.ORION_MESSAGE)
+	assert_eq(int(label.position.y), Hud.MESSAGE_Y, "a one-line message stays on the line")
+	for c: String in line.replace("\n", "").replace(" ", ""):
+		assert_true(c >= "A" and c <= "Z", "no punctuation")
+
+
+func test_other_refused_picks_dont_say_it() -> void:
+	_reach_run()
+	var hud: Hud = main.get_node("HUD")
+	var a: Star = _star(Star.Size.SMALL, Vector2i(150, 236))
+	var far: Star = _star(Star.Size.SMALL, Vector2i(20, 120))
+	_tap(a.position)
+	_tap(far.position)
+	assert_eq(sky.selected_ids(), [a.id] as Array[int], "out of reach: refused")
+	assert_eq(hud.message(), "", "not the constellation rule")
 
 
 func test_built_strings_glow_and_open_ones_dont() -> void:

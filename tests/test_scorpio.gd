@@ -542,3 +542,21 @@ func _light(index: int) -> void:
 	var a: Star = run.add_star(size as Star.Size, Vector2i(170, 90))
 	var b: Star = run.add_star(size as Star.Size, Vector2i(10, 90))
 	assert_ne(run.link([a.id, b.id, Scorpio.landmark_id(index)] as Array[int]), Combos.INVALID)
+
+
+func test_the_pick_refusal_names_a_second_constellation_star() -> void:
+	var r := RunState.new(Balance.from_dict(_pick_balance()), Fixtures.rng(), Fixtures.SKY)
+	var a: Star = r.add_star(Star.Size.SMALL, Vector2i(40, 120))
+	var one: Array[int] = [a.id, Scorpio.landmark_id(3)]
+	assert_eq(r.pick_refusal([] as Array[int]), RunState.PickRefusal.NONE)
+	assert_eq(r.pick_refusal(one), RunState.PickRefusal.NONE, "one constellation star is fine")
+	assert_eq(r.pick_refusal([Scorpio.landmark_id(3), Scorpio.landmark_id(4)] as Array[int]), RunState.PickRefusal.SECOND_LANDMARK)
+	assert_eq(r.pick_refusal([a.id, Scorpio.landmark_id(3), Scorpio.landmark_id(4)] as Array[int]), RunState.PickRefusal.SECOND_LANDMARK)
+	var plain: RunState = Fixtures.run()
+	assert_eq(plain.pick_refusal([-4, -5] as Array[int]), RunState.PickRefusal.NONE, "no constellation, no rule")
+
+
+func _pick_balance() -> Dictionary:
+	var data: Dictionary = Fixtures.balance_dict()
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1}
+	return data
