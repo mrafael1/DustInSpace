@@ -222,6 +222,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"sky_cleared":
 			_explode(event.args[0])
 		&"constellation_completed":
+			# No volley follows: the arrows overhead go.
+			_orion.clear_overhead()
 			# The tune waits for every payout to land (watch_payouts); the sequence waits for it.
 			_sequencer.hold(CollectParticles.LONGEST_TRAVEL + _completion_time())
 			if _payouts != null and _payouts.particle_count() > 0:
@@ -243,7 +245,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"volley_fired":
 			_volley(event.args[0])
 		&"volley_counted":
-			_orion.show_volley_charge(event.args[0], _run.volley.interval)
+			# A new countdown: Orion shoots its arrows up to hang overhead (#98), and play waits.
+			var staging: float = _orion.show_volley_charge(event.args[0], _run.volley.interval)
+			if staging > 0.0:
+				_sequencer.hold(staging)
 		&"area_struck":
 			_strike_area(event.args[1])
 		&"hunt_intro_placed":
@@ -528,14 +533,14 @@ func _strike_area(stars: Array[Star]) -> void:
 	_sequencer.hold(landing + StarView.DISSOLVE_TIME * 0.5)
 
 
-## Orion's volley: an arrow flies to each star it takes, which bursts as its arrow lands; the next
-## events wait for the last.
+## Orion's volley: the arrows overhead rain down, one onto each star it takes, which bursts as its
+## arrow lands; the next events wait for the last (an empty sky: for the arrows to reach the horizon).
 func _volley(stars: Array[Star]) -> void:
 	var targets: Array[Vector2i] = []
 	for star: Star in stars:
 		targets.append(star.position)
 	var landings: Array[float] = _orion.fire_volley(targets)
-	var last: float = OrionView.DRAW_TIME
+	var last: float = _orion.volley_time()
 	for i: int in stars.size():
 		last = landings[i]
 		var view: StarView = _views.get(stars[i].id)
