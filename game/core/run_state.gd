@@ -71,9 +71,12 @@ enum Outcome { PLAYING, WON, LOST }
 enum LossReason { NO_PACKS, NO_DUST, NO_COMBINATION }
 
 
-## The hunt's encounter: a safe launch spot keeps this far beyond the circle's edge, so the burst's
-## stars land clear of it. Guide layout, not balance.
-const ENCOUNTER_CLEARANCE: int = 16
+## The hunt's encounter: a safe launch spot keeps every burst point of the loaded pack this far
+## beyond the circle's edge on top of the scatter ring's reach (StarScatter.RING_MAX), so its stars
+## land clear of it even when the scatter relaxes them outward. Guide layout, not balance.
+const ENCOUNTER_CLEARANCE: int = 10
+## Candidate launch spots are tried on a grid this many px apart when no constellation star is safe.
+const SAFE_SPOT_GRID: int = 8
 ## XOR'd into the seed so star layout has its own RNG stream and can't shift pack contents.
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
 
@@ -408,24 +411,53 @@ func encounter_link() -> Array[int]:
 	return [] as Array[int]
 
 
-## The hunt's encounter: a spot to launch at that keeps the burst out of the circle, near where it
-## helps: the first unlit constellation star clear of it (in map order), else the sky's inner corner
-## furthest from it.
+## The hunt's encounter: a spot to launch the loaded pack at so its stars land clear of the circle
+## (is_safe_launch), near where it helps: the first unlit constellation star that's safe (in map
+## order), else the safe spot of the inner sky nearest the first unlit one, else the spot furthest
+## from the circle.
 func safe_launch_spot() -> Vector2i:
 	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
 	if hunt == null or not hunt.has_area():
 		return inner.get_center()
-	var clear: int = hunt.radius + ENCOUNTER_CLEARANCE
+	var goal: Vector2i = inner.get_center()
 	if scorpio != null:
+		var goal_set: bool = false
 		for i: int in scorpio.map.count():
+			if scorpio.is_lit(i):
+				continue
 			var at: Vector2i = scorpio.landmark_position(i)
-			if not scorpio.is_lit(i) and (at - hunt.centre).length_squared() > clear * clear:
+			if is_safe_launch(at):
 				return at
-	var best: Vector2i = inner.get_center()
-	for corner: Vector2i in [inner.position, Vector2i(inner.end.x - 1, inner.position.y), Vector2i(inner.position.x, inner.end.y - 1), inner.end - Vector2i.ONE]:
-		if (corner - hunt.centre).length_squared() > (best - hunt.centre).length_squared():
-			best = corner
-	return best
+			if not goal_set:
+				goal = at
+				goal_set = true
+	var best: Vector2i = Vector2i(-1, -1)
+	var furthest: Vector2i = goal
+	for y: int in range(inner.position.y, inner.end.y, SAFE_SPOT_GRID):
+		for x: int in range(inner.position.x, inner.end.x, SAFE_SPOT_GRID):
+			var spot := Vector2i(x, y)
+			if (spot - hunt.centre).length_squared() > (furthest - hunt.centre).length_squared():
+				furthest = spot
+			if is_safe_launch(spot) and (best.x < 0 or (spot - goal).length_squared() < (best - goal).length_squared()):
+				best = spot
+	return best if best.x >= 0 else furthest
+
+
+## Whether launching the loaded pack at `aim` keeps its stars out of the hunting circle: every point
+## it bursts at (a split pack's every one) keeps its whole scatter ring, and a margin, outside it.
+func is_safe_launch(aim: Vector2i) -> bool:
+	if hunt == null or not hunt.has_area():
+		return true
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	var pack: Balance.PackDef = balance.packs[kind]
+	var points: Array[Vector2i] = [StarScatter.clamp_to_sky(aim, sky_rect)]
+	if pack.bursts > 1:
+		points = StarScatter.split_points(aim, pack.burst_spread, pack.bursts, sky_rect)
+	var clear: int = hunt.radius + StarScatter.RING_MAX + ENCOUNTER_CLEARANCE
+	for point: Vector2i in points:
+		if (point - hunt.centre).length_squared() <= clear * clear:
+			return false
+	return true
 
 
 ## The player tapped on through a tutorial step that only explains something.
