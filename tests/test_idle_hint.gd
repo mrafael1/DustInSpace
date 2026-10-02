@@ -274,6 +274,62 @@ func test_a_landmark_in_the_link_shines_on_the_constellation() -> void:
 	assert_true(constellation.shows_cue(index), "its brackets stay: nothing is traced")
 
 
+func test_an_aiming_telescope_stops_so_following_the_hand_links() -> void:
+	_start_scene()
+	hint.set_process_input(true)
+	var stars: Array[Star] = _small_triple()
+	var telescope: Telescope = main.get_node("Telescope")
+	telescope.advance(2.0)
+	assert_true(telescope.start_aim(), "a seated planet aims")
+	var packs: int = run.total_packs()
+	hint.advance(IDLE)
+	var link: Array[int] = hint.shining_link()
+	assert_eq(link.size(), 3)
+	assert_false(telescope.is_aiming(), "the hint hands the sky back to linking")
+	_tap_screen(sky.link_points(link)[0])
+	assert_eq(sky.selected_ids(), [link[0]] as Array[int], "a tap on the hand's first star picks it")
+	assert_eq(run.total_packs(), packs, "and launches nothing")
+	assert_false(stars.is_empty())
+
+
+func test_a_telescope_starting_to_aim_ends_the_hint() -> void:
+	_start_scene()
+	_small_triple()
+	var telescope: Telescope = main.get_node("Telescope")
+	telescope.advance(2.0)
+	hint.advance(IDLE)
+	assert_true(hint.hand().is_playing())
+	assert_true(telescope.start_aim())
+	assert_false(hint.hand().is_playing(), "the sky is the telescope's again")
+
+
+func test_a_release_the_speaker_takes_still_lifts_the_finger() -> void:
+	_start_scene()
+	hint.set_process_input(true)
+	_small_triple()
+	var speaker: Rect2i = (main.get_node("SoundToggle") as SoundToggle).target
+	var on_speaker: Vector2i = speaker.get_center()
+	_push_touch(on_speaker + Vector2i(0, 60), true)
+	_push_touch(on_speaker, false)
+	hint.advance(IDLE)
+	assert_eq(hint.shining_link().size(), 3, "the finger is up: the wait ran")
+
+
+func test_the_hint_watches_input_before_anything_takes_it() -> void:
+	_start_scene()
+	hint.set_process_input(true)
+	_small_triple()
+	run.link_rejected.emit([] as Array[int])
+	assert_true(sequencer.is_busy())
+	_push_touch(Vector2i(90, 300), true)
+	_drain()
+	hint.advance(IDLE * 2)
+	assert_eq(hint.shining_link(), [] as Array[int], "a press the sequencer swallowed still holds the hint")
+	_push_touch(Vector2i(90, 300), false)
+	hint.advance(IDLE)
+	assert_eq(hint.shining_link().size(), 3)
+
+
 func test_a_run_without_the_hints_block_never_hints() -> void:
 	_start_scene({})
 	_small_triple()
@@ -358,3 +414,25 @@ func _touch(at: Vector2i, pressed: bool) -> void:
 	e.pressed = pressed
 	hint.observe(e)
 	sky.handle_pointer(e)
+
+
+## A touch through the real viewport, so every _input gate sees it in tree order. `at` is on the
+## game's 180x320 screen; the window may show more around it (ScreenZones.game_offset).
+func _push_touch(at: Vector2i, pressed: bool) -> void:
+	var offset: Vector2i = ScreenZones.game_offset(get_viewport().get_visible_rect().size)
+	var e := InputEventScreenTouch.new()
+	e.position = Vector2(at + offset)
+	e.pressed = pressed
+	# GUT's own panel would take the touch as GUI input before the game's _unhandled_input.
+	var gut_layer: CanvasLayer = get_tree().root.get_node_or_null("GutRunner/GutLayer")
+	var shown: bool = gut_layer != null and gut_layer.visible
+	if gut_layer != null:
+		gut_layer.visible = false
+	get_viewport().push_input(e, true)
+	if gut_layer != null:
+		gut_layer.visible = shown
+
+
+func _tap_screen(at: Vector2i) -> void:
+	for pressed: bool in [true, false]:
+		_push_touch(at, pressed)
