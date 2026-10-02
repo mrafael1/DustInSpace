@@ -117,8 +117,7 @@ CONSTELLATION TO WIN", "the goal first")
 func test_the_buy_step_points_at_the_buy_button() -> void:
 	_start()
 	_settle()
-	run.tutorial.step = Tutorial.Step.RED
-	run.tutorial.launched(true)
+	run.tutorial.step = Tutorial.Step.BUY
 	run.tutorial_step.emit(run.tutorial.step)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
@@ -182,23 +181,59 @@ func test_the_demo_point_loops_through_the_path() -> void:
 	assert_eq(TutorialView.demo_point(points, loop + 0.01), points[0], "then again")
 
 
-func test_free_plays_first_full_sun_points_at_the_star_it_lit() -> void:
+func test_the_loaded_planet_is_shown_on_the_telescope_then_its_icon() -> void:
 	_start()
 	_settle()
-	run.tutorial.step = Tutorial.Step.DONE
+	run.tutorial.step = Tutorial.Step.SCOPE
+	run.loaded_pack = "red"
+	run.pack_loaded.emit("red")
+	run.tutorial_step.emit(Tutorial.Step.SCOPE)
+	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	guide.hide_guide()
-	run.sun_rekindled.emit(2)
+	assert_eq(guide.text(), "THE TELESCOPE SHOWS\nTHE LOADED PLANET")
+	assert_false(guide.shows_tap_hint(), "it goes on by itself")
+	var window: Vector2i = scope.origin() + scope.window()
+	assert_eq(guide.fingertip().y, window.y, "the hand at the telescope's window")
+	assert_lt(guide.fingertip().x, window.x, "from the left")
+	assert_eq(scope.loaded_pack(), "red", "the window shows the red planet")
+	guide.advance(TutorialView.SHOW_TIME + 0.1)
 	_settle()
-	assert_eq(guide.text(), TutorialView.SUN_FULL_TEXT)
-	assert_true(guide.has_hand())
+	assert_eq(guide.text(), "THE LOADED PLANET SPINS")
+	assert_eq(guide.fingertip().x, hud.pack_icon_top("red").x, "the hand over the red planet's icon")
+	guide.advance(TutorialView.SHOW_TIME + 0.1)
+	_settle()
+	assert_eq(guide.text(), "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS")
+
+
+func test_the_full_sun_points_at_the_star_it_lit() -> void:
+	_start()
+	_settle()
+	run.tutorial.step = Tutorial.Step.SUN_FULL
+	run.tutorial.landmark = 2
+	run.tutorial_step.emit(Tutorial.Step.SUN_FULL)
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_eq(guide.text(), "A FULL SUN LIGHTS A STAR")
 	assert_eq(guide.target().x, run.scorpio.landmark_position(2).x, "the hand on the star it lit")
-	assert_false(guide.waits_for_tap(), "play goes on")
-	guide.advance(TutorialView.SUN_FULL_TIME + 0.1)
-	assert_eq(guide.text(), "")
-	run.sun_rekindled.emit(3)
+	assert_true(guide.waits_for_tap(), "a showing step")
+	assert_false(guide.shows_tap_hint())
+
+
+func test_the_red_link_points_through_three_big_stars() -> void:
+	_start()
 	_settle()
-	assert_eq(guide.text(), "", "only the first")
+	for at: Vector2i in [Vector2i(60, 120), Vector2i(90, 125), Vector2i(120, 120)]:
+		run.add_star(Star.Size.BIG, at)
+	run.tutorial.step = Tutorial.Step.RED_LINK
+	run.tutorial_step.emit(Tutorial.Step.RED_LINK)
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_eq(guide.text(), "LINK THEM TO FILL THE SUN")
+	var path: Array[int] = guide.get("_path")
+	assert_eq(path.size(), 3)
+	for id: int in path:
+		assert_eq(run.find_star(id).size, Star.Size.BIG)
+	assert_true(guide.has_hand())
 
 
 func test_every_line_fits_the_screen() -> void:

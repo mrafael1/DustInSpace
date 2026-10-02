@@ -59,9 +59,14 @@ func test_the_whole_tutorial() -> void:
 	assert_ne(run.link(_order(run, _pair_and(run, size, landmark))), Combos.INVALID)
 	assert_true(run.scorpio.is_lit(landmark))
 	assert_gt(run.dust, dust)
-	# The red planet the run started with: in the slingshot, launched anywhere, more big stars.
+	# The red planet the run started with drops in: where the loaded planet shows, then its launch.
+	assert_eq(steps.back(), Tutorial.Step.SCOPE)
+	assert_eq(run.loaded_pack, "red", "in the slingshot")
+	assert_false(run.launch(Vector2i(90, 120)), "the showing steps only show")
+	assert_true(run.tutorial_continue())
+	assert_eq(steps.back(), Tutorial.Step.ICON)
+	assert_true(run.tutorial_continue())
 	assert_eq(steps.back(), Tutorial.Step.RED)
-	assert_eq(run.loaded_pack, "red")
 	assert_false(run.buy("blue"), "no buying before the red launch")
 	assert_false(run.load_pack("blue"))
 	var before: int = run.stars.size()
@@ -69,6 +74,16 @@ func test_the_whole_tutorial() -> void:
 	var red: Array[Star] = run.stars.slice(before)
 	assert_eq(red.size(), run.balance.packs["red"].stars * run.balance.packs["red"].bursts)
 	assert_gt(_sizes(red).count(Star.Size.BIG), _sizes(red).count(Star.Size.SMALL), "more big stars")
+	# Its link fills the Sun (the guided run's own target the first time), and it lights a star.
+	assert_eq(steps.back(), Tutorial.Step.RED_LINK)
+	assert_eq(run.light_target(), 40, "the guided run's first Sun")
+	var next: int = run.rekindle_target()
+	assert_ne(run.link(_order(run, _three_of(run, Star.Size.BIG))), Combos.INVALID)
+	assert_eq(steps.back(), Tutorial.Step.SUN_FULL)
+	assert_eq(run.tutorial.landmark, next, "the star the full Sun lit")
+	assert_true(run.scorpio.is_lit(next))
+	assert_eq(run.light_target(), 75, "then the stage's own")
+	assert_true(run.tutorial_continue())
 	# Step 5: out of planets, buy a blue one, only.
 	assert_eq(steps.back(), Tutorial.Step.BUY)
 	assert_eq(run.total_packs(), 0)
@@ -83,15 +98,32 @@ func test_the_whole_tutorial() -> void:
 
 
 func test_a_buy_it_cant_afford_skips_to_free_play() -> void:
+	var tutorial := Tutorial.new()
+	tutorial.step = Tutorial.Step.RED_LINK
+	assert_true(tutorial.linked(false, -1, false, false, 3))
+	assert_eq(tutorial.step, Tutorial.Step.SUN_FULL, "the full Sun is still shown")
+	assert_eq(tutorial.landmark, 3)
+	assert_true(tutorial.continue_info())
+	assert_true(tutorial.is_done(), "no stuck buy step")
+
+
+func test_a_red_link_that_doesnt_fill_the_sun_goes_on_to_the_buy() -> void:
+	var tutorial := Tutorial.new()
+	tutorial.step = Tutorial.Step.RED_LINK
+	assert_true(tutorial.linked(false, -1, false, true, -1))
+	assert_eq(tutorial.step, Tutorial.Step.BUY, "no full Sun to show")
+
+
+func test_the_guided_suns_own_target_is_optional() -> void:
 	var data: Dictionary = _data()
-	data["packs"]["blue"]["cost"] = 99
-	data["packs"]["red"]["cost"] = 99
+	(data["scorpio"] as Dictionary).erase("tutorial_sun_target")
 	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.stinger())
 	run.start_tutorial()
-	_play_to_light(run)
-	assert_eq(run.tutorial.step, Tutorial.Step.RED, "the red launch is still shown")
-	run.launch(Vector2i(90, 120))
-	assert_true(run.tutorial.is_done(), "no stuck buy step")
+	assert_eq(run.light_target(), 75)
+	data["scorpio"]["tutorial_sun_target"] = 0
+	assert_false(Balance.from_dict(data).is_valid(), "at least 1 when given")
+	assert_eq(Balance.load_file(Balance.DEFAULT_PATH).scorpio_tutorial_sun_target, 40, "shipped")
+	assert_eq(_run(false).light_target(), 75, "an unguided run keeps the stage's")
 
 
 func test_without_a_red_planet_the_red_launch_is_skipped() -> void:
@@ -106,18 +138,19 @@ func test_without_a_red_planet_the_red_launch_is_skipped() -> void:
 func test_the_first_link_is_tapped_and_the_constellation_stars_dragged() -> void:
 	assert_eq(Tutorial.link_input(Tutorial.Step.LINK), Tutorial.LinkInput.TAP)
 	assert_eq(Tutorial.link_input(Tutorial.Step.LIGHT), Tutorial.LinkInput.DRAG)
-	for step: int in [Tutorial.Step.GOAL, Tutorial.Step.DUST, Tutorial.Step.RED, Tutorial.Step.DONE]:
+	for step: int in [Tutorial.Step.GOAL, Tutorial.Step.DUST, Tutorial.Step.RED, Tutorial.Step.RED_LINK, Tutorial.Step.DONE]:
 		assert_eq(Tutorial.link_input(step), Tutorial.LinkInput.ANY, "step %d" % step)
 
 
 func test_only_the_showing_steps_wait() -> void:
-	for step: int in [Tutorial.Step.GOAL, Tutorial.Step.DUST, Tutorial.Step.SUN]:
+	for step: int in [Tutorial.Step.GOAL, Tutorial.Step.DUST, Tutorial.Step.SUN, Tutorial.Step.SCOPE, Tutorial.Step.ICON, Tutorial.Step.SUN_FULL]:
 		assert_true(Tutorial.is_info(step))
 		assert_false(Tutorial.aims(step), "no aiming while it shows")
 	assert_false(Tutorial.is_timed(Tutorial.Step.GOAL), "the goal waits for a tap")
 	assert_true(Tutorial.is_timed(Tutorial.Step.DUST), "the payout goes on by itself")
-	assert_true(Tutorial.is_timed(Tutorial.Step.SUN))
-	for step: int in [Tutorial.Step.LAUNCH, Tutorial.Step.LINK, Tutorial.Step.LIGHT, Tutorial.Step.RED, Tutorial.Step.BUY, Tutorial.Step.DONE]:
+	for step: int in [Tutorial.Step.SUN, Tutorial.Step.SCOPE, Tutorial.Step.ICON, Tutorial.Step.SUN_FULL]:
+		assert_true(Tutorial.is_timed(step))
+	for step: int in [Tutorial.Step.LAUNCH, Tutorial.Step.LINK, Tutorial.Step.LIGHT, Tutorial.Step.RED, Tutorial.Step.RED_LINK, Tutorial.Step.BUY, Tutorial.Step.DONE]:
 		assert_false(Tutorial.is_info(step))
 
 
@@ -155,7 +188,7 @@ func _data() -> Dictionary:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
 	data["packs"]["red"]["big_bang_chance"] = 0.0
-	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "sun_target": 75, "max_link_distance": 56}
+	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "sun_target": 75, "tutorial_sun_target": 40, "max_link_distance": 56}
 	return data
 
 
@@ -169,6 +202,15 @@ func _play_to_light(run: RunState) -> void:
 	var landmark: int = run.tutorial.landmark
 	run.launch(run.scorpio.landmark_position(landmark))
 	run.link(_order(run, _pair_and(run, run.scorpio.map.sizes[landmark], landmark)))
+
+
+## Three sky stars of `size`.
+func _three_of(run: RunState, size: int) -> Array[int]:
+	var ids: Array[int] = []
+	for star: Star in run.stars:
+		if star.size == size and ids.size() < 3:
+			ids.append(star.id)
+	return ids
 
 
 ## Two sky stars of `size` and the landmark: the light step's link.
