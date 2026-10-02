@@ -235,6 +235,8 @@ func open_table() -> void:
 		if child != _table:
 			_held[child] = child.process_mode
 			child.process_mode = Node.PROCESS_MODE_DISABLED
+	# The guide's line would crowd the plaque's top: it goes unseen (not hidden: it keeps its step).
+	_guide.modulate = Color.TRANSPARENT
 	table_opened.emit()
 
 
@@ -246,6 +248,7 @@ func close_table() -> void:
 		if is_instance_valid(child):
 			child.process_mode = _held[child]
 	_held.clear()
+	_guide.modulate = Color.WHITE
 	table_closed.emit()
 
 

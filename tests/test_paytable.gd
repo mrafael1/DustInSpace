@@ -66,7 +66,9 @@ func test_the_table_fits_the_screen() -> void:
 	assert_lt(plaque.end.y, ScreenZones.SKY.end.y, "in the sky, TAP TO CLOSE inside it")
 	var stars: int = PaytableView.STARS_X + 3 * (StarView.half_extent(Star.Size.BIG) * 2 + 1) + 2 * PaytableView.STAR_GAP
 	assert_lt(stars, PaytableView.DUST_X, "the stars clear the dust column")
-	assert_lt(PaytableView.LIGHT_X + 5 * 6, PaytableView.PLAQUE_W - PaytableView.PAD, "five marks fit")
+	var suns: Array[Vector2i] = PaytableView.sun_centres(5, PaytableView.LIGHT_X, 0)
+	assert_lte(suns[-1].x + PaytableView.SUN_SIZE / 2, PaytableView.PLAQUE_W - PaytableView.PAD, "five suns fit")
+	assert_gt(PaytableView.LIGHT_X, PaytableView.DUST_X + PaytableView.DUST_ICON_DX + 4, "clear of the dust icons")
 
 
 func test_the_table_button_opens_it_and_the_game_holds_still() -> void:
@@ -146,30 +148,41 @@ func _tap(at: Vector2i) -> void:
 		hud.handle_pointer(touch)
 
 
-func test_the_most_light_stands_out_and_the_line_stays_dim() -> void:
-	var rows: Array[Dictionary] = PaytableView.rows_for(Balance.load_file(Balance.DEFAULT_PATH))
-	assert_eq(PaytableView.most_marks(rows), 5, "one of each gives the most")
-	assert_ne(PaytableView.TOP_LIGHT_COLOUR, PaytableView.LIGHT_COLOUR)
+func test_the_light_shows_as_pale_gold_suns_and_the_line_stays_dim() -> void:
 	assert_eq(PaytableView.DUST_COLOUR, Palette.D0, "dust's lavender")
-	assert_eq(PaytableView.LIGHT_COLOUR, Palette.C1, "light's warm gold")
+	assert_eq(PaytableView.LIGHT_COLOUR, Palette.C1, "light's pale gold")
 	assert_lt(PaytableView.LINE_COLOUR.get_luminance(), PaytableView.DUST_COLOUR.get_luminance(), "the line stays quieter than the rewards")
+	var sun: Dictionary[Vector2i, Color] = ArtStrip.named("light_icon").pixels("sun")
+	for d: Vector2i in sun:
+		assert_eq(sun[d], Palette.C1, "every sun in the same pale gold")
+	for d: Vector2i in [Vector2i(-2, -2), Vector2i(2, -2), Vector2i(-2, 2), Vector2i(2, 2)]:
+		assert_true(sun.has(d), "diagonal rays: round, not a star's cross")
+	var suns: Array[Vector2i] = PaytableView.sun_centres(3, 0, 0)
+	assert_eq(suns[0].x - PaytableView.SUN_SIZE / 2, 0, "left-aligned")
+	assert_eq(suns[2].x - suns[1].x, suns[1].x - suns[0].x, "evenly spaced")
 	_start()
 	hud.open_table()
 	var labels: Array[Label] = hud.table().get("_labels")
-	var tops: Array[Label] = labels.filter(func(l: Label) -> bool: return l.text == "+++++")
-	assert_eq(tops.size(), 1)
-	assert_eq(tops[0].label_settings.font_color, PaytableView.TOP_LIGHT_COLOUR)
+	assert_true(labels.filter(func(l: Label) -> bool: return l.text.contains("+")).is_empty(), "no + marks left")
 
 
-func test_the_rows_have_room_and_the_dust_lines_up() -> void:
-	assert_gte(PaytableView.row_height(), 22, "a little more room per row")
+func test_the_column_heads_share_a_line_and_tap_to_close_is_small() -> void:
 	_start()
 	hud.open_table()
 	var labels: Array[Label] = hud.table().get("_labels")
-	var numbers: Array[Label] = labels.filter(func(l: Label) -> bool: return l.text.is_valid_int())
-	assert_eq(numbers.size(), 4)
-	for label: Label in numbers:
-		assert_eq(label.position.x + label.size.x, numbers[0].position.x + numbers[0].size.x, "right-aligned: the icons line up")
-		assert_lt(label.position.x + label.size.x, PaytableView.PLAQUE_AT.x + PaytableView.DUST_X + PaytableView.DUST_ICON_DX - 2.0, "clear of the icon")
-	var centres: Array[Vector2i] = PaytableView.star_centres(3, 0, 0)
-	assert_eq(centres[2].x - centres[1].x, centres[1].x - centres[0].x, "the stars evenly on their line")
+	var heads: Array = labels.filter(func(l: Label) -> bool: return l.text in [PaytableView.TITLE, PaytableView.DUST_TEXT, PaytableView.LIGHT_TEXT])
+	assert_eq(heads.size(), 3)
+	for head: Label in heads:
+		assert_eq(head.position.y, heads[0].position.y, "%s on the heads' line" % head.text)
+	var tap: Array = labels.filter(func(l: Label) -> bool: return l.text == PaytableView.TAP_TEXT)
+	assert_eq(tap[0].label_settings.font_size, HudText.SECONDARY_SIZE, "the small font")
+
+
+func test_the_table_hides_the_tutorial_line_while_open() -> void:
+	_start()
+	hud.tutorial_guide().show_step(Tutorial.Step.LINK)
+	hud.open_table()
+	assert_eq(hud.tutorial_guide().modulate.a, 0.0, "the line doesn't crowd the plaque")
+	assert_eq(hud.tutorial_guide().text(), TutorialView.TEXTS[Tutorial.Step.LINK], "it keeps its step")
+	hud.close_table()
+	assert_eq(hud.tutorial_guide().modulate.a, 1.0, "back once it's closed")

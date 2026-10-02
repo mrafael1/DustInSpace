@@ -1,24 +1,22 @@
 class_name PaytableView
 extends Node2D
-## The table (#94), titled COMBOS: the slot machine's paytable. A plaque over the sky lists each
-## valid link and what it pays, read from balance.json: a row per triple (small, medium, big) and a
-## row for one of each size, its stars in the sky's own art on a dim link line (N4, behind them, so
-## each row reads as a link without competing with the rewards); the dust as a lavender number (D0,
-## the dust's colour) by the dust icon, the icons in one column; the light as warm gold marks (C1),
-## one + per unit (the smallest light any link gives, so the marks stay true when tuned), the most
-## light in C0. The one-of-each row cuts through all six orders in turn: any order counts. Owns no
-## rules; the HUD opens it (the COMBOS button, the tutorial's first link), pauses the game while it
-## shows, and closes it at a tap.
+## The table (#94): the slot machine's paytable. A plaque over the sky lists each valid link and
+## what it pays, read from balance.json, under one line of column heads (COMBOS, DUST, LIGHT): a row
+## per triple (small, medium, big) and a row for one of each size, its stars in the sky's own art on
+## a dim link line (N4, behind them, so each row reads as a link without competing with the
+## rewards); the dust as a lavender number (D0, the dust's colour) by the dust icon, the icons in
+## one column; the light as tiny pale gold suns (C1), one per unit (the smallest light any link
+## gives, so the suns stay true when tuned), left-aligned. The one-of-each row cuts through all six
+## orders in turn: any order counts. Owns no rules; the HUD opens it (the COMBOS button, the
+## tutorial's first link), pauses the game while it shows, and closes it at a tap.
 
 const TITLE: String = "COMBOS"
 const TAP_TEXT: String = "TAP TO CLOSE"
 const DUST_TEXT: String = "DUST"
 const LIGHT_TEXT: String = "LIGHT"
-const LIGHT_MARK: String = "+"
-## The colours: the dust's lavender, the light's warm gold (the most light brighter), a dim line.
+## The colours: the dust's lavender, the light's pale gold (its suns' too), a dim line.
 const DUST_COLOUR: Color = Palette.D0
 const LIGHT_COLOUR: Color = Palette.C1
-const TOP_LIGHT_COLOUR: Color = Palette.C0
 const LINE_COLOUR: Color = Palette.N4
 ## Every order of one of each size, cut through in turn, ORDER_TIME each.
 const ORDERS: Array[Array] = [
@@ -34,18 +32,21 @@ const ORDER_TIME: float = 0.6
 const PLAQUE_AT := Vector2i(14, 90)
 const PLAQUE_W: int = 152
 const PAD: int = 7
-## Line heights: the title, the column heads, each row (a big star's art plus a gap).
+## Line heights: the column heads, each row (a big star's art plus a gap).
 const LINE_STEP: int = 11
 const ROW_GAP: int = 9
-## Where each column starts, from the plaque's left: the stars, the dust, the light.
+## Where each column starts, from the plaque's left: the stars (under COMBOS), the dust, the light.
 const STARS_X: int = PAD
 const STAR_GAP: int = 5
 const DUST_X: int = 70
-const LIGHT_X: int = 108
+const LIGHT_X: int = 100
 ## The dust number is right-aligned in DUST_NUM_W px, so the dust icons sit in one column,
 ## DUST_ICON_DX px right of the dust column's start.
 const DUST_NUM_W: int = 11
 const DUST_ICON_DX: int = 18
+## The light suns: SUN_STEP px apart, each SUN_SIZE px wide (assets/art/light_icon.png).
+const SUN_SIZE: int = 7
+const SUN_STEP: int = 9
 
 var _open: bool = false
 var _time: float = 0.0
@@ -117,7 +118,7 @@ static func rows_for(balance: Balance) -> Array[Dictionary]:
 	return rows
 
 
-## The light one + stands for: the smallest light any link gives (1 if none gives light).
+## The light one sun stands for: the smallest light any link gives (1 if none gives light).
 static func light_unit(balance: Balance) -> int:
 	var unit: int = 0
 	for key: String in balance.combos:
@@ -127,19 +128,11 @@ static func light_unit(balance: Balance) -> int:
 	return maxi(unit, 1)
 
 
-## How many + `light` shows, `unit` each (rounded; at least one for any light).
+## How many suns `light` shows, `unit` each (rounded; at least one for any light).
 static func light_marks(light: int, unit: int) -> int:
 	if light <= 0:
 		return 0
 	return maxi(roundi(float(light) / unit), 1)
-
-
-## The most light marks any row shows (its marks show in TOP_LIGHT_COLOUR).
-static func most_marks(rows: Array[Dictionary]) -> int:
-	var most: int = 0
-	for row: Dictionary in rows:
-		most = maxi(most, row["marks"])
-	return most
 
 
 ## Where the stars of a row sit: `count` centres from `x`, each in a big star's width, STAR_GAP
@@ -154,7 +147,7 @@ static func star_centres(count: int, x: int, mid: int) -> Array[Vector2i]:
 
 ## The plaque's rect.
 static func plaque_rect(row_count: int) -> Rect2i:
-	var height: int = PAD + LINE_STEP * 2 + row_count * row_height() + LINE_STEP + PAD - ROW_GAP
+	var height: int = PAD + LINE_STEP + row_count * row_height() + LINE_STEP + PAD - ROW_GAP
 	return Rect2i(PLAQUE_AT, Vector2i(PLAQUE_W, height))
 
 
@@ -167,7 +160,7 @@ static func _row(key: String, sizes: Array, reward: Balance.ComboReward, unit: i
 	return {"key": key, "sizes": sizes.duplicate(), "dust": reward.dust, "marks": light_marks(reward.light, unit)}
 
 
-## The labels: the title, the column heads, each row's dust and light, TAP TO CLOSE at the bottom.
+## The labels: the column heads, each row's dust, TAP TO CLOSE at the bottom (small: it's a hint).
 func _build_labels() -> void:
 	for label: Label in _labels:
 		label.queue_free()
@@ -175,18 +168,16 @@ func _build_labels() -> void:
 	var plaque: Rect2i = plaque_rect(_rows.size())
 	var left: int = plaque.position.x
 	var top: int = plaque.position.y + PAD
-	_add_label(TITLE, Palette.C1, Vector2i(left + PAD, top))
-	_add_label(DUST_TEXT, DUST_COLOUR, Vector2i(left + DUST_X, top + LINE_STEP))
-	_add_label(LIGHT_TEXT, LIGHT_COLOUR, Vector2i(left + LIGHT_X, top + LINE_STEP))
-	var most: int = most_marks(_rows)
+	_add_label(TITLE, Palette.C1, Vector2i(left + STARS_X, top))
+	_add_label(DUST_TEXT, DUST_COLOUR, Vector2i(left + DUST_X, top))
+	_add_label(LIGHT_TEXT, LIGHT_COLOUR, Vector2i(left + LIGHT_X, top))
 	for i: int in _rows.size():
 		var mid: int = _row_mid(i)
 		var dust: Label = _add_label("%d" % _rows[i]["dust"], DUST_COLOUR, Vector2i(left + DUST_X, mid - 3))
 		dust.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		dust.size = Vector2(DUST_NUM_W, dust.get_minimum_size().y)
-		var marks: int = _rows[i]["marks"]
-		_add_label(LIGHT_MARK.repeat(marks), TOP_LIGHT_COLOUR if marks == most else LIGHT_COLOUR, Vector2i(left + LIGHT_X, mid - 3))
-	var tap: Label = _add_label(TAP_TEXT, Palette.N8, Vector2i(0, plaque.end.y - PAD - 7))
+	var tap: Label = _add_label(TAP_TEXT, Palette.N8, Vector2i(0, plaque.end.y - PAD - HudText.SECONDARY_SIZE))
+	tap.label_settings = HudText.secondary(Palette.N8)
 	tap.position.x = ScreenZones.SCREEN.x / 2 - floori(tap.get_minimum_size().x / 2.0)
 
 
@@ -203,7 +194,7 @@ func _add_label(text: String, colour: Color, at: Vector2i) -> Label:
 
 ## Row `i`'s middle line, in the HUD's coordinates.
 func _row_mid(i: int) -> int:
-	var first: int = plaque_rect(_rows.size()).position.y + PAD + LINE_STEP * 2
+	var first: int = plaque_rect(_rows.size()).position.y + PAD + LINE_STEP
 	return first + i * row_height() + StarView.half_extent(Star.Size.BIG)
 
 
@@ -219,6 +210,23 @@ func _draw() -> void:
 		var at := Vector2i(plaque.position.x + DUST_X + DUST_ICON_DX, _row_mid(i))
 		for d: Vector2i in icon:
 			draw_rect(Rect2(Vector2(at + d), Vector2.ONE), icon[d])
+		_draw_suns(_rows[i]["marks"], plaque.position.x + LIGHT_X, _row_mid(i))
+
+
+## Where a row's suns sit: `count` centres from `x`, SUN_STEP apart, on `mid`.
+static func sun_centres(count: int, x: int, mid: int) -> Array[Vector2i]:
+	var centres: Array[Vector2i] = []
+	for k: int in count:
+		centres.append(Vector2i(x + k * SUN_STEP + SUN_SIZE / 2, mid))
+	return centres
+
+
+## A row's light: `count` tiny suns, left-aligned from `x`, centred on `mid`.
+func _draw_suns(count: int, x: int, mid: int) -> void:
+	var art: Dictionary[Vector2i, Color] = ArtStrip.named("light_icon").pixels("sun")
+	for centre: Vector2i in sun_centres(count, x, mid):
+		for d: Vector2i in art:
+			draw_rect(Rect2(Vector2(centre + d), Vector2.ONE), art[d])
 
 
 ## A row of stars in the sky's art on a dim line through them, from `x`, centred on `mid`. Each
