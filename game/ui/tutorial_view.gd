@@ -2,7 +2,7 @@ class_name TutorialView
 extends Node2D
 ## The guided first run's guide (Tutorial), on the HUD layer: a line or two of text under the Sun,
 ## at the top of the sky, saying what to do, and a pointing hand at where to do it, bobbing BOB px every BOB_STEP. The hand
-## points down at a spot in the sky, a star or a landmark, and points right at the buy button. Free
+## points down at a spot in the sky, a star, a landmark or a planet, and points right at the buy button. Free
 ## play shows its line for a moment and no hand. Owns no rules: the HUD tells it each step as it
 ## plays, with where to point.
 ## The linking steps teach the two combos with a card at the top of the sky, drawn with the sky
@@ -13,7 +13,8 @@ extends Node2D
 ## While a link is taught, the hand goes from star to star in an order that stays in reach
 ## (follow_path), moving on as each is picked (follow); once one is picked the line explains the link
 ## hint: the stars that can come next shine. The steps that only explain something (the goal, what
-## links give) take a line or two and say TAP TO CONTINUE (N8) below; the HUD sends the tap.
+## links give, the blue and the red planet) take a few lines and say TAP TO CONTINUE (N8) below;
+## the HUD sends the tap.
 
 ## Where the line sits (the HUD's message line; a second line goes above it, LINE_STEP up) and how
 ## long free play's line stays.
@@ -40,6 +41,11 @@ const TEXTS: Dictionary = {
 	Tutorial.Step.SUN: "LINKS GIVE LIGHT AND DUST\nA FULL SUN LIGHTS A STAR",
 	Tutorial.Step.LAUNCH_NEAR: "LAUNCH NEXT TO THIS STAR",
 	Tutorial.Step.LIGHT: "LINK 3 OF THE SAME SIZE",
+	Tutorial.Step.BLUE: "BLUE PLANETS ARE CHEAP
+MOSTLY SMALL STARS",
+	Tutorial.Step.RED: "RED PLANETS COST MORE
+THEY SPLIT IN TWO
+WITH MORE BIG STARS",
 	Tutorial.Step.BUY: "SPEND DUST ON A PLANET",
 	Tutorial.Step.DONE: "LIGHT EVERY STAR TO WIN",
 }

@@ -352,8 +352,15 @@ func buy_button_at(kind: String) -> Vector2i:
 	return slot + Vector2i(PackSlot.BUY_PLATE.position.x, PackSlot.BUY_PLATE.get_center().y)
 
 
+## Where the icon of `kind` tops out (its top middle), in the HUD's coordinates.
+func pack_icon_top(kind: String) -> Vector2i:
+	var slot: Vector2i = Vector2i(_slot_layer.position + _slots[kind].position)
+	return slot - Vector2i(0, PackSlot.ICON_RADIUS + 1)
+
+
 ## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
-## launch at, the stars to link, the constellation star to launch by and light, the buy button.
+## launch at, the stars to link, the Sun, the constellation star to launch by and light, each
+## planet's icon, the buy button.
 func _show_tutorial_step(step: int) -> void:
 	var top: int = _run.sky_rect.position.y + TutorialView.TOP
 	match step:
@@ -384,6 +391,9 @@ func _show_tutorial_step(step: int) -> void:
 				if pair.size() == 2:
 					var path: Array[int] = _reachable_order([pair[0], Scorpio.landmark_id(index), pair[1]])
 					_guide.follow_path(path, _link_positions(path))
+		Tutorial.Step.BLUE, Tutorial.Step.RED:
+			var kind: String = "blue" if step == Tutorial.Step.BLUE else "red"
+			_guide.show_step(step, pack_icon_top(kind), true, TutorialView.Point.DOWN, top)
 		Tutorial.Step.BUY:
 			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		_:
