@@ -302,13 +302,13 @@ func launch(target: Vector2i) -> bool:
 		_orion_mark()
 	_auto_load()
 	_check_end()
-	if tutorial != null and tutorial.launched():
+	if tutorial != null and tutorial.launched(can_afford("blue")):
 		tutorial_step.emit(tutorial.step)
 	return true
 
 
 ## Starts the guided first run (a constellation stage): the first steps allow one action each and
-## script the first two packs. Announces its first step.
+## script the first three packs. Announces its first step.
 func start_tutorial() -> void:
 	if scorpio == null or tutorial != null:
 		return
@@ -382,7 +382,11 @@ func link(star_ids: Array[int]) -> String:
 		_orion_mark()
 	if tutorial != null and not is_over():
 		var lit: bool = linked.any(func(star: Star) -> bool: return scorpio != null and scorpio.is_landmark(star.id))
-		if tutorial.linked(lit, rekindle_target() if scorpio != null else -1, can_afford("blue")):
+		if tutorial.linked(lit, rekindle_target() if scorpio != null else -1, owned_packs.get("red", 0) > 0, can_afford("blue")):
+			# The red planet's step launches the one the run started with: it goes in the slingshot.
+			if tutorial.step == Tutorial.Step.RED and loaded_pack != "red":
+				loaded_pack = "red"
+				pack_loaded.emit("red")
 			tutorial_step.emit(tutorial.step)
 	return combo
 
