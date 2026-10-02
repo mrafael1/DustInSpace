@@ -1,6 +1,6 @@
 class_name OrionView
 extends Node2D
-## Orion the hunter (#64), on stages he hunts: his figure, dim in the sky's top-left corner (drawn
+## Orion the hunter (#64), on stages he hunts: his figure, ember in the sky's top-left corner (drawn
 ## on the FigureLayer, under the stars); when he marks a star his figure flashes bright and a dotted
 ## ember sight line runs from his bow to it, then the ember crosshair closes on it and stays (a cue
 ## unlike the warm selection ring, the lit landmarks and the unlit landmarks' corner hints),
@@ -17,7 +17,7 @@ extends Node2D
 ## loose star inside bursts as it lands.
 ## On the boss stage (the final) he is the boss. He enters as it opens: his stars light one by one
 ## from his feet to his bow, then the whole figure flashes C0 and shakes a pixel (his roar, as the
-## HUD names him). He stays ember (S2 lines, S3 bow, S4 stars) instead of dim and cool, and a row of
+## HUD names him). He is ember like on every stage (S2 lines, S3 bow, S4 stars), and a row of
 ## pips under his feet counts the landmarks still to light: his health. Each landmark lit hurts
 ## him: he flashes and flinches and a pip breaks (C0, then an empty N3 slot). When the constellation
 ## is complete he falls: one flash, then his stars burst one by one from the bow down to his feet.
@@ -626,8 +626,10 @@ static func _arrow_line(from_at: Vector2i, to: Vector2i, k: float) -> Array[Vect
 	return LinkLayer.line_pixels(Vector2i(tail.round()), Vector2i(tip.round()))
 
 
-## The figure's pixels and colours: dim cool dots and faint lines; bright while he marks, readies
-## his bow or shoots. While a mark stands his bow stays drawn: a step brighter than at rest.
+## The figure's pixels and colours: ember, like the boss (S2 lines, S3 bow, S4 stars; playtest: a
+## dim cool figure went unseen); brighter while he marks, readies his bow or shoots (S4 lines, N10
+## bow, C0 stars). While a threat stands (a mark, a volley charging, a hunting area) his bow stays
+## drawn: S4, a step brighter than at rest.
 func figure_pixels() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	if not _figure_shown:
@@ -636,7 +638,7 @@ func figure_pixels() -> Dictionary[Vector2i, Color]:
 		return _boss_pixels()
 	var blinking_on: bool = _charge == 2 and int(_charge_age / CHARGE_BLINK) % 2 == 0
 	var hunting: bool = is_shooting() or is_aiming() or is_bow_ready() or is_volleying() or blinking_on
-	var line_colour: Color = Palette.N5 if hunting else Palette.N3
+	var line_colour: Color = Palette.S4 if hunting else Palette.S2
 	for pair: Vector2i in LINES:
 		for p: Vector2i in LinkLayer.line_pixels(BODY[pair.x], BODY[pair.y]):
 			dots[_figure_at + p] = line_colour
@@ -644,13 +646,14 @@ func figure_pixels() -> Dictionary[Vector2i, Color]:
 		dots[_figure_at + p] = line_colour
 	for p: Vector2i in LinkLayer.line_pixels(BODY[1], BOW_HAND):
 		dots[_figure_at + p] = line_colour
-	var bow_colour: Color = Palette.N10 if hunting else (Palette.N6 if marked() != null or _charge > 0 or has_area() else Palette.N4)
+	var bow_colour: Color = Palette.N10 if hunting else (Palette.S4 if marked() != null or _charge > 0 or has_area() else Palette.S3)
 	for k: int in range(1, BOW.size()):
 		for p: Vector2i in LinkLayer.line_pixels(BOW[k - 1], BOW[k]):
 			dots[_figure_at + p] = bow_colour
+	var star_colour: Color = Palette.C0 if hunting else Palette.S4
 	for p: Vector2i in BODY:
-		dots[_figure_at + p] = Palette.N10 if hunting else Palette.N7
-	dots[_figure_at + HEAD] = Palette.N9 if hunting else Palette.N6
+		dots[_figure_at + p] = star_colour
+	dots[_figure_at + HEAD] = star_colour
 	return dots
 
 
