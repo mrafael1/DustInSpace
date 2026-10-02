@@ -1,6 +1,6 @@
 extends GutTest
 ## The table (#94): each link and what it pays, from balance.json; the one-of-each row cuts through
-## every order; the TABLE button opens it, the game holds still behind it, and a tap closes it.
+## every order; the COMBOS button opens it, the game holds still behind it, and a tap closes it.
 
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
@@ -144,3 +144,32 @@ func _tap(at: Vector2i) -> void:
 		touch.position = Vector2(at)
 		touch.pressed = pressed
 		hud.handle_pointer(touch)
+
+
+func test_the_most_light_stands_out_and_the_line_stays_dim() -> void:
+	var rows: Array[Dictionary] = PaytableView.rows_for(Balance.load_file(Balance.DEFAULT_PATH))
+	assert_eq(PaytableView.most_marks(rows), 5, "one of each gives the most")
+	assert_ne(PaytableView.TOP_LIGHT_COLOUR, PaytableView.LIGHT_COLOUR)
+	assert_eq(PaytableView.DUST_COLOUR, Palette.D0, "dust's lavender")
+	assert_eq(PaytableView.LIGHT_COLOUR, Palette.C1, "light's warm gold")
+	assert_lt(PaytableView.LINE_COLOUR.get_luminance(), PaytableView.DUST_COLOUR.get_luminance(), "the line stays quieter than the rewards")
+	_start()
+	hud.open_table()
+	var labels: Array[Label] = hud.table().get("_labels")
+	var tops: Array[Label] = labels.filter(func(l: Label) -> bool: return l.text == "+++++")
+	assert_eq(tops.size(), 1)
+	assert_eq(tops[0].label_settings.font_color, PaytableView.TOP_LIGHT_COLOUR)
+
+
+func test_the_rows_have_room_and_the_dust_lines_up() -> void:
+	assert_gte(PaytableView.row_height(), 22, "a little more room per row")
+	_start()
+	hud.open_table()
+	var labels: Array[Label] = hud.table().get("_labels")
+	var numbers: Array[Label] = labels.filter(func(l: Label) -> bool: return l.text.is_valid_int())
+	assert_eq(numbers.size(), 4)
+	for label: Label in numbers:
+		assert_eq(label.position.x + label.size.x, numbers[0].position.x + numbers[0].size.x, "right-aligned: the icons line up")
+		assert_lt(label.position.x + label.size.x, PaytableView.PLAQUE_AT.x + PaytableView.DUST_X + PaytableView.DUST_ICON_DX - 2.0, "clear of the icon")
+	var centres: Array[Vector2i] = PaytableView.star_centres(3, 0, 0)
+	assert_eq(centres[2].x - centres[1].x, centres[1].x - centres[0].x, "the stars evenly on their line")
