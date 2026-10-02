@@ -18,7 +18,7 @@ func before_each() -> void:
 
 func test_balance_reads_the_hunt_and_leaves_it_out_without_a_block() -> void:
 	assert_eq(Fixtures.balance().hunt_radius, 0, "no block: no hunt")
-	assert_eq(Balance.load_file().hunt_radius, 40, "shipped: a 40 px circle, about a fifth of the sky")
+	assert_eq(Balance.load_file().hunt_radius, 38, "shipped: radius reduced by 5% (#99)")
 	var data: Dictionary = Fixtures.balance_dict()
 	data["hunt"] = {"radius": 0}
 	assert_false(Balance.from_dict(data).is_valid(), "a circle has a size")
