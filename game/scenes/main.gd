@@ -152,7 +152,12 @@ func switch_launcher(telescope: bool) -> void:
 		var on: bool = (launcher == _telescope) == telescope
 		launcher.cancel_pull()
 		launcher.visible = on
-		launcher.process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+		var mode: Node.ProcessMode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+		# Under the table the world is held: the switch is kept for when it lets go.
+		if _paused.has(launcher):
+			_paused[launcher] = mode
+		else:
+			launcher.process_mode = mode
 	_hud.show_message("")
 	if telescope:
 		_telescope.request_aim()

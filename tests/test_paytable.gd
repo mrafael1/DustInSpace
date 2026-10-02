@@ -122,6 +122,20 @@ func test_the_table_button_sits_under_the_map_slot() -> void:
 	assert_lt(hud.table_target().end.y, ScreenZones.SKY.position.y + 1, "above the sky, clear of the stars")
 
 
+func test_switching_launchers_under_the_table_holds_after_it_closes() -> void:
+	_start()
+	var slingshot: Node = main.get_node("Launcher")
+	var scope: Node = main.get_node("Telescope")
+	hud.open_table()
+	main.switch_launcher(not main.use_telescope)
+	var on: Node = scope if main.use_telescope else slingshot
+	var off: Node = slingshot if main.use_telescope else scope
+	assert_eq(on.process_mode, Node.PROCESS_MODE_DISABLED, "still held while the table shows")
+	hud.close_table()
+	assert_ne(on.process_mode, Node.PROCESS_MODE_DISABLED, "the chosen launcher plays")
+	assert_eq(off.process_mode, Node.PROCESS_MODE_DISABLED, "the hidden one stays off")
+
+
 func test_a_new_run_closes_the_table() -> void:
 	_start()
 	hud.open_table()
