@@ -50,6 +50,7 @@ var _extra: int = 0
 @onready var _sparks: BurstSparks = $BurstSparks
 @onready var _payouts: PayoutPopups = $Payouts
 @onready var _idle_hint: IdleHint = $IdleHint
+@onready var _debug_overlay: DebugOverlay = $DebugLayer/DebugOverlay
 
 ## The world's process modes while the table (#94) holds it still.
 var _paused: Dictionary[Node, Node.ProcessMode] = {}
@@ -93,6 +94,10 @@ func _ready() -> void:
 	_telescope.message_shown.connect(_hud.show_message)
 	_hud.table_opened.connect(_pause_world.bind(true))
 	_hud.table_closed.connect(_pause_world.bind(false))
+	# The debug overlay (#11) holds the world still too, and APPLY restarts the run with its edits.
+	_debug_overlay.opened.connect(_pause_world.bind(true))
+	_debug_overlay.closed.connect(_pause_world.bind(false))
+	_debug_overlay.apply_requested.connect(func(balance: Balance) -> void: start_run(balance))
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
 	switch_launcher(use_telescope)
 	_wire_sound()
@@ -114,6 +119,7 @@ func start_run(balance: Balance) -> bool:
 	for child: Node in get_children():
 		if child.has_method("setup"):
 			child.setup(run, _sequencer)
+	_debug_overlay.watch(run)
 	# The guided first run, once every view is bound to show its first step.
 	if tutorial:
 		run.tutorial_step.connect(_on_tutorial_step)
