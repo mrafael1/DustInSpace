@@ -4,11 +4,11 @@ extends RefCounted
 ## allowing only its own action. The goal first (lighting every constellation star wins; a tap goes
 ## on), then launch a pack (scripted: one of each size, a sequence), link its 3 stars, what links give
 ## (light and dust; a full Sun lights a star; a tap goes on), launch next to the constellation star
-## to light next (scripted: two stars of its size and one other), link it with two of them, spend
-## dust on a planet, then play freely. Pure rules; RunState asks it what's allowed and tells it what
+## to light next (scripted: two stars of its size and one other), link it with two of them, the two
+## planets (blue, then red; a tap goes on each), spend dust on a planet, then play freely. Pure rules; RunState asks it what's allowed and tells it what
 ## happened, and announces each new step (tutorial_step).
 
-enum Step { GOAL, LAUNCH, LINK, SUN, LAUNCH_NEAR, LIGHT, BUY, DONE }
+enum Step { GOAL, LAUNCH, LINK, SUN, LAUNCH_NEAR, LIGHT, BLUE, RED, BUY, DONE }
 
 ## The near launch must be aimed within this many px of the landmark to light, so its stars land in
 ## reach of it. Tutorial layout, not balance.
@@ -19,6 +19,9 @@ const FIRST_PACK: Array[int] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG
 var step: Step = Step.GOAL
 ## The landmark the near launch aims at and the light step lights (-1 before then).
 var landmark: int = -1
+## Whether the dust bought a blue planet when the constellation star was lit: the planets' steps go
+## on to the buy step, or straight to free play.
+var _can_buy: bool = false
 
 
 ## Whether the telescope may aim in `at_step` (the launch steps and free play).
@@ -28,7 +31,7 @@ static func aims(at_step: Step) -> bool:
 
 ## Whether `at_step` only explains something: a tap goes on, and nothing else is allowed.
 static func is_info(at_step: Step) -> bool:
-	return at_step == Step.GOAL or at_step == Step.SUN
+	return at_step == Step.GOAL or at_step == Step.SUN or at_step == Step.BLUE or at_step == Step.RED
 
 
 func is_done() -> bool:
@@ -42,6 +45,12 @@ func continue_info() -> bool:
 		return true
 	if step == Step.SUN:
 		step = Step.LAUNCH_NEAR
+		return true
+	if step == Step.BLUE:
+		step = Step.RED
+		return true
+	if step == Step.RED:
+		step = Step.BUY if _can_buy else Step.DONE
 		return true
 	return false
 
@@ -104,7 +113,8 @@ func linked(lit: bool, next_landmark: int, can_buy: bool) -> bool:
 		landmark = next_landmark
 		return true
 	if step == Step.LIGHT and lit:
-		step = Step.BUY if can_buy else Step.DONE
+		step = Step.BLUE
+		_can_buy = can_buy
 		return true
 	return false
 
