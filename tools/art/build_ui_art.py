@@ -11,6 +11,9 @@
   slingshot.png                 the fork (handle, crescent arms, star gems): 4 pull frames, the
                                 gems warming C3 -> C0 as the pull grows. The bands are drawn in code.
   dust_icon.png                 faceted diamond on the dust ramp: large (9x9), small (5x5).
+  light_icon.png                a tiny sun, 7x7, all C1: a solid round centre and eight short rays
+                                (the table's light marks, one per unit). Round, not cross-shaped,
+                                so it never reads as a sky star.
   reward_plaque.png             46x11, N0 fill, N6 border with clipped corners.
 Each strip has a JSON sidecar: frame size, frame names, and the origin (the pixel the node sits on).
 
@@ -184,6 +187,23 @@ def dust_pixels(small: bool) -> dict:
     return dots
 
 
+# --- light icon ----------------------------------------------------------------------------
+LIGHT_ICON = [
+    "...#...",
+    ".#...#.",
+    "..###..",
+    "#.###.#",
+    "..###..",
+    ".#...#.",
+    "...#...",
+]
+
+
+def light_pixels() -> dict:
+    half = len(LIGHT_ICON) // 2
+    return {(x - half, y - half): PAL["C1"] for y, row in enumerate(LIGHT_ICON) for x, c in enumerate(row) if c == "#"}
+
+
 # --- reward plaque (was RewardPlaque._draw) ------------------------------------------------
 PLAQUE = (46, 11)
 
@@ -225,6 +245,7 @@ def build() -> None:
     write_strip("pack_burst", [burst_pixels(i) for i in range(len(BURST_RADII))], [f"ring_{r}" for r in BURST_RADII])
     write_strip("slingshot", [fork_pixels(i) for i in range(PULL_FRAMES)], [f"pull_{i}" for i in range(PULL_FRAMES)])
     write_strip("dust_icon", [dust_pixels(False), dust_pixels(True)], ["large", "small"])
+    write_strip("light_icon", [light_pixels()], ["sun"])
     write_strip("reward_plaque", [{(x, y): c for (x, y), c in plaque_pixels().items()}], ["plaque"])
 
 
