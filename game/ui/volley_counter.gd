@@ -7,6 +7,9 @@ extends Node2D
 ## when the volley fires the whole row shakes and flashes, stays lit ember while the arrows fly, then
 ## drops back in, empty, from above.
 ## Solid colour steps and whole-pixel moves only. No number: the pips are the count.
+## Ember like Orion himself (#93, playtest: a dim blue countdown went unseen, as his figure had): an
+## empty pip is a hollow S2 heart in S3 arms on an S2 string; a lit one burns S4 with S3 tips round a
+## C0 heart.
 ## Owns no rules: the HUD tells it what the run's events say.
 
 ## A count hops the row HOP px up for HOP_TIME, and flashes the lit pips C0 for FLASH_TIME.
@@ -28,7 +31,7 @@ const DROP_TIME: float = 0.18
 const ARM: int = 2
 const SPACING: int = 9
 const STRING_GAP: int = 2
-const TIPS: Dictionary[Color, Color] = {Palette.C0: Palette.C1, Palette.S4: Palette.S3, Palette.C3: Palette.S4, Palette.N8: Palette.N6}
+const TIPS: Dictionary[Color, Color] = {Palette.C0: Palette.C1, Palette.S4: Palette.S3, Palette.C3: Palette.S4}
 
 var links_left: int = 0
 var interval: int = 0
@@ -111,7 +114,7 @@ func offset() -> Vector2i:
 	return Vector2i.ZERO
 
 
-## The lit pips' colour now: C0 in a flash, glowing S4 / C3 on the last link, N8 before that.
+## The lit pips' colour now: C0 in a flash, glowing S4 / C3 on the last link, S4 before that.
 ## While the volley shakes the row, every pip flashes C0 / S4.
 func colour() -> Color:
 	if _shake_age >= 0.0:
@@ -122,7 +125,7 @@ func colour() -> Color:
 		return Palette.C0
 	if links_left <= 1:
 		return Palette.S4 if int(_time / GLOW_STEP) % 2 == 0 else Palette.C3
-	return Palette.N8
+	return Palette.S4
 
 
 ## The counter's pixels now (relative to the node, offset included): the strings, then the stars,
@@ -133,7 +136,7 @@ func pip_pixels() -> Dictionary[Vector2i, Color]:
 	var arm_colour: Color = colour()
 	var tip_colour: Color = TIPS[arm_colour]
 	for i: int in range(1, interval):
-		var string_colour: Color = tip_colour if i < lit else Palette.N4
+		var string_colour: Color = tip_colour if i < lit else Palette.S2
 		for x: int in range(star_at(i - 1).x + ARM + 2, star_at(i).x - ARM - 1, STRING_GAP):
 			dots[Vector2i(x, star_at(i).y)] = string_colour
 	for i: int in interval:
@@ -143,8 +146,8 @@ func pip_pixels() -> Dictionary[Vector2i, Color]:
 				dots[at + axis] = arm_colour
 				dots[at + axis * ARM] = tip_colour
 			else:
-				dots[at + axis] = Palette.N5
-		dots[at] = Palette.C0 if i < lit else Palette.N6
+				dots[at + axis] = Palette.S3
+		dots[at] = Palette.C0 if i < lit else Palette.S2
 	return dots
 
 
