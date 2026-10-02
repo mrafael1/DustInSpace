@@ -209,11 +209,50 @@ func has_remaining_combo() -> bool:
 ## Whether three stars can be linked in some order with every step in reach: one of them (the
 ## middle of the link) must reach both others.
 func _can_chain(trio: Array[Star]) -> bool:
+	return not _chain_order(trio).is_empty()
+
+
+## `trio` in an order that links it with every step in reach (the middle one reaches both others),
+## or empty if none does.
+func _chain_order(trio: Array[Star]) -> Array[Star]:
 	for m: int in 3:
-		var mid: Vector2i = trio[m].position
-		if in_reach(mid, trio[(m + 1) % 3].position) and in_reach(mid, trio[(m + 2) % 3].position):
-			return true
-	return false
+		var mid: Star = trio[m]
+		var first: Star = trio[(m + 1) % 3]
+		var last: Star = trio[(m + 2) % 3]
+		if in_reach(mid.position, first.position) and in_reach(mid.position, last.position):
+			return [first, mid, last] as Array[Star]
+	return [] as Array[Star]
+
+
+## The idle hint (#90: show a stuck player a link): the ids of one valid link, in an order that
+## keeps every step in reach, or empty when no link can be made (or the run is over). On the
+## Scorpio map it may hold one unlit landmark, never two. Every valid link is as good as another:
+## `rng` picks one.
+func idle_hint_link(rng: RandomNumberGenerator) -> Array[int]:
+	var found: Array[Array] = []
+	if is_over():
+		return [] as Array[int]
+	var pool: Array[Star] = stars.duplicate()
+	if scorpio != null:
+		for i: int in scorpio.map.count():
+			if not scorpio.is_lit(i):
+				pool.append(scorpio.landmark_star(i))
+	for a: int in pool.size():
+		for b: int in range(a + 1, pool.size()):
+			for c: int in range(b + 1, pool.size()):
+				var ordered: Array[Star] = _chain_order([pool[a], pool[b], pool[c]] as Array[Star])
+				if ordered.is_empty():
+					continue
+				var ids: Array[int] = []
+				for star: Star in ordered:
+					ids.append(star.id)
+				if combo_for(ids) != Combos.INVALID:
+					found.append(ids)
+	if found.is_empty():
+		return [] as Array[int]
+	var picked: Array[int] = []
+	picked.assign(found[rng.randi_range(0, found.size() - 1)])
+	return picked
 
 
 ## Which of the loss check's conditions hold now, in LossReason order. A lost run has all three;
