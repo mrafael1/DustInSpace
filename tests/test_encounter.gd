@@ -348,3 +348,8 @@ func _tap_screen(at: Vector2i) -> void:
 		get_viewport().push_input(e, true)
 	if gut_layer != null:
 		gut_layer.visible = shown
+	# The game took the tap: a key nobody takes clears the viewport's handled flag for later tests.
+	var neutral := InputEventKey.new()
+	neutral.keycode = KEY_F24
+	neutral.pressed = true
+	get_viewport().push_input(neutral)
