@@ -58,8 +58,16 @@ func test_the_whole_tutorial() -> void:
 	var landmark: int = run.tutorial.landmark
 	assert_ne(run.link(_order(run, [pair[0], pair[1], Scorpio.landmark_id(landmark)])), Combos.INVALID)
 	assert_true(run.scorpio.is_lit(landmark))
-	assert_eq(steps.back(), Tutorial.Step.BUY)
 	assert_gt(run.dust, dust)
+	# The two planets, blue then red: each only explains, a tap goes on.
+	assert_eq(steps.back(), Tutorial.Step.BLUE)
+	assert_false(run.buy("blue"), "the planets only explain")
+	assert_false(run.launch(Vector2i(90, 160)))
+	assert_true(run.tutorial_continue())
+	assert_eq(steps.back(), Tutorial.Step.RED)
+	assert_false(run.buy("red"))
+	assert_true(run.tutorial_continue())
+	assert_eq(steps.back(), Tutorial.Step.BUY)
 	# Step 5: buy a blue planet, only.
 	assert_false(run.buy("red"))
 	assert_false(run.launch(Vector2i(90, 160)))
@@ -90,16 +98,18 @@ func test_a_buy_it_cant_afford_skips_to_free_play() -> void:
 		if star.size == size and pair.size() < 2:
 			pair.append(star.id)
 	run.link(_order(run, [pair[0], pair[1], Scorpio.landmark_id(run.tutorial.landmark)]))
+	assert_eq(run.tutorial.step, Tutorial.Step.BLUE, "the planets are explained anyway")
+	run.tutorial_continue()
+	run.tutorial_continue()
 	assert_true(run.tutorial.is_done(), "no stuck buy step")
 
 
-func test_only_the_goal_and_the_sun_wait_for_a_tap() -> void:
-	assert_true(Tutorial.is_info(Tutorial.Step.GOAL))
-	assert_true(Tutorial.is_info(Tutorial.Step.SUN))
+func test_only_the_explaining_steps_wait_for_a_tap() -> void:
+	for step: int in [Tutorial.Step.GOAL, Tutorial.Step.SUN, Tutorial.Step.BLUE, Tutorial.Step.RED]:
+		assert_true(Tutorial.is_info(step))
+		assert_false(Tutorial.aims(step), "no aiming while it explains")
 	for step: int in [Tutorial.Step.LAUNCH, Tutorial.Step.LINK, Tutorial.Step.LIGHT, Tutorial.Step.BUY, Tutorial.Step.DONE]:
 		assert_false(Tutorial.is_info(step))
-	assert_false(Tutorial.aims(Tutorial.Step.GOAL), "no aiming while it explains")
-	assert_false(Tutorial.aims(Tutorial.Step.SUN))
 
 
 func test_only_the_aiming_steps_aim() -> void:

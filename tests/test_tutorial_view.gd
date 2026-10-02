@@ -111,6 +111,8 @@ func test_the_buy_step_points_at_the_buy_button() -> void:
 	_settle()
 	run.tutorial.step = Tutorial.Step.LIGHT
 	run.tutorial.linked(true, -1, true)
+	run.tutorial.continue_info()
+	run.tutorial.continue_info()
 	run.tutorial_step.emit(run.tutorial.step)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
@@ -118,6 +120,45 @@ func test_the_buy_step_points_at_the_buy_button() -> void:
 	var button: Vector2i = hud.buy_button_at("blue")
 	assert_eq(guide.fingertip().y, button.y)
 	assert_lt(guide.fingertip().x, button.x, "from the left, pointing right")
+
+
+func test_the_planets_steps_point_at_each_planet_and_tap_on() -> void:
+	_start()
+	_settle()
+	run.tutorial.step = Tutorial.Step.LIGHT
+	run.tutorial.linked(true, -1, true)
+	run.tutorial_step.emit(run.tutorial.step)
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_eq(guide.text(), "BLUE PLANETS ARE CHEAP
+MOSTLY SMALL STARS")
+	assert_true(guide.waits_for_tap())
+	assert_true(guide.shows_tap_hint())
+	assert_eq(guide.combos(), [], "no card")
+	var blue: Vector2i = hud.pack_icon_top("blue")
+	assert_eq(guide.fingertip().x, blue.x, "the hand over the blue planet")
+	assert_lt(guide.fingertip().y, blue.y, "pointing down at it")
+	assert_false(scope.is_aiming())
+	_tap_hud(Vector2i(90, 150))
+	_settle()
+	assert_eq(guide.text(), "RED PLANETS COST MORE
+THEY SPLIT IN TWO
+WITH MORE BIG STARS")
+	assert_true(guide.waits_for_tap())
+	assert_eq(guide.fingertip().x, hud.pack_icon_top("red").x, "then over the red one")
+	var tap: Label = guide.get("_tap")
+	assert_eq(int(tap.position.y), run.sky_rect.position.y + TutorialView.TOP + 3 * TutorialView.LINE_STEP, "TAP TO CONTINUE under its three lines")
+	_tap_hud(Vector2i(90, 150))
+	_settle()
+	assert_eq(guide.text(), "SPEND DUST ON A PLANET")
+
+
+func test_every_line_fits_the_screen() -> void:
+	_start()
+	var label: Label = hud.tutorial_guide().get("_label")
+	for step: int in TutorialView.TEXTS:
+		label.text = TutorialView.TEXTS[step]
+		assert_lte(label.get_minimum_size().x, float(ScreenZones.SCREEN.x - 4), "step %d" % step)
 
 
 func test_free_play_shows_its_line_then_clears() -> void:
