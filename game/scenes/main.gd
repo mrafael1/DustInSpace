@@ -56,9 +56,11 @@ var _paused: Dictionary[Node, Node.ProcessMode] = {}
 
 
 func _ready() -> void:
-	# _input runs from the last child up: the speaker first, then the sequencer's input lock.
-	assert(_sound_toggle.get_index() == get_child_count() - 1, "SoundToggle must be Main's last child")
-	assert(_sequencer.get_index() == get_child_count() - 2, "EventSequencer must come right before it to lock input")
+	# _input runs from the last child up: the idle hint watches every touch first (it takes none),
+	# then the speaker, then the sequencer's input lock.
+	assert(_idle_hint.get_index() == get_child_count() - 1, "IdleHint must be Main's last child")
+	assert(_sound_toggle.get_index() == get_child_count() - 2, "SoundToggle must come right before it")
+	assert(_sequencer.get_index() == get_child_count() - 3, "EventSequencer must come right before that to lock input")
 	# Payouts travel: the counters tick up as the collect particles land on them.
 	_collect.dust_arrived.connect(_hud.receive_dust)
 	# A link's dust floats up from it until it lands on the counter (#59).
@@ -80,6 +82,12 @@ func _ready() -> void:
 	_idle_hint.sky = _sky
 	_idle_hint.is_held = func() -> bool:
 		return _collect.particle_count() > 0 or _sun.is_igniting() or _hud.tutorial_guide().has_hand()
+	# The hand shows a link, so the sky must take links: an aiming telescope (which takes every sky
+	# touch) stops aiming, as if tapped; and a telescope that starts aiming ends the hint.
+	_idle_hint.hint_started.connect(func(_link: Array[int]) -> void:
+		if use_telescope and _telescope.is_aiming():
+			_telescope.cancel_aim())
+	_telescope.aim_started.connect(_idle_hint.reset)
 	_hud.loaded_window_at = func() -> Vector2i:
 		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()
 	_telescope.message_shown.connect(_hud.show_message)

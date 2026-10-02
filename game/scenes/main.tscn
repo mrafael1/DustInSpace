@@ -58,9 +58,6 @@ script = ExtResource("22_payouts")
 [node name="Sfx" type="Node" parent="."]
 script = ExtResource("13_sfx")
 
-[node name="IdleHint" type="Node" parent="."]
-script = ExtResource("23_idle_hint")
-
 [node name="DebugKeys" type="Node" parent="."]
 script = ExtResource("4_debug_keys")
 
@@ -82,3 +79,6 @@ script = ExtResource("2_sequencer")
 
 [node name="SoundToggle" type="Node" parent="."]
 script = ExtResource("14_sound_toggle")
+
+[node name="IdleHint" type="Node" parent="."]
+script = ExtResource("23_idle_hint")

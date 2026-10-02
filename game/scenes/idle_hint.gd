@@ -10,6 +10,11 @@ extends Node
 ## play: the event sequencer is busy (a burst, a Big Bang, the Sun igniting) or `is_held` says so
 ## (Main: payouts still flying, the tutorial's own hand showing); a hint playing then stops. Owns no
 ## rules; which link it shows is the core's call.
+## It watches input as Main's last child, so it sees every touch before anything takes it (a release
+## over the speaker included), and takes none.
+
+## A hint starts showing `link` (Main stops an aiming telescope, so the sky takes links).
+signal hint_started(link: Array[int])
 
 ## The demo runs this many times through the link before the hand goes.
 const PASSES: int = 2
@@ -45,6 +50,12 @@ func _process(delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	observe(event)
+
+
+func _notification(what: int) -> void:
+	# A release lost with the focus would hold the hint for good.
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		_fingers.clear()
 
 
 func setup(run: RunState, sequencer: EventSequencer) -> void:
@@ -109,6 +120,7 @@ func advance(delta: float) -> void:
 	_link = _run.idle_hint_link(_rng)
 	if not _link.is_empty():
 		_shine_time = 0.0
+		hint_started.emit(_link.duplicate())
 		_hand.play(sky.link_points(_link))
 		_show()
 
