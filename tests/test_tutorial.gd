@@ -166,6 +166,38 @@ func test_a_sky_link_that_fills_the_sun_at_the_light_step_moves_on() -> void:
 	assert_true(run.launch(Vector2i(90, 120)), "and the red launch goes")
 
 
+func test_the_reviewed_path_with_shipped_balance_reaches_the_red_planet() -> void:
+	# Review (PR #86), as played: shipped balance, seed 0. The first link takes the small
+	# constellation star and the medium and big sky stars, which leaves a small one; at the light
+	# step a sky-only sequence then fills the Sun and clears the sky.
+	var run := RunState.new(Balance.load_file(Balance.DEFAULT_PATH), Fixtures.rng(0), Fixtures.SKY, StarMap.stinger())
+	run.tutorial_step.connect(func(step: int) -> void: steps.append(step))
+	run.start_tutorial()
+	run.tutorial_continue()
+	var first: int = run.rekindle_target()
+	assert_true(run.launch(run.scorpio.landmark_position(first)))
+	var mb: Array[int] = []
+	for star: Star in run.stars:
+		if star.size != Star.Size.SMALL:
+			mb.append(star.id)
+	mb.append(Scorpio.landmark_id(first))
+	assert_ne(run.link(_order(run, mb)), Combos.INVALID, "the constellation star with the medium and big")
+	assert_eq(run.stars.size(), 1, "the small sky star is left")
+	run.tutorial_continue()
+	run.tutorial_continue()
+	assert_true(run.launch(run.scorpio.landmark_position(run.tutorial.landmark)))
+	assert_eq(run.tutorial.step, Tutorial.Step.LIGHT)
+	var sequence: Array[int] = _sky_sequence(run)
+	assert_eq(sequence.size(), 3, "a sky-only sequence in reach")
+	assert_ne(run.link(sequence), Combos.INVALID)
+	assert_true(run.stars.is_empty(), "its full Sun cleared the sky")
+	assert_ne(run.tutorial.step, Tutorial.Step.LIGHT, "not stranded")
+	while Tutorial.is_info(run.tutorial.step):
+		run.tutorial_continue()
+	assert_eq(run.tutorial.step, Tutorial.Step.RED)
+	assert_true(run.launch(Vector2i(90, 160)), "the red launch goes")
+
+
 func test_a_link_that_strands_the_light_step_moves_on() -> void:
 	var run: RunState = _run_to_light()
 	var size: int = run.scorpio.map.sizes[run.tutorial.landmark]
@@ -269,6 +301,17 @@ func _play_to_light(run: RunState) -> void:
 	var landmark: int = run.tutorial.landmark
 	run.launch(run.scorpio.landmark_position(landmark))
 	run.link(_order(run, _pair_and(run, run.scorpio.map.sizes[landmark], landmark)))
+
+
+## A small, a medium and a big sky star (no constellation star) in an order in reach, or [].
+func _sky_sequence(run: RunState) -> Array[int]:
+	for a: Star in run.stars:
+		for b: Star in run.stars:
+			for c: Star in run.stars:
+				var order: Array[int] = [a.id, b.id, c.id]
+				if [a.size, b.size, c.size].has(Star.Size.SMALL) and [a.size, b.size, c.size].has(Star.Size.MEDIUM) and [a.size, b.size, c.size].has(Star.Size.BIG) and run.link_in_reach(order):
+					return order
+	return []
 
 
 ## A guided run at the light step: the near pack launched by its constellation star.
