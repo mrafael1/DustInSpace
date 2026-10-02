@@ -3,7 +3,8 @@ extends Node
 ## The idle hint (#90, playtest: a player who freezes gets no help). After `hints.idle_seconds`
 ## without an interaction, with a valid link in the sky, the three stars of one valid link
 ## (RunState.idle_hint_link) shine one after another, in link order, with the link hint's shine
-## (Sky.show_idle_hint). Then the wait starts over.
+## (Sky.show_idle_hint): the chase runs CHASES times, then all three shine together once, so the
+## path and the group both read. Then the wait starts over.
 ## Any touch (a pick, an aim, a buy, a tap anywhere) resets the wait, and nothing counts while a
 ## finger is down or a link is being traced. The wait holds still while animations play: the event
 ## sequencer is busy (a burst, a Big Bang, the Sun igniting) or `is_held` says so (Main: payouts
@@ -11,6 +12,9 @@ extends Node
 
 ## The next star of the link starts to shine this long after the previous one.
 const STAR_STEP: float = 0.3
+## The chase runs this many times, each starting CHASE_PERIOD after the last.
+const CHASES: int = 2
+const CHASE_PERIOD: float = 1.0
 
 ## Main sets it: the sky whose stars shine.
 var sky: SkyView
@@ -120,14 +124,29 @@ static func shine_time() -> float:
 	return StarView.SHINE_STEP * StarView.SHINE_RAYS.size()
 
 
+## How long the whole hint plays: the chases, then the three together.
+static func play_time() -> float:
+	return CHASES * CHASE_PERIOD + shine_time()
+
+
 ## Shines the stars of the link whose turn it is; once the last is done, the wait starts over.
 func _show() -> void:
-	var on: Array[int] = []
-	for i: int in _link.size():
-		var since: float = _shine_time - i * STAR_STEP
-		if since >= 0.0 and since < shine_time():
-			on.append(_link[i])
-	sky.show_idle_hint(on)
-	if _shine_time >= (_link.size() - 1) * STAR_STEP + shine_time():
+	sky.show_idle_hint(_shining_at(_shine_time))
+	if _shine_time >= play_time():
 		_shine_time = -1.0
 		_link.clear()
+
+
+## The stars of the link that shine `t` seconds into the hint: one at a time along the chases,
+## then all three at once.
+func _shining_at(t: float) -> Array[int]:
+	var on: Array[int] = []
+	var chase: int = mini(int(t / CHASE_PERIOD), CHASES)
+	var local: float = t - chase * CHASE_PERIOD
+	if chase >= CHASES:
+		return _link.duplicate() if local < shine_time() else on
+	for i: int in _link.size():
+		var since: float = local - i * STAR_STEP
+		if since >= 0.0 and since < shine_time():
+			on.append(_link[i])
+	return on

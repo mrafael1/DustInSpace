@@ -120,6 +120,16 @@ func test_idle_for_the_delay_and_the_link_shines_star_by_star() -> void:
 	hint.advance(IdleHint.STAR_STEP)
 	assert_eq(_hinted(), [link[2]] as Array[int], "then the third")
 	hint.advance(IdleHint.shine_time())
+	assert_eq(_hinted(), [] as Array[int], "a rest")
+	hint.advance(IdleHint.CHASE_PERIOD - 2 * IdleHint.STAR_STEP - IdleHint.shine_time())
+	assert_eq(_hinted(), [link[0]] as Array[int], "the chase runs again")
+	hint.advance(IdleHint.CHASE_PERIOD * (IdleHint.CHASES - 1))
+	assert_eq(_sorted(_hinted()), _sorted(link), "then all three shine together")
+	var views: Array[int] = []
+	for id: int in link:
+		views.append(sky.star_view(id).shine())
+	assert_eq(views, [0, 0, 0] as Array[int], "in step")
+	hint.advance(IdleHint.shine_time())
 	assert_eq(_hinted(), [] as Array[int], "then nothing")
 	assert_eq(hint.shining_link(), [] as Array[int])
 	hint.advance(IDLE - 0.1)
@@ -217,7 +227,7 @@ func test_a_landmark_in_the_link_shines_on_the_constellation() -> void:
 		seen = seen or constellation.hinted() == ([index] as Array[int])
 		hint.advance(IdleHint.STAR_STEP)
 	assert_true(seen, "the landmark shines in its turn")
-	hint.advance(IdleHint.shine_time())
+	hint.advance(IdleHint.play_time())
 	assert_eq(constellation.hinted(), [] as Array[int])
 	assert_true(constellation.shows_cue(index), "its brackets stay: nothing is traced")
 
