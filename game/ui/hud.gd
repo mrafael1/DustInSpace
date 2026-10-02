@@ -84,10 +84,17 @@ var _message_left: float = 0.0
 var _orion_told: bool = false
 ## The first link of one of each size has been explained this run.
 var _light_told: bool = false
+## Where the loaded planet shows on the launcher (the telescope's window), for the tutorial's hand.
+## Main wires it: `func() -> Vector2i`.
+var loaded_window_at: Callable
 ## The volley countdown above Orion, shown on stages with a volley.
 var _volley := VolleyCounter.new()
 ## The boss's title card, in the middle of the sky.
 var _banner := BossBanner.new()
+## The guided first run's guide: a line and a pointing hand.
+var _guide := TutorialView.new()
+## Where the Sun is (Main sets it), for the guide's hand.
+var sun_at: Vector2i = Vector2i(90, 39)
 
 @onready var _dust: Label = $Dust
 @onready var _slot_layer: Node2D = $Slots
@@ -107,6 +114,11 @@ func _ready() -> void:
 	add_child(_volley)
 	_banner.name = "BossBanner"
 	add_child(_banner)
+	_guide.name = "TutorialGuide"
+	_guide.timed_out.connect(func() -> void:
+		if _run != null:
+			_run.tutorial_continue())
+	add_child(_guide)
 
 
 func _process(delta: float) -> void:
@@ -150,6 +162,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_volley.reset(run.volley.links_left(), run.volley.interval)
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
+	_guide.hide_guide()
 	_press([])
 	refresh()
 
@@ -230,6 +243,15 @@ func slot(kind: String) -> PackSlot:
 
 ## Feeds one touch (in screen coordinates). Returns true if it was used.
 func handle_pointer(event: InputEvent) -> bool:
+	# A tutorial step that only explains goes on at a tap. Off the buttons it takes the touch; on a
+	# planet's button the tap goes on and does what it does too (MAP just leaves).
+	var on_button: Array = target_at(Vector2i((event as InputEventScreenTouch).position.floor())) if event is InputEventScreenTouch else []
+	if _guide.waits_for_tap() and _run != null and on_button != ["", &"map"]:
+		var tap := event as InputEventScreenTouch
+		if tap != null and not tap.pressed and not tap.canceled:
+			_run.tutorial_continue()
+		if on_button.is_empty():
+			return event is InputEventScreenTouch or event is InputEventScreenDrag
 	var touch := event as InputEventScreenTouch
 	if touch == null or touch.index != 0 or _run == null:
 		return false
@@ -275,7 +297,8 @@ func _tap(kind: String, part: StringName) -> void:
 		return
 	var done: bool
 	if part == &"icon":
-		done = _run.load_pack(kind) or _run.buy(kind)
+		# The icon buys only a planet none is owned of (a refused load doesn't buy another).
+		done = _run.load_pack(kind) or (_run.owned_packs.get(kind, 0) <= 0 and _run.buy(kind))
 	else:
 		done = _run.buy(kind)
 	if done:
@@ -310,6 +333,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			if event.args[0] == Combos.SEQUENCE and not _light_told:
 				_light_told = true
 				show_message(LIGHT_MESSAGE, ORION_MESSAGE_TIME)
+			# The tutorial's link is made: its stars are gone, so the hand stops pointing at them.
+			_guide.drop_path()
 		&"volley_counted":
 			_volley.count(event.args[0])
 			return
@@ -318,6 +343,15 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			return
 		&"boss_appeared":
 			_banner.play()
+			return
+		&"tutorial_step":
+			_show_tutorial_step(event.args[0])
+			return
+		&"sun_rekindled":
+			# The guided run's full Sun: the hand goes to the star it lights as the Sun ignites, so the
+			# lighting is seen (the step itself comes once the sky has cleared).
+			if _run.tutorial != null and not _run.tutorial.is_done() and event.args[0] >= 0:
+				_guide.show_step(Tutorial.Step.SUN_FULL, _landmark_top(event.args[0]), true, TutorialView.Point.DOWN, _run.sky_rect.position.y + TutorialView.TOP)
 			return
 		&"star_marked":
 			if not _orion_told:
@@ -332,6 +366,150 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		_:
 			return
 	_show()
+
+
+func tutorial_guide() -> TutorialView:
+	return _guide
+
+
+## Where the buy button of `kind` sits (its plate's left middle), in the HUD's coordinates.
+func buy_button_at(kind: String) -> Vector2i:
+	var slot: Vector2i = Vector2i(_slot_layer.position + _slots[kind].position)
+	return slot + Vector2i(PackSlot.BUY_PLATE.position.x, PackSlot.BUY_PLATE.get_center().y)
+
+
+## Where the icon of `kind` tops out (its top middle), in the HUD's coordinates.
+func pack_icon_top(kind: String) -> Vector2i:
+	if not _slots.has(kind):
+		return Vector2i.ZERO
+	var slot: Vector2i = Vector2i(_slot_layer.position + _slots[kind].position)
+	return slot - Vector2i(0, PackSlot.ICON_RADIUS + 1)
+
+
+## Three big sky stars in an order that stays in reach (the red planet's link), or [] if there
+## aren't three that can be linked.
+func _big_three() -> Array[int]:
+	var bigs: Array[int] = []
+	for star: Star in _run.stars:
+		if star.size == Star.Size.BIG:
+			bigs.append(star.id)
+	for a: int in bigs.size():
+		for b: int in range(a + 1, bigs.size()):
+			for c: int in range(b + 1, bigs.size()):
+				var path: Array[int] = _reachable_order([bigs[a], bigs[b], bigs[c]])
+				if _run.link_in_reach(path):
+					return path
+	return []
+
+
+## Where the dust icon tops out (its top middle), in the HUD's coordinates.
+func dust_icon_top() -> Vector2i:
+	# The large icon is 9x9, centred on its node.
+	return Vector2i(($DustIcon as Node2D).position) - Vector2i(0, 5)
+
+
+## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
+## launch at, the stars to link, the dust counter and the Sun as the payout lands, the
+## constellation star to launch by and light, where the loaded planet shows (the telescope's
+## window, its spinning icon), the star a full Sun lit, the buy button.
+func _show_tutorial_step(step: int) -> void:
+	var top: int = _run.sky_rect.position.y + TutorialView.TOP
+	match step:
+		Tutorial.Step.GOAL:
+			var index: int = _run.rekindle_target()
+			_guide.show_step(step, _landmark_top(index), index >= 0, TutorialView.Point.DOWN, top)
+		Tutorial.Step.DUST:
+			_guide.show_step(step, dust_icon_top(), true, TutorialView.Point.DOWN, top)
+		Tutorial.Step.SUN:
+			# From the left: the Sun sits at the top of the screen, with no room above it.
+			_guide.show_step(step, sun_at - Vector2i(SunView.RADIUS + 2, 0), true, TutorialView.Point.RIGHT, top)
+		Tutorial.Step.LAUNCH, Tutorial.Step.RED:
+			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12), true, TutorialView.Point.DOWN, top)
+		Tutorial.Step.LINK:
+			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
+			var ids: Array[int] = []
+			for star: Star in _run.stars:
+				ids.append(star.id)
+			# The first link says either way works, and acts the drag out.
+			var order: Array[int] = _reachable_order(ids)
+			_guide.follow_path(order, _link_positions(order), _link_centres(order))
+		Tutorial.Step.LAUNCH_NEAR, Tutorial.Step.LIGHT:
+			var index: int = _run.tutorial.landmark
+			var at: Vector2i = _run.scorpio.landmark_position(index)
+			var size: int = _run.scorpio.map.sizes[index]
+			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size)), true, TutorialView.Point.DOWN, top, size)
+			if step == Tutorial.Step.LIGHT:
+				var pair: Array[int] = []
+				for star: Star in _run.stars:
+					if star.size == size and pair.size() < 2:
+						pair.append(star.id)
+				if pair.size() == 2:
+					var path: Array[int] = _reachable_order([pair[0], Scorpio.landmark_id(index), pair[1]])
+					_guide.follow_path(path, _link_positions(path))
+		Tutorial.Step.SCOPE:
+			var window: Vector2i = loaded_window_at.call() if loaded_window_at.is_valid() else Vector2i(90, 290)
+			# From the left: the barrel rises above its window, so the hand can't come down onto it.
+			_guide.show_step(step, window - Vector2i(Telescope.BARREL_HALF + 1, 0), true, TutorialView.Point.RIGHT, top)
+		Tutorial.Step.ICON:
+			_guide.show_step(step, pack_icon_top(_run.loaded_pack), _run.loaded_pack != "", TutorialView.Point.DOWN, top)
+		Tutorial.Step.RED_LINK:
+			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
+			var path: Array[int] = _big_three()
+			if not path.is_empty():
+				_guide.follow_path(path, _link_positions(path))
+		Tutorial.Step.SUN_FULL:
+			_guide.show_step(step, _landmark_top(_run.tutorial.landmark), _run.tutorial.landmark >= 0, TutorialView.Point.DOWN, top)
+		Tutorial.Step.BUY:
+			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
+		_:
+			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
+
+
+## The link being traced changed: the tutorial's hand moves on to the next star to pick.
+func follow_link(ids: Array[int]) -> void:
+	_guide.follow(ids)
+
+
+## Where the hand points above a landmark (its art's top).
+func _landmark_top(index: int) -> Vector2i:
+	if index < 0:
+		return Vector2i.ZERO
+	return _run.scorpio.landmark_position(index) - Vector2i(0, StarView.half_extent(_run.scorpio.map.sizes[index] as Star.Size))
+
+
+## `ids` in an order whose every step is in reach (the order the hand teaches).
+func _reachable_order(ids: Array[int]) -> Array[int]:
+	if ids.size() != 3:
+		return ids
+	for p: Array in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]]:
+		var order: Array[int] = [ids[p[0]], ids[p[1]], ids[p[2]]]
+		if _run.link_in_reach(order):
+			return order
+	return ids
+
+
+## Where the hand points above each of `ids` (a sky star or a landmark): its art's top.
+## Where the stars of a link sit (their centres): the dragged link's demo slides through them.
+func _link_centres(ids: Array[int]) -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	for id: int in ids:
+		if _run.scorpio != null and _run.scorpio.is_landmark(id):
+			points.append(_run.scorpio.landmark_position(Scorpio.landmark_index(id)))
+		else:
+			var star: Star = _run.find_star(id)
+			points.append(star.position if star != null else Vector2i.ZERO)
+	return points
+
+
+func _link_positions(ids: Array[int]) -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	for id: int in ids:
+		if _run.scorpio != null and _run.scorpio.is_landmark(id):
+			points.append(_landmark_top(Scorpio.landmark_index(id)))
+		else:
+			var star: Star = _run.find_star(id)
+			points.append(star.position - Vector2i(0, StarView.half_extent(star.size)) if star != null else Vector2i.ZERO)
+	return points
 
 
 func boss_banner() -> BossBanner:

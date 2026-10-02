@@ -30,10 +30,14 @@ extends CanvasLayer
 ## on the N ramp); back from a part's win its piece rises first, as a stage's painting does. Winning
 ## the final brings the scorpion to life: the whole figure flashes C0 twice, then shows in full
 ## colour from then on.
+## Once the guided first run is finished, a TUTORIAL plaque (the MAP button's style) in the
+## screen's top-right corner plays it again (App opens the Stinger guided).
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
 
 ## The player asked to play stage `stage`.
 signal stage_chosen(stage: int)
+## The player asked to play the guided first run again (the TUTORIAL button).
+signal tutorial_requested
 
 ## How a string of the path shows: a cool guide, the way to the stage to play next, or travelled.
 enum Leg { GUIDE, NEXT, LIT }
@@ -143,6 +147,9 @@ static var _dormant: Dictionary = {}
 
 ## Where a stage's number sits from its point.
 const NUMBER_OFFSET := Vector2i(10, -16)
+## The TUTORIAL plaque sits this far in from the screen's top-right corner (like the HUD's MAP).
+const TUTORIAL_INSET: int = 10
+const MapButtonScene := preload("res://game/ui/map_button.tscn")
 ## The final stage's crown point, above the figure.
 const FINAL_AT := Vector2i(90, 66)
 
@@ -159,6 +166,9 @@ var _light_time: float = 0.0
 var _then_travel_to: int = -1
 var _pressed_point: int = -1
 var _pressed_play: bool = false
+var _pressed_tutorial: bool = false
+## The TUTORIAL plaque (hidden until the guided first run has been finished).
+var _tutorial: MapButton
 ## The final's unlock playing: seconds since it began (-1: none), and whether one waits for the
 ## point lighting to end.
 var _unlock_time: float = -1.0
@@ -207,6 +217,12 @@ func _ready() -> void:
 		dormant_piece(stage)
 	_title.text = "SCORPIO"
 	_subtitle.text = "CHAPTER 1"
+	_tutorial = MapButtonScene.instantiate()
+	_tutorial.name = "TutorialButton"
+	_tutorial.text = "TUTORIAL"
+	_tutorial.visible = false
+	add_child(_tutorial)
+	_place_tutorial()
 	_place_heading()
 	for stage: int in Chapter.stage_count():
 		var number := Label.new()
@@ -252,6 +268,7 @@ func fit_screen(screen: Rect2i) -> void:
 		_twinklers = twinkling_stars(local)
 	_screen = local
 	_place_heading()
+	_place_tutorial()
 	_refresh()
 	_chart.queue_redraw()
 
@@ -591,12 +608,35 @@ static func travel_pixels(from_stage: int, to_stage: int) -> Array[Vector2i]:
 	return pixels
 
 
+## Shows the TUTORIAL plaque (once the guided first run has been finished).
+func show_tutorial_button(on: bool) -> void:
+	_tutorial.visible = on
+
+
+func is_tutorial_button_shown() -> bool:
+	return _tutorial.visible
+
+
+## The TUTORIAL plaque's tap target (chart coordinates).
+func tutorial_target() -> Rect2i:
+	return _tutorial.target()
+
+
+func _place_tutorial() -> void:
+	if _tutorial == null:
+		return
+	var width: int = _tutorial.plaque_size().x
+	_tutorial.position = Vector2(Vector2i(_screen.end.x - TUTORIAL_INSET - width, _screen.position.y + TUTORIAL_INSET))
+
+
 ## Feeds one touch (game coordinates). Returns true if it was used.
 func handle_pointer(event: InputEvent) -> bool:
 	var touch := event as InputEventScreenTouch
 	if touch == null or touch.index != 0 or _chapter == null:
 		return false
 	var at := Vector2i(touch.position.floor())
+	if _tutorial.visible and (_pressed_tutorial or (touch.pressed and tutorial_target().has_point(at))):
+		return _press_tutorial(touch, at)
 	if touch.pressed:
 		_pressed_play = can_play() and play_rect(_screen).has_point(at)
 		_pressed_point = -1 if _pressed_play else stage_at(at)
@@ -616,6 +656,18 @@ func handle_pointer(event: InputEvent) -> bool:
 	_pressed_point = -1
 	_chart.queue_redraw()
 	return used
+
+
+## The TUTORIAL plaque: pressed it lightens; released on it, it asks for the guided run.
+func _press_tutorial(touch: InputEventScreenTouch, at: Vector2i) -> bool:
+	if touch.pressed:
+		_pressed_tutorial = true
+	else:
+		if not touch.canceled and tutorial_target().has_point(at) and not is_unlocking():
+			tutorial_requested.emit()
+		_pressed_tutorial = false
+	_tutorial.pressed = _pressed_tutorial
+	return true
 
 
 ## Moves the comet, the lighting and the breathing ring on. Driven by `_process`; tests call it.

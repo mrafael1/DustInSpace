@@ -10,6 +10,8 @@ signal run_started(run: RunState)
 signal stage_won
 ## In a chapter: the player asked to go back to the chart (MAP in the HUD or on the end screen).
 signal map_requested
+## The guided first run reached free play (App saves it, so it plays only once).
+signal tutorial_finished
 
 ## Seed for the next run; 0 picks a random one. The seed is printed in debug builds for replays.
 @export var seed_override: int = 0
@@ -23,6 +25,9 @@ signal map_requested
 ## The constellation layout to play when balance.json turns the constellation on (a StarMap id:
 ## a chapter stage's, #62; the full Scorpio by default).
 @export var star_map: String = "scorpio"
+## The guided first run (App sets it for the Stinger's first play): each run starts the tutorial
+## until it's finished once.
+@export var tutorial: bool = false
 
 var run: RunState
 ## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
@@ -65,6 +70,9 @@ func _ready() -> void:
 	_hud.map_requested.connect(map_requested.emit)
 	_end_screen.watch_payouts(_collect)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
+	_sky.link_traced.connect(_hud.follow_link)
+	_hud.loaded_window_at = func() -> Vector2i:
+		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()
 	_telescope.message_shown.connect(_hud.show_message)
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
 	switch_launcher(use_telescope)
@@ -87,6 +95,10 @@ func start_run(balance: Balance) -> bool:
 	for child: Node in get_children():
 		if child.has_method("setup"):
 			child.setup(run, _sequencer)
+	# The guided first run, once every view is bound to show its first step.
+	if tutorial:
+		run.tutorial_step.connect(_on_tutorial_step)
+		run.start_tutorial()
 	# The boss stage opens with Orion's entrance, once every view is bound.
 	run.play_boss_intro()
 	# A volley stage opens by showing its volley (#70), once every view is bound.
@@ -123,6 +135,7 @@ func fit_screen() -> void:
 	# sky: the next one (RESTART) takes the new size.
 	_extra = offset.y
 	_sun.position = Vector2(ScreenZones.sun_centre(_extra))
+	_hud.sun_at = ScreenZones.sun_centre(_extra)
 	_collect.light_target = ScreenZones.sun_centre(_extra)
 
 
@@ -163,6 +176,7 @@ func _wire_sound() -> void:
 	_telescope.aim_started.connect(_sfx.play.bind(&"pull_start", 1.0))
 	_telescope.aim_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_telescope.empty_tapped.connect(_sfx.play.bind(&"tap_refused", 1.0))
+	_telescope.launch_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_telescope.planet_seated.connect(func(_kind: String) -> void: _sfx.play(&"pack_load", 1.5))
 	_sky.star_selected.connect(_sfx.on_star_selected)
 	_sky.link_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
@@ -188,6 +202,12 @@ func _wire_sound() -> void:
 	_sun.ignited.connect(_sfx.play.bind(&"sun_ignite", 1.0))
 	_end_screen.shown.connect(_sfx.on_end_shown)
 	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
+
+
+func _on_tutorial_step(step: int) -> void:
+	if step == Tutorial.Step.DONE:
+		tutorial = false
+		tutorial_finished.emit()
 
 
 ## Scorpio clears the sky (and a sunbeam lands): each star blows up with a ring, big sparks and

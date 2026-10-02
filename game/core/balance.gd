@@ -53,6 +53,9 @@ var scorpio_enabled: bool = false
 var scorpio_sun_dust_per_star: int = 0
 ## The light that fills the Sun on the Scorpio map (it rekindles there). Optional: 0 = sun_target.
 var scorpio_sun_target: int = 0
+## The light that fills the Sun the first time in the guided first run, so the player sees a full
+## Sun light a star before the stage ends. Optional: 0 = the stage's own target.
+var scorpio_tutorial_sun_target: int = 0
 ## The longest step (native px) between consecutive stars in a link on the Scorpio map.
 ## Optional: 0 = no limit.
 var scorpio_max_link_distance: int = 0
@@ -207,6 +210,8 @@ func _parse_scorpio(raw: Dictionary) -> void:
 	scorpio_sun_dust_per_star = _read_int(raw, "sun_dust_per_star", "scorpio.", 0)
 	if raw.has("sun_target"):
 		scorpio_sun_target = _read_int(raw, "sun_target", "scorpio.", 1)
+	if raw.has("tutorial_sun_target"):
+		scorpio_tutorial_sun_target = _read_int(raw, "tutorial_sun_target", "scorpio.", 1)
 	if raw.has("max_link_distance"):
 		scorpio_max_link_distance = _read_int(raw, "max_link_distance", "scorpio.", 1)
 	if raw.has("big_bang"):
