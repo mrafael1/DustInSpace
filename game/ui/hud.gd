@@ -18,6 +18,9 @@ extends CanvasLayer
 ## less, so a lit cost always buys; right after a collect, a grey one may buy too.
 ## The boss stage (the final): as Orion enters, his title card stamps onto the middle of the sky
 ## (BossBanner).
+## The TABLE button (under the MAP slot) opens the table (PaytableView, #94): each link and what it
+## pays. While it shows the game holds still (Main pauses the world on table_opened; the HUD holds
+## its own counters, message and guide) and any tap closes it.
 
 ## A pack tap the run refused (the icon nudges). Feedback only (sound).
 signal tap_refused(kind: String)
@@ -28,8 +31,12 @@ signal pack_ready(kind: String)
 signal planet_chosen(kind: String)
 ## The MAP button was tapped: back to the chapter's chart (#62; only shown in a chapter).
 signal map_requested
+## The table opened or closed: Main pauses the world while it shows.
+signal table_opened
+signal table_closed
 
 const PackSlotScene := preload("res://game/ui/pack_slot.tscn")
+const MapButtonScene := preload("res://game/ui/map_button.tscn")
 
 ## Slot layout: one column per pack kind, the last centred at LAST_SLOT_X.
 const SLOT_SPACING: int = 30
@@ -41,6 +48,9 @@ const SLOT_Y: int = 290
 const SOUND_AT := Vector2i(10, 10)
 ## The MAP button (in a chapter) sits this far in from the top-right corner.
 const MAP_INSET: int = 10
+## The TABLE button sits under the MAP slot, this far below its top: their 44 pt targets don't meet.
+const TABLE_BELOW: int = 22
+const TABLE_TEXT: String = "TABLE"
 const DUST_ICON_AT := Vector2i(12, 300)
 ## On a wider screen the dust counter and the pack slots stay at most this many px out beside the
 ## game's own 180 columns, close to the stage, rather than in the far corners.
@@ -86,6 +96,11 @@ var loaded_window_at: Callable
 var _volley := VolleyCounter.new()
 ## The boss's title card, in the middle of the sky.
 var _banner := BossBanner.new()
+## The table (#94) and its button.
+var _table := PaytableView.new()
+var _table_button: MapButton = MapButtonScene.instantiate()
+## The HUD's own children's process modes while the table holds them still.
+var _held: Dictionary[Node, Node.ProcessMode] = {}
 ## The guided first run's guide: a line and a pointing hand.
 var _guide := TutorialView.new()
 ## Where the Sun is (Main sets it), for the guide's hand.
@@ -114,6 +129,11 @@ func _ready() -> void:
 		if _run != null:
 			_run.tutorial_continue())
 	add_child(_guide)
+	_table_button.name = "TableButton"
+	_table_button.text = TABLE_TEXT
+	add_child(_table_button)
+	_table.name = "Table"
+	add_child(_table)
 
 
 func _process(delta: float) -> void:
@@ -130,6 +150,8 @@ func fit_screen(screen: Rect2i) -> void:
 	_sound.position = Vector2(SOUND_AT + screen.position)
 	# The MAP button mirrors the speaker in the top-right corner.
 	_map.position = Vector2(Vector2i(screen.end.x - MAP_INSET - MapButton.SIZE.x, screen.position.y + MAP_INSET))
+	# The TABLE button's right edge lines up with MAP's.
+	_table_button.position = Vector2(Vector2i(screen.end.x - MAP_INSET - _table_button.plaque_size().x, screen.position.y + MAP_INSET + TABLE_BELOW))
 	($DustIcon as Node2D).position = Vector2(DUST_ICON_AT + Vector2i(left, bottom))
 	_rest[_dust] = Vector2(DUST_AT + Vector2i(left, bottom))
 	_dust.position = _rest[_dust]
@@ -157,6 +179,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
 	_guide.hide_guide()
+	close_table()
 	_press([])
 	refresh()
 
@@ -182,8 +205,12 @@ func receive_dust(amount: int) -> void:
 	_show()
 
 
-## Moves the counters' hops on. Driven by `_process`; tests call it directly.
+## Moves the counters' hops on. Driven by `_process`; tests call it directly. While the table shows,
+## only its orders move.
 func advance(delta: float) -> void:
+	if _table.is_open():
+		_table.advance(delta)
+		return
 	for label: Label in _hops:
 		_hops[label] = maxf(_hops[label] - delta, 0.0)
 		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
@@ -197,6 +224,43 @@ func show_message(text: String, seconds: float = MESSAGE_TIME) -> void:
 	_message.text = text
 	_message_left = seconds if text != "" else 0.0
 	_message.visible = text != ""
+
+
+## Opens the table (#94) with the run's links and rewards; the game holds still until a tap.
+func open_table() -> void:
+	if _run == null or _table.is_open():
+		return
+	_table.open(_run.balance)
+	for child: Node in get_children():
+		if child != _table:
+			_held[child] = child.process_mode
+			child.process_mode = Node.PROCESS_MODE_DISABLED
+	table_opened.emit()
+
+
+func close_table() -> void:
+	if not _table.is_open():
+		return
+	_table.close()
+	for child: Node in _held:
+		if is_instance_valid(child):
+			child.process_mode = _held[child]
+	_held.clear()
+	table_closed.emit()
+
+
+func table() -> PaytableView:
+	return _table
+
+
+## The TABLE button's tap target.
+func table_target() -> Rect2i:
+	return _table_button.target()
+
+
+## Where the TABLE button's plaque starts (its left middle), for the guide's hand.
+func table_button_at() -> Vector2i:
+	return Vector2i(_table_button.position) + Vector2i(0, MapButton.SIZE.y / 2)
 
 
 ## The message on show, or "" for none.
@@ -237,6 +301,12 @@ func slot(kind: String) -> PackSlot:
 
 ## Feeds one touch (in screen coordinates). Returns true if it was used.
 func handle_pointer(event: InputEvent) -> bool:
+	# The table takes every touch while it shows; a tap closes it.
+	if _table.is_open():
+		var close := event as InputEventScreenTouch
+		if close != null and not close.pressed and not close.canceled:
+			close_table()
+		return event is InputEventScreenTouch or event is InputEventScreenDrag
 	# A tutorial step that only explains goes on at a tap. Off the buttons it takes the touch; on a
 	# planet's button the tap goes on and does what it does too (MAP just leaves).
 	var on_button: Array = target_at(Vector2i((event as InputEventScreenTouch).position.floor())) if event is InputEventScreenTouch else []
@@ -270,6 +340,8 @@ func handle_pointer(event: InputEvent) -> bool:
 func target_at(point: Vector2i) -> Array:
 	if _map.visible and _map.target().has_point(point):
 		return ["", &"map"]
+	if _table_button.visible and _table_button.target().has_point(point):
+		return ["", &"table"]
 	for kind: String in _slots:
 		var part: StringName = _slots[kind].target_at(point - Vector2i(_slot_layer.position + _slots[kind].position))
 		if part != &"":
@@ -281,6 +353,7 @@ func target_at(point: Vector2i) -> Array:
 func _press(target: Array) -> void:
 	_pressed = target
 	_map.pressed = target == ["", &"map"]
+	_table_button.pressed = target == ["", &"table"]
 	for kind: String in _slots:
 		_slots[kind].press_buy(target == [kind, &"cost"])
 
@@ -288,6 +361,9 @@ func _press(target: Array) -> void:
 func _tap(kind: String, part: StringName) -> void:
 	if part == &"map":
 		map_requested.emit()
+		return
+	if part == &"table":
+		open_table()
 		return
 	var done: bool
 	if part == &"icon":
@@ -424,11 +500,13 @@ func _show_tutorial_step(step: int) -> void:
 			# The first link says either way works, and acts the drag out.
 			var order: Array[int] = _reachable_order(ids)
 			_guide.follow_path(order, _link_positions(order), _link_centres(order))
+			# The table teaches the links first (#94); the hand plays once it's closed.
+			open_table()
 		Tutorial.Step.LAUNCH_NEAR, Tutorial.Step.LIGHT:
 			var index: int = _run.tutorial.landmark
 			var at: Vector2i = _run.scorpio.landmark_position(index)
 			var size: int = _run.scorpio.map.sizes[index]
-			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size)), true, TutorialView.Point.DOWN, top, size)
+			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size)), true, TutorialView.Point.DOWN, top)
 			if step == Tutorial.Step.LIGHT:
 				var pair: Array[int] = []
 				for star: Star in _run.stars:
@@ -452,6 +530,9 @@ func _show_tutorial_step(step: int) -> void:
 			_guide.show_step(step, _landmark_top(_run.tutorial.landmark), _run.tutorial.landmark >= 0, TutorialView.Point.DOWN, top)
 		Tutorial.Step.BUY:
 			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
+		Tutorial.Step.DONE:
+			# Free play: the hand on the TABLE button, from the left.
+			_guide.show_step(step, table_button_at() - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		_:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
 

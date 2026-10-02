@@ -50,6 +50,9 @@ var _extra: int = 0
 @onready var _sparks: BurstSparks = $BurstSparks
 @onready var _payouts: PayoutPopups = $Payouts
 
+## The world's process modes while the table (#94) holds it still.
+var _paused: Dictionary[Node, Node.ProcessMode] = {}
+
 
 func _ready() -> void:
 	# _input runs from the last child up: the speaker first, then the sequencer's input lock.
@@ -74,6 +77,8 @@ func _ready() -> void:
 	_hud.loaded_window_at = func() -> Vector2i:
 		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()
 	_telescope.message_shown.connect(_hud.show_message)
+	_hud.table_opened.connect(_pause_world.bind(true))
+	_hud.table_closed.connect(_pause_world.bind(false))
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
 	switch_launcher(use_telescope)
 	_wire_sound()
@@ -234,3 +239,19 @@ func _report_balance_errors(errors: Array[String]) -> void:
 	if OS.is_debug_build():
 		_balance_errors.text = "balance.json is invalid:\n- " + "\n- ".join(errors)
 		_balance_errors.visible = true
+
+
+## The table holds the world still (`on`): everything but the HUD, the speaker and the debug
+## tools stops processing and taking input, and starts again as it was.
+func _pause_world(on: bool) -> void:
+	if on:
+		for child: Node in get_children():
+			if child in [_hud, _sound_toggle, $DebugKeys, $DebugLayer] or _paused.has(child):
+				continue
+			_paused[child] = child.process_mode
+			child.process_mode = Node.PROCESS_MODE_DISABLED
+		return
+	for child: Node in _paused:
+		if is_instance_valid(child):
+			child.process_mode = _paused[child]
+	_paused.clear()
