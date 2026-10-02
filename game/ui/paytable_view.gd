@@ -145,6 +145,12 @@ static func star_centres(count: int, x: int, mid: int) -> Array[Vector2i]:
 	return centres
 
 
+## How wide a row of three stars is, from the first's left to the last's right (COMBOS centres on it).
+static func stars_width() -> int:
+	var slot: int = StarView.half_extent(Star.Size.BIG) * 2 + 1
+	return 3 * slot + 2 * STAR_GAP
+
+
 ## The plaque's rect.
 static func plaque_rect(row_count: int) -> Rect2i:
 	var height: int = PAD + LINE_STEP + row_count * row_height() + LINE_STEP + PAD - ROW_GAP
@@ -168,7 +174,8 @@ func _build_labels() -> void:
 	var plaque: Rect2i = plaque_rect(_rows.size())
 	var left: int = plaque.position.x
 	var top: int = plaque.position.y + PAD
-	_add_label(TITLE, Palette.C1, Vector2i(left + STARS_X, top))
+	var title: Label = _add_label(TITLE, Palette.C1, Vector2i(left + STARS_X, top))
+	title.position.x = left + STARS_X + floori((stars_width() - title.get_minimum_size().x) / 2.0)
 	_add_label(DUST_TEXT, DUST_COLOUR, Vector2i(left + DUST_X, top))
 	_add_label(LIGHT_TEXT, LIGHT_COLOUR, Vector2i(left + LIGHT_X, top))
 	for i: int in _rows.size():

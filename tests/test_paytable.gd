@@ -174,6 +174,9 @@ func test_the_column_heads_share_a_line_and_tap_to_close_is_small() -> void:
 	assert_eq(heads.size(), 3)
 	for head: Label in heads:
 		assert_eq(head.position.y, heads[0].position.y, "%s on the heads' line" % head.text)
+	var title: Label = heads.filter(func(l: Label) -> bool: return l.text == PaytableView.TITLE)[0]
+	var stars_mid: float = PaytableView.PLAQUE_AT.x + PaytableView.STARS_X + PaytableView.stars_width() / 2.0
+	assert_almost_eq(title.position.x + title.get_minimum_size().x / 2.0, stars_mid, 1.0, "COMBOS centred over the stars")
 	var tap: Array = labels.filter(func(l: Label) -> bool: return l.text == PaytableView.TAP_TEXT)
 	assert_eq(tap[0].label_settings.font_size, HudText.SECONDARY_SIZE, "the small font")
 
