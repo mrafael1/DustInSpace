@@ -56,6 +56,9 @@ const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's first hunting area of a run (#71) says what the ring means.
 const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
+## The run's first link of one of each size says what it's for, as its light flies to the Sun
+## (playtest: the two kinds of link looked the same).
+const LIGHT_MESSAGE: String = "ONE OF EACH GIVES MORE LIGHT"
 ## Orion's volley countdown (#70) sits centred this far from his figure's top-left: above his head.
 const VOLLEY_COUNTER_OFFSET := Vector2i(15, -8)
 
@@ -79,6 +82,8 @@ var _rest: Dictionary[Label, Vector2] = {}
 var _message_left: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
+## The first link of one of each size has been explained this run.
+var _light_told: bool = false
 ## The volley countdown above Orion, shown on stages with a volley.
 var _volley := VolleyCounter.new()
 ## The boss's title card, in the middle of the sky.
@@ -138,6 +143,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer.event_played.connect(_on_event_played)
 	_build_slots(run.balance.pack_kinds())
 	_orion_told = false
+	_light_told = false
 	_volley.visible = run.volley != null
 	if run.volley != null:
 		_volley.position = Vector2(run.sky_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
@@ -301,6 +307,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_dust_in_flight += event.args[1]
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
+			if event.args[0] == Combos.SEQUENCE and not _light_told:
+				_light_told = true
+				show_message(LIGHT_MESSAGE, ORION_MESSAGE_TIME)
 		&"volley_counted":
 			_volley.count(event.args[0])
 			return
