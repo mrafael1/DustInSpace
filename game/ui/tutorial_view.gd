@@ -4,7 +4,7 @@ extends Node2D
 ## at the top of the sky, saying what to do, and a pointing hand at where to do it, bobbing BOB px every BOB_STEP. The hand
 ## points down at a spot in the sky, a star, a landmark, the dust counter, the telescope's window or a
 ## planet's icon, and points right at the Sun and the buy button. Free
-## play shows its line for a moment, the hand on the TABLE button. Owns no rules: the HUD tells it
+## play shows its line for a moment, the hand on the COMBOS button. Owns no rules: the HUD tells it
 ## each step as it plays, with where to point. The links themselves are taught by the table (#94),
 ## which the HUD opens at the first link.
 ## While a link is taught, the hand goes from star to star in an order that stays in reach
@@ -52,7 +52,7 @@ const TEXTS: Dictionary = {
 	Tutorial.Step.RED_LINK: "LINK THEM TO FILL THE SUN",
 	Tutorial.Step.SUN_FULL: "A FULL SUN LIGHTS A STAR",
 	Tutorial.Step.BUY: "SPEND DUST ON A PLANET",
-	Tutorial.Step.DONE: "LIGHT EVERY STAR TO WIN\nTABLE SHOWS EVERY LINK",
+	Tutorial.Step.DONE: "LIGHT EVERY STAR TO WIN\nCOMBOS SHOWS EVERY LINK",
 }
 ## The hand, pointing down, as rows (top to bottom): X outline (N0), C fill (C0), S shade (C1); its
 ## fingertip is the bottom pixel of column TIP_X. It stands GAP px off what it points at.

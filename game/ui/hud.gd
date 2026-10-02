@@ -18,7 +18,7 @@ extends CanvasLayer
 ## less, so a lit cost always buys; right after a collect, a grey one may buy too.
 ## The boss stage (the final): as Orion enters, his title card stamps onto the middle of the sky
 ## (BossBanner).
-## The TABLE button (under the MAP slot) opens the table (PaytableView, #94): each link and what it
+## The COMBOS button (under the MAP slot) opens the table (PaytableView, #94): each link and what it
 ## pays. While it shows the game holds still (Main pauses the world on table_opened; the HUD holds
 ## its own counters, message and guide) and any tap closes it.
 
@@ -48,9 +48,9 @@ const SLOT_Y: int = 290
 const SOUND_AT := Vector2i(10, 10)
 ## The MAP button (in a chapter) sits this far in from the top-right corner.
 const MAP_INSET: int = 10
-## The TABLE button sits under the MAP slot, this far below its top: their 44 pt targets don't meet.
+## The COMBOS button sits under the MAP slot, this far below its top: their 44 pt targets don't meet.
 const TABLE_BELOW: int = 22
-const TABLE_TEXT: String = "TABLE"
+const TABLE_TEXT: String = "COMBOS"
 const DUST_ICON_AT := Vector2i(12, 300)
 ## On a wider screen the dust counter and the pack slots stay at most this many px out beside the
 ## game's own 180 columns, close to the stage, rather than in the far corners.
@@ -150,7 +150,7 @@ func fit_screen(screen: Rect2i) -> void:
 	_sound.position = Vector2(SOUND_AT + screen.position)
 	# The MAP button mirrors the speaker in the top-right corner.
 	_map.position = Vector2(Vector2i(screen.end.x - MAP_INSET - MapButton.SIZE.x, screen.position.y + MAP_INSET))
-	# The TABLE button's right edge lines up with MAP's.
+	# The COMBOS button's right edge lines up with MAP's.
 	_table_button.position = Vector2(Vector2i(screen.end.x - MAP_INSET - _table_button.plaque_size().x, screen.position.y + MAP_INSET + TABLE_BELOW))
 	($DustIcon as Node2D).position = Vector2(DUST_ICON_AT + Vector2i(left, bottom))
 	_rest[_dust] = Vector2(DUST_AT + Vector2i(left, bottom))
@@ -253,12 +253,12 @@ func table() -> PaytableView:
 	return _table
 
 
-## The TABLE button's tap target.
+## The COMBOS button's tap target.
 func table_target() -> Rect2i:
 	return _table_button.target()
 
 
-## Where the TABLE button's plaque starts (its left middle), for the guide's hand.
+## Where the COMBOS button's plaque starts (its left middle), for the guide's hand.
 func table_button_at() -> Vector2i:
 	return Vector2i(_table_button.position) + Vector2i(0, MapButton.SIZE.y / 2)
 
@@ -531,7 +531,7 @@ func _show_tutorial_step(step: int) -> void:
 		Tutorial.Step.BUY:
 			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		Tutorial.Step.DONE:
-			# Free play: the hand on the TABLE button, from the left.
+			# Free play: the hand on the COMBOS button, from the left.
 			_guide.show_step(step, table_button_at() - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		_:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
