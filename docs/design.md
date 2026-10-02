@@ -39,7 +39,9 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 A slot machine's paytable, titled **COMBOS**. The **COMBOS** button (the MAP plaque's style, top-right, under the MAP slot) opens it at any time in a run, and the tutorial opens it at its first link.
 
 - A plaque (N0, N6 border) over the sky with one row per link: small, medium and big triples, then one of each size, all in the sky stars' own art on a dim link line (N4, behind them) so each row reads as a link. The one-of-each row cuts through **all six orders** in turn, 0.6 s each, since any order counts.
-- Each row shows its **dust** as a lavender number (D0, the dust's colour, right-aligned so the dust icons line up) and its **light** as warm gold marks (C1), one **+** per unit; the row with the most light shows its marks in C0. The unit is the smallest light any link gives (shipped: 5), so the marks stay true when tuned: + / ++ / +++ / +++++. Everything is read from `balance.json`.
+- One line of column heads: **COMBOS** over the stars, **DUST** and **LIGHT** over their columns.
+- Each row shows its **dust** as a lavender number (D0, the dust's colour, right-aligned so the dust icons line up) and its **light** as tiny suns (7x7, all pale gold C1, a solid round centre and eight short rays, so they never read as sky stars), one per unit, left-aligned. The unit is the smallest light any link gives (shipped: 5), so the suns stay true when tuned: 1 / 2 / 3 / 5. Everything is read from `balance.json`.
+- **TAP TO CLOSE** sits at the plaque's foot in the small 3x5 font. While the table is open, the tutorial's line and hand are hidden (the line would crowd the plaque's top) and come back when it closes.
 - **The game holds still** while it's open: the sky, the launcher, Orion, the sequencer, the payouts and the HUD's own timers (messages, the tutorial's guide) all stop. Any tap closes it, and the touch does nothing else.
 
 ### Packs
