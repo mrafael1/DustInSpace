@@ -79,6 +79,8 @@ var _rest: Dictionary[Label, Vector2] = {}
 var _message_left: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
+## The guided run's first full Sun has been shown this run.
+var _sun_full_told: bool = false
 ## The volley countdown above Orion, shown on stages with a volley.
 var _volley := VolleyCounter.new()
 ## The boss's title card, in the middle of the sky.
@@ -107,6 +109,9 @@ func _ready() -> void:
 	_banner.name = "BossBanner"
 	add_child(_banner)
 	_guide.name = "TutorialGuide"
+	_guide.timed_out.connect(func() -> void:
+		if _run != null:
+			_run.tutorial_continue())
 	add_child(_guide)
 
 
@@ -151,6 +156,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
 	_guide.hide_guide()
+	_sun_full_told = false
 	_press([])
 	refresh()
 
@@ -327,6 +333,12 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"tutorial_step":
 			_show_tutorial_step(event.args[0])
 			return
+		&"sun_rekindled":
+			# The guided run, once in free play: its first full Sun is shown lighting its star.
+			if _run.tutorial != null and _run.tutorial.is_done() and not _sun_full_told and event.args[0] >= 0:
+				_sun_full_told = true
+				_guide.show_sun_full(_landmark_top(event.args[0]), _run.sky_rect.position.y + TutorialView.TOP)
+			return
 		&"star_marked":
 			if not _orion_told:
 				_orion_told = true
@@ -352,25 +364,27 @@ func buy_button_at(kind: String) -> Vector2i:
 	return slot + Vector2i(PackSlot.BUY_PLATE.position.x, PackSlot.BUY_PLATE.get_center().y)
 
 
-## Where the icon of `kind` tops out (its top middle), in the HUD's coordinates.
-func pack_icon_top(kind: String) -> Vector2i:
-	var slot: Vector2i = Vector2i(_slot_layer.position + _slots[kind].position)
-	return slot - Vector2i(0, PackSlot.ICON_RADIUS + 1)
+## Where the dust icon tops out (its top middle), in the HUD's coordinates.
+func dust_icon_top() -> Vector2i:
+	# The large icon is 9x9, centred on its node.
+	return Vector2i(($DustIcon as Node2D).position) - Vector2i(0, 5)
 
 
 ## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
-## launch at, the stars to link, the Sun, the constellation star to launch by and light, each
-## planet's icon, the buy button.
+## launch at, the stars to link, the dust counter and the Sun as the payout lands, the
+## constellation star to launch by and light, the buy button.
 func _show_tutorial_step(step: int) -> void:
 	var top: int = _run.sky_rect.position.y + TutorialView.TOP
 	match step:
 		Tutorial.Step.GOAL:
 			var index: int = _run.rekindle_target()
 			_guide.show_step(step, _landmark_top(index), index >= 0, TutorialView.Point.DOWN, top)
+		Tutorial.Step.DUST:
+			_guide.show_step(step, dust_icon_top(), true, TutorialView.Point.DOWN, top)
 		Tutorial.Step.SUN:
 			# From the left: the Sun sits at the top of the screen, with no room above it.
 			_guide.show_step(step, sun_at - Vector2i(SunView.RADIUS + 2, 0), true, TutorialView.Point.RIGHT, top)
-		Tutorial.Step.LAUNCH:
+		Tutorial.Step.LAUNCH, Tutorial.Step.RED:
 			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12), true, TutorialView.Point.DOWN, top)
 		Tutorial.Step.LINK:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
@@ -390,10 +404,7 @@ func _show_tutorial_step(step: int) -> void:
 						pair.append(star.id)
 				if pair.size() == 2:
 					var path: Array[int] = _reachable_order([pair[0], Scorpio.landmark_id(index), pair[1]])
-					_guide.follow_path(path, _link_positions(path))
-		Tutorial.Step.BLUE, Tutorial.Step.RED:
-			var kind: String = "blue" if step == Tutorial.Step.BLUE else "red"
-			_guide.show_step(step, pack_icon_top(kind), true, TutorialView.Point.DOWN, top)
+					_guide.follow_path(path, _link_positions(path), _link_centres(path))
 		Tutorial.Step.BUY:
 			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		_:
@@ -424,6 +435,18 @@ func _reachable_order(ids: Array[int]) -> Array[int]:
 
 
 ## Where the hand points above each of `ids` (a sky star or a landmark): its art's top.
+## Where the stars of a link sit (their centres): the dragged link's demo slides through them.
+func _link_centres(ids: Array[int]) -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	for id: int in ids:
+		if _run.scorpio != null and _run.scorpio.is_landmark(id):
+			points.append(_run.scorpio.landmark_position(Scorpio.landmark_index(id)))
+		else:
+			var star: Star = _run.find_star(id)
+			points.append(star.position if star != null else Vector2i.ZERO)
+	return points
+
+
 func _link_positions(ids: Array[int]) -> Array[Vector2i]:
 	var points: Array[Vector2i] = []
 	for id: int in ids:

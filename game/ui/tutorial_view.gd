@@ -11,10 +11,16 @@ extends Node2D
 ## The card is a plaque (N0 fill, N6 border, clipped corners) with the stars spaced in a row: no sign
 ## between them (a plus read as one more small star, which is plus-shaped).
 ## While a link is taught, the hand goes from star to star in an order that stays in reach
-## (follow_path), moving on as each is picked (follow); once one is picked the line explains the link
-## hint: the stars that can come next shine. The steps that only explain something (the goal, what
-## links give, the blue and the red planet) take a few lines and say TAP TO CONTINUE (N8) below;
-## the HUD sends the tap.
+## (follow_path), moving on as each is picked (follow); once one is picked the line says to follow
+## the link hint (the stars that can come next shine). Where the link is dragged, the hand acts it
+## out until a star is picked: it slides from star to star along the path, leaving a dotted trail.
+## The goal waits for a tap and says TAP TO CONTINUE (N8) below; the payout's steps (the dust, the
+## Sun) point at it as it lands and go on by themselves after SHOW_TIME (timed_out; a tap goes on
+## too). The HUD sends the tap and the time-out. Once free play is on, the first full Sun points at
+## the star it lit (show_sun_full).
+
+## A payout step (Tutorial.is_timed) has shown long enough: the HUD goes on.
+signal timed_out
 
 ## Where the line sits (the HUD's message line; a second line goes above it, LINE_STEP up) and how
 ## long free play's line stays.
@@ -25,8 +31,18 @@ const CARD_GAP: int = 4
 const LINE_STEP: int = 11
 const TAP_TEXT: String = "TAP TO CONTINUE"
 ## While a link is traced: the stars that can come next shine (the link hint).
-const SHINE_TEXT: String = "SHINING STARS CAN COME NEXT"
+const SHINE_TEXT: String = "FOLLOW THE SHINING STARS"
 const DONE_TIME: float = 4.0
+## How long the payout's steps point at the dust and the Sun before going on by themselves.
+const SHOW_TIME: float = 2.0
+## The first full Sun in free play: its line, shown this long with the hand on the star it lit.
+const SUN_FULL_TEXT: String = "A FULL SUN LIGHTS A STAR"
+const SUN_FULL_TIME: float = 3.0
+## The dragged link's demo: the hand takes DRAG_STEP to slide from one star to the next, rests
+## DRAG_REST at each end, and leaves a trail with a dot every TRAIL_GAP px.
+const DRAG_STEP: float = 0.6
+const DRAG_REST: float = 0.5
+const TRAIL_GAP: int = 3
 ## The combo card: CARD_PAD px inside its border, STAR_GAP px between two stars, OR_GAP px either
 ## side of the OR between two combos.
 const CARD_PAD: int = 4
@@ -36,16 +52,13 @@ const OR_TEXT: String = "OR"
 ## Each step's line (the 5x7 font has letters, digits and + - / only: no punctuation).
 const TEXTS: Dictionary = {
 	Tutorial.Step.GOAL: "LIGHT EVERY STAR OF THE\nCONSTELLATION TO WIN",
-	Tutorial.Step.LAUNCH: "TAP THE SKY TO LAUNCH",
-	Tutorial.Step.LINK: "LINK ONE OF EACH SIZE",
-	Tutorial.Step.SUN: "LINKS GIVE LIGHT AND DUST\nA FULL SUN LIGHTS A STAR",
+	Tutorial.Step.LAUNCH: "TAP THE SKY TO LAUNCH\nA CHEAP BLUE PLANET",
+	Tutorial.Step.LINK: "LINK ONE OF EACH SIZE\nTAP EACH STAR",
+	Tutorial.Step.DUST: "DUST BUYS PLANETS",
+	Tutorial.Step.SUN: "LIGHT FILLS THE SUN",
 	Tutorial.Step.LAUNCH_NEAR: "LAUNCH NEXT TO THIS STAR",
-	Tutorial.Step.LIGHT: "LINK 3 OF THE SAME SIZE",
-	Tutorial.Step.BLUE: "BLUE PLANETS ARE CHEAP
-MOSTLY SMALL STARS",
-	Tutorial.Step.RED: "RED PLANETS COST MORE
-THEY SPLIT IN TWO
-WITH MORE BIG STARS",
+	Tutorial.Step.LIGHT: "LINK 3 OF THE SAME SIZE\nNOW DRAG THROUGH THEM",
+	Tutorial.Step.RED: "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS",
 	Tutorial.Step.BUY: "SPEND DUST ON A PLANET",
 	Tutorial.Step.DONE: "LIGHT EVERY STAR TO WIN",
 }
@@ -73,6 +86,9 @@ const BOB_STEP: float = 0.35
 
 enum Point { DOWN, RIGHT }
 
+## The step shown for free play's first full Sun (show_sun_full): no Tutorial step.
+const SUN_FULL_STEP: int = -2
+
 var _step: int = -1
 var _target: Vector2i = Vector2i.ZERO
 var _point: Point = Point.DOWN
@@ -90,7 +106,11 @@ var _tap: Label
 ## The link the hand teaches: the ids to pick in order and where it points for each.
 var _path: Array[int] = []
 var _path_points: Array[Vector2i] = []
+## The path's star centres, where the dragged link's demo slides (empty: no demo).
+var _demo: Array[Vector2i] = []
 var _picked: int = 0
+## Whether the payout step's time-out was sent already.
+var _timed_out: bool = false
 
 
 func _ready() -> void:
@@ -146,11 +166,20 @@ func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = f
 	_time = 0.0
 	_path.clear()
 	_path_points.clear()
+	_demo.clear()
 	_picked = 0
-	_tap.visible = Tutorial.is_info(step)
+	_timed_out = false
+	_tap.visible = Tutorial.is_info(step) and not Tutorial.is_timed(step)
 	_set_text(TEXTS.get(step, ""))
 	visible = true
 	queue_redraw()
+
+
+## Free play's first full Sun: its line, and the hand on the star it lit (`target`), for
+## SUN_FULL_TIME.
+func show_sun_full(target: Vector2i, top: int = 78 + TOP) -> void:
+	show_step(SUN_FULL_STEP, target, true, Point.DOWN, top)
+	_set_text(SUN_FULL_TEXT)
 
 
 func hide_guide() -> void:
@@ -169,10 +198,20 @@ func waits_for_tap() -> bool:
 
 
 ## The link this step teaches: `ids` to pick in this order, the hand pointing at `points` (one each).
-func follow_path(ids: Array[int], points: Array[Vector2i]) -> void:
+## Where it's dragged (Tutorial.link_input), the hand acts the drag out through `centres` (the
+## stars' centres) until a star is picked.
+func follow_path(ids: Array[int], points: Array[Vector2i], centres: Array[Vector2i] = []) -> void:
 	_path = ids.duplicate()
 	_path_points = points.duplicate()
+	_demo.clear()
+	if _step >= 0 and Tutorial.link_input(_step) == Tutorial.LinkInput.DRAG and centres.size() > 1:
+		_demo = centres.duplicate()
 	follow([])
+
+
+## Whether the hand is acting out the drag now (a dragged link, nothing picked yet).
+func is_demoing_drag() -> bool:
+	return visible and not _demo.is_empty() and _picked == 0
 
 
 ## The link being traced now holds `selected`: the hand points at the first star of the path not in
@@ -242,12 +281,29 @@ static func row_width(sizes: Array) -> int:
 	return width
 
 
-## Where the hand's fingertip is now (bobbing towards its target and back).
+## Where the hand's fingertip is now (bobbing towards its target and back; sliding along the path
+## while it acts out a drag).
 func fingertip() -> Vector2i:
+	if is_demoing_drag():
+		return demo_point(_demo, _time)
 	var bob: int = BOB * (int(_time / BOB_STEP) % 2)
 	if _point == Point.RIGHT:
 		return _target - Vector2i(GAP - bob, 0)
 	return _target - Vector2i(0, GAP - bob)
+
+
+## Where the drag's demo has the fingertip at `time`: resting on the first star, sliding from star
+## to star (DRAG_STEP each), resting on the last, then again. Whole pixels.
+static func demo_point(points: Array[Vector2i], time: float) -> Vector2i:
+	var legs: int = points.size() - 1
+	var t: float = fmod(time, DRAG_REST * 2.0 + DRAG_STEP * legs) - DRAG_REST
+	if t <= 0.0:
+		return points[0]
+	var leg: int = int(t / DRAG_STEP)
+	if leg >= legs:
+		return points[legs]
+	var along: Vector2 = Vector2(points[leg]).lerp(Vector2(points[leg + 1]), t / DRAG_STEP - leg)
+	return Vector2i(along.round())
 
 
 func advance(delta: float) -> void:
@@ -255,10 +311,13 @@ func advance(delta: float) -> void:
 		return
 	var bob: int = int(_time / BOB_STEP) % 2
 	_time += delta
-	if _step == Tutorial.Step.DONE and _time >= DONE_TIME:
+	if (_step == Tutorial.Step.DONE and _time >= DONE_TIME) or (_step == SUN_FULL_STEP and _time >= SUN_FULL_TIME):
 		hide_guide()
 		return
-	if int(_time / BOB_STEP) % 2 != bob:
+	if _step >= 0 and Tutorial.is_timed(_step) and _time >= SHOW_TIME and not _timed_out:
+		_timed_out = true
+		timed_out.emit()
+	if is_demoing_drag() or int(_time / BOB_STEP) % 2 != bob:
 		queue_redraw()
 
 
@@ -284,9 +343,33 @@ func _draw() -> void:
 	_draw_card()
 	if not _has_target:
 		return
+	if is_demoing_drag():
+		_draw_trail()
 	var dots: Dictionary[Vector2i, Color] = hand_pixels(fingertip(), _point)
 	for p: Vector2i in dots:
 		draw_rect(Rect2(Vector2(p), Vector2.ONE), dots[p])
+
+
+## The drag's demo leaves a dotted trail (C1) from the first star to the fingertip.
+func _draw_trail() -> void:
+	var tip: Vector2i = fingertip()
+	var count: int = 0
+	for k: int in _demo.size() - 1:
+		var on_leg: bool = _on_segment(tip, _demo[k], _demo[k + 1])
+		for p: Vector2i in LinkLayer.line_pixels(_demo[k], _demo[k + 1]):
+			if on_leg and (p - _demo[k]).length_squared() > (tip - _demo[k]).length_squared():
+				return
+			if count % TRAIL_GAP == 0:
+				draw_rect(Rect2(Vector2(p), Vector2.ONE), Palette.C1)
+			count += 1
+		if on_leg:
+			return
+
+
+## Whether `p` lies on the leg from `a` to `b` (within a pixel).
+static func _on_segment(p: Vector2i, a: Vector2i, b: Vector2i) -> bool:
+	var closest: Vector2 = Geometry2D.get_closest_point_to_segment(Vector2(p), Vector2(a), Vector2(b))
+	return closest.distance_to(Vector2(p)) <= 1.0 and p != b
 
 
 ## The line(s) from the guide's top, LINE_STEP apart; TAP TO CONTINUE under them, the card under that.
