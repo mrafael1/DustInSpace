@@ -238,7 +238,7 @@ func find_star(id: int) -> Star:
 
 ## Spends dust on a pack and loads it into the launcher.
 func buy(kind: String) -> bool:
-	if is_over() or not can_afford(kind) or (tutorial != null and not tutorial.allows_buy(kind)):
+	if is_over() or not can_afford(kind):
 		return false
 	dust -= balance.packs[kind].cost
 	owned_packs[kind] += 1
@@ -351,8 +351,6 @@ func link(star_ids: Array[int]) -> String:
 	for star: Star in linked:
 		sizes.append(star.size)
 	var combo: String = Combos.INVALID if is_over() or not link_in_reach(star_ids) else Combos.evaluate(sizes)
-	if tutorial != null and not tutorial.allows_link():
-		combo = Combos.INVALID
 	if combo == Combos.INVALID:
 		link_rejected.emit(star_ids)
 		return Combos.INVALID

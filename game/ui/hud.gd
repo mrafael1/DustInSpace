@@ -237,13 +237,15 @@ func slot(kind: String) -> PackSlot:
 
 ## Feeds one touch (in screen coordinates). Returns true if it was used.
 func handle_pointer(event: InputEvent) -> bool:
-	# A tutorial step that only explains takes every touch but MAP's: a tap goes on.
-	var on_map: bool = event is InputEventScreenTouch and _map.visible and _map.target().has_point(Vector2i((event as InputEventScreenTouch).position.floor()))
-	if _guide.waits_for_tap() and _run != null and not on_map:
+	# A tutorial step that only explains goes on at a tap. Off the buttons it takes the touch; on a
+	# planet's button the tap goes on and does what it does too (MAP just leaves).
+	var on_button: Array = target_at(Vector2i((event as InputEventScreenTouch).position.floor())) if event is InputEventScreenTouch else []
+	if _guide.waits_for_tap() and _run != null and on_button != ["", &"map"]:
 		var tap := event as InputEventScreenTouch
 		if tap != null and not tap.pressed and not tap.canceled:
 			_run.tutorial_continue()
-		return event is InputEventScreenTouch or event is InputEventScreenDrag
+		if on_button.is_empty():
+			return event is InputEventScreenTouch or event is InputEventScreenDrag
 	var touch := event as InputEventScreenTouch
 	if touch == null or touch.index != 0 or _run == null:
 		return false
@@ -289,7 +291,8 @@ func _tap(kind: String, part: StringName) -> void:
 		return
 	var done: bool
 	if part == &"icon":
-		done = _run.load_pack(kind) or _run.buy(kind)
+		# The icon buys only a planet none is owned of (a refused load doesn't buy another).
+		done = _run.load_pack(kind) or (_run.owned_packs.get(kind, 0) <= 0 and _run.buy(kind))
 	else:
 		done = _run.buy(kind)
 	if done:
@@ -418,7 +421,9 @@ func _show_tutorial_step(step: int) -> void:
 			var ids: Array[int] = []
 			for star: Star in _run.stars:
 				ids.append(star.id)
-			_guide.follow_path(_reachable_order(ids), _link_positions(_reachable_order(ids)))
+			# The first link says either way works, and acts the drag out.
+			var order: Array[int] = _reachable_order(ids)
+			_guide.follow_path(order, _link_positions(order), _link_centres(order))
 		Tutorial.Step.LAUNCH_NEAR, Tutorial.Step.LIGHT:
 			var index: int = _run.tutorial.landmark
 			var at: Vector2i = _run.scorpio.landmark_position(index)
@@ -431,7 +436,7 @@ func _show_tutorial_step(step: int) -> void:
 						pair.append(star.id)
 				if pair.size() == 2:
 					var path: Array[int] = _reachable_order([pair[0], Scorpio.landmark_id(index), pair[1]])
-					_guide.follow_path(path, _link_positions(path), _link_centres(path))
+					_guide.follow_path(path, _link_positions(path))
 		Tutorial.Step.SCOPE:
 			var window: Vector2i = loaded_window_at.call() if loaded_window_at.is_valid() else Vector2i(90, 290)
 			# From the left: the barrel rises above its window, so the hand can't come down onto it.

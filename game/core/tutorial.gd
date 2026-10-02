@@ -1,23 +1,22 @@
 class_name Tutorial
 extends RefCounted
 ## The guided first run (the Stinger, played for the first time): a few steps teach the loop by
-## doing it, each allowing only its own action. The goal first (lighting every constellation star
-## wins; a tap goes on). Launch a blue planet (scripted: one of each size, a sequence) and link its
-## 3 stars by tapping each. Then the payout is shown as it lands: the dust it gave (dust buys
-## planets), the light (it fills the Sun); each moves on by itself (or with a tap). Launch next to
-## the constellation star to light next (scripted: two stars of its size and one other) and link it
-## with two of them by dragging through. The red planet the run started with drops into the
-## telescope: the guide shows where the loaded planet shows (the telescope's window, then its
-## spinning icon). Launch it (scripted: it splits in two with more big stars) and link its stars:
-## the guided run's Sun fills sooner the first time (scorpio.tutorial_sun_target), so this link
-## fills it and the guide shows the star it lights. Spend dust on a planet, then play freely. The
-## showing steps go on by themselves (or with a tap). Pure rules;
-## RunState asks it what's allowed and tells it what happened, and announces each new step
-## (tutorial_step).
+## doing it. Only the launches are gated (each launch step's own, aimed where it says), so the
+## scripted packs land; links and buys go through at any step, and switching planets waits for free
+## play. The goal first (lighting every constellation star wins; a tap goes on). Launch a blue
+## planet (scripted: one of each size, a sequence) and link its 3 stars, by tapping each or dragging
+## through them. Then the payout is shown as it lands: the dust it gave (dust buys planets), the
+## light (it fills the Sun); each moves on by itself (or with a tap). Launch next to the
+## constellation star to light next (scripted: two stars of its size and one other) and link it with
+## two of them. The red planet the run started with drops into the telescope: the guide shows where
+## the loaded planet shows (the telescope's window, then its spinning icon). Launch it (scripted: it
+## splits in two with more big stars) and link its stars: the guided run's Sun fills sooner the
+## first time (scorpio.tutorial_sun_target), so this link fills it and the guide shows the star it
+## lights. Spend dust on a planet, then play freely. The showing steps go on by themselves (or with
+## a tap). Pure rules; RunState asks it what's allowed and tells it what happened, and announces
+## each new step (tutorial_step).
 
 enum Step { GOAL, LAUNCH, LINK, DUST, SUN, LAUNCH_NEAR, LIGHT, SCOPE, ICON, RED, RED_LINK, SUN_FULL, BUY, DONE }
-## How a step's link may be made: either way, by tapping each star, or by dragging through them.
-enum LinkInput { ANY, TAP, DRAG }
 
 ## The near launch must be aimed within this many px of the landmark to light, so its stars land in
 ## reach of it. Tutorial layout, not balance.
@@ -49,17 +48,6 @@ static func is_info(at_step: Step) -> bool:
 ## Whether `at_step` shows the payout as it lands and goes on by itself (the guide's timer).
 static func is_timed(at_step: Step) -> bool:
 	return at_step in [Step.DUST, Step.SUN, Step.SCOPE, Step.ICON, Step.SUN_FULL]
-
-
-## How `at_step`'s link is made: the first link by tapping each star, the constellation star's by
-## dragging through them, either way otherwise.
-static func link_input(at_step: Step) -> LinkInput:
-	match at_step:
-		Step.LINK:
-			return LinkInput.TAP
-		Step.LIGHT:
-			return LinkInput.DRAG
-	return LinkInput.ANY
 
 
 func is_done() -> bool:
@@ -98,14 +86,7 @@ func allows_launch(target: Vector2i, landmark_at: Vector2i) -> bool:
 	return false
 
 
-func allows_link() -> bool:
-	return step in [Step.LINK, Step.LIGHT, Step.RED_LINK, Step.DONE]
-
-
-func allows_buy(kind: String) -> bool:
-	return step == Step.DONE or (step == Step.BUY and kind == "blue")
-
-
+## Switching the loaded planet waits for free play: a scripted launch needs the planet it scripts.
 func allows_load() -> bool:
 	return step == Step.DONE
 
@@ -171,7 +152,7 @@ func linked(lit: bool, next_landmark: int, has_red: bool, can_buy: bool, rekindl
 	return true
 
 
-## A pack was bought. Returns true if the step moved on.
+## A pack was bought (any time: only the buy step moves on). Returns true if the step moved on.
 func bought() -> bool:
 	if step == Step.BUY:
 		step = Step.DONE
