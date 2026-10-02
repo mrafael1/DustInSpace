@@ -97,3 +97,70 @@ func _palette() -> Dictionary:
 		if fields.size() >= 4 and fields[0].is_valid_int():
 			allowed[Color8(fields[0].to_int(), fields[1].to_int(), fields[2].to_int()).to_html(false)] = true
 	return allowed
+
+
+func test_every_painting_forms_from_its_stars_outward_and_whole() -> void:
+	for id: String in ["stinger", "tail", "body", "heart", "claws", "final"]:
+		var map: StarMap = StarMap.by_id(id)
+		var art: Image = ConstellationView.painting(map.painting).get_image()
+		var forming: Apparition = ConstellationView.apparition(map)
+		var opaque: int = 0
+		for y: int in art.get_height():
+			for x: int in art.get_width():
+				if art.get_pixel(x, y).a8 == 255:
+					opaque += 1
+		var counted: int = 0
+		var previous: int = 0
+		for d: int in forming.max_distance() + 1:
+			counted += forming.ring(d).size()
+		assert_eq(counted, opaque, "%s: every pixel forms" % id)
+		forming.formed(forming.radius_at(1.0))
+		var done: Image = forming.formed_image()
+		for y: int in art.get_height():
+			for x: int in art.get_width():
+				if art.get_pixel(x, y).a8 == 255:
+					assert_eq(done.get_pixel(x, y), art.get_pixel(x, y), "%s: whole, in place, its own colours" % id)
+		forming.formed(0)
+		var shown: int = 0
+		for k: float in [0.25, 0.5, 0.75]:
+			forming.formed(forming.radius_at(k))
+			var image: Image = forming.formed_image()
+			var now: int = 0
+			for y: int in image.get_height():
+				for x: int in image.get_width():
+					now += int(image.get_pixel(x, y).a8 == 255)
+			assert_gte(now, previous, "%s: it only grows" % id)
+			previous = now
+			shown = now
+		assert_lt(shown, opaque, "%s: not whole before the end" % id)
+
+
+func test_the_edge_leads_bright_and_warm() -> void:
+	var forming: Apparition = ConstellationView.apparition(StarMap.stinger())
+	var radius: int = forming.radius_at(0.5)
+	var edge: Dictionary[Vector2i, Color] = forming.edge(radius)
+	for p: Vector2i in forming.ring(radius):
+		assert_eq(edge[p], Palette.C0, "the front")
+	for p: Vector2i in forming.ring(radius - 1):
+		assert_eq(edge[p], Palette.C1, "then C1")
+	forming.formed(radius)
+	var inside: Image = forming.formed_image()
+	for p: Vector2i in forming.ring(radius):
+		assert_eq(inside.get_pixelv(p).a8, 0, "the front isn't painted yet")
+
+
+func test_a_chart_piece_forms_from_its_parts_stars() -> void:
+	for stage: int in Chapter.FINAL:
+		var forming: Apparition = ChapterSelect.piece_apparition(stage)
+		var stars: Array[Vector2i] = []
+		for index: int in Chapter.stars(stage):
+			stars.append(Scorpio.LANDMARKS[index])
+		var start: Dictionary[Vector2i, Color] = forming.edge(0)
+		assert_false(start.is_empty(), "%s starts at its stars" % Chapter.stage_name(stage))
+		for p: Vector2i in start:
+			assert_true(stars.has(p))
+		forming.formed(forming.radius_at(1.0))
+		var done: Image = forming.formed_image()
+		var dormant: Image = ChapterSelect.dormant_piece(stage).get_image()
+		var p0: Vector2i = stars[0]
+		assert_eq(done.get_pixelv(p0), dormant.get_pixelv(p0), "dormant colours, on its star")
