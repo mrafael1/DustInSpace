@@ -49,6 +49,7 @@ var _extra: int = 0
 @onready var _backdrop: Backdrop = $Backdrop
 @onready var _sparks: BurstSparks = $BurstSparks
 @onready var _payouts: PayoutPopups = $Payouts
+@onready var _idle_hint: IdleHint = $IdleHint
 
 ## The world's process modes while the table (#94) holds it still.
 var _paused: Dictionary[Node, Node.ProcessMode] = {}
@@ -74,6 +75,9 @@ func _ready() -> void:
 	_end_screen.watch_payouts(_collect)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
 	_sky.link_traced.connect(_hud.follow_link)
+	# The idle hint (#90) shines in the sky, and holds still while payouts fly or the Sun ignites.
+	_idle_hint.sky = _sky
+	_idle_hint.is_held = func() -> bool: return _collect.particle_count() > 0 or _sun.is_igniting()
 	_hud.loaded_window_at = func() -> Vector2i:
 		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()
 	_telescope.message_shown.connect(_hud.show_message)
