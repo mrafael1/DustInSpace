@@ -74,6 +74,9 @@ var hunt_radius: int = 0
 ## The stars already in the circle when the hunt's stage opens, before its intro's demo launch.
 ## Optional in the block: 0 = no intro.
 var hunt_intro_stars: int = 0
+## The idle hint (#90): seconds without interaction (animations aside) before a valid link shines.
+## Optional: without a "hints" block there is none (0).
+var hint_idle_seconds: float = 0.0
 
 var errors: Array[String] = []
 
@@ -142,6 +145,8 @@ func _parse(data: Dictionary) -> void:
 		hunt_radius = _read_int(hunt, "radius", "hunt.", 1)
 		if hunt.has("intro_stars"):
 			hunt_intro_stars = _read_int(hunt, "intro_stars", "hunt.", 0)
+	if data.has("hints"):
+		hint_idle_seconds = _read_seconds(_read_dict(data, "hints", ""), "idle_seconds", "hints.")
 	for block: String in VOLLEY_BLOCKS:
 		if data.has(block):
 			volleys[block] = _parse_volley(_read_dict(data, block, ""), block + ".")
@@ -246,6 +251,20 @@ func _read_int(data: Dictionary, key: Variant, ctx: String, minimum: int) -> int
 		errors.append("%s%s: must be >= %d, got %s" % [ctx, key, minimum, value])
 		return minimum
 	return int(value)
+
+
+func _read_seconds(data: Dictionary, key: String, ctx: String) -> float:
+	if not data.has(key):
+		errors.append("%s%s: missing" % [ctx, key])
+		return 0.0
+	var value: Variant = data[key]
+	if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
+		errors.append("%s%s: must be a number" % [ctx, key])
+		return 0.0
+	if float(value) <= 0.0:
+		errors.append("%s%s: must be above 0, got %s" % [ctx, key, value])
+		return 0.0
+	return float(value)
 
 
 func _read_chance(data: Dictionary, key: String, ctx: String) -> float:
