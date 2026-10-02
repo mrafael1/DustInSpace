@@ -122,8 +122,9 @@ static func heart() -> StarMap:
 
 ## The Claws, stage 5 (#74): seven stars. A neck climbs from the lower left (towards the Heart) to
 ## Dschubba (the head, big), which forks into two arms: one up to beta, one down to pi, each
-## bending back at its elbow, as in the whole Scorpio, with a pincer opening right in the painting. Orion keeps the top left and brings all three of his threats:
-## the single mark, the volley and the hunting area. No intros (each stage before introduced one).
+## bending back at its elbow, as in the whole Scorpio, with a pincer opening right in the painting. Orion keeps the top left and brings two of his threats:
+## the single mark and the hunting area; no volley (#97: with all three the stage was too punishing).
+## No intros (each stage before introduced one).
 ## The neck's first star starts lit: six to light.
 static func claws() -> StarMap:
 	var map := StarMap.new()
@@ -135,7 +136,6 @@ static func claws() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = PART_PAINTING % "claws"
 	map.orion = true
-	map.volley = "volley"
 	map.hunt = true
 	map.intros = false
 	return map
