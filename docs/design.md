@@ -36,10 +36,10 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 
 ### The table (#94)
 
-A slot machine's paytable. The **TABLE** button (the MAP plaque's style, top-right, under the MAP slot) opens it at any time in a run, and the tutorial opens it at its first link.
+A slot machine's paytable, titled **COMBOS**. The **COMBOS** button (the MAP plaque's style, top-right, under the MAP slot) opens it at any time in a run, and the tutorial opens it at its first link.
 
-- A plaque (N0, N6 border) over the sky with one row per link: small, medium and big triples, then one of each size, all in the sky stars' own art. The one-of-each row cuts through **all six orders** in turn, 0.6 s each, since any order counts.
-- Each row shows its **dust** (a number by the small dust icon) and its **light** as one **+** per unit. The unit is the smallest light any link gives (shipped: 5), so the marks stay true when tuned: + / ++ / +++ / +++++. Everything is read from `balance.json`.
+- A plaque (N0, N6 border) over the sky with one row per link: small, medium and big triples, then one of each size, all in the sky stars' own art on a dim link line (N4, behind them) so each row reads as a link. The one-of-each row cuts through **all six orders** in turn, 0.6 s each, since any order counts.
+- Each row shows its **dust** as a lavender number (D0, the dust's colour, right-aligned so the dust icons line up) and its **light** as warm gold marks (C1), one **+** per unit; the row with the most light shows its marks in C0. The unit is the smallest light any link gives (shipped: 5), so the marks stay true when tuned: + / ++ / +++ / +++++. Everything is read from `balance.json`.
 - **The game holds still** while it's open: the sky, the launcher, Orion, the sequencer, the payouts and the HUD's own timers (messages, the tutorial's guide) all stop. Any tap closes it, and the touch does nothing else.
 
 ### Packs
@@ -102,7 +102,7 @@ The Stinger's first play is guided. Each step shows a line or two under the Sun,
 | Red link | LINK THEM TO FILL THE SUN | three big stars in turn, in an order that stays in reach | any link: it fills the Sun (below) |
 | Full Sun | A FULL SUN LIGHTS A STAR | the star it lit, once the sky has cleared | no launch: it goes on by itself |
 | 5 | SPEND DUST ON A PLANET | the blue buy button (from the left) | a buy ends it (skipped if the dust isn't there) |
-| 6 | LIGHT EVERY STAR TO WIN / TABLE SHOWS EVERY LINK | the TABLE button (from the left), for 4 s | everything: free play |
+| 6 | LIGHT EVERY STAR TO WIN / COMBOS SHOWS EVERY LINK | the COMBOS button (from the left), for 4 s | everything: free play |
 
 - **Playtest:** the guide points at each star of the first link in turn and tells the player to follow the link hint's shine as it appears. The goal (light every constellation star) is told on a tap-on step, which takes every touch but MAP's.
 - **Show, don't tell (playtest):** what a link gives is pointed at as it lands (the dust counter, then the Sun), not explained on a text screen. The red planet is launched, not described: its twin bursts show the split and the big stars. The loaded planet is shown where it shows: the telescope's window, then the icon's idle spin. **A full Sun is shown before the stage ends:** the guided run's Sun fills at `scorpio.tutorial_sun_target` (40) the first time, then at the stage's own (75). The scripted links give 25 (the sequence) + 5 (the small constellation star's three) and the red link at least 10 (a medium three; a big three gives 15, a sequence 25), so the red link always fills it. Design guess: the run starts with one red planet and the dust can't buy one by then (about 6 against 7), so the tutorial launches the owned one, and the buy step teaches buying a blue one once the planets run out.
