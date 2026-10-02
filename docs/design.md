@@ -33,6 +33,7 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 - An invalid link cancels and uses nothing up.
 - Distance and crossings are ignored for now; spatial rules may come later.
 - When a link is collected, its dust floats up from it as "+n" until the dust lands on the counter (prototype, #59). There is no preview while tracing, and the Sun shows its light by its fill, not a number.
+- **The first sequence of a run** says what it's for on the message line above the launcher, as its light flies to the Sun: "ONE OF EACH GIVES MORE LIGHT", for 3 s, once per run (playtest: the two kinds of link looked the same). Triples get no caption: a small triple gives the same dust as a sequence (3), so "more dust" wouldn't always be true.
 
 ### Packs
 
