@@ -366,3 +366,28 @@ func _record(run: RunState) -> void:
 	for info: Dictionary in run.get_script().get_script_signal_list():
 		var signal_name: StringName = info["name"]
 		run.connect(signal_name, func(...args: Array) -> void: events.append(signal_name))
+
+
+func test_body_and_final_keep_their_volleys() -> void:
+	for map: StarMap in [StarMap.body(), StarMap.final()]:
+		assert_eq(map.volley, "volley", map.id)
+		var run := RunState.new(Balance.from_dict(_balance_dict()), Fixtures.rng(), Fixtures.SKY, map)
+		assert_not_null(run.volley, map.id)
+		assert_eq(run.volley.interval, 2, map.id)
+
+
+func test_a_remaining_combo_survives_the_link_and_prevents_loss() -> void:
+	var data: Dictionary = _balance_dict()
+	data["start_packs"] = {"blue": 0, "red": 0}
+	data["packs"]["blue"]["cost"] = 99
+	data["packs"]["red"]["cost"] = 99
+	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.claws())
+	var trio: Array[int] = _corner_trio(run)
+	var saved: Array[int] = []
+	for offset: Vector2i in [Vector2i(0, 0), Vector2i(10, 0), Vector2i(5, 8)]:
+		saved.append(run.add_star(Star.Size.BIG, Vector2i(90, 230) + offset).id)
+	_record(run)
+	assert_ne(run.link(trio), Combos.INVALID)
+	assert_eq(run.outcome, RunState.Outcome.PLAYING, "the remaining combo prevents loss")
+	assert_ne(run.combo_for(saved), Combos.INVALID)
+	assert_false(events.has(&"volley_fired"))

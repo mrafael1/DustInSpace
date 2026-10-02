@@ -80,3 +80,25 @@ func _settle() -> void:
 		if not sequencer.is_busy():
 			break
 	orion.advance(OrionView.MARK_TIME)
+
+
+func test_links_and_restart_never_show_a_volley_countdown_or_effect() -> void:
+	run.launch(Vector2i(100, 190))
+	_settle()
+	for turn: int in 3:
+		var ids: Array[int] = []
+		for offset: Vector2i in [Vector2i.ZERO, Vector2i(10, 0), Vector2i(5, 8)]:
+			ids.append(run.add_star(Star.Size.SMALL, Vector2i(24, 100) + offset).id)
+		(main.get_node("Sky") as SkyView).setup(run, sequencer)
+		assert_ne(run.link(ids), Combos.INVALID)
+		sequencer.advance(0.0)
+		for frame: int in 600:
+			assert_false(orion.is_volleying())
+			assert_eq(hud.volley_countdown(), "")
+			sequencer.advance(1.0 / 60.0)
+			orion.advance(1.0 / 60.0)
+			if not sequencer.is_busy():
+				break
+	assert_true(main.restart())
+	assert_eq(hud.volley_countdown(), "")
+	assert_false(orion.is_volleying())
