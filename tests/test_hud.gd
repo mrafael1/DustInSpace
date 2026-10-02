@@ -607,6 +607,39 @@ func test_a_refused_buy_picks_nothing() -> void:
 	assert_signal_not_emitted(hud, "planet_chosen")
 
 
+func test_the_first_link_of_one_of_each_says_it_gives_more_light() -> void:
+	_link_small_triple()
+	sequencer.advance(0.0)
+	assert_eq(hud.message(), "", "a triple says nothing")
+	_link_sequence()
+	sequencer.advance(0.0)
+	assert_eq(hud.message(), Hud.LIGHT_MESSAGE)
+	hud.advance(Hud.ORION_MESSAGE_TIME + 0.1)
+	assert_eq(hud.message(), "", "then it clears")
+	_link_sequence()
+	sequencer.advance(0.0)
+	assert_eq(hud.message(), "", "once per run")
+	hud.setup(run, sequencer)
+	_link_sequence()
+	sequencer.advance(0.0)
+	assert_eq(hud.message(), Hud.LIGHT_MESSAGE, "a new run says it again")
+
+
+func test_the_light_message_fits_the_screen() -> void:
+	var label := Label.new()
+	label.label_settings = HudText.primary(Palette.C1)
+	label.text = Hud.LIGHT_MESSAGE
+	add_child_autofree(label)
+	assert_lte(label.get_minimum_size().x, float(ScreenZones.SCREEN.x))
+
+
+func _link_sequence() -> void:
+	var ids: Array[int] = []
+	for k: int in 3:
+		ids.append(run.add_star(k as Star.Size, Vector2i(70 + 20 * k, 150)).id)
+	assert_eq(run.link(ids), Combos.SEQUENCE)
+
+
 func _link_small_triple() -> void:
 	var ids: Array[int] = []
 	for x: int in [70, 90, 110]:
