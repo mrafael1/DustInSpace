@@ -1,18 +1,25 @@
 class_name PaytableView
 extends Node2D
-## The table (#94): the slot machine's paytable. A plaque over the sky lists each valid link and
-## what it pays, read from balance.json: a row per triple (small, medium, big) and a row for one of
-## each size, its stars in the sky's own art; the dust as a number by the dust icon; the light as
-## one + per LIGHT_UNIT (the smallest light any link gives, so the marks stay true when tuned). The
-## one-of-each row cuts through all six orders in turn: any order counts. Owns no rules; the HUD
-## opens it (the TABLE button, the tutorial's first link), pauses the game while it shows, and
-## closes it at a tap.
+## The table (#94), titled COMBOS: the slot machine's paytable. A plaque over the sky lists each
+## valid link and what it pays, read from balance.json: a row per triple (small, medium, big) and a
+## row for one of each size, its stars in the sky's own art on a dim link line (N4, behind them, so
+## each row reads as a link without competing with the rewards); the dust as a lavender number (D0,
+## the dust's colour) by the dust icon, the icons in one column; the light as warm gold marks (C1),
+## one + per unit (the smallest light any link gives, so the marks stay true when tuned), the most
+## light in C0. The one-of-each row cuts through all six orders in turn: any order counts. Owns no
+## rules; the HUD opens it (the COMBOS button, the tutorial's first link), pauses the game while it
+## shows, and closes it at a tap.
 
-const TITLE: String = "TABLE"
+const TITLE: String = "COMBOS"
 const TAP_TEXT: String = "TAP TO CLOSE"
 const DUST_TEXT: String = "DUST"
 const LIGHT_TEXT: String = "LIGHT"
 const LIGHT_MARK: String = "+"
+## The colours: the dust's lavender, the light's warm gold (the most light brighter), a dim line.
+const DUST_COLOUR: Color = Palette.D0
+const LIGHT_COLOUR: Color = Palette.C1
+const TOP_LIGHT_COLOUR: Color = Palette.C0
+const LINE_COLOUR: Color = Palette.N4
 ## Every order of one of each size, cut through in turn, ORDER_TIME each.
 const ORDERS: Array[Array] = [
 	[Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG],
@@ -24,18 +31,20 @@ const ORDERS: Array[Array] = [
 ]
 const ORDER_TIME: float = 0.6
 ## The plaque: its top-left and width (centred on the 180 px game), PAD px inside its border.
-const PLAQUE_AT := Vector2i(14, 96)
+const PLAQUE_AT := Vector2i(14, 90)
 const PLAQUE_W: int = 152
 const PAD: int = 7
 ## Line heights: the title, the column heads, each row (a big star's art plus a gap).
 const LINE_STEP: int = 11
-const ROW_GAP: int = 5
+const ROW_GAP: int = 9
 ## Where each column starts, from the plaque's left: the stars, the dust, the light.
 const STARS_X: int = PAD
 const STAR_GAP: int = 5
 const DUST_X: int = 70
 const LIGHT_X: int = 108
-## The dust icon sits this far right of the dust column's start.
+## The dust number is right-aligned in DUST_NUM_W px, so the dust icons sit in one column,
+## DUST_ICON_DX px right of the dust column's start.
+const DUST_NUM_W: int = 11
 const DUST_ICON_DX: int = 18
 
 var _open: bool = false
@@ -125,6 +134,24 @@ static func light_marks(light: int, unit: int) -> int:
 	return maxi(roundi(float(light) / unit), 1)
 
 
+## The most light marks any row shows (its marks show in TOP_LIGHT_COLOUR).
+static func most_marks(rows: Array[Dictionary]) -> int:
+	var most: int = 0
+	for row: Dictionary in rows:
+		most = maxi(most, row["marks"])
+	return most
+
+
+## Where the stars of a row sit: `count` centres from `x`, each in a big star's width, STAR_GAP
+## apart, on `mid`.
+static func star_centres(count: int, x: int, mid: int) -> Array[Vector2i]:
+	var slot: int = StarView.half_extent(Star.Size.BIG) * 2 + 1
+	var centres: Array[Vector2i] = []
+	for k: int in count:
+		centres.append(Vector2i(x + k * (slot + STAR_GAP) + slot / 2, mid))
+	return centres
+
+
 ## The plaque's rect.
 static func plaque_rect(row_count: int) -> Rect2i:
 	var height: int = PAD + LINE_STEP * 2 + row_count * row_height() + LINE_STEP + PAD - ROW_GAP
@@ -149,12 +176,16 @@ func _build_labels() -> void:
 	var left: int = plaque.position.x
 	var top: int = plaque.position.y + PAD
 	_add_label(TITLE, Palette.C1, Vector2i(left + PAD, top))
-	_add_label(DUST_TEXT, Palette.N8, Vector2i(left + DUST_X, top + LINE_STEP))
-	_add_label(LIGHT_TEXT, Palette.N8, Vector2i(left + LIGHT_X, top + LINE_STEP))
+	_add_label(DUST_TEXT, DUST_COLOUR, Vector2i(left + DUST_X, top + LINE_STEP))
+	_add_label(LIGHT_TEXT, LIGHT_COLOUR, Vector2i(left + LIGHT_X, top + LINE_STEP))
+	var most: int = most_marks(_rows)
 	for i: int in _rows.size():
 		var mid: int = _row_mid(i)
-		_add_label("%d" % _rows[i]["dust"], Palette.D0, Vector2i(left + DUST_X, mid - 3))
-		_add_label(LIGHT_MARK.repeat(_rows[i]["marks"]), Palette.C1, Vector2i(left + LIGHT_X, mid - 3))
+		var dust: Label = _add_label("%d" % _rows[i]["dust"], DUST_COLOUR, Vector2i(left + DUST_X, mid - 3))
+		dust.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		dust.size = Vector2(DUST_NUM_W, dust.get_minimum_size().y)
+		var marks: int = _rows[i]["marks"]
+		_add_label(LIGHT_MARK.repeat(marks), TOP_LIGHT_COLOUR if marks == most else LIGHT_COLOUR, Vector2i(left + LIGHT_X, mid - 3))
 	var tap: Label = _add_label(TAP_TEXT, Palette.N8, Vector2i(0, plaque.end.y - PAD - 7))
 	tap.position.x = ScreenZones.SCREEN.x / 2 - floori(tap.get_minimum_size().x / 2.0)
 
@@ -190,15 +221,16 @@ func _draw() -> void:
 			draw_rect(Rect2(Vector2(at + d), Vector2.ONE), icon[d])
 
 
-## A row of stars in the sky's art, STAR_GAP apart, from `x`, centred on `mid`. Each takes a big
-## star's width so the columns stay put as the orders change.
+## A row of stars in the sky's art on a dim line through them, from `x`, centred on `mid`. Each
+## takes a big star's width so the columns stay put as the orders change.
 func _draw_stars(sizes: Array, x: int, mid: int) -> void:
-	var slot: int = StarView.half_extent(Star.Size.BIG) * 2 + 1
+	var centres: Array[Vector2i] = star_centres(sizes.size(), x, mid)
+	for p: Vector2i in LinkLayer.line_pixels(centres[0], centres[-1]):
+		draw_rect(Rect2(Vector2(p), Vector2.ONE), LINE_COLOUR)
 	for k: int in sizes.size():
-		var centre := Vector2i(x + k * (slot + STAR_GAP) + slot / 2, mid)
 		var art: Dictionary[Vector2i, Color] = ConstellationView.star_pixels(sizes[k])
 		for d: Vector2i in art:
-			draw_rect(Rect2(Vector2(centre + d), Vector2.ONE), art[d])
+			draw_rect(Rect2(Vector2(centres[k] + d), Vector2.ONE), art[d])
 
 
 ## A filled rect with a 1 px border that skips its four corner pixels (the end screen's plaque).
