@@ -71,6 +71,8 @@ func _ready() -> void:
 	_end_screen.watch_payouts(_collect)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
 	_sky.link_traced.connect(_hud.follow_link)
+	_hud.loaded_window_at = func() -> Vector2i:
+		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()
 	_telescope.message_shown.connect(_hud.show_message)
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
 	switch_launcher(use_telescope)

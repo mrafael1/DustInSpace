@@ -79,8 +79,9 @@ var _rest: Dictionary[Label, Vector2] = {}
 var _message_left: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
-## The guided run's first full Sun has been shown this run.
-var _sun_full_told: bool = false
+## Where the loaded planet shows on the launcher (the telescope's window), for the tutorial's hand.
+## Main wires it: `func() -> Vector2i`.
+var loaded_window_at: Callable
 ## The volley countdown above Orion, shown on stages with a volley.
 var _volley := VolleyCounter.new()
 ## The boss's title card, in the middle of the sky.
@@ -156,7 +157,6 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
 	_guide.hide_guide()
-	_sun_full_told = false
 	_press([])
 	refresh()
 
@@ -333,12 +333,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"tutorial_step":
 			_show_tutorial_step(event.args[0])
 			return
-		&"sun_rekindled":
-			# The guided run, once in free play: its first full Sun is shown lighting its star.
-			if _run.tutorial != null and _run.tutorial.is_done() and not _sun_full_told and event.args[0] >= 0:
-				_sun_full_told = true
-				_guide.show_sun_full(_landmark_top(event.args[0]), _run.sky_rect.position.y + TutorialView.TOP)
-			return
 		&"star_marked":
 			if not _orion_told:
 				_orion_told = true
@@ -364,6 +358,30 @@ func buy_button_at(kind: String) -> Vector2i:
 	return slot + Vector2i(PackSlot.BUY_PLATE.position.x, PackSlot.BUY_PLATE.get_center().y)
 
 
+## Where the icon of `kind` tops out (its top middle), in the HUD's coordinates.
+func pack_icon_top(kind: String) -> Vector2i:
+	if not _slots.has(kind):
+		return Vector2i.ZERO
+	var slot: Vector2i = Vector2i(_slot_layer.position + _slots[kind].position)
+	return slot - Vector2i(0, PackSlot.ICON_RADIUS + 1)
+
+
+## Three big sky stars in an order that stays in reach (the red planet's link), or [] if there
+## aren't three that can be linked.
+func _big_three() -> Array[int]:
+	var bigs: Array[int] = []
+	for star: Star in _run.stars:
+		if star.size == Star.Size.BIG:
+			bigs.append(star.id)
+	for a: int in bigs.size():
+		for b: int in range(a + 1, bigs.size()):
+			for c: int in range(b + 1, bigs.size()):
+				var path: Array[int] = _reachable_order([bigs[a], bigs[b], bigs[c]])
+				if _run.link_in_reach(path):
+					return path
+	return []
+
+
 ## Where the dust icon tops out (its top middle), in the HUD's coordinates.
 func dust_icon_top() -> Vector2i:
 	# The large icon is 9x9, centred on its node.
@@ -372,7 +390,8 @@ func dust_icon_top() -> Vector2i:
 
 ## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
 ## launch at, the stars to link, the dust counter and the Sun as the payout lands, the
-## constellation star to launch by and light, the buy button.
+## constellation star to launch by and light, where the loaded planet shows (the telescope's
+## window, its spinning icon), the star a full Sun lit, the buy button.
 func _show_tutorial_step(step: int) -> void:
 	var top: int = _run.sky_rect.position.y + TutorialView.TOP
 	match step:
@@ -405,6 +424,19 @@ func _show_tutorial_step(step: int) -> void:
 				if pair.size() == 2:
 					var path: Array[int] = _reachable_order([pair[0], Scorpio.landmark_id(index), pair[1]])
 					_guide.follow_path(path, _link_positions(path), _link_centres(path))
+		Tutorial.Step.SCOPE:
+			var window: Vector2i = loaded_window_at.call() if loaded_window_at.is_valid() else Vector2i(90, 290)
+			# From the left: the barrel rises above its window, so the hand can't come down onto it.
+			_guide.show_step(step, window - Vector2i(Telescope.BARREL_HALF + 1, 0), true, TutorialView.Point.RIGHT, top)
+		Tutorial.Step.ICON:
+			_guide.show_step(step, pack_icon_top(_run.loaded_pack), _run.loaded_pack != "", TutorialView.Point.DOWN, top)
+		Tutorial.Step.RED_LINK:
+			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
+			var path: Array[int] = _big_three()
+			if not path.is_empty():
+				_guide.follow_path(path, _link_positions(path))
+		Tutorial.Step.SUN_FULL:
+			_guide.show_step(step, _landmark_top(_run.tutorial.landmark), _run.tutorial.landmark >= 0, TutorialView.Point.DOWN, top)
 		Tutorial.Step.BUY:
 			_guide.show_step(step, buy_button_at("blue") - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		_:

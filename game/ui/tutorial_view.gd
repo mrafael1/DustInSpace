@@ -2,7 +2,8 @@ class_name TutorialView
 extends Node2D
 ## The guided first run's guide (Tutorial), on the HUD layer: a line or two of text under the Sun,
 ## at the top of the sky, saying what to do, and a pointing hand at where to do it, bobbing BOB px every BOB_STEP. The hand
-## points down at a spot in the sky, a star, a landmark or a planet, and points right at the buy button. Free
+## points down at a spot in the sky, a star, a landmark, the dust counter, the telescope's window or a
+## planet's icon, and points right at the Sun and the buy button. Free
 ## play shows its line for a moment and no hand. Owns no rules: the HUD tells it each step as it
 ## plays, with where to point.
 ## The linking steps teach the two combos with a card at the top of the sky, drawn with the sky
@@ -14,10 +15,10 @@ extends Node2D
 ## (follow_path), moving on as each is picked (follow); once one is picked the line says to follow
 ## the link hint (the stars that can come next shine). Where the link is dragged, the hand acts it
 ## out until a star is picked: it slides from star to star along the path, leaving a dotted trail.
-## The goal waits for a tap and says TAP TO CONTINUE (N8) below; the payout's steps (the dust, the
-## Sun) point at it as it lands and go on by themselves after SHOW_TIME (timed_out; a tap goes on
-## too). The HUD sends the tap and the time-out. Once free play is on, the first full Sun points at
-## the star it lit (show_sun_full).
+## The goal waits for a tap and says TAP TO CONTINUE (N8) below; the showing steps (the payout's
+## dust and Sun as it lands, where the loaded planet shows, the star a full Sun lit) point at it and
+## go on by themselves after SHOW_TIME (timed_out; a tap goes on too). The HUD sends the tap and the
+## time-out.
 
 ## A payout step (Tutorial.is_timed) has shown long enough: the HUD goes on.
 signal timed_out
@@ -33,11 +34,8 @@ const TAP_TEXT: String = "TAP TO CONTINUE"
 ## While a link is traced: the stars that can come next shine (the link hint).
 const SHINE_TEXT: String = "FOLLOW THE SHINING STARS"
 const DONE_TIME: float = 4.0
-## How long the payout's steps point at the dust and the Sun before going on by themselves.
-const SHOW_TIME: float = 2.0
-## The first full Sun in free play: its line, shown this long with the hand on the star it lit.
-const SUN_FULL_TEXT: String = "A FULL SUN LIGHTS A STAR"
-const SUN_FULL_TIME: float = 3.0
+## How long a showing step points at what it shows before going on by itself.
+const SHOW_TIME: float = 3.0
 ## The dragged link's demo: the hand takes DRAG_STEP to slide from one star to the next, rests
 ## DRAG_REST at each end, and leaves a trail with a dot every TRAIL_GAP px.
 const DRAG_STEP: float = 0.6
@@ -58,7 +56,11 @@ const TEXTS: Dictionary = {
 	Tutorial.Step.SUN: "LIGHT FILLS THE SUN",
 	Tutorial.Step.LAUNCH_NEAR: "LAUNCH NEXT TO THIS STAR",
 	Tutorial.Step.LIGHT: "LINK 3 OF THE SAME SIZE\nNOW DRAG THROUGH THEM",
+	Tutorial.Step.SCOPE: "THE TELESCOPE SHOWS\nTHE LOADED PLANET",
+	Tutorial.Step.ICON: "THE LOADED PLANET SPINS",
 	Tutorial.Step.RED: "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS",
+	Tutorial.Step.RED_LINK: "LINK THEM TO FILL THE SUN",
+	Tutorial.Step.SUN_FULL: "A FULL SUN LIGHTS A STAR",
 	Tutorial.Step.BUY: "SPEND DUST ON A PLANET",
 	Tutorial.Step.DONE: "LIGHT EVERY STAR TO WIN",
 }
@@ -85,9 +87,6 @@ const BOB: int = 2
 const BOB_STEP: float = 0.35
 
 enum Point { DOWN, RIGHT }
-
-## The step shown for free play's first full Sun (show_sun_full): no Tutorial step.
-const SUN_FULL_STEP: int = -2
 
 var _step: int = -1
 var _target: Vector2i = Vector2i.ZERO
@@ -173,13 +172,6 @@ func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = f
 	_set_text(TEXTS.get(step, ""))
 	visible = true
 	queue_redraw()
-
-
-## Free play's first full Sun: its line, and the hand on the star it lit (`target`), for
-## SUN_FULL_TIME.
-func show_sun_full(target: Vector2i, top: int = 78 + TOP) -> void:
-	show_step(SUN_FULL_STEP, target, true, Point.DOWN, top)
-	_set_text(SUN_FULL_TEXT)
 
 
 func hide_guide() -> void:
@@ -311,7 +303,7 @@ func advance(delta: float) -> void:
 		return
 	var bob: int = int(_time / BOB_STEP) % 2
 	_time += delta
-	if (_step == Tutorial.Step.DONE and _time >= DONE_TIME) or (_step == SUN_FULL_STEP and _time >= SUN_FULL_TIME):
+	if _step == Tutorial.Step.DONE and _time >= DONE_TIME:
 		hide_guide()
 		return
 	if _step >= 0 and Tutorial.is_timed(_step) and _time >= SHOW_TIME and not _timed_out:

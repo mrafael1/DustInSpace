@@ -173,6 +173,11 @@ func mouth() -> Vector2i:
 	return PIVOT + Vector2i((direction() * MOUTH).round())
 
 
+## The middle of the loaded planet's window on the barrel (this node's coordinates).
+func window() -> Vector2i:
+	return PIVOT + Vector2i((direction() * ((WINDOW_FROM + WINDOW_TO) / 2.0)).round())
+
+
 ## Where the dropping planet is: along the barrel's axis, from past the mouth to inside it.
 func pack_position() -> Vector2i:
 	var k: float = clampf(_load_time / LOAD_TIME, 0.0, 1.0) if is_loading() else 1.0
