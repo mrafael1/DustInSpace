@@ -388,7 +388,7 @@ func link(star_ids: Array[int]) -> String:
 		_orion_mark()
 	if tutorial != null and not is_over():
 		var lit: bool = linked.any(func(star: Star) -> bool: return scorpio != null and scorpio.is_landmark(star.id))
-		if tutorial.linked(lit, rekindle_target() if scorpio != null else -1, owned_packs.get("red", 0) > 0, can_afford("blue"), _rekindled_landmark):
+		if tutorial.linked(lit, rekindle_target() if scorpio != null else -1, owned_packs.get("red", 0) > 0, can_afford("blue"), _rekindled_landmark, not has_remaining_combo()):
 			# The red planet's steps launch the one the run started with: it goes in the slingshot.
 			if tutorial.step == Tutorial.Step.SCOPE and loaded_pack != "red":
 				loaded_pack = "red"

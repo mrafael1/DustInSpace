@@ -126,15 +126,17 @@ func launched() -> bool:
 
 ## A link was collected; `lit` says whether it lit a landmark. `next_landmark`: the landmark the near
 ## launch should aim at now; `has_red`: whether a red planet is owned to launch; `can_buy`: whether
-## the dust buys a blue one; `rekindled`: the landmark a full Sun lit with this link (-1: none).
-## Returns true if the step moved on.
-func linked(lit: bool, next_landmark: int, has_red: bool, can_buy: bool, rekindled: int = -1) -> bool:
+## the dust buys a blue one; `rekindled`: the landmark a full Sun lit with this link (-1: none);
+## `stranded`: no combo is left in the sky. The light step goes on once a star is lit, by the link
+## or by the full Sun it made, or once nothing is left to link (another link used the lesson's
+## stars): it never waits on a sky that can't light one. Returns true if the step moved on.
+func linked(lit: bool, next_landmark: int, has_red: bool, can_buy: bool, rekindled: int = -1, stranded: bool = false) -> bool:
 	match step:
 		Step.LINK:
 			step = Step.DUST
 			landmark = next_landmark
 		Step.LIGHT:
-			if not lit:
+			if not lit and rekindled < 0 and not stranded:
 				return false
 			if has_red:
 				step = Step.SCOPE
