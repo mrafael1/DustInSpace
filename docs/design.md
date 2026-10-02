@@ -87,10 +87,12 @@ The Stinger's first play is guided. Each step shows a line or two under the Sun,
 | Sun | LINKS GIVE LIGHT AND DUST / A FULL SUN LIGHTS A STAR | the Sun, from the left | a tap on |
 | 3 | LAUNCH NEXT TO THIS STAR | the next constellation star to light | a launch aimed within 20 px of it (a farther one is refused with the refused buzz, still aiming); scripted: two stars of its size and one other |
 | 4 | LINK 3 OF THE SAME SIZE; then the shine line | a star, the constellation star, the other star, in turn; the card shows three of its size | a link; the step ends when it lights a constellation star |
+| Blue | BLUE PLANETS ARE CHEAP / MOSTLY SMALL STARS | the blue planet's icon, from above | a tap on |
+| Red | RED PLANETS COST MORE / THEY SPLIT IN TWO / WITH MORE BIG STARS | the red planet's icon, from above | a tap on (shown even when the buy step is skipped) |
 | 5 | SPEND DUST ON A PLANET | the blue buy button (from the left) | buying a blue planet (skipped if the dust isn't there) |
 | 6 | LIGHT EVERY STAR TO WIN | none; the card shows both combos, OR between them, for 4 s | everything: free play |
 
-- **Playtest:** the guide points at each star of the first link in turn and explains the link hint's shine as it appears; the goal (light every constellation star) and what links give (light and dust; a full Sun lights a star) are told on their own tap-on steps. The explaining steps take every touch but MAP's.
+- **Playtest:** the guide points at each star of the first link in turn and explains the link hint's shine as it appears; the goal (light every constellation star) and what links give (light and dust; a full Sun lights a star) are told on their own tap-on steps. The explaining steps take every touch but MAP's. The two planets are told apart on their own tap-on steps before the first buy (playtest: the difference between blue and red wasn't clear); their lines are worded without numbers, so they hold while the costs and weights are tuned (`packs` in balance.json), but must change if red stops splitting or stops favouring big stars.
 - **The combos are taught with a card** at the top of the sky (playtest: the two kinds of link weren't clear): a plaque (N0, N6 border) with the sky stars' own art in a row, no sign between them (a plus sign read as one more small star).
 - Rules in the core (`Tutorial`, asked by `RunState`; each new step is a run event, `tutorial_step`), so the line and hand change once the animations have played.
 - Reaching free play saves it (`user://progress.json`, `"tutorial": {"done": true}`): later Stinger runs aren't guided. A restart or MAP before then guides the next run again.
