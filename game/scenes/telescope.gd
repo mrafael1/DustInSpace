@@ -12,6 +12,8 @@ extends Launcher
 ## none reaches the stars. An empty telescope says so and never aims.
 ## Owns no rules: it calls the same RunState.launch as the slingshot, and the flight, tremble and
 ## burst are the Launcher's. Messages go out as text for the HUD to show (message_shown).
+## The guided first run (Tutorial) holds the aim during the steps that don't launch, so touches reach
+## the stars, and aims again when a launch step comes; a launch the run refuses keeps aiming.
 
 ## The telescope started aiming (feedback: sound).
 signal aim_started
@@ -23,6 +25,8 @@ signal planet_seated(kind: String)
 signal empty_tapped
 ## Text for the HUD's message line, "" to clear it.
 signal message_shown(text: String)
+## The run refused a launch at the aim (the guided first run's near launch, too far): still aiming.
+signal launch_refused
 
 const EMPTY_MESSAGE: String = "LOAD A PLANET FIRST"
 ## The tube turns in this many whole-pixel direction frames around the pivot.
@@ -79,6 +83,8 @@ var _sky_pressed: bool = false
 ## Aim once the events playing now have played and the planet has seated: a planet picked in
 ## the HUD, a launch (the next planet), or a sequence that interrupted the aim.
 var _aim_requested: bool = false
+## The guided first run holds the aim (a step that doesn't launch).
+var _tutorial_hold: bool = false
 ## The planet seated inside (its window shows), and the one dropping in: seconds into its load, or
 ## -1 when none is loading.
 var _seated_kind: String = ""
@@ -106,6 +112,7 @@ func _draw() -> void:
 ## A run starts ready: its planet already seated, and aiming.
 func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_aim_requested = false
+	_tutorial_hold = false
 	_has_aim = false
 	_seated_kind = ""
 	_load_time = -1.0
@@ -166,6 +173,11 @@ func mouth() -> Vector2i:
 	return PIVOT + Vector2i((direction() * MOUTH).round())
 
 
+## The middle of the loaded planet's window on the barrel (this node's coordinates).
+func window() -> Vector2i:
+	return PIVOT + Vector2i((direction() * ((WINDOW_FROM + WINDOW_TO) / 2.0)).round())
+
+
 ## Where the dropping planet is: along the barrel's axis, from past the mouth to inside it.
 func pack_position() -> Vector2i:
 	var k: float = clampf(_load_time / LOAD_TIME, 0.0, 1.0) if is_loading() else 1.0
@@ -176,7 +188,7 @@ func pack_position() -> Vector2i:
 ## Starts aiming if the telescope holds a planet; the empty one says so. Returns true if it aims.
 ## A sequence still playing (a purchase, a burst) holds it back until it ends.
 func start_aim() -> bool:
-	if _run == null or _run.is_over():
+	if _run == null or _run.is_over() or _tutorial_hold:
 		return false
 	if _sequencer.is_busy():
 		_aim_requested = true
@@ -310,6 +322,9 @@ func _fire() -> void:
 	_stop_aim()
 	if _run.launch(target):
 		_aim_requested = true
+	else:
+		launch_refused.emit()
+		start_aim()
 
 
 ## The shown planet changed with the events: a new one drops in (a launch emptied the telescope, or
@@ -335,9 +350,18 @@ func _launch_view(kind: String, burst: Vector2i) -> void:
 	_seat("", false)
 
 
-## A pack_loaded event keeps the sequence going while the planet drops in.
+## A pack_loaded event keeps the sequence going while the planet drops in. A tutorial step holds
+## the aim or lets it go.
 func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	super._on_event_played(event)
+	if event.type == &"tutorial_step":
+		_tutorial_hold = not Tutorial.aims(event.args[0])
+		if _tutorial_hold:
+			_aim_requested = false
+			if _aiming:
+				_stop_aim()
+		elif can_process():
+			_aim_requested = true
 	if event.type == &"pack_loaded" and can_process() and is_loading():
 		_sequencer.hold(LOAD_TIME)
 

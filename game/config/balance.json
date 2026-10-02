@@ -14,7 +14,7 @@
     "sequence":      { "dust": 3, "light": 25 }
   },
   "big_bang": { "base_dust": 8, "dust_per_cleared_star": 2 },
-  "scorpio": { "enabled": true, "sun_dust_per_star": 1, "sun_target": 75, "max_link_distance": 56, "big_bang": false },
+  "scorpio": { "enabled": true, "sun_dust_per_star": 1, "sun_target": 75, "tutorial_sun_target": 40, "max_link_distance": 56, "big_bang": false },
   "orion": { "first_mark_launch": 1 },
   "volley": { "interval": 2, "fraction": 1.0, "intro_stars": 6 },
   "hunt": { "radius": 40, "intro_stars": 3 }
