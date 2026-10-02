@@ -239,7 +239,7 @@ func test_main_wires_the_feedback_moments() -> void:
 	launcher.pull_started.emit()
 	launcher.tremble_started.emit()
 	(main.get_node("Sky") as SkyView).star_selected.emit(1)
-	(main.get_node("HUD") as Hud).tap_refused.emit("red")
+	(main.get_node("HUD") as Hud).tap_refused.emit("red", &"cost")
 	(main.get_node("Sun") as SunView).ignited.emit()
 	for cue: StringName in [&"pull_start", &"tremble", &"star_select", &"tap_refused", &"sun_ignite"]:
 		assert_has(played, cue)
