@@ -24,8 +24,6 @@ extends Node2D
 ## The boss stage (the final): Orion enters as it opens (boss_appeared), each landmark lit hurts
 ## him, and the completion starts with his fall (his stars burst one by one) before the
 ## constellation plays.
-## The guided first run teaches one way to link at a time: its tutorial_step sets the gesture to
-## taps only or drags only (Tutorial.link_input).
 
 ## A star joined the link being traced; `count` stars are in it now. Feedback only (sound).
 signal star_selected(count: int)
@@ -209,11 +207,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_link_layer.flash_rejected(_positions_of_ids(event.args[0]))
 		&"pack_launched":
 			_launched_kind = event.args[0]
-		&"tutorial_step":
-			# The tutorial teaches tapping each star, then dragging through them.
-			var input: Tutorial.LinkInput = Tutorial.link_input(event.args[0])
-			_gesture.taps = input != Tutorial.LinkInput.DRAG
-			_gesture.drags = input != Tutorial.LinkInput.TAP
 		&"big_bang_started":
 			_big_bang(event.args[0], event.args[1])
 		&"landmark_lit":

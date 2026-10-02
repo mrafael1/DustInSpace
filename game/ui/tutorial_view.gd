@@ -13,8 +13,9 @@ extends Node2D
 ## between them (a plus read as one more small star, which is plus-shaped).
 ## While a link is taught, the hand goes from star to star in an order that stays in reach
 ## (follow_path), moving on as each is picked (follow); once one is picked the line says to follow
-## the link hint (the stars that can come next shine). Where the link is dragged, the hand acts it
-## out until a star is picked: it slides from star to star along the path, leaving a dotted trail.
+## the link hint (the stars that can come next shine). On the first link, which says either way
+## works, the hand acts a drag out until a star is picked: it slides from star to star along the
+## path, leaving a dotted trail.
 ## The goal waits for a tap and says TAP TO CONTINUE (N8) below; the showing steps (the payout's
 ## dust and Sun as it lands, where the loaded planet shows, the star a full Sun lit) point at it and
 ## go on by themselves after SHOW_TIME (timed_out; a tap goes on too). The HUD sends the tap and the
@@ -51,11 +52,11 @@ const OR_TEXT: String = "OR"
 const TEXTS: Dictionary = {
 	Tutorial.Step.GOAL: "LIGHT EVERY STAR OF THE\nCONSTELLATION TO WIN",
 	Tutorial.Step.LAUNCH: "TAP THE SKY TO LAUNCH\nA CHEAP BLUE PLANET",
-	Tutorial.Step.LINK: "LINK ONE OF EACH SIZE\nTAP EACH STAR",
+	Tutorial.Step.LINK: "LINK ONE OF EACH SIZE\nTAP OR DRAG THROUGH THEM",
 	Tutorial.Step.DUST: "DUST BUYS PLANETS",
 	Tutorial.Step.SUN: "LIGHT FILLS THE SUN",
 	Tutorial.Step.LAUNCH_NEAR: "LAUNCH NEXT TO THIS STAR",
-	Tutorial.Step.LIGHT: "LINK 3 OF THE SAME SIZE\nNOW DRAG THROUGH THEM",
+	Tutorial.Step.LIGHT: "LINK 3 OF THE SAME SIZE",
 	Tutorial.Step.SCOPE: "THE TELESCOPE SHOWS\nTHE LOADED PLANET",
 	Tutorial.Step.ICON: "THE LOADED PLANET SPINS",
 	Tutorial.Step.RED: "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS",
@@ -190,13 +191,13 @@ func waits_for_tap() -> bool:
 
 
 ## The link this step teaches: `ids` to pick in this order, the hand pointing at `points` (one each).
-## Where it's dragged (Tutorial.link_input), the hand acts the drag out through `centres` (the
-## stars' centres) until a star is picked.
+## Given `centres` (the stars' centres), the hand acts a drag out through them until a star is
+## picked.
 func follow_path(ids: Array[int], points: Array[Vector2i], centres: Array[Vector2i] = []) -> void:
 	_path = ids.duplicate()
 	_path_points = points.duplicate()
 	_demo.clear()
-	if _step >= 0 and Tutorial.link_input(_step) == Tutorial.LinkInput.DRAG and centres.size() > 1:
+	if centres.size() > 1:
 		_demo = centres.duplicate()
 	follow([])
 

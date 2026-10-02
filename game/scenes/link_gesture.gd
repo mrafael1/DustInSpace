@@ -11,8 +11,6 @@ extends RefCounted
 ##   rejects it and the player sees why. Nothing is used up.
 ## - Tap a selected star to drop it. Tap empty sky to cancel the selection.
 ## - With `can_join` set, a star it refuses isn't added: join_refused says which, once per contact.
-## - `taps` / `drags` off (the tutorial teaches one way at a time): with drags off, a press that
-##   moves stays a tap; with taps off, a tap on a star doesn't keep it (the selection drops).
 
 signal selection_changed(star_ids: Array[int])
 signal link_requested(star_ids: Array[int])
@@ -25,9 +23,6 @@ const DRAG_THRESHOLD: int = 4
 var selected: Array[int] = []
 ## Whether a star may join the selection: `func(selected: Array[int], id: int) -> bool`. Unset: any.
 var can_join: Callable
-## Whether a link can be picked by tapping each star, and by dragging through them.
-var taps: bool = true
-var drags: bool = true
 
 ## Returns the id of the star under a point, or 0 for none. `func(point: Vector2i) -> int`.
 var _star_at: Callable
@@ -76,7 +71,7 @@ func press(point: Vector2i) -> bool:
 func drag(point: Vector2i) -> void:
 	if not _down:
 		return
-	if drags and not _moved and Vector2(point - _press_point).length() > DRAG_THRESHOLD:
+	if not _moved and Vector2(point - _press_point).length() > DRAG_THRESHOLD:
 		_moved = true
 	var from: Vector2i = _last_point
 	_last_point = point
@@ -123,9 +118,6 @@ func _release_tap() -> bool:
 	if _press_was_selected:
 		selected.erase(_press_star)
 		selection_changed.emit(selected.duplicate())
-		return true
-	if not taps:
-		cancel()
 		return true
 	if selected.size() == Combos.LINK_LENGTH:
 		_request()
