@@ -1,7 +1,7 @@
 extends GutTest
-## The idle hint (#90): after hints.idle_seconds without an interaction, the three stars of one
-## valid link shine one after another. The core picks the link (RunState.idle_hint_link); IdleHint
-## times it and Sky shines it.
+## The idle hint (#90): after hints.idle_seconds without an interaction, the tutorial's hand drags
+## through one valid link, each star shining as it lands. The core picks the link
+## (RunState.idle_hint_link); IdleHint times it, HandDemo draws the hand and Sky shines the stars.
 
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
@@ -104,38 +104,79 @@ func test_the_delay_is_tuned_in_balance() -> void:
 
 # --- The view: timing and shine -------------------------------------------------------------
 
-func test_idle_for_the_delay_and_the_link_shines_star_by_star() -> void:
+func test_idle_for_the_delay_and_the_hand_drags_through_the_link() -> void:
 	_start_scene()
 	var stars: Array[Star] = _small_triple()
 	hint.advance(IDLE - 0.1)
 	assert_eq(hint.shining_link(), [] as Array[int], "not yet")
+	assert_false(hint.hand().is_playing())
 	hint.advance(0.1)
 	var link: Array[int] = hint.shining_link()
+	var points: Array[Vector2i] = sky.link_points(link)
 	assert_eq(_sorted(link), _sorted(Fixtures.ids(stars)))
-	assert_eq(_hinted(), [link[0]] as Array[int], "the first star shines")
-	assert_true(sky.star_view(link[0]).shine() >= 0)
+	assert_true(hint.hand().is_playing(), "the tutorial's hand comes out")
+	assert_eq(hint.hand().fingertip(), points[0], "on the first star")
+	assert_eq(_hinted(), [link[0]] as Array[int], "which shines")
 	assert_false(sky.star_view(link[0]).dimmed, "nothing dims")
-	hint.advance(IdleHint.STAR_STEP)
-	assert_eq(_hinted(), [link[1]] as Array[int], "then the second")
-	hint.advance(IdleHint.STAR_STEP)
-	assert_eq(_hinted(), [link[2]] as Array[int], "then the third")
-	hint.advance(IdleHint.shine_time())
-	assert_eq(_hinted(), [] as Array[int], "a rest")
-	hint.advance(IdleHint.CHASE_PERIOD - 2 * IdleHint.STAR_STEP - IdleHint.shine_time())
-	assert_eq(_hinted(), [link[0]] as Array[int], "the chase runs again")
-	hint.advance(IdleHint.CHASE_PERIOD * (IdleHint.CHASES - 1))
-	assert_eq(_sorted(_hinted()), _sorted(link), "then all three shine together")
-	var views: Array[int] = []
-	for id: int in link:
-		views.append(sky.star_view(id).shine())
-	assert_eq(views, [0, 0, 0] as Array[int], "in step")
-	hint.advance(IdleHint.shine_time())
-	assert_eq(_hinted(), [] as Array[int], "then nothing")
+	hint.advance(TutorialView.DRAG_REST / 2.0)
+	assert_eq(hint.hand().fingertip(), points[0], "resting a moment")
+	hint.advance(HandDemo.arrival(1) - TutorialView.DRAG_REST / 2.0)
+	assert_eq(hint.hand().fingertip(), points[1], "then it slides to the second")
+	assert_eq(_hinted(), [link[1]] as Array[int], "which shines as it lands")
+	hint.advance(HandDemo.arrival(2) - HandDemo.arrival(1))
+	assert_eq(hint.hand().fingertip(), points[2], "then the third")
+	assert_eq(_hinted(), [link[2]] as Array[int])
+	hint.advance(HandDemo.pass_time(3) - HandDemo.arrival(2))
+	assert_eq(hint.hand().fingertip(), points[0], "and again")
+	assert_eq(_hinted(), [link[0]] as Array[int])
+	hint.advance(IdleHint.play_time() - HandDemo.pass_time(3))
+	assert_false(hint.hand().is_playing(), "then the hand goes")
+	assert_eq(_hinted(), [] as Array[int])
 	assert_eq(hint.shining_link(), [] as Array[int])
 	hint.advance(IDLE - 0.1)
 	assert_eq(hint.shining_link(), [] as Array[int], "the wait starts over")
 	hint.advance(0.1)
-	assert_eq(hint.shining_link().size(), 3, "and it shines again")
+	assert_eq(hint.shining_link().size(), 3, "and it shows again")
+
+
+func test_the_hand_is_the_tutorials_with_its_trail() -> void:
+	var points: Array[Vector2i] = [Vector2i(40, 120), Vector2i(80, 120)]
+	assert_eq(TutorialView.trail_pixels(points, points[0]), [points[0]] as Array[Vector2i], "a dot on the first star")
+	var half: Array[Vector2i] = TutorialView.trail_pixels(points, Vector2i(60, 120))
+	assert_eq(half[0], points[0])
+	assert_eq(half.size(), 7, "a dot every TRAIL_GAP px up to the fingertip")
+	for p: Vector2i in half:
+		assert_true(p.x <= 60)
+	_start_scene()
+	_small_triple()
+	hint.advance(IDLE)
+	var hand: HandDemo = hint.hand()
+	assert_eq(hand.get_parent(), hint)
+	assert_true(hand.is_visible_in_tree())
+
+
+func test_a_tutorial_hand_out_holds_the_idle_hint() -> void:
+	_start_scene()
+	_small_triple()
+	var guide: TutorialView = (main.get_node("HUD") as Hud).tutorial_guide()
+	guide.show_step(Tutorial.Step.LAUNCH, Vector2i(90, 160), true)
+	hint.is_held = func() -> bool: return guide.has_hand()
+	hint.advance(IDLE * 2)
+	assert_eq(hint.shining_link(), [] as Array[int], "one hand at a time")
+	guide.hide_guide()
+	hint.advance(IDLE)
+	assert_eq(hint.shining_link().size(), 3)
+
+
+func test_an_animation_starting_stops_a_hint_playing() -> void:
+	_start_scene()
+	_small_triple()
+	hint.advance(IDLE)
+	assert_true(hint.hand().is_playing())
+	run.link_rejected.emit([] as Array[int])
+	hint.advance(0.1)
+	assert_false(hint.hand().is_playing())
+	assert_eq(_hinted(), [] as Array[int])
 
 
 func test_a_touch_before_the_delay_means_no_hint() -> void:
@@ -149,7 +190,7 @@ func test_a_touch_before_the_delay_means_no_hint() -> void:
 	assert_almost_eq(hint.idle_time(), 0.2, 0.001, "the wait started over")
 
 
-func test_a_touch_stops_a_hint_shining() -> void:
+func test_a_touch_stops_a_hint_playing() -> void:
 	_start_scene()
 	_small_triple()
 	hint.advance(IDLE)
@@ -158,6 +199,7 @@ func test_a_touch_stops_a_hint_shining() -> void:
 	hint.observe(drag)
 	assert_eq(hint.shining_link(), [] as Array[int])
 	assert_eq(_hinted(), [] as Array[int], "the shine stops at once")
+	assert_false(hint.hand().is_playing(), "and the hand goes")
 
 
 func test_a_finger_held_down_is_no_idling() -> void:
@@ -223,9 +265,9 @@ func test_a_landmark_in_the_link_shines_on_the_constellation() -> void:
 	var link: Array[int] = hint.shining_link()
 	assert_eq(link.filter(run.scorpio.is_landmark), [Scorpio.landmark_id(index)] as Array[int])
 	var seen: bool = false
-	for step: int in 3:
+	for k: int in 3:
+		hint.advance(HandDemo.arrival(k) - (HandDemo.arrival(k - 1) if k > 0 else 0.0))
 		seen = seen or constellation.hinted() == ([index] as Array[int])
-		hint.advance(IdleHint.STAR_STEP)
 	assert_true(seen, "the landmark shines in its turn")
 	hint.advance(IdleHint.play_time())
 	assert_eq(constellation.hinted(), [] as Array[int])
