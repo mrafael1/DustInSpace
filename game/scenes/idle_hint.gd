@@ -15,6 +15,8 @@ extends Node
 
 ## A hint starts showing `link` (Main stops an aiming telescope, so the sky takes links).
 signal hint_started(link: Array[int])
+## A finger touched down, before anything else took the touch (the playtest log's idle gaps).
+signal touch_started
 
 ## The demo runs this many times through the link before the hand goes.
 const PASSES: int = 2
@@ -82,6 +84,7 @@ func observe(event: InputEvent) -> void:
 		var touch := event as InputEventScreenTouch
 		if touch.pressed:
 			_fingers[touch.index] = true
+			touch_started.emit()
 		else:
 			_fingers.erase(touch.index)
 		reset()
