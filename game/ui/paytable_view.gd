@@ -47,6 +47,8 @@ const DUST_ICON_DX: int = 18
 ## The light suns: SUN_STEP px apart, each SUN_SIZE px wide (assets/art/light_icon.png).
 const SUN_SIZE: int = 7
 const SUN_STEP: int = 9
+## The most suns a row shows: what fits from LIGHT_X inside the plaque. The unit grows to keep it.
+const MAX_SUNS: int = 5
 
 var _open: bool = false
 var _time: float = 0.0
@@ -118,14 +120,17 @@ static func rows_for(balance: Balance) -> Array[Dictionary]:
 	return rows
 
 
-## The light one sun stands for: the smallest light any link gives (1 if none gives light).
+## The light one sun stands for: the smallest light any link gives (1 if none gives light), or
+## more when the most light would take over MAX_SUNS suns (any tuning fits the plaque).
 static func light_unit(balance: Balance) -> int:
 	var unit: int = 0
+	var most: int = 0
 	for key: String in balance.combos:
 		var light: int = balance.combos[key].light
+		most = maxi(most, light)
 		if light > 0 and (unit == 0 or light < unit):
 			unit = light
-	return maxi(unit, 1)
+	return maxi(maxi(unit, ceili(float(most) / MAX_SUNS)), 1)
 
 
 ## How many suns `light` shows, `unit` each (rounded; at least one for any light).

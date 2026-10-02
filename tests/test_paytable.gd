@@ -47,6 +47,19 @@ func test_the_marks_follow_tuning() -> void:
 	assert_eq(PaytableView.light_marks(0, 7), 0)
 
 
+func test_any_tuning_fits_the_plaque() -> void:
+	var data: Dictionary = Fixtures.balance_dict()
+	data["combos"]["small_triple"]["light"] = 1
+	data["combos"]["sequence"]["light"] = 25
+	var balance: Balance = Balance.from_dict(data)
+	assert_eq(PaytableView.light_unit(balance), 5, "the unit grows so the most light fits")
+	for row: Dictionary in PaytableView.rows_for(balance):
+		assert_lte(row["marks"], PaytableView.MAX_SUNS, row["key"])
+		assert_gte(row["marks"], 1, "any light still shows")
+	var suns: Array[Vector2i] = PaytableView.sun_centres(PaytableView.MAX_SUNS, PaytableView.LIGHT_X, 0)
+	assert_lte(suns[-1].x + PaytableView.SUN_SIZE / 2, PaytableView.PLAQUE_W - PaytableView.PAD, "MAX_SUNS fit")
+
+
 func test_the_one_of_each_row_cuts_through_every_order() -> void:
 	var seen: Array = []
 	for k: int in PaytableView.ORDERS.size():
