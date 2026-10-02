@@ -4,7 +4,8 @@ Two fonts (docs/art-direction.md): 5x7 for primary counters and 3x5 for secondar
 Each PNG is one row of cells, a glyph plus one blank spacing column, in GLYPHS order. Godot
 imports them as image fonts (see the .png.import files), so Labels render them pixel for pixel.
 Glyphs are white; Labels colour them. Only the characters the game writes so far are drawn:
-digits and signs in both fonts, plus A-Z in the 5x7 for banners and the end screen.
+digits and signs in both fonts, plus A-Z in both: the 5x7 for banners and the end screen,
+the 3x5 for small hints (the table's TAP TO CLOSE).
 
 Run: python tools/art/build_fonts.py   (needs Pillow)
 """
@@ -19,6 +20,7 @@ OUT = ROOT / "assets" / "fonts"
 # Order matters: it must match character_ranges in each font's .png.import file.
 GLYPHS = " 0123456789+-/×"
 GLYPHS_5X7 = GLYPHS + "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+GLYPHS_3X5 = GLYPHS_5X7
 
 FONT_5X7 = {
     " ": ["....."] * 7,
@@ -80,6 +82,32 @@ FONT_3X5 = {
     "-": ["...", "...", "###", "...", "..."],
     "/": ["..#", "..#", ".#.", "#..", "#.."],
     "×": ["...", "#.#", ".#.", "#.#", "..."],
+    "A": [".#.", "#.#", "###", "#.#", "#.#"],
+    "B": ["##.", "#.#", "##.", "#.#", "##."],
+    "C": [".##", "#..", "#..", "#..", ".##"],
+    "D": ["##.", "#.#", "#.#", "#.#", "##."],
+    "E": ["###", "#..", "##.", "#..", "###"],
+    "F": ["###", "#..", "##.", "#..", "#.."],
+    "G": [".##", "#..", "#.#", "#.#", ".##"],
+    "H": ["#.#", "#.#", "###", "#.#", "#.#"],
+    "I": ["###", ".#.", ".#.", ".#.", "###"],
+    "J": ["..#", "..#", "..#", "#.#", ".#."],
+    "K": ["#.#", "#.#", "##.", "#.#", "#.#"],
+    "L": ["#..", "#..", "#..", "#..", "###"],
+    "M": ["#.#", "###", "###", "#.#", "#.#"],
+    "N": ["##.", "#.#", "#.#", "#.#", "#.#"],
+    "O": [".#.", "#.#", "#.#", "#.#", ".#."],
+    "P": ["##.", "#.#", "##.", "#..", "#.."],
+    "Q": [".#.", "#.#", "#.#", "##.", ".##"],
+    "R": ["##.", "#.#", "##.", "#.#", "#.#"],
+    "S": [".##", "#..", ".#.", "..#", "##."],
+    "T": ["###", ".#.", ".#.", ".#.", ".#."],
+    "U": ["#.#", "#.#", "#.#", "#.#", "###"],
+    "V": ["#.#", "#.#", "#.#", "#.#", ".#."],
+    "W": ["#.#", "#.#", "###", "###", "#.#"],
+    "X": ["#.#", "#.#", ".#.", "#.#", "#.#"],
+    "Y": ["#.#", "#.#", ".#.", ".#.", ".#."],
+    "Z": ["###", "..#", ".#.", "#..", "###"],
 }
 
 
@@ -102,4 +130,4 @@ def build(font: dict[str, list[str]], glyphs: str, name: str) -> None:
 
 if __name__ == "__main__":
     build(FONT_5X7, GLYPHS_5X7, "font_5x7.png")
-    build(FONT_3X5, GLYPHS, "font_3x5.png")
+    build(FONT_3X5, GLYPHS_3X5, "font_3x5.png")
