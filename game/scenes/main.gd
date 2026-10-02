@@ -12,6 +12,9 @@ signal stage_won
 signal map_requested
 ## The guided first run reached free play (App saves it, so it plays only once).
 signal tutorial_finished
+## The stage's Orion encounter (#93) is done: `threat` (an Encounter.Threat) has been met (App saves
+## it, so it plays only the first time).
+signal encounter_finished(threat: int)
 
 ## Seed for the next run; 0 picks a random one. The seed is printed in debug builds for replays.
 @export var seed_override: int = 0
@@ -28,6 +31,9 @@ signal tutorial_finished
 ## The guided first run (App sets it for the Stinger's first play): each run starts the tutorial
 ## until it's finished once.
 @export var tutorial: bool = false
+## The stage's Orion threat hasn't been met yet (App sets it): each run plays its guided encounter
+## (#93) until it's done once.
+@export var encounter: bool = false
 
 var run: RunState
 ## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
@@ -124,6 +130,10 @@ func start_run(balance: Balance) -> bool:
 	run.play_volley_intro()
 	# So does a hunting stage (#71): the whole cycle once, with a demo launch.
 	run.play_hunt_intro()
+	# The threat's guided encounter, once its intro has shown it (#93).
+	if encounter:
+		run.encounter_step.connect(_on_encounter_step)
+		run.start_encounter()
 	run_started.emit(run)
 	return true
 
@@ -226,6 +236,12 @@ func _wire_sound() -> void:
 	_sun.ignited.connect(_sfx.play.bind(&"sun_ignite", 1.0))
 	_end_screen.shown.connect(_sfx.on_end_shown)
 	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
+
+
+func _on_encounter_step(threat: int, step: int) -> void:
+	if step == Encounter.Step.DONE:
+		encounter = false
+		encounter_finished.emit(threat)
 
 
 func _on_tutorial_step(step: int) -> void:
