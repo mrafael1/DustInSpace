@@ -97,6 +97,8 @@ python tools/balance/sim.py --set packs.red.cost=6 --runs 50000
 
 If `godot` isn't on the PATH, say so. Don't claim that tests pass unless you ran them.
 
+CI (`.github/workflows/tests.yml`) runs the same import and GUT command with Godot 4.7.2 headless on every pull request and on pushes to `main`, plus a short simulator run. A PR with a failing test fails its check.
+
 ## Definition of done
 
 - The feature matches `docs/design.md`, and any gap is stated.
