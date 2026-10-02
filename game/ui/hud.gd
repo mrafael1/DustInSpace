@@ -66,6 +66,15 @@ const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's first hunting area of a run (#71) says what the ring means.
 const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
+## A refused pick's reason, said on the message line (#91): two lines, so it fits the 180 px screen.
+## It stays RULE_TIME, and the same reason again within RULE_QUIET says nothing new.
+const REFUSAL_MESSAGES: Dictionary = {
+	RunState.PickRefusal.SECOND_LANDMARK: "ONE CONSTELLATION STAR\nPER LINK",
+}
+const RULE_TIME: float = 2.5
+const RULE_QUIET: float = 3.0
+## A second line of the message goes above the first, this far up.
+const MESSAGE_LINE_STEP: int = 10
 ## Orion's volley countdown (#70) sits centred this far from his figure's top-left: above his head.
 const VOLLEY_COUNTER_OFFSET := Vector2i(15, -8)
 
@@ -109,6 +118,8 @@ var sun_at: Vector2i = Vector2i(90, 39)
 @onready var _dust: Label = $Dust
 @onready var _slot_layer: Node2D = $Slots
 @onready var _sound: SoundIcon = $SoundIcon
+## Refusal reasons said lately, and seconds until they may be said again.
+var _refusal_quiet: Dictionary[int, float] = {}
 @onready var _message: Label = $Message
 @onready var _map: MapButton = $MapButton
 
@@ -217,13 +228,28 @@ func advance(delta: float) -> void:
 	if _message_left > 0.0:
 		_message_left -= delta
 		_message.visible = _message_left > 0.0
+	for reason: int in _refusal_quiet.keys():
+		_refusal_quiet[reason] -= delta
+		if _refusal_quiet[reason] <= 0.0:
+			_refusal_quiet.erase(reason)
 
 
 ## Shows a short message above the launcher for `seconds` ("" clears it).
 func show_message(text: String, seconds: float = MESSAGE_TIME) -> void:
 	_message.text = text
+	# Its last line stays on the message line; any line before it goes above.
+	_message.position = Vector2(_message.position.x, MESSAGE_Y - text.count("\n") * MESSAGE_LINE_STEP)
 	_message_left = seconds if text != "" else 0.0
 	_message.visible = text != ""
+
+
+## Says why a pick was refused (`reason`, a RunState.PickRefusal) on the message line, unless the
+## same reason was said less than RULE_QUIET ago.
+func explain_refusal(reason: RunState.PickRefusal) -> void:
+	if not REFUSAL_MESSAGES.has(reason) or _refusal_quiet.has(reason):
+		return
+	_refusal_quiet[reason] = RULE_QUIET
+	show_message(REFUSAL_MESSAGES[reason], RULE_TIME)
 
 
 ## Opens the table (#94) with the run's links and rewards; the game holds still until a tap.
