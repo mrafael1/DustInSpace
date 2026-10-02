@@ -79,6 +79,9 @@ var hunt_intro_stars: int = 0
 var hint_idle_seconds: float = 0.0
 
 var errors: Array[String] = []
+## A copy of the dictionary this balance was read from, for the debug overlay (#11) to edit and
+## re-validate through from_dict. Empty if the file couldn't be read.
+var source: Dictionary = {}
 
 
 static func load_file(path: String = DEFAULT_PATH) -> Balance:
@@ -128,6 +131,7 @@ func cheapest_pack_cost() -> int:
 
 
 func _parse(data: Dictionary) -> void:
+	source = data.duplicate(true)
 	sun_target = _read_int(data, "sun_target", "", 1)
 	start_dust = _read_int(data, "start_dust", "", 0)
 	_parse_packs(_read_dict(data, "packs", ""))
