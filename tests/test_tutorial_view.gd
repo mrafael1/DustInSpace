@@ -64,13 +64,13 @@ CONSTELLATION TO WIN", "the goal first")
 	assert_true(guide.waits_for_tap(), "MAP isn't a tap on")
 	_tap_hud(Vector2i(90, 150))
 	_settle()
-	assert_eq(guide.text(), "TAP THE SKY TO LAUNCH")
+	assert_eq(guide.text(), "TAP THE SKY TO LAUNCH\nA CHEAP BLUE PLANET")
 	assert_false(guide.shows_tap_hint())
 	assert_true(guide.has_hand())
 	assert_true(scope.is_aiming(), "the launch step aims")
 	assert_true(run.launch(Vector2i(90, 170)))
 	_settle()
-	assert_eq(guide.text(), "LINK ONE OF EACH SIZE")
+	assert_eq(guide.text(), "LINK ONE OF EACH SIZE\nTAP EACH STAR")
 	assert_eq(guide.combos(), [[Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]], "the card shows one of each size")
 	assert_true(run.sky_rect.has_point(guide.card_rect().position), "at the top of the sky")
 	assert_false(scope.is_aiming(), "touches reach the stars")
@@ -80,18 +80,26 @@ CONSTELLATION TO WIN", "the goal first")
 	assert_true(run.link_in_reach(path), "in an order that stays in reach")
 	assert_eq(guide.target().x, run.find_star(path[0]).position.x, "the hand on the first")
 	hud.follow_link([path[0]])
-	assert_eq(guide.text(), "SHINING STARS CAN COME NEXT", "once one is picked: the shine")
+	assert_eq(guide.text(), "FOLLOW THE SHINING STARS", "once one is picked: the shine")
 	assert_eq(guide.target().x, run.find_star(path[1]).position.x, "the hand moves on to the second")
 	hud.follow_link([path[0], path[1]])
 	assert_eq(guide.target().x, run.find_star(path[2]).position.x, "then the third")
 	hud.follow_link([])
-	assert_eq(guide.text(), "LINK ONE OF EACH SIZE", "a dropped link starts over")
+	assert_eq(guide.text(), "LINK ONE OF EACH SIZE\nTAP EACH STAR", "a dropped link starts over")
 	assert_eq(guide.target().x, run.find_star(path[0]).position.x)
 	run.link(path)
 	_settle()
-	assert_eq(guide.text(), "LINKS GIVE LIGHT AND DUST
-A FULL SUN LIGHTS A STAR")
-	assert_true(guide.waits_for_tap())
+	# The payout, as it lands: the hand on the dust counter, then on the Sun, each going on by itself.
+	assert_eq(guide.text(), "DUST BUYS PLANETS")
+	assert_false(guide.shows_tap_hint(), "it goes on by itself")
+	assert_eq(guide.fingertip().x, hud.dust_icon_top().x, "the hand over the dust counter")
+	assert_lt(guide.fingertip().y, hud.dust_icon_top().y)
+	guide.advance(TutorialView.SHOW_TIME - 0.1)
+	_settle()
+	assert_eq(guide.text(), "DUST BUYS PLANETS", "not yet")
+	guide.advance(0.2)
+	_settle()
+	assert_eq(guide.text(), "LIGHT FILLS THE SUN")
 	assert_lt(guide.fingertip().x, hud.sun_at.x, "the hand at the Sun, from the left")
 	_tap_hud(Vector2i(90, 150))
 	_settle()
@@ -109,10 +117,8 @@ A FULL SUN LIGHTS A STAR")
 func test_the_buy_step_points_at_the_buy_button() -> void:
 	_start()
 	_settle()
-	run.tutorial.step = Tutorial.Step.LIGHT
-	run.tutorial.linked(true, -1, true)
-	run.tutorial.continue_info()
-	run.tutorial.continue_info()
+	run.tutorial.step = Tutorial.Step.RED
+	run.tutorial.launched(true)
 	run.tutorial_step.emit(run.tutorial.step)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
@@ -122,35 +128,77 @@ func test_the_buy_step_points_at_the_buy_button() -> void:
 	assert_lt(guide.fingertip().x, button.x, "from the left, pointing right")
 
 
-func test_the_planets_steps_point_at_each_planet_and_tap_on() -> void:
+func test_the_red_step_aims_at_the_sky_with_the_red_planet_loaded() -> void:
 	_start()
 	_settle()
-	run.tutorial.step = Tutorial.Step.LIGHT
-	run.tutorial.linked(true, -1, true)
-	run.tutorial_step.emit(run.tutorial.step)
+	run.tutorial.step = Tutorial.Step.RED
+	run.tutorial_step.emit(Tutorial.Step.RED)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "BLUE PLANETS ARE CHEAP
-MOSTLY SMALL STARS")
-	assert_true(guide.waits_for_tap())
-	assert_true(guide.shows_tap_hint())
-	assert_eq(guide.combos(), [], "no card")
-	var blue: Vector2i = hud.pack_icon_top("blue")
-	assert_eq(guide.fingertip().x, blue.x, "the hand over the blue planet")
-	assert_lt(guide.fingertip().y, blue.y, "pointing down at it")
-	assert_false(scope.is_aiming())
-	_tap_hud(Vector2i(90, 150))
+	assert_eq(guide.text(), "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS")
+	assert_true(run.sky_rect.has_point(guide.target()), "the hand on the sky")
+	assert_false(guide.waits_for_tap())
+	assert_true(scope.is_aiming(), "a launch step aims")
+
+
+func test_the_sky_takes_taps_then_drags() -> void:
+	_start()
 	_settle()
-	assert_eq(guide.text(), "RED PLANETS COST MORE
-THEY SPLIT IN TWO
-WITH MORE BIG STARS")
-	assert_true(guide.waits_for_tap())
-	assert_eq(guide.fingertip().x, hud.pack_icon_top("red").x, "then over the red one")
-	var tap: Label = guide.get("_tap")
-	assert_eq(int(tap.position.y), run.sky_rect.position.y + TutorialView.TOP + 3 * TutorialView.LINE_STEP, "TAP TO CONTINUE under its three lines")
-	_tap_hud(Vector2i(90, 150))
+	var gesture: LinkGesture = main.get_node("Sky").get("_gesture")
+	for case: Array in [[Tutorial.Step.LINK, true, false], [Tutorial.Step.LIGHT, false, true], [Tutorial.Step.DONE, true, true]]:
+		run.tutorial_step.emit(case[0])
+		_settle()
+		assert_eq([gesture.taps, gesture.drags], [case[1], case[2]], "step %d" % case[0])
+
+
+func test_the_dragged_link_is_acted_out_until_a_star_is_picked() -> void:
+	_start()
 	_settle()
-	assert_eq(guide.text(), "SPEND DUST ON A PLANET")
+	_light_step()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE\nNOW DRAG THROUGH THEM")
+	assert_true(guide.is_demoing_drag())
+	var path: Array[int] = guide.get("_path")
+	var first: Vector2i = _centre(path[0])
+	var second: Vector2i = _centre(path[1])
+	guide.set("_time", 0.0)
+	assert_eq(guide.fingertip(), first, "resting on the first star")
+	guide.set("_time", TutorialView.DRAG_REST + TutorialView.DRAG_STEP * 0.5)
+	var halfway: Vector2i = guide.fingertip()
+	assert_almost_eq(Vector2(halfway).distance_to((Vector2(first) + Vector2(second)) / 2.0), 0.0, 1.0, "sliding to the second")
+	guide.set("_time", TutorialView.DRAG_REST + TutorialView.DRAG_STEP * 2.0 + 0.1)
+	assert_eq(guide.fingertip(), _centre(path[2]), "resting on the last")
+	hud.follow_link([path[0]])
+	assert_false(guide.is_demoing_drag(), "once a star is picked, it points at the next")
+	assert_eq(guide.text(), "FOLLOW THE SHINING STARS")
+
+
+func test_the_demo_point_loops_through_the_path() -> void:
+	var points: Array[Vector2i] = [Vector2i(10, 10), Vector2i(40, 10), Vector2i(40, 50)]
+	var loop: float = TutorialView.DRAG_REST * 2.0 + TutorialView.DRAG_STEP * 2.0
+	assert_eq(TutorialView.demo_point(points, 0.0), points[0])
+	assert_eq(TutorialView.demo_point(points, TutorialView.DRAG_REST + TutorialView.DRAG_STEP), points[1])
+	assert_eq(TutorialView.demo_point(points, loop - 0.01), points[2])
+	assert_eq(TutorialView.demo_point(points, loop + 0.01), points[0], "then again")
+
+
+func test_free_plays_first_full_sun_points_at_the_star_it_lit() -> void:
+	_start()
+	_settle()
+	run.tutorial.step = Tutorial.Step.DONE
+	var guide: TutorialView = hud.tutorial_guide()
+	guide.hide_guide()
+	run.sun_rekindled.emit(2)
+	_settle()
+	assert_eq(guide.text(), TutorialView.SUN_FULL_TEXT)
+	assert_true(guide.has_hand())
+	assert_eq(guide.target().x, run.scorpio.landmark_position(2).x, "the hand on the star it lit")
+	assert_false(guide.waits_for_tap(), "play goes on")
+	guide.advance(TutorialView.SUN_FULL_TIME + 0.1)
+	assert_eq(guide.text(), "")
+	run.sun_rekindled.emit(3)
+	_settle()
+	assert_eq(guide.text(), "", "only the first")
 
 
 func test_every_line_fits_the_screen() -> void:
@@ -210,6 +258,22 @@ func test_a_restart_before_the_end_guides_again() -> void:
 	assert_not_null(main.run.tutorial)
 
 
+## The light step, with two stars of the constellation star's size beside it.
+func _light_step() -> void:
+	run.tutorial.step = Tutorial.Step.LIGHT
+	run.tutorial.landmark = 1
+	run.add_star(run.scorpio.map.sizes[1] as Star.Size, run.scorpio.landmark_position(1) + Vector2i(16, -10))
+	run.add_star(run.scorpio.map.sizes[1] as Star.Size, run.scorpio.landmark_position(1) + Vector2i(-16, -12))
+	run.tutorial_step.emit(Tutorial.Step.LIGHT)
+	_settle()
+
+
+func _centre(id: int) -> Vector2i:
+	if run.scorpio.is_landmark(id):
+		return run.scorpio.landmark_position(Scorpio.landmark_index(id))
+	return run.find_star(id).position
+
+
 func _order(ids: Array[int]) -> Array[int]:
 	for p: Array in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]]:
 		var order: Array[int] = [ids[p[0]], ids[p[1]], ids[p[2]]]
@@ -228,7 +292,7 @@ func test_lighting_the_star_teaches_three_of_its_size() -> void:
 	run.tutorial_step.emit(Tutorial.Step.LIGHT)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE")
+	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE\nNOW DRAG THROUGH THEM")
 	var size: int = run.scorpio.map.sizes[1]
 	assert_eq(guide.combos(), [[size, size, size]], "three stars of the constellation star's size")
 	var path: Array[int] = guide.get("_path")
@@ -323,4 +387,4 @@ func test_the_text_sits_under_the_sun_with_the_card_below_it() -> void:
 	run.tutorial.step = Tutorial.Step.LINK
 	run.tutorial_step.emit(Tutorial.Step.LINK)
 	_settle()
-	assert_eq(guide.card_rect().position.y, top + TutorialView.LINE_STEP + TutorialView.CARD_GAP, "the card right under one line")
+	assert_eq(guide.card_rect().position.y, top + 2 * TutorialView.LINE_STEP + TutorialView.CARD_GAP, "the card right under its two lines")
