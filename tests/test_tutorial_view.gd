@@ -70,7 +70,7 @@ CONSTELLATION TO WIN", "the goal first")
 	assert_true(scope.is_aiming(), "the launch step aims")
 	assert_true(run.launch(Vector2i(90, 170)))
 	_settle()
-	assert_eq(guide.text(), "LINK ONE OF EACH SIZE\nTAP EACH STAR")
+	assert_eq(guide.text(), "LINK ONE OF EACH SIZE\nTAP OR DRAG THROUGH THEM")
 	assert_eq(guide.combos(), [[Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]], "the card shows one of each size")
 	assert_true(run.sky_rect.has_point(guide.card_rect().position), "at the top of the sky")
 	assert_false(scope.is_aiming(), "touches reach the stars")
@@ -85,7 +85,7 @@ CONSTELLATION TO WIN", "the goal first")
 	hud.follow_link([path[0], path[1]])
 	assert_eq(guide.target().x, run.find_star(path[2]).position.x, "then the third")
 	hud.follow_link([])
-	assert_eq(guide.text(), "LINK ONE OF EACH SIZE\nTAP EACH STAR", "a dropped link starts over")
+	assert_eq(guide.text(), "LINK ONE OF EACH SIZE\nTAP OR DRAG THROUGH THEM", "a dropped link starts over")
 	assert_eq(guide.target().x, run.find_star(path[0]).position.x)
 	run.link(path)
 	_settle()
@@ -140,22 +140,15 @@ func test_the_red_step_aims_at_the_sky_with_the_red_planet_loaded() -> void:
 	assert_true(scope.is_aiming(), "a launch step aims")
 
 
-func test_the_sky_takes_taps_then_drags() -> void:
+func test_the_first_link_acts_a_drag_out_until_a_star_is_picked() -> void:
 	_start()
 	_settle()
-	var gesture: LinkGesture = main.get_node("Sky").get("_gesture")
-	for case: Array in [[Tutorial.Step.LINK, true, false], [Tutorial.Step.LIGHT, false, true], [Tutorial.Step.DONE, true, true]]:
-		run.tutorial_step.emit(case[0])
-		_settle()
-		assert_eq([gesture.taps, gesture.drags], [case[1], case[2]], "step %d" % case[0])
-
-
-func test_the_dragged_link_is_acted_out_until_a_star_is_picked() -> void:
-	_start()
+	_tap_hud(Vector2i(90, 150))
 	_settle()
-	_light_step()
+	assert_true(run.launch(Vector2i(90, 170)))
+	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE\nNOW DRAG THROUGH THEM")
+	assert_eq(run.tutorial.step, Tutorial.Step.LINK)
 	assert_true(guide.is_demoing_drag())
 	var path: Array[int] = guide.get("_path")
 	var first: Vector2i = _centre(path[0])
@@ -358,6 +351,41 @@ func _order(ids: Array[int]) -> Array[int]:
 	return ids
 
 
+func test_the_constellation_stars_link_points_star_by_star() -> void:
+	_start()
+	_settle()
+	_light_step()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE")
+	assert_true(guide.has_hand())
+	assert_false(guide.is_demoing_drag(), "the drag was acted out on the first link")
+
+
+func test_a_showing_step_lets_a_planets_button_through() -> void:
+	_start()
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_true(guide.waits_for_tap(), "the goal")
+	run.dust = run.balance.packs["blue"].cost
+	var blue: int = run.owned_packs["blue"]
+	_tap_button(hud.buy_button_at("blue") + Vector2i(2, 0))
+	assert_eq(run.owned_packs["blue"], blue + 1, "the buy went through")
+	assert_eq(run.tutorial.step, Tutorial.Step.LAUNCH, "and the tap went on")
+
+
+func test_a_refused_load_doesnt_buy_another() -> void:
+	_start()
+	_settle()
+	_tap_hud(Vector2i(90, 150))
+	_settle()
+	assert_eq(run.loaded_pack, "blue")
+	run.dust = run.balance.packs["red"].cost
+	_tap_button(hud.pack_icon_top("red") + Vector2i(0, PackSlot.ICON_RADIUS))
+	assert_eq(run.owned_packs["red"], 1, "the red icon doesn't buy a second one")
+	assert_eq(run.dust, run.balance.packs["red"].cost)
+	assert_eq(run.loaded_pack, "blue", "switching waits for free play")
+
+
 func test_lighting_the_star_teaches_three_of_its_size() -> void:
 	_start()
 	_settle()
@@ -368,7 +396,7 @@ func test_lighting_the_star_teaches_three_of_its_size() -> void:
 	run.tutorial_step.emit(Tutorial.Step.LIGHT)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE\nNOW DRAG THROUGH THEM")
+	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE")
 	var size: int = run.scorpio.map.sizes[1]
 	assert_eq(guide.combos(), [[size, size, size]], "three stars of the constellation star's size")
 	var path: Array[int] = guide.get("_path")
@@ -440,6 +468,15 @@ func _tap_chart(chart: ChapterSelect, at: Vector2i) -> void:
 		touch.position = Vector2(at)
 		touch.pressed = pressed
 		chart.handle_pointer(touch)
+
+
+func _tap_button(at: Vector2i) -> void:
+	assert_false(hud.target_at(at).is_empty(), "a button at %s" % at)
+	for pressed: bool in [true, false]:
+		var touch := InputEventScreenTouch.new()
+		touch.position = Vector2(at)
+		touch.pressed = pressed
+		hud.handle_pointer(touch)
 
 
 func _tap_hud(at: Vector2i) -> void:

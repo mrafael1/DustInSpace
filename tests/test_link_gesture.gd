@@ -152,30 +152,6 @@ func test_selection_changes_are_reported_as_copies() -> void:
 	assert_eq(changes, [[1], [1, 2]] as Array[Array])
 
 
-## The tutorial teaches one way at a time: with drags off a moving press stays a tap; with taps
-## off a tap doesn't keep its star.
-func test_with_drags_off_a_moving_press_is_a_tap() -> void:
-	gesture.drags = false
-	gesture.press(STARS[2])
-	_drag_to(STARS[4])
-	_drag_to(STARS[1])
-	assert_eq(gesture.selected, [2] as Array[int], "only the pressed star")
-	gesture.release(STARS[1])
-	assert_eq(gesture.selected, [2] as Array[int], "kept, as a tap")
-	assert_true(requests.is_empty())
-
-
-func test_with_taps_off_a_tap_keeps_nothing_but_a_drag_links() -> void:
-	gesture.taps = false
-	_tap(STARS[1])
-	assert_true(gesture.selected.is_empty(), "a tap doesn't keep its star")
-	gesture.press(STARS[2])
-	_drag_to(STARS[4])
-	_drag_to(STARS[1])
-	gesture.release(STARS[1])
-	assert_eq(requests, [[2, 4, 1]] as Array[Array], "a drag still links")
-
-
 func _tap(point: Vector2i) -> bool:
 	gesture.press(point)
 	return gesture.release(point)

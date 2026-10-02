@@ -1,6 +1,7 @@
 extends GutTest
-## The guided first run (Tutorial): each step allows only its own action, the first two packs are
-## scripted, and the steps move on as the player does what they say.
+## The guided first run (Tutorial): only the launches are gated (each launch step's own), the
+## first packs are scripted, links and buys go through at any step, and the steps move on as the
+## player does what they say.
 
 const Fixtures := preload("res://tests/fixtures.gd")
 
@@ -28,7 +29,7 @@ func test_the_whole_tutorial() -> void:
 	assert_false(run.tutorial_continue(), "only the showing steps go on by a tap")
 	# Step 1: only a launch, of a blue planet.
 	assert_false(run.load_pack("red"), "no switching packs yet")
-	assert_false(run.buy("blue"), "no buying yet")
+	assert_false(run.buy("blue"), "no dust yet")
 	assert_eq(run.loaded_pack, "blue")
 	var dust: int = run.dust
 	assert_true(run.launch(Vector2i(90, 160)))
@@ -67,8 +68,7 @@ func test_the_whole_tutorial() -> void:
 	assert_eq(steps.back(), Tutorial.Step.ICON)
 	assert_true(run.tutorial_continue())
 	assert_eq(steps.back(), Tutorial.Step.RED)
-	assert_false(run.buy("blue"), "no buying before the red launch")
-	assert_false(run.load_pack("blue"))
+	assert_false(run.load_pack("blue"), "the red planet stays loaded")
 	var before: int = run.stars.size()
 	assert_true(run.launch(Vector2i(90, 120)))
 	var red: Array[Star] = run.stars.slice(before)
@@ -87,7 +87,6 @@ func test_the_whole_tutorial() -> void:
 	# Step 5: out of planets, buy a blue one, only.
 	assert_eq(steps.back(), Tutorial.Step.BUY)
 	assert_eq(run.total_packs(), 0)
-	assert_false(run.buy("red"))
 	assert_false(run.launch(Vector2i(90, 160)))
 	assert_true(run.buy("blue"))
 	assert_eq(run.loaded_pack, "blue")
@@ -135,11 +134,43 @@ func test_without_a_red_planet_the_red_launch_is_skipped() -> void:
 	assert_eq(run.tutorial.step, Tutorial.Step.BUY)
 
 
-func test_the_first_link_is_tapped_and_the_constellation_stars_dragged() -> void:
-	assert_eq(Tutorial.link_input(Tutorial.Step.LINK), Tutorial.LinkInput.TAP)
-	assert_eq(Tutorial.link_input(Tutorial.Step.LIGHT), Tutorial.LinkInput.DRAG)
-	for step: int in [Tutorial.Step.GOAL, Tutorial.Step.DUST, Tutorial.Step.RED, Tutorial.Step.RED_LINK, Tutorial.Step.DONE]:
-		assert_eq(Tutorial.link_input(step), Tutorial.LinkInput.ANY, "step %d" % step)
+func test_a_buy_goes_through_at_any_step_without_moving_it_on() -> void:
+	var run: RunState = _run()
+	_play_to_light(run)
+	assert_eq(run.tutorial.step, Tutorial.Step.SCOPE)
+	var blue: int = run.owned_packs["blue"]
+	var dust: int = run.dust
+	assert_true(run.buy("blue"), "a showing step lets a buy through")
+	assert_eq(run.dust, dust - run.balance.packs["blue"].cost)
+	assert_eq(run.owned_packs["blue"], blue + 1)
+	assert_eq(run.tutorial.step, Tutorial.Step.SCOPE, "only the buy step moves on")
+	assert_eq(run.loaded_pack, "red", "the scripted red launch keeps its planet")
+	run.tutorial_continue()
+	run.tutorial_continue()
+	assert_eq(run.tutorial.step, Tutorial.Step.RED)
+	assert_true(run.launch(Vector2i(90, 120)), "the red launch still goes")
+	assert_eq(run.tutorial.step, Tutorial.Step.RED_LINK)
+
+
+func test_only_the_buy_step_moves_on_by_a_buy() -> void:
+	var tutorial := Tutorial.new()
+	for step: Tutorial.Step in [Tutorial.Step.GOAL, Tutorial.Step.LAUNCH, Tutorial.Step.LINK, Tutorial.Step.DUST, Tutorial.Step.SCOPE, Tutorial.Step.RED, Tutorial.Step.SUN_FULL]:
+		tutorial.step = step
+		assert_false(tutorial.bought(), "step %d" % step)
+		assert_eq(tutorial.step, step)
+	tutorial.step = Tutorial.Step.BUY
+	assert_true(tutorial.bought())
+	assert_true(tutorial.is_done())
+
+
+func test_a_link_goes_through_at_a_showing_step_without_moving_it_on() -> void:
+	var run: RunState = _run()
+	run.tutorial_continue()
+	run.launch(Vector2i(90, 160))
+	# The sequence's stars stay in the sky while the payout steps show (as if linked another way).
+	run.tutorial.step = Tutorial.Step.DUST
+	assert_ne(run.link(_order(run, _ids(run.stars))), Combos.INVALID, "a showing step lets a link through")
+	assert_eq(run.tutorial.step, Tutorial.Step.DUST)
 
 
 func test_only_the_showing_steps_wait() -> void:
