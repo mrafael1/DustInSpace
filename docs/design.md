@@ -87,7 +87,7 @@ The Stinger's first play is guided. Each step shows a line or two under the Sun,
 | Dust | DUST BUYS PLANETS | the dust counter, from above, once the payout has landed | no launch: it goes on by itself after 3 s (a tap goes on sooner) |
 | Sun | LIGHT FILLS THE SUN | the Sun, from the left | the same |
 | 3 | LAUNCH NEXT TO THIS STAR | the next constellation star to light | a launch aimed within 20 px of it (a farther one is refused with the refused buzz, still aiming); scripted: two stars of its size and one other |
-| 4 | LINK 3 OF THE SAME SIZE; then the shine line | each star in turn (the constellation star among them); the card shows three of its size | a link; the step ends when it lights a constellation star |
+| 4 | LINK 3 OF THE SAME SIZE; then the shine line | each star in turn (the constellation star among them); the card shows three of its size | a link; the step ends when a constellation star is lit (by the link or by the full Sun it makes), or when no link is left to make (another link used its stars), so it never strands the player |
 | Scope | THE TELESCOPE SHOWS / THE LOADED PLANET | the telescope's window, from the left, as the red planet the run started with drops in | no launch: it goes on by itself |
 | Icon | THE LOADED PLANET SPINS | the loaded planet's icon (its idle spin), from above | the same |
 | Red | LAUNCH THE RED PLANET / IT SPLITS IN TWO / WITH MORE BIG STARS | a spot in the sky | a launch; scripted: its twin bursts hold big, medium, big and big, small, medium. The red steps are skipped if no red one is owned |
