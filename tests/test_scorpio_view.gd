@@ -79,7 +79,7 @@ func test_picking_a_second_landmark_is_refused_on_the_spot_and_the_line_says_why
 	_touch(Scorpio.LANDMARKS[4], true)
 	assert_eq(refused, [RunState.PickRefusal.SECOND_LANDMARK] as Array[RunState.PickRefusal], "the second one is refused at once, no third pick needed")
 	assert_eq(hud.message(), Hud.REFUSAL_MESSAGES[RunState.PickRefusal.SECOND_LANDMARK], "the line says why (#91)")
-	assert_false((main.get_node("Sky/LinkLayer") as LinkLayer).is_flashing(), "instead of the red shake of a wrong link")
+	assert_true((main.get_node("Sky/LinkLayer") as LinkLayer).is_flashing(), "with the red shake of a wrong link along the line")
 	assert_eq(sky.selected_ids(), [] as Array[int], "and the link is dropped")
 	_touch(Scorpio.LANDMARKS[4], false)
 	_tap(big.position)
