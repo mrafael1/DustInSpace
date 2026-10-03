@@ -1,7 +1,8 @@
 class_name DebugKeys
 extends Node
 ## Development shortcuts, active in debug builds only.
-## L: launch the loaded pack at a random point in the sky (stand-in until the slingshot, #5).
+## L: launch the loaded pack at a random point in the sky (stand-in until the slingshot, #5); with
+##    the slingshot empty, it loads the first owned kind first.
 ## B: the next pack opens as a Big Bang.
 ## T: switch between the telescope and the slingshot (issue #52's comparison).
 
@@ -51,10 +52,15 @@ func force_big_bang() -> bool:
 	return true
 
 
-## Launches like a player would: not while a sequence is still playing.
+## Launches like a player would: not while a sequence is still playing. An empty slingshot is
+## loaded first with the first owned kind, so L can be pressed again and again.
 func launch_at_random() -> bool:
 	if _run == null or _sequencer.is_busy():
 		return false
+	if _run.loaded_pack == "":
+		for kind: String in _run.balance.pack_kinds():
+			if _run.load_pack(kind):
+				break
 	var sky: Rect2i = _run.sky_rect
 	var target := Vector2i(
 		_rng.randi_range(sky.position.x, sky.end.x - 1),

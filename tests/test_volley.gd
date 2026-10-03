@@ -44,7 +44,7 @@ func test_only_the_body_brings_the_volley_and_it_never_marks() -> void:
 	var marked: Array[Star] = []
 	run.star_marked.connect(func(star: Star) -> void: marked.append(star))
 	for launch: int in 3:
-		run.launch(Vector2i(90, 150))
+		Fixtures.launch(run, Vector2i(90, 150))
 	assert_true(marked.is_empty())
 
 
@@ -91,8 +91,8 @@ func test_invalid_links_launches_and_failed_launches_dont_count() -> void:
 	var other: Star = run.add_star(Star.Size.SMALL, CORNER + Vector2i(5, 8))
 	assert_eq(run.link([big.id, small.id, other.id] as Array[int]), Combos.INVALID)
 	assert_eq(run.link([big.id, 999, 998] as Array[int]), Combos.INVALID)
-	assert_true(run.launch(Vector2i(90, 150)))
-	assert_false(run.launch(Vector2i(90, 150)), "no pack left")
+	assert_true(Fixtures.launch(run, Vector2i(90, 150)))
+	assert_false(Fixtures.launch(run, Vector2i(90, 150)), "no pack left")
 	assert_true(counts.is_empty())
 	assert_eq(run.volley.links_left(), 3)
 
@@ -138,7 +138,7 @@ func test_landmarks_and_the_constellation_are_never_hit() -> void:
 	for seed_value: int in range(1, 11):
 		var run: RunState = _body_run(6, seed_value)
 		for launch: int in 3:
-			run.launch(Vector2i(40 + 30 * launch, 140))
+			Fixtures.launch(run, Vector2i(40 + 30 * launch, 140))
 		run.volley.counted = 2
 		var lit: Array[bool] = run.scorpio.lit.duplicate()
 		var victims: Array[Star] = []
@@ -165,7 +165,7 @@ func test_the_same_seed_hits_the_same_stars_and_packs_never_shift() -> void:
 				hit.append(star.id))
 		var sky: Array[String] = []
 		for launch: int in 4:
-			run.launch(Vector2i(90, 150))
+			Fixtures.launch(run, Vector2i(90, 150))
 			for star: Star in run.stars:
 				sky.append("%d:%d:%s" % [star.id, star.size, star.position])
 			if with_volley:
@@ -307,7 +307,7 @@ func test_the_intro_plays_once_and_only_on_a_fresh_volley_stage() -> void:
 	run.play_volley_intro()
 	var again: Array[bool] = []
 	run.volley_intro_placed.connect(func(_stars: Array[Star]) -> void: again.append(true))
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	run.play_volley_intro()
 	assert_true(again.is_empty(), "not once stars are in the sky")
 	var tail := RunState.new(Balance.from_dict(_intro_dict()), Fixtures.rng(), Fixtures.SKY, StarMap.tail())
@@ -322,7 +322,7 @@ func test_the_intro_never_shifts_the_packs() -> void:
 		var run: RunState = _intro_run(42)
 		if intro:
 			run.play_volley_intro()
-		run.launch(Vector2i(90, 150))
+		Fixtures.launch(run, Vector2i(90, 150))
 		var sky: Array[String] = []
 		for star: Star in run.stars:
 			sky.append("%d:%s" % [star.size, star.position])

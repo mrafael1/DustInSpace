@@ -97,7 +97,7 @@ func test_cannot_load_pack_not_owned() -> void:
 # --- launching ----------------------------------------------------------------
 
 func test_launch_bursts_loaded_pack_into_the_sky() -> void:
-	assert_true(run.launch(MID))
+	assert_true(Fixtures.launch(run, MID))
 	assert_eq(run.owned_packs["blue"], 1)
 	assert_eq(run.stars.size(), 3, "blue pack has 3 stars")
 	assert_signal_emitted(run, "pack_launched")
@@ -109,32 +109,40 @@ func test_launch_bursts_loaded_pack_into_the_sky() -> void:
 
 func test_red_pack_bursts_four_stars() -> void:
 	run.load_pack("red")
-	run.launch(MID)
+	Fixtures.launch(run, MID)
 	assert_eq(run.stars.size(), 4)
 
 
 func test_unused_stars_stay_in_the_sky() -> void:
-	run.launch(MID)
+	Fixtures.launch(run, MID)
 	var first: Array[int] = Fixtures.ids(run.stars)
-	run.launch(MID)
+	Fixtures.launch(run, MID)
 	assert_eq(run.stars.size(), 6)
 	for id: int in first:
 		assert_not_null(run.find_star(id))
 
 
-func test_launcher_keeps_kind_then_falls_back() -> void:
+func test_a_launch_leaves_the_slingshot_empty() -> void:
 	run.launch(MID)
-	assert_eq(run.loaded_pack, "blue", "still one blue left")
+	assert_eq(run.loaded_pack, "", "a blue is still owned, but the player loads it")
+	assert_signal_emitted_with_parameters(run, "pack_loaded", [""])
+	assert_false(run.launch(MID), "nothing launches until a planet is loaded")
+	assert_eq(run.owned_packs["blue"], 1, "and nothing is used up")
+	assert_true(run.load_pack("blue"))
+	assert_true(run.launch(MID))
+
+
+func test_buying_after_a_launch_loads_the_bought_planet() -> void:
 	run.launch(MID)
-	assert_eq(run.loaded_pack, "red", "blue ran out, red is loaded")
-	run.launch(MID)
-	assert_eq(run.loaded_pack, "", "nothing left to load")
+	run.dust = 100
+	run.buy("red")
+	assert_eq(run.loaded_pack, "red")
 
 
 func test_cannot_launch_with_empty_launcher() -> void:
 	run.dust = 100  # keeps the run alive
 	_no_packs(run)
-	assert_false(run.launch(MID))
+	assert_false(Fixtures.launch(run, MID))
 	assert_signal_not_emitted(run, "pack_launched")
 
 
@@ -144,7 +152,7 @@ func test_launch_near_edges_keeps_stars_inside_sky() -> void:
 	for target: Vector2i in targets:
 		var state: RunState = Fixtures.run({"start_packs": {"blue": 0, "red": 6}})
 		for i: int in 6:
-			state.launch(target)
+			Fixtures.launch(state, target)
 		for star: Star in state.stars:
 			assert_true(inner.has_point(star.position), "%s from %s" % [star.position, target])
 
@@ -154,8 +162,8 @@ func test_launch_position_never_changes_pack_contents() -> void:
 	var b: RunState = Fixtures.run({"start_packs": {"blue": 5, "red": 0}}, 99)
 	var targets: Array[Vector2i] = [Vector2i(0, 0), Vector2i(170, 200), Vector2i(90, 90), Vector2i(10, 240), MID]
 	for i: int in 5:
-		a.launch(MID)
-		b.launch(targets[i])
+		Fixtures.launch(a, MID)
+		Fixtures.launch(b, targets[i])
 	assert_eq(a.sky_sizes(), b.sky_sizes())
 
 
@@ -238,7 +246,7 @@ func test_big_bang_clears_sky_and_pays_dust_per_star() -> void:
 	_add([S, M, M, B, B])
 	run.light = 30
 	run.force_next_big_bang = true
-	run.launch(MID)
+	Fixtures.launch(run, MID)
 	assert_eq(run.stars.size(), 0, "every star cleared")
 	assert_eq(run.dust, 8 + 2 * 5)
 	assert_eq(run.light, 30, "no light gained, earned light kept")
@@ -251,22 +259,22 @@ func test_big_bang_clears_sky_and_pays_dust_per_star() -> void:
 
 func test_big_bang_with_empty_sky_pays_base_dust() -> void:
 	run.force_next_big_bang = true
-	run.launch(MID)
+	Fixtures.launch(run, MID)
 	assert_eq(run.dust, 8)
 	assert_eq(run.stars.size(), 0)
 
 
 func test_big_bang_uses_up_the_pack() -> void:
 	run.force_next_big_bang = true
-	run.launch(MID)
+	Fixtures.launch(run, MID)
 	assert_eq(run.owned_packs["blue"], 1)
 
 
 func test_forced_big_bang_only_applies_once() -> void:
 	run.force_next_big_bang = true
-	run.launch(MID)
+	Fixtures.launch(run, MID)
 	assert_false(run.force_next_big_bang)
-	run.launch(MID)
+	Fixtures.launch(run, MID)
 	assert_eq(run.stars.size(), 3)
 
 
@@ -274,7 +282,7 @@ func test_big_bang_rolls_from_balance_chance() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 1.0
 	var state := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY)
-	state.launch(MID)
+	Fixtures.launch(state, MID)
 	assert_eq(state.stars.size(), 0)
 	assert_eq(state.dust, 8)
 
@@ -307,7 +315,7 @@ func test_no_actions_after_the_run_ends() -> void:
 	run.dust = 100
 	var leftover: Array[Star] = _add([S, S, S])
 	assert_false(run.buy("blue"))
-	assert_false(run.launch(MID))
+	assert_false(Fixtures.launch(run, MID))
 	assert_eq(run.link(Fixtures.ids(leftover)), Combos.INVALID)
 	assert_signal_emit_count(run, "run_won", 1)
 
@@ -352,7 +360,7 @@ func test_no_loss_while_a_combo_remains_in_the_sky() -> void:
 	state.add_star(M, MID)
 	state.add_star(B, MID)
 	state.force_next_big_bang = false
-	state.launch(MID)
+	Fixtures.launch(state, MID)
 	assert_eq(state.total_packs(), 0)
 	assert_lt(state.dust, 4)
 	assert_true(state.has_remaining_combo())
@@ -395,7 +403,7 @@ func test_last_pack_without_combo_or_dust_loses() -> void:
 	data["packs"]["blue"]["stars"] = 2  # two stars can never form a combo
 	var state := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY)
 	watch_signals(state)
-	state.launch(MID)
+	Fixtures.launch(state, MID)
 	assert_eq(state.outcome, RunState.Outcome.LOST)
 	assert_signal_emitted(state, "run_lost")
 
@@ -403,7 +411,7 @@ func test_last_pack_without_combo_or_dust_loses() -> void:
 func test_big_bang_on_last_pack_can_save_the_run() -> void:
 	var state: RunState = Fixtures.run({"start_packs": {"blue": 1, "red": 0}})
 	state.force_next_big_bang = true
-	state.launch(MID)
+	Fixtures.launch(state, MID)
 	assert_eq(state.dust, 8, "base dust buys another pack")
 	assert_eq(state.outcome, RunState.Outcome.PLAYING)
 
@@ -418,7 +426,7 @@ func test_full_seeded_run_reaches_an_outcome() -> void:
 			continue
 		if state.total_packs() == 0:
 			assert_true(state.buy("blue"), "run should have ended if it can't buy")
-		state.launch(MID)
+		Fixtures.launch(state, MID)
 	assert_true(state.is_over(), "run ended within %d steps" % guard)
 
 

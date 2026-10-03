@@ -272,5 +272,5 @@ func test_debug_key_b_forces_the_next_big_bang() -> void:
 ## Launches a forced Big Bang into an empty sky and plays its event.
 func _big_bang() -> void:
 	run.force_next_big_bang = true
-	assert_true(run.launch(Vector2i(90, 160)))
+	assert_true(Fixtures.launch(run, Vector2i(90, 160)))
 	sequencer.advance(0.0)

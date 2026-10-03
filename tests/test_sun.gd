@@ -119,7 +119,7 @@ func test_a_new_run_drops_light_still_in_flight() -> void:
 
 func test_a_big_bang_brings_no_light_and_no_pulse() -> void:
 	run.force_next_big_bang = true
-	assert_true(run.launch(Vector2i(90, 150)))
+	assert_true(Fixtures.launch(run, Vector2i(90, 150)))
 	sequencer.advance(0.0)
 	assert_eq(sun.progress(), 0.0)
 	assert_false(sun.is_pulsing())
