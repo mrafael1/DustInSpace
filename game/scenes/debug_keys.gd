@@ -4,6 +4,7 @@ extends Node
 ## L: launch the loaded pack at a random point in the sky (stand-in until the slingshot, #5).
 ## B: the next pack opens as a Big Bang.
 ## T: switch between the telescope and the slingshot (issue #52's comparison).
+## O (or a three-finger tap): the balance overlay (DebugOverlay, #11).
 
 ## T was pressed (Main swaps the launchers).
 signal launcher_switch_requested

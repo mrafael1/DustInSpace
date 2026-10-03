@@ -56,9 +56,12 @@ var _extra: int = 0
 @onready var _sparks: BurstSparks = $BurstSparks
 @onready var _payouts: PayoutPopups = $Payouts
 @onready var _idle_hint: IdleHint = $IdleHint
+@onready var _debug_overlay: DebugOverlay = $DebugLayer/DebugOverlay
 
-## The world's process modes while the table (#94) holds it still.
+## The world's process modes while something holds it still (the table, #94; the debug overlay, #11).
 var _paused: Dictionary[Node, Node.ProcessMode] = {}
+## Who holds the world still now: it starts again only once every one has let go.
+var _pause_owners: Dictionary[StringName, bool] = {}
 
 
 func _ready() -> void:
@@ -97,8 +100,12 @@ func _ready() -> void:
 	_hud.loaded_window_at = func() -> Vector2i:
 		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()
 	_telescope.message_shown.connect(_hud.show_message)
-	_hud.table_opened.connect(_pause_world.bind(true))
-	_hud.table_closed.connect(_pause_world.bind(false))
+	_hud.table_opened.connect(_pause_world.bind(true, &"table"))
+	_hud.table_closed.connect(_pause_world.bind(false, &"table"))
+	# The debug overlay (#11) holds the world still too, and APPLY restarts the run with its edits.
+	_debug_overlay.opened.connect(_pause_world.bind(true, &"overlay"))
+	_debug_overlay.closed.connect(_pause_world.bind(false, &"overlay"))
+	_debug_overlay.apply_requested.connect(func(balance: Balance) -> void: start_run(balance))
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
 	switch_launcher(use_telescope)
 	_wire_sound()
@@ -120,6 +127,7 @@ func start_run(balance: Balance) -> bool:
 	for child: Node in get_children():
 		if child.has_method("setup"):
 			child.setup(run, _sequencer)
+	_debug_overlay.watch(run)
 	# The guided first run, once every view is bound to show its first step.
 	if tutorial:
 		run.tutorial_step.connect(_on_tutorial_step)
@@ -276,9 +284,17 @@ func _report_balance_errors(errors: Array[String]) -> void:
 		_balance_errors.visible = true
 
 
-## The table holds the world still (`on`): everything but the HUD, the speaker and the debug
-## tools stops processing and taking input, and starts again as it was.
-func _pause_world(on: bool) -> void:
+## `owner` (the table, the debug overlay) holds the world still (`on`) or lets go: while anyone holds
+## it, everything but the HUD, the speaker and the debug tools stops processing and taking input; it
+## starts again as it was once the last one lets go (the overlay closing over the open table keeps
+## the world held).
+func _pause_world(on: bool, owner: StringName = &"table") -> void:
+	if on:
+		_pause_owners[owner] = true
+	else:
+		_pause_owners.erase(owner)
+		if not _pause_owners.is_empty():
+			return
 	if on:
 		for child: Node in get_children():
 			if child in [_hud, _sound_toggle, $DebugKeys, $DebugLayer] or _paused.has(child):
