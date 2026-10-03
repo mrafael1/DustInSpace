@@ -31,7 +31,8 @@ strike always takes the prey if it's still there (the bots don't link it out fir
 takes other stars of its size before it). Where the other stars are isn't modelled, so each (the new ones too) is lost with the chance
 a random point lies in the circle: its share of the sky (--hunt-share overrides it). The bots never
 link a threatened star out first nor aim away from the circle.
-The Claws (#74) and the final (the boss, the full Scorpio) run all three: the mark, the volley and the hunting circle. On a launch a standing
+The Claws (#74) run the mark and the hunting circle (no volley since #97); the final (the boss, the full Scorpio)
+runs all three: the mark, the volley and the hunting circle. On a launch a standing
 mark is struck if it's the circle's prey, or else at the circle's share of the sky, like any star.
     --lighting-pays what-if for what a lighting combo pays: all (the game), dust, light, half,
                     minus1 (dust - 1, no light) or none
@@ -58,7 +59,7 @@ MAPS = {
     "final": (LANDMARK_SIZES, STARTING_LIT, True),
 }
 # The maps where Orion looses his volley (#70), and the balance.json block that tunes it there.
-VOLLEY_MAPS = {"body": "volley", "claws": "volley", "final": "volley"}
+VOLLEY_MAPS = {"body": "volley", "final": "volley"}
 VOLLEY = ""
 # The maps where Orion hunts an area (#71).
 HUNT_MAPS = {"heart", "claws", "final"}

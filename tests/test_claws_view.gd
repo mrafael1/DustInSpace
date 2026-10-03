@@ -1,7 +1,7 @@
 extends GutTest
-## The Claws in the scenes (#74): Orion's figure with all three of his cues at once. The volley
-## countdown above his head from the start, then after the first burst the dotted ring of his
-## hunting area and the crosshair on the star he marks. No intro plays.
+## The Claws in the scenes (#74): Orion's figure with two of his cues at once. After the first burst
+## the dotted ring of his hunting area and the crosshair on the star he marks; no volley countdown
+## (#97). No intro plays.
 
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
@@ -35,10 +35,10 @@ func before_each() -> void:
 		node.set_process(false)
 
 
-func test_the_claws_open_quietly_with_the_countdown_shown() -> void:
+func test_the_claws_open_quietly_with_no_countdown() -> void:
 	assert_true(orion.is_figure_shown())
 	assert_true(run.stars.is_empty(), "no intro stars")
-	assert_ne(hud.volley_countdown(), "", "the countdown is up from the start")
+	assert_eq(hud.volley_countdown(), "", "no volley, no countdown (#97)")
 	assert_false(orion.has_area())
 	assert_null(orion.marked())
 
@@ -48,7 +48,7 @@ func test_the_first_burst_shows_the_ring_and_the_crosshair_together() -> void:
 	_settle()
 	assert_true(orion.has_area(), "the ring")
 	assert_not_null(orion.marked(), "the crosshair's star")
-	assert_ne(hud.volley_countdown(), "", "and the countdown")
+	assert_eq(hud.volley_countdown(), "", "still no countdown")
 	assert_true(orion.shows_reticle())
 	var ring: Array[Vector2i] = orion.area_pixels()
 	assert_false(ring.is_empty())
@@ -80,3 +80,25 @@ func _settle() -> void:
 		if not sequencer.is_busy():
 			break
 	orion.advance(OrionView.MARK_TIME)
+
+
+func test_links_and_restart_never_show_a_volley_countdown_or_effect() -> void:
+	run.launch(Vector2i(100, 190))
+	_settle()
+	for turn: int in 3:
+		var ids: Array[int] = []
+		for offset: Vector2i in [Vector2i.ZERO, Vector2i(10, 0), Vector2i(5, 8)]:
+			ids.append(run.add_star(Star.Size.SMALL, Vector2i(24, 100) + offset).id)
+		(main.get_node("Sky") as SkyView).setup(run, sequencer)
+		assert_ne(run.link(ids), Combos.INVALID)
+		sequencer.advance(0.0)
+		for frame: int in 600:
+			assert_false(orion.is_volleying())
+			assert_eq(hud.volley_countdown(), "")
+			sequencer.advance(1.0 / 60.0)
+			orion.advance(1.0 / 60.0)
+			if not sequencer.is_busy():
+				break
+	assert_true(main.restart())
+	assert_eq(hud.volley_countdown(), "")
+	assert_false(orion.is_volleying())

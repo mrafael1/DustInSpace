@@ -24,7 +24,7 @@ var starting_lit: Array[int] = []
 ## The painting shown once the map is complete (a res:// path).
 var painting: String = FIGURE
 ## Orion (#64) hunts this stage: he marks a loose star; the next link saves it or has it shot. With
-## a volley too, both threats run (the Claws bring every one).
+## a volley too, both threats run (the final brings every one).
 var orion: bool = false
 ## Orion looses a volley (#70) every few links on this stage: the balance.json block that tunes it
 ## (Balance.VOLLEY_BLOCKS), or "" for none.
@@ -122,8 +122,9 @@ static func heart() -> StarMap:
 
 ## The Claws, stage 5 (#74): seven stars. A neck climbs from the lower left (towards the Heart) to
 ## Dschubba (the head, big), which forks into two arms: one up to beta, one down to pi, each
-## bending back at its elbow, as in the whole Scorpio, with a pincer opening right in the painting. Orion keeps the top left and brings all three of his threats:
-## the single mark, the volley and the hunting area. No intros (each stage before introduced one).
+## bending back at its elbow, as in the whole Scorpio, with a pincer opening right in the painting. Orion keeps the top left and brings two of his threats:
+## the single mark and the hunting area; no volley (#97: with all three the stage was too punishing).
+## No intros (each stage before introduced one).
 ## The neck's first star starts lit: six to light.
 static func claws() -> StarMap:
 	var map := StarMap.new()
@@ -135,14 +136,13 @@ static func claws() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = PART_PAINTING % "claws"
 	map.orion = true
-	map.volley = "volley"
 	map.hunt = true
 	map.intros = false
 	return map
 
 
 ## The final, stage 6: the full Scorpio as a boss stage. Every star of the figure (11 to light,
-## the claw arc lit), with all three of Orion's threats at once, as on the Claws: the single mark,
+## the claw arc lit), with all three of Orion's threats at once: the single mark,
 ## the volley and the hunting area, and no intros.
 static func final() -> StarMap:
 	var map := scorpio()

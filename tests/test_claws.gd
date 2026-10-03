@@ -1,9 +1,9 @@
 extends GutTest
-## The Claws (#74), stage 5: Orion brings all three threats at once. The single mark (a link that
-## leaves it behind has it shot), the volley (every few links) and the hunting area (each launch
-## strikes the circle). After a link: the combo pays, any Sun clear, the single arrow, the volley,
-## the loss check, a new mark. After a launch: the burst, the strike, a new circle, a new mark if
-## none stands, the loss check. Links never strike; launches never shoot the mark nor volley.
+## The Claws (#74), stage 5: Orion brings two threats at once. The single mark (a link that leaves
+## it behind has it shot) and the hunting area (each launch strikes the circle); no volley (#97).
+## After a link: the combo pays, any Sun clear, the single arrow, the loss check, a new mark. After a
+## launch: the burst, the strike, a new circle, a new mark if none stands, the loss check. Links
+## never strike; launches never shoot the mark.
 
 const Fixtures := preload("res://tests/fixtures.gd")
 
@@ -23,7 +23,7 @@ func test_the_claws_map() -> void:
 	assert_eq(StarMap.by_id("claws").id, "claws")
 	assert_eq(map.title, "CLAWS")
 	assert_true(map.orion, "the single mark")
-	assert_eq(map.volley, "volley", "the volley, with the Body's tuning")
+	assert_eq(map.volley, "", "no volley (#97)")
 	assert_true(map.hunt, "the hunting area")
 	assert_false(map.intros, "each threat was introduced before")
 	assert_eq(map.count(), 7)
@@ -50,12 +50,11 @@ func test_the_claws_paint_their_piece_of_the_scorpio() -> void:
 	assert_eq(StarMap.claws().painting, StarMap.PART_PAINTING % "claws")
 
 
-func test_the_claws_bring_all_three_threats_and_open_without_an_intro() -> void:
+func test_the_claws_bring_the_mark_and_the_circle_and_open_without_an_intro() -> void:
 	var run: RunState = _claws_run()
 	assert_not_null(run.orion)
-	assert_not_null(run.volley)
+	assert_null(run.volley, "no volley, even with its block in the balance")
 	assert_not_null(run.hunt)
-	assert_eq(run.volley.links_left(), 2)
 	assert_eq(run.hunt.radius, 40)
 	_record(run)
 	run.play_volley_intro()
@@ -73,7 +72,6 @@ func test_the_first_launch_marks_a_circle_then_a_star() -> void:
 	assert_eq(events.slice(0, 4), [&"pack_launched", &"pack_burst", &"area_marked", &"star_marked"] as Array[StringName])
 	assert_true(run.hunt.has_area())
 	assert_true(run.orion.has_target())
-	assert_eq(run.volley.links_left(), 2, "a launch never counts for the volley")
 
 
 func test_a_launch_strikes_the_circle_before_any_new_mark_and_never_shoots() -> void:
@@ -86,7 +84,6 @@ func test_a_launch_strikes_the_circle_before_any_new_mark_and_never_shoots() -> 
 	run.launch(Vector2i(60, 200))
 	assert_eq(events.slice(0, 4), [&"pack_launched", &"pack_burst", &"area_struck", &"area_marked"] as Array[StringName])
 	assert_false(events.has(&"star_shot"), "a launch never fires the single arrow")
-	assert_false(events.has(&"volley_fired"), "nor the volley")
 	assert_false(events.has(&"star_marked"), "the standing mark stays")
 	assert_eq(run.marked_star(), target)
 
@@ -134,58 +131,40 @@ func test_links_never_strike_or_move_the_circle() -> void:
 	assert_true(run.hunt.has_area())
 
 
-func test_a_link_that_leaves_the_mark_and_looses_the_volley() -> void:
-	var run: RunState = _claws_run()
+func test_a_link_that_leaves_the_mark_has_it_shot_and_no_volley_ever_follows() -> void:
+	var run: RunState = _claws_run(10)
 	run.launch(MID_SKY)
-	run.volley.counted = 1
 	var target: Star = run.marked_star()
 	var centre: Vector2i = run.hunt.centre
 	var trio: Array[int] = _corner_trio(run)
 	assert_true(run.link_shoots(trio))
-	assert_true(run.link_fires_volley(trio))
+	assert_false(run.link_fires_volley(trio))
 	var shot: Array[Star] = []
 	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
-	var victims: Array[Star] = []
-	run.volley_fired.connect(func(stars: Array[Star]) -> void: victims.append_array(stars))
-	var loose: int = run.stars.size() - 3
 	var dust: int = run.dust
 	_record(run)
 	var combo: String = run.link(trio)
-	assert_eq(events, [&"combo_collected", &"star_shot", &"volley_fired", &"volley_counted"] as Array[StringName], "nothing left to mark")
+	assert_eq(events.slice(0, 2), [&"combo_collected", &"star_shot"] as Array[StringName])
 	assert_eq(shot, [target] as Array[Star])
-	assert_false(victims.has(target), "never hit twice")
-	assert_eq(victims.size(), loose - 1, "the volley takes the rest of the sky")
-	assert_true(run.stars.is_empty())
 	assert_eq(run.dust, dust + run.balance.combos[combo].dust, "only the combo pays")
 	assert_eq(run.hunt.centre, centre, "the circle waits for the next launch")
-	assert_eq(run.volley.links_left(), 2, "the countdown starts again")
+	for i: int in 6:
+		run.launch(MID_SKY)
+		run.link(_corner_trio(run))
+	for kind: StringName in [&"volley_fired", &"volley_counted", &"volley_intro_placed"]:
+		assert_false(events.has(kind), "no %s on the Claws" % kind)
 
 
-func test_rescuing_the_mark_still_counts_for_the_volley() -> void:
+func test_rescuing_the_mark_saves_it() -> void:
 	var run: RunState = _claws_run()
 	run.launch(MID_SKY)
 	var target: Star = run.marked_star()
 	var link: Array[int] = [target.id, run.add_star(target.size, target.position + Vector2i(6, 0)).id, run.add_star(target.size, target.position + Vector2i(0, 6)).id]
 	assert_false(run.link_shoots(link), "a link with the mark saves it")
-	assert_false(run.link_fires_volley(link), "the first link only counts")
 	var shot: Array[Star] = []
 	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
 	assert_ne(run.link(link), Combos.INVALID)
 	assert_true(shot.is_empty())
-	assert_eq(run.volley.links_left(), 1)
-
-
-func test_the_countdown_resets_after_each_volley_whatever_the_launches() -> void:
-	var run: RunState = _claws_run(10)
-	var fired: Array[int] = []
-	var link_index: Array[int] = [0]
-	run.volley_fired.connect(func(_stars: Array[Star]) -> void: fired.append(link_index[0]))
-	for i: int in 6:
-		link_index[0] = i + 1
-		run.launch(MID_SKY)
-		run.link(_corner_trio(run))
-	assert_eq(fired, [2, 4, 6] as Array[int], "launches in between don't move it")
-	assert_eq(run.volley.links_left(), 2)
 
 
 func test_a_big_bang_launch_clears_the_mark_and_the_strike_finds_nothing() -> void:
@@ -236,7 +215,6 @@ func test_landmarks_are_never_hit_and_every_star_leaves_once_over_many_seeds() -
 func test_completing_the_claws_skips_every_threat() -> void:
 	var run: RunState = _claws_run()
 	run.launch(MID_SKY)
-	run.volley.counted = 1
 	for i: int in 6:
 		run.scorpio.light(i)
 	var claw := Vector2i(156, 200)
@@ -244,12 +222,11 @@ func test_completing_the_claws_skips_every_threat() -> void:
 	var b: Star = run.add_star(Star.Size.MEDIUM, claw + Vector2i(4, 18))
 	var link: Array[int] = [Scorpio.landmark_id(6), a.id, b.id]
 	assert_false(run.link_shoots(link), "the completion clears the sky first")
-	assert_false(run.link_fires_volley(link), "the winning link skips the volley")
 	_record(run)
 	assert_ne(run.link(link), Combos.INVALID)
 	assert_true(run.scorpio.is_complete())
 	assert_eq(run.outcome, RunState.Outcome.WON)
-	for skipped: StringName in [&"star_shot", &"volley_fired", &"star_marked", &"area_struck"]:
+	for skipped: StringName in [&"star_shot", &"star_marked", &"area_struck"]:
 		assert_false(events.has(skipped), "%s on the winning link" % skipped)
 
 
@@ -272,23 +249,7 @@ func test_a_launchs_strike_can_lose_the_run() -> void:
 	assert_eq(run.outcome, RunState.Outcome.LOST)
 
 
-func test_a_volley_can_lose_the_run_and_no_mark_follows() -> void:
-	var data: Dictionary = _balance_dict()
-	data["start_packs"] = {"blue": 0, "red": 0}
-	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.claws())
-	run.orion.launches = run.orion.first_mark_launch
-	run.volley.counted = 1
-	var trio: Array[int] = _corner_trio(run)
-	for offset: Vector2i in [Vector2i(0, 0), Vector2i(10, 0), Vector2i(5, 8)]:
-		run.add_star(Star.Size.BIG, Vector2i(90, 230) + offset)
-	_record(run)
-	assert_ne(run.link(trio), Combos.INVALID)
-	assert_true(events.has(&"volley_fired"))
-	assert_eq(run.outcome, RunState.Outcome.LOST, "the volley took the last combo")
-	assert_false(events.has(&"star_marked"), "no mark once the run is over")
-
-
-func test_a_restart_has_no_mark_no_circle_and_a_full_countdown() -> void:
+func test_a_restart_has_no_mark_and_no_circle() -> void:
 	var run: RunState = _claws_run()
 	run.launch(MID_SKY)
 	run.link(_corner_trio(run))
@@ -296,7 +257,6 @@ func test_a_restart_has_no_mark_no_circle_and_a_full_countdown() -> void:
 	var fresh: RunState = _claws_run()
 	assert_false(fresh.hunt.has_area())
 	assert_false(fresh.orion.has_target())
-	assert_eq(fresh.volley.links_left(), fresh.volley.interval)
 
 
 func test_the_threats_draw_from_their_own_streams() -> void:
@@ -339,7 +299,7 @@ func test_the_claws_unlock_after_the_heart() -> void:
 	assert_true(saved.is_completed(4), "the win is saved")
 
 
-## The shipped tuning for each threat, without Big Bangs.
+## The shipped tuning for each threat (the volley's too: the Claws must ignore it), without Big Bangs.
 func _balance_dict() -> Dictionary:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
@@ -406,3 +366,28 @@ func _record(run: RunState) -> void:
 	for info: Dictionary in run.get_script().get_script_signal_list():
 		var signal_name: StringName = info["name"]
 		run.connect(signal_name, func(...args: Array) -> void: events.append(signal_name))
+
+
+func test_body_and_final_keep_their_volleys() -> void:
+	for map: StarMap in [StarMap.body(), StarMap.final()]:
+		assert_eq(map.volley, "volley", map.id)
+		var run := RunState.new(Balance.from_dict(_balance_dict()), Fixtures.rng(), Fixtures.SKY, map)
+		assert_not_null(run.volley, map.id)
+		assert_eq(run.volley.interval, 2, map.id)
+
+
+func test_a_remaining_combo_survives_the_link_and_prevents_loss() -> void:
+	var data: Dictionary = _balance_dict()
+	data["start_packs"] = {"blue": 0, "red": 0}
+	data["packs"]["blue"]["cost"] = 99
+	data["packs"]["red"]["cost"] = 99
+	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.claws())
+	var trio: Array[int] = _corner_trio(run)
+	var saved: Array[int] = []
+	for offset: Vector2i in [Vector2i(0, 0), Vector2i(10, 0), Vector2i(5, 8)]:
+		saved.append(run.add_star(Star.Size.BIG, Vector2i(90, 230) + offset).id)
+	_record(run)
+	assert_ne(run.link(trio), Combos.INVALID)
+	assert_eq(run.outcome, RunState.Outcome.PLAYING, "the remaining combo prevents loss")
+	assert_ne(run.combo_for(saved), Combos.INVALID)
+	assert_false(events.has(&"volley_fired"))
