@@ -103,6 +103,25 @@ func test_o_opens_it_and_the_world_holds_still() -> void:
 	assert_ne(main.get_node("Sky").process_mode, Node.PROCESS_MODE_DISABLED)
 
 
+func test_closing_it_over_the_open_table_keeps_the_world_held() -> void:
+	_start_main()
+	var hud: Hud = main.get_node("HUD")
+	var sky: Node = main.get_node("Sky")
+	hud.open_table()
+	assert_eq(sky.process_mode, Node.PROCESS_MODE_DISABLED, "the table holds the world")
+	overlay.open()
+	overlay.press("CLOSE")
+	assert_eq(sky.process_mode, Node.PROCESS_MODE_DISABLED, "the table still does")
+	hud.close_table()
+	assert_ne(sky.process_mode, Node.PROCESS_MODE_DISABLED, "the last to let go starts it again")
+	overlay.open()
+	hud.open_table()
+	hud.close_table()
+	assert_eq(sky.process_mode, Node.PROCESS_MODE_DISABLED, "and the other way round")
+	overlay.press("CLOSE")
+	assert_ne(sky.process_mode, Node.PROCESS_MODE_DISABLED)
+
+
 func test_a_three_finger_tap_toggles_it() -> void:
 	_start_main()
 	var touch := InputEventScreenTouch.new()
