@@ -80,6 +80,33 @@ func test_a_short_drag_is_rejected_and_uses_nothing() -> void:
 	assert_true((sky.get_node("LinkLayer") as LinkLayer).is_flashing())
 
 
+func test_a_full_link_dragged_off_into_empty_sky_is_let_go() -> void:
+	var ids: Array[int] = _seed_sky([S, M, B])
+	watch_signals(run)
+	watch_signals(sky)
+	var layer: LinkLayer = sky.get_node("LinkLayer")
+	var points: Array[Vector2i] = []
+	for id: int in ids:
+		points.append(run.find_star(id).position)
+	_touch(points[0], true)
+	for i: int in range(1, points.size() + 1):
+		var to: Vector2i = points[i] if i < points.size() else EMPTY
+		for p: Vector2i in LinkLayer.line_pixels(points[i - 1], to):
+			var drag := InputEventScreenDrag.new()
+			drag.position = Vector2(p)
+			_send(drag)
+		if i == points.size() - 1:
+			assert_false(layer.is_let_go(), "on the third star: the link would go through")
+	assert_true(layer.is_let_go(), "off it: the line shows it let go")
+	_touch(EMPTY, false)
+	assert_signal_emitted(sky, "link_cancelled")
+	assert_signal_not_emitted(run, "combo_collected")
+	assert_signal_not_emitted(run, "link_rejected", "no shake: the player let it go")
+	assert_eq(run.stars.size(), 3, "nothing is used up")
+	assert_eq(sky.selected_ids(), [] as Array[int])
+	assert_false(layer.is_let_go())
+
+
 func test_a_collected_link_flares_its_line_and_dissolves_its_stars() -> void:
 	var ids: Array[int] = _seed_sky([S, M, B])
 	for id: int in ids:

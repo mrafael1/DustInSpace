@@ -83,9 +83,73 @@ func test_a_drag_released_short_still_requests_so_the_run_can_reject_it() -> voi
 	gesture.press(STARS[1])
 	_drag_to(STARS[2])
 	_drag_to(EMPTY)
+	assert_false(gesture.is_letting_go(), "with fewer than 3 the finger is still looking for the next star")
 	gesture.release(EMPTY)
 	assert_eq(requests, [[1, 2]] as Array[Array])
 	assert_true(gesture.selected.is_empty())
+
+
+func test_a_drag_released_away_from_its_last_star_lets_the_link_go() -> void:
+	var cancels: Array[bool] = []
+	gesture.link_cancelled.connect(func() -> void: cancels.append(true))
+	gesture.press(STARS[1])
+	_drag_to(STARS[2])
+	_drag_to(STARS[3])
+	assert_false(gesture.is_letting_go(), "still on the last star")
+	_drag_to(EMPTY)
+	assert_true(gesture.is_letting_go(), "a release now would let it go")
+	assert_true(gesture.release(EMPTY), "the release is used")
+	assert_true(requests.is_empty(), "nothing is linked")
+	assert_true(gesture.selected.is_empty(), "and nothing stays selected")
+	assert_eq(cancels.size(), 1)
+
+
+func test_a_release_just_past_the_last_star_still_links() -> void:
+	gesture.press(STARS[1])
+	_drag_to(STARS[2])
+	_drag_to(STARS[3])
+	# The stub's stars are 5 px across: the finger was last on star 3 at its right edge.
+	var past: Vector2i = STARS[3] + Vector2i(5 + LinkGesture.CANCEL_DISTANCE, 0)
+	_drag_to(past)
+	assert_false(gesture.is_letting_go())
+	gesture.release(past)
+	assert_eq(requests, [[1, 2, 3]] as Array[Array])
+
+
+func test_the_third_tap_slid_off_before_lifting_lets_the_link_go() -> void:
+	_tap(STARS[1])
+	_tap(STARS[2])
+	gesture.press(STARS[3])
+	assert_eq(gesture.selected.size(), 3, "the third star is in while the finger is down")
+	_drag_to(EMPTY)
+	gesture.release(EMPTY)
+	assert_true(requests.is_empty(), "lifting off the star links nothing")
+	assert_true(gesture.selected.is_empty())
+
+
+func test_dragging_back_onto_the_star_before_drops_the_last_one() -> void:
+	gesture.press(STARS[1])
+	_drag_to(STARS[2])
+	_drag_to(STARS[3])
+	_drag_to(STARS[2])
+	assert_eq(gesture.selected, [1, 2] as Array[int], "the third star is dropped")
+	_drag_to(STARS[1])
+	assert_eq(gesture.selected, [1] as Array[int], "and the second")
+	_drag_to(STARS[4])
+	_drag_to(STARS[3])
+	gesture.release(STARS[3])
+	assert_eq(requests, [[1, 4, 3]] as Array[Array], "a new path from there links")
+
+
+func test_retracing_never_drops_the_first_star() -> void:
+	gesture.press(STARS[1])
+	_drag_to(STARS[2])
+	_drag_to(STARS[1])
+	_drag_to(STARS[1] + Vector2i(1, 0))
+	assert_eq(gesture.selected, [1] as Array[int])
+	gesture.release(STARS[1])
+	assert_true(requests.is_empty(), "one star is not a link")
+	assert_eq(gesture.selected, [1] as Array[int], "released on it: it stays picked")
 
 
 func test_a_wobbly_press_on_a_selected_star_keeps_the_selection() -> void:

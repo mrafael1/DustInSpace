@@ -31,6 +31,7 @@ There are three sizes: **small, medium and big**. Size and silhouette are the on
 | 1 small + 1 medium + 1 big, in **any order** | Sequence: a lot of light, the main way to restore the Sun |
 
 - An invalid link cancels and uses nothing up.
+- **Taking a link back (web playtest: a wrong link was gone the moment the finger lifted).** Dragging back onto the star before the last drops the last one, so a drag can be retraced. Once 3 stars are picked, a drag that leaves the last star (released off it and more than 16 px past where the finger last was on it) lets the link go: nothing is linked or used, the selection clears, and the cancel sound plays (the slingshot's). While the finger is out there, the whole line shows let go: sparse M5 dots like an out-of-reach step, not the warm line, so the player sees it before lifting. Sliding off the third star of a tapped link works the same way. With fewer than 3 picked, the finger is still looking for the next star, so a release anywhere is a short link: rejected with its shake, as before.
 - Distance and crossings are ignored for now; spatial rules may come later.
 - When a link is collected, its dust floats up from it as "+n" until the dust lands on the counter (prototype, #59). There is no preview while tracing, and the Sun shows its light by its fill, not a number.
 
