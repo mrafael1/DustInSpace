@@ -12,6 +12,9 @@ signal stage_won
 signal map_requested
 ## The guided first run reached free play (App saves it, so it plays only once).
 signal tutorial_finished
+## The stage's Orion encounter (#93) is done: `threat` (an Encounter.Threat) has been met (App saves
+## it, so it plays only the first time).
+signal encounter_finished(threat: int)
 
 ## Seed for the next run; 0 picks a random one. The seed is printed in debug builds for replays.
 @export var seed_override: int = 0
@@ -28,6 +31,9 @@ signal tutorial_finished
 ## The guided first run (App sets it for the Stinger's first play): each run starts the tutorial
 ## until it's finished once.
 @export var tutorial: bool = false
+## The stage's Orion threat hasn't been met yet (App sets it): each run plays its guided encounter
+## (#93) until it's done once.
+@export var encounter: bool = false
 
 var run: RunState
 ## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
@@ -50,6 +56,7 @@ var _extra: int = 0
 @onready var _sparks: BurstSparks = $BurstSparks
 @onready var _payouts: PayoutPopups = $Payouts
 @onready var _idle_hint: IdleHint = $IdleHint
+@onready var _playtest_log: PlaytestLog = $PlaytestLog
 
 ## The world's process modes while the table (#94) holds it still.
 var _paused: Dictionary[Node, Node.ProcessMode] = {}
@@ -77,6 +84,8 @@ func _ready() -> void:
 	_end_screen.watch_payouts(_collect)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
 	_sky.link_traced.connect(_hud.follow_link)
+	# A refused pick: the line says why (#91), instead of the shake and buzz of a wrong link.
+	_sky.link_refused.connect(_hud.explain_refusal)
 	# The idle hint (#90) shows a link in the sky. It holds still while payouts fly or the Sun
 	# ignites, and while the tutorial's own hand is out (one hand at a time).
 	_idle_hint.sky = _sky
@@ -94,6 +103,7 @@ func _ready() -> void:
 	_hud.table_opened.connect(_pause_world.bind(true))
 	_hud.table_closed.connect(_pause_world.bind(false))
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
+	_wire_playtest_log()
 	switch_launcher(use_telescope)
 	_wire_sound()
 	get_window().size_changed.connect(fit_screen)
@@ -111,6 +121,7 @@ func start_run(balance: Balance) -> bool:
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), StarMap.by_id(star_map))
 	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)
+	_playtest_log.guided = tutorial
 	for child: Node in get_children():
 		if child.has_method("setup"):
 			child.setup(run, _sequencer)
@@ -124,6 +135,10 @@ func start_run(balance: Balance) -> bool:
 	run.play_volley_intro()
 	# So does a hunting stage (#71): the whole cycle once, with a demo launch.
 	run.play_hunt_intro()
+	# The threat's guided encounter, once its intro has shown it (#93).
+	if encounter:
+		run.encounter_step.connect(_on_encounter_step)
+		run.start_encounter()
 	run_started.emit(run)
 	return true
 
@@ -203,7 +218,6 @@ func _wire_sound() -> void:
 	_telescope.launch_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_telescope.planet_seated.connect(func(_kind: String) -> void: _sfx.play(&"pack_load", 1.5))
 	_sky.star_selected.connect(_sfx.on_star_selected)
-	_sky.link_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.star_exploded.connect(_on_star_exploded)
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
@@ -215,7 +229,7 @@ func _wire_sound() -> void:
 	orion.entered.connect(_sfx.play.bind(&"tremble", 0.6))
 	orion.roared.connect(_sfx.play.bind(&"big_bang_collapse", 1.5))
 	orion.hurt_taken.connect(_sfx.play.bind(&"link_reject", 0.6))
-	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
+	_hud.tap_refused.connect(func(_kind: String, _part: StringName) -> void: _sfx.play(&"tap_refused"))
 	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
 	_sound_toggle.toggled.connect(_sfx.cycle_level)
 	_sfx.level_changed.connect(_hud.show_sound_level)
@@ -226,6 +240,26 @@ func _wire_sound() -> void:
 	_sun.ignited.connect(_sfx.play.bind(&"sun_ignite", 1.0))
 	_end_screen.shown.connect(_sfx.on_end_shown)
 	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
+
+
+## The playtest log (#89, debug builds) hears the touches first (through the idle hint) and every
+## refused action the views feed back.
+func _wire_playtest_log() -> void:
+	_idle_hint.touch_started.connect(_playtest_log.touched)
+	_idle_hint.touch_ended.connect(_playtest_log.released)
+	_idle_hint.dragged.connect(_playtest_log.dragged)
+	_hud.tap_refused.connect(_playtest_log.pack_tap_refused)
+	# Whatever these signals carry, only the kind of refusal is logged.
+	_telescope.empty_tapped.connect(func(..._args: Array) -> void: _playtest_log.refused("launch"))
+	_telescope.launch_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("launch"))
+	_sky.link_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
+	_sky.step_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
+
+
+func _on_encounter_step(threat: int, step: int) -> void:
+	if step == Encounter.Step.DONE:
+		encounter = false
+		encounter_finished.emit(threat)
 
 
 func _on_tutorial_step(step: int) -> void:

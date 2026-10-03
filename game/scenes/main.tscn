@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://game/scenes/event_sequencer.gd" id="2_sequencer"]
@@ -18,6 +18,7 @@
 [ext_resource type="PackedScene" path="res://game/scenes/telescope.tscn" id="21_telescope"]
 [ext_resource type="Script" path="res://game/ui/payout_popups.gd" id="22_payouts"]
 [ext_resource type="Script" path="res://game/scenes/idle_hint.gd" id="23_idle_hint"]
+[ext_resource type="Script" path="res://game/scenes/playtest_log.gd" id="24_playtest_log"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -57,6 +58,9 @@ script = ExtResource("22_payouts")
 
 [node name="Sfx" type="Node" parent="."]
 script = ExtResource("13_sfx")
+
+[node name="PlaytestLog" type="Node" parent="."]
+script = ExtResource("24_playtest_log")
 
 [node name="DebugKeys" type="Node" parent="."]
 script = ExtResource("4_debug_keys")
