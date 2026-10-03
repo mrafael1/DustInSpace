@@ -175,11 +175,17 @@ func test_the_painting_is_palette_locked_and_crisp() -> void:
 		assert_true(image.get_pixelv(landmark).a8 == 255, "every star sits on the body")
 
 
-func test_the_figure_rises_from_its_tail() -> void:
-	var span: Vector2i = ConstellationView.figure_span()
-	assert_eq(ConstellationView.figure_front(0.0), span.y + 1, "nothing yet")
-	assert_eq(ConstellationView.figure_front(1.0), span.x, "all of it")
-	assert_lt(ConstellationView.figure_front(0.5), ConstellationView.figure_front(0.25), "rising")
+func test_the_scorpio_forms_from_its_stars() -> void:
+	var map: StarMap = StarMap.final()
+	var forming: Apparition = ConstellationView.apparition(map)
+	var start: Dictionary[Vector2i, Color] = forming.edge(0)
+	assert_false(start.is_empty(), "it starts at the stars")
+	for p: Vector2i in start:
+		assert_true(map.landmarks.has(p), "and only at the stars")
+	var radius: int = forming.radius_at(0.5)
+	for d: int in range(radius + 1, forming.max_distance() + 1):
+		for p: Vector2i in forming.ring(d):
+			assert_gt(Apparition.nearest(p, map.landmarks), radius, "nothing further than the radius shows")
 
 
 func test_the_chart_plays_the_finals_unlock() -> void:

@@ -18,8 +18,9 @@ extends Node2D
 ## Completion plays the constellation like an instrument once every payout has landed (the Sky
 ## waits): string by string from the bottom of the sky to the top, each flashing C0 and vibrating
 ## as its note sounds (string_sung). Then the map's painting (StarMap.painting: the whole Scorpio,
-## or a part stage's own piece of it) rises behind the stars from the bottom up, a bright edge
-## leading (C0, then C1), flashes C0 once and stays.
+## or a part stage's own piece of it) forms from the constellation's stars (#100, Apparition): it
+## spreads outward from every star at once through the artwork, a bright edge leading (C0, then
+## C1), until the figure is whole; then it flashes C0 once and stays.
 
 ## The sunbeam reached its landmark, at `at`. Feedback only.
 signal sunbeam_landed(at: Vector2i)
@@ -59,15 +60,14 @@ const BEAM_TRAIL: int = 14
 const BEAM_RAMP: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
 const SUN_RIM: int = 20
 ## Completion: every string in TUNE_TIME, bottom to top (string_step apart, whatever the map's
-## string count); then the painting rises.
+## string count); then the painting forms.
 const TUNE_TIME: float = 1.7
-## The painting: it rises over FIGURE_RISE, then flashes C0 for FIGURE_FLASH, then holds for
-## FIGURE_CODA. Drawn in home layout, like the map.
+## The painting: it forms from the stars over FIGURE_RISE, then flashes C0 for FIGURE_FLASH, then
+## holds for FIGURE_CODA. Drawn in home layout, like the map.
 const FIGURE_RISE: float = 1.8
 const FIGURE_FLASH: float = 0.1
 ## The finished figure holds the screen this long before the end screen.
 const FIGURE_CODA: float = 1.6
-const FIGURE_EDGE: Array[Color] = [Palette.C0, Palette.C1]
 ## A sung string vibrates: a standing wave of VIBRATE_AMPLITUDE px, VIBRATE_CYCLES swings, dying
 ## out over VIBRATE_TIME. Whole pixels, across the string.
 const VIBRATE_TIME: float = 0.5
@@ -157,7 +157,7 @@ func _map() -> StarMap:
 	return _run.scorpio.map if _run != null and _run.scorpio != null else StarMap.scorpio()
 
 
-## How long the completion plays: the tune, the painting rising and flashing, the hold.
+## How long the completion plays: the tune, the painting forming and flashing, the hold.
 static func completion_time() -> float:
 	return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + FIGURE_CODA
 
@@ -197,10 +197,9 @@ static func figure_span(path: String = StarMap.FIGURE) -> Vector2i:
 	return _figure_spans[path]
 
 
-## The row a rising painting has reached `k` (0-1) of the way up: rows from it down show.
-static func figure_front(k: float, path: String = StarMap.FIGURE) -> int:
-	var span: Vector2i = figure_span(path)
-	return span.y + 1 - roundi(clampf(k, 0.0, 1.0) * (span.y + 1 - span.x))
+## How `map`'s painting forms: from the map's own stars, every one of them.
+static func apparition(map: StarMap) -> Apparition:
+	return Apparition.of(map.painting, painting(map.painting), map.landmarks)
 
 
 ## Seconds between the completion tune's strings: the whole tune takes TUNE_TIME.
@@ -358,7 +357,7 @@ func is_revealed() -> bool:
 	return _revealed
 
 
-## Where the painting stands now: -1 hidden, 0-1 rising, 2 flashing, 3 shown.
+## Where the painting stands now: -1 hidden, 0-1 forming, 2 flashing, 3 shown.
 func figure_stage() -> float:
 	if _revealed:
 		return 3.0
@@ -609,8 +608,9 @@ func _draw_vibrating(segment: int, pixels: Array[Vector2i], age: float) -> void:
 		_dot(pixels[i] + across * vibration(i, pixels.size(), age), Palette.C0)
 
 
-## The map's painting, as far as it has risen: the rows from its front down, the front row C0 and
-## the next C1; flashing, every pixel C0; then the painting itself.
+## The map's painting, as far as it has formed from the stars (Apparition): what's inside the edge
+## in its own colours, the edge C0 at the front and C1 behind; flashing, every pixel C0; then the
+## painting itself.
 func _draw_figure() -> void:
 	var stage: float = figure_stage()
 	if stage < 0.0:
@@ -626,14 +626,12 @@ func _draw_figure() -> void:
 	if stage >= 3.0:
 		draw_texture(art, Vector2.ZERO)
 		return
-	var size: Vector2 = art.get_size()
-	var front: int = figure_front(stage, path)
-	var below: int = front + FIGURE_EDGE.size()
-	if below < size.y:
-		draw_texture_rect_region(art, Rect2(0, below, size.x, size.y - below), Rect2(0, below, size.x, size.y - below))
-	for k: int in FIGURE_EDGE.size():
-		for x: int in rows.get(front + k, []):
-			_dot(Vector2i(x, front + k), FIGURE_EDGE[k])
+	var forming: Apparition = apparition(_map())
+	var radius: int = forming.radius_at(stage)
+	draw_texture(forming.formed(radius), Vector2.ZERO)
+	var edge: Dictionary[Vector2i, Color] = forming.edge(radius)
+	for p: Vector2i in edge:
+		_dot(p, edge[p])
 
 
 func _dot(p: Vector2i, colour: Color) -> void:
