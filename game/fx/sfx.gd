@@ -224,7 +224,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"pack_bought":
 			play(&"pack_buy")
 		&"pack_loaded":
-			play(&"pack_load")
+			if event.args[0] != "":
+				play(&"pack_load")
 		&"pack_launched":
 			play(&"launch")
 		&"pack_split":
