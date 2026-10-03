@@ -21,10 +21,12 @@ func test_a_star_per_link_joined_by_a_string_and_no_number() -> void:
 	assert_eq(counter.lit_stars(), 0)
 	var pixels: Dictionary[Vector2i, Color] = counter.pip_pixels()
 	for i: int in 2:
-		assert_eq(pixels[counter.star_at(i)], Palette.N6, "a dim heart")
+		assert_eq(pixels[counter.star_at(i)], Palette.S2, "a hollow ember heart (#93: ember, not dim blue)")
 		for axis: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-			assert_eq(pixels[counter.star_at(i) + axis], Palette.N5, "dim arms")
-	assert_true(pixels.values().has(Palette.N4), "a faint string between them")
+			assert_eq(pixels[counter.star_at(i) + axis], Palette.S3, "ember arms")
+	assert_true(pixels.values().has(Palette.S2), "an ember string between them")
+	for c: Color in pixels.values():
+		assert_false(c in [Palette.N4, Palette.N5, Palette.N6, Palette.N8], "no dim blue left")
 	assert_eq(counter.star_at(0).y, counter.star_at(1).y)
 	assert_lte(absi(counter.star_at(0).x + counter.star_at(1).x), 1, "centred")
 	assert_eq(counter.star_at(0).y - VolleyCounter.ARM, 0, "its top on the origin")
@@ -38,7 +40,7 @@ func test_a_count_lights_a_pip_hops_and_flashes() -> void:
 	var pixels: Dictionary[Vector2i, Color] = counter.pip_pixels()
 	assert_eq(pixels[counter.star_at(0)], Palette.C0, "a white-hot heart")
 	assert_eq(pixels[counter.star_at(0) + Vector2i.UP * VolleyCounter.ARM], Palette.C1, "longer arms")
-	assert_eq(pixels[counter.star_at(1)], Palette.N6, "the next still dim")
+	assert_eq(pixels[counter.star_at(1)], Palette.S2, "the next still hollow")
 	var heights: Array[int] = []
 	for i: int in 20:
 		counter.advance(STEP)
@@ -57,7 +59,7 @@ func test_the_last_link_glows_between_two_embers() -> void:
 		for c: Color in counter.pip_pixels().values():
 			seen[c] = true
 	assert_true(seen.has(Palette.S4) and seen.has(Palette.C3), "the lit star glows")
-	assert_true(seen.has(Palette.N5), "the other stays dim")
+	assert_true(seen.has(Palette.S3), "the other stays an empty ember pip")
 
 
 func test_the_volley_shakes_and_flashes_the_row_then_it_drops_back_empty() -> void:
@@ -99,7 +101,7 @@ func test_a_volley_with_the_count_unchanged_still_drops_back_unlit() -> void:
 
 
 func test_only_palette_colours_on_whole_pixels() -> void:
-	var allowed: Array[Color] = [Palette.N4, Palette.N5, Palette.N6, Palette.N8, Palette.S3, Palette.S4, Palette.C3, Palette.C1, Palette.C0]
+	var allowed: Array[Color] = [Palette.S2, Palette.S3, Palette.S4, Palette.C3, Palette.C1, Palette.C0]
 	counter.reset(3, 3)
 	counter.count(2)
 	counter.count(1)
