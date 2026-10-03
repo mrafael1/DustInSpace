@@ -284,7 +284,7 @@ func _on_touch(touch: InputEventScreenTouch) -> bool:
 func _on_selection_changed(ids: Array[int]) -> void:
 	var refusal: RunState.PickRefusal = _run.pick_refusal(ids) if _run != null else RunState.PickRefusal.NONE
 	if refusal != RunState.PickRefusal.NONE:
-		_refuse_link(refusal)
+		_refuse_link(ids, refusal)
 		return
 	for id: int in _views:
 		_views[id].selected = ids.has(id)
@@ -332,9 +332,10 @@ func link_points(ids: Array[int]) -> Array[Vector2i]:
 
 
 ## A pick the core refuses (RunState.pick_refusal: a second landmark in one link) drops the link on
-## the spot; the HUD's line says why instead of the red shake and buzz of a wrong link (#91), so the
-## rule shows on the first try.
-func _refuse_link(reason: RunState.PickRefusal) -> void:
+## the spot with the red shake of a wrong link along its line, and the HUD's line says why (#91), so
+## the rule shows on the first try.
+func _refuse_link(ids: Array[int], reason: RunState.PickRefusal) -> void:
+	_link_layer.flash_rejected(_positions_of_ids(ids))
 	_gesture.cancel()
 	link_refused.emit(reason)
 
