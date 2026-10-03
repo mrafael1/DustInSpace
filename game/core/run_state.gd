@@ -60,6 +60,9 @@ signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
 signal boss_appeared
 ## The guided first run moved on to `step` (a Tutorial.Step).
 signal tutorial_step(step: int)
+## An Orion threat's guided encounter (#93) moved on: `threat` (an Encounter.Threat) is at `step`
+## (an Encounter.Step: GUIDING, then DONE).
+signal encounter_step(threat: int, step: int)
 signal run_won
 signal run_lost
 
@@ -71,6 +74,12 @@ enum LossReason { NO_PACKS, NO_DUST, NO_COMBINATION }
 enum PickRefusal { NONE, SECOND_LANDMARK }
 
 
+## The hunt's encounter: a safe launch spot keeps every burst point of the loaded pack this far
+## beyond the circle's edge on top of the scatter ring's reach (StarScatter.RING_MAX), so its stars
+## land clear of it even when the scatter relaxes them outward. Guide layout, not balance.
+const ENCOUNTER_CLEARANCE: int = 10
+## Candidate launch spots are tried on a grid this many px apart when no constellation star is safe.
+const SAFE_SPOT_GRID: int = 8
 ## XOR'd into the seed so star layout has its own RNG stream and can't shift pack contents.
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
 
@@ -97,6 +106,8 @@ var volley: Volley
 var hunt: Hunt
 ## The guided first run (start_tutorial), or null: it says which actions are allowed.
 var tutorial: Tutorial
+## The stage's guided encounter with the threat it introduces (start_encounter), or null.
+var encounter: Encounter
 ## The guided run's Sun has rekindled once (its own target is spent).
 var _tutorial_rekindled: bool = false
 ## The landmark the last rekindle lit, for the tutorial (-1: none since the link began).
@@ -232,9 +243,20 @@ func _chain_order(trio: Array[Star]) -> Array[Star]:
 ## Scorpio map it may hold one unlit landmark, never two. Every valid link is as good as another:
 ## `rng` picks one.
 func idle_hint_link(rng: RandomNumberGenerator) -> Array[int]:
+	var found: Array[Array] = valid_links()
+	if found.is_empty():
+		return [] as Array[int]
+	var picked: Array[int] = []
+	picked.assign(found[rng.randi_range(0, found.size() - 1)])
+	return picked
+
+
+## Every valid link in the sky (unlit landmarks included, one at most), each as ids in an order that
+## keeps every step in reach; none once the run is over.
+func valid_links() -> Array[Array]:
 	var found: Array[Array] = []
 	if is_over():
-		return [] as Array[int]
+		return found
 	var pool: Array[Star] = stars.duplicate()
 	if scorpio != null:
 		for i: int in scorpio.map.count():
@@ -251,11 +273,7 @@ func idle_hint_link(rng: RandomNumberGenerator) -> Array[int]:
 					ids.append(star.id)
 				if combo_for(ids) != Combos.INVALID:
 					found.append(ids)
-	if found.is_empty():
-		return [] as Array[int]
-	var picked: Array[int] = []
-	picked.assign(found[rng.randi_range(0, found.size() - 1)])
-	return picked
+	return found
 
 
 ## Which of the loss check's conditions hold now, in LossReason order. A lost run has all three;
@@ -319,6 +337,8 @@ func launch(target: Vector2i) -> bool:
 		return false
 	owned_packs[kind] -= 1
 	pack_launched.emit(kind, burst)
+	if encounter != null and encounter.launched():
+		encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null:
 		orion.count_launch()
 	var big_bangs: bool = scorpio == null or balance.scorpio_big_bang
@@ -347,6 +367,8 @@ func launch(target: Vector2i) -> bool:
 	if hunt != null:
 		_hunt_strike()
 		area_marked.emit(hunt.mark(sky_rect, stars), hunt.radius)
+		if encounter != null and encounter.area_marked():
+			encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null and not orion.has_target():
 		_orion_mark()
 	_auto_load()
@@ -363,6 +385,82 @@ func start_tutorial() -> void:
 		return
 	tutorial = Tutorial.new()
 	tutorial_step.emit(tutorial.step)
+
+
+## Starts the stage's guided encounter with the threat it introduces (#93), once its intros have
+## played (the scene calls it, the first time the stage is played): the volley's guide starts at once,
+## the mark's and the circle's when they first appear. Returns whether there is one.
+func start_encounter() -> bool:
+	if scorpio == null or encounter != null or is_over():
+		return false
+	var threat: int = Encounter.threat_of(scorpio.map)
+	if threat < 0:
+		return false
+	encounter = Encounter.new(threat as Encounter.Threat)
+	if encounter != null and encounter.opened():
+		encounter_step.emit(encounter.threat, encounter.step)
+	return true
+
+
+## The mark's encounter: a valid link that saves the marked star, in an order that keeps every
+## step in reach (the first such link), or empty when none can be made.
+func encounter_link() -> Array[int]:
+	var target: Star = marked_star()
+	if target == null:
+		return [] as Array[int]
+	for link: Array[int] in valid_links():
+		if link.has(target.id):
+			return link
+	return [] as Array[int]
+
+
+## The hunt's encounter: a spot to launch the loaded pack at so its stars land clear of the circle
+## (is_safe_launch), near where it helps: the first unlit constellation star that's safe (in map
+## order), else the safe spot of the inner sky nearest the first unlit one, else the spot furthest
+## from the circle.
+func safe_launch_spot() -> Vector2i:
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	if hunt == null or not hunt.has_area():
+		return inner.get_center()
+	var goal: Vector2i = inner.get_center()
+	if scorpio != null:
+		var goal_set: bool = false
+		for i: int in scorpio.map.count():
+			if scorpio.is_lit(i):
+				continue
+			var at: Vector2i = scorpio.landmark_position(i)
+			if is_safe_launch(at):
+				return at
+			if not goal_set:
+				goal = at
+				goal_set = true
+	var best: Vector2i = Vector2i(-1, -1)
+	var furthest: Vector2i = goal
+	for y: int in range(inner.position.y, inner.end.y, SAFE_SPOT_GRID):
+		for x: int in range(inner.position.x, inner.end.x, SAFE_SPOT_GRID):
+			var spot := Vector2i(x, y)
+			if (spot - hunt.centre).length_squared() > (furthest - hunt.centre).length_squared():
+				furthest = spot
+			if is_safe_launch(spot) and (best.x < 0 or (spot - goal).length_squared() < (best - goal).length_squared()):
+				best = spot
+	return best if best.x >= 0 else furthest
+
+
+## Whether launching the loaded pack at `aim` keeps its stars out of the hunting circle: every point
+## it bursts at (a split pack's every one) keeps its whole scatter ring, and a margin, outside it.
+func is_safe_launch(aim: Vector2i) -> bool:
+	if hunt == null or not hunt.has_area():
+		return true
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	var pack: Balance.PackDef = balance.packs[kind]
+	var points: Array[Vector2i] = [StarScatter.clamp_to_sky(aim, sky_rect)]
+	if pack.bursts > 1:
+		points = StarScatter.split_points(aim, pack.burst_spread, pack.bursts, sky_rect)
+	var clear: int = hunt.radius + StarScatter.RING_MAX + ENCOUNTER_CLEARANCE
+	for point: Vector2i in points:
+		if (point - hunt.centre).length_squared() <= clear * clear:
+			return false
+	return true
 
 
 ## The player tapped on through a tutorial step that only explains something.
@@ -426,6 +524,8 @@ func link(star_ids: Array[int]) -> String:
 	if volley != null and not scorpio.is_complete():
 		_count_for_volley()
 	_check_end()
+	if encounter != null and encounter.linked():
+		encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null and not is_over():
 		_orion_mark()
 	if tutorial != null and not is_over():
@@ -629,6 +729,8 @@ func _count_for_volley() -> void:
 		for star: Star in victims:
 			stars.erase(star)
 		volley_fired.emit(victims)
+		if encounter != null and encounter.volley_fired():
+			encounter_step.emit(encounter.threat, encounter.step)
 	volley_counted.emit(volley.links_left())
 
 
@@ -753,6 +855,8 @@ func _orion_mark() -> void:
 	var id: int = orion.mark(stars)
 	if id != 0:
 		star_marked.emit(find_star(id))
+		if encounter != null and encounter.marked():
+			encounter_step.emit(encounter.threat, encounter.step)
 
 
 func _orion_forget(gone: Array[Star]) -> void:

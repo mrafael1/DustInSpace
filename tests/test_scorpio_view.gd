@@ -458,10 +458,11 @@ func test_completion_waits_for_the_payouts_then_plays_bottom_to_top_and_draws_th
 	assert_eq(end.lines(), ["SCORPIO COMPLETE", "STRINGS 13/13"] as Array[String])
 
 
-func test_the_painting_rises_from_the_bottom() -> void:
-	var span: Vector2i = ConstellationView.figure_span()
-	assert_eq(ConstellationView.figure_front(0.0), span.y + 1)
-	assert_eq(ConstellationView.figure_front(1.0), span.x)
+func test_the_painting_forms_from_the_constellation_stars() -> void:
+	var map: StarMap = StarMap.scorpio()
+	var forming: Apparition = ConstellationView.apparition(map)
+	assert_eq(forming.radius_at(0.0), 0)
+	assert_gt(forming.radius_at(1.0), forming.max_distance(), "past the furthest pixel, edge and all")
 
 
 func test_unlit_landmarks_show_the_selectable_cue_and_lit_ones_dont() -> void:

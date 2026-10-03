@@ -22,8 +22,9 @@ extends CanvasLayer
 ## pays. While it shows the game holds still (Main pauses the world on table_opened; the HUD holds
 ## its own counters, message and guide) and any tap closes it.
 
-## A pack tap the run refused (the icon nudges). Feedback only (sound).
-signal tap_refused(kind: String)
+## A pack tap the run refused (the icon nudges): `part` is &"icon" (a load) or &"cost" (a buy).
+## Feedback only (sound, the playtest log).
+signal tap_refused(kind: String, part: StringName)
 ## A pack became buyable as the dust landed (its slot's cue). Feedback only (sound).
 signal pack_ready(kind: String)
 ## The player picked a planet with its icon or its buy button, and it loaded (or was bought and
@@ -75,6 +76,15 @@ const RULE_TIME: float = 2.5
 const RULE_QUIET: float = 3.0
 ## A second line of the message goes above the first, this far up.
 const MESSAGE_LINE_STEP: int = 10
+## Each Orion encounter's line (#93), at the top of the sky like the tutorial's, centred right of
+## ENCOUNTER_LINE_LEFT so it clears Orion's corner (two lines at most, 5x7, no punctuation). The
+## volley's says its interval.
+const ENCOUNTER_LINE_LEFT: int = 42
+const ENCOUNTER_LINES: Dictionary = {
+	Encounter.Threat.MARK: "LINK THE MARKED STAR\nOR HIS ARROW TAKES IT",
+	Encounter.Threat.VOLLEY: "EVERY %d LINKS\nHIS ARROWS FALL",
+	Encounter.Threat.HUNT: "LAUNCH AWAY FROM\nHIS CIRCLE",
+}
 ## Orion's volley countdown (#70) sits centred this far from his figure's top-left: above his head.
 const VOLLEY_COUNTER_OFFSET := Vector2i(15, -8)
 
@@ -404,7 +414,7 @@ func _tap(kind: String, part: StringName) -> void:
 		planet_chosen.emit(kind)
 	if not done:
 		_slots[kind].nudge()
-		tap_refused.emit(kind)
+		tap_refused.emit(kind, part)
 
 
 func _on_event_played(event: EventSequencer.RunEvent) -> void:
@@ -442,6 +452,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			return
 		&"tutorial_step":
 			_show_tutorial_step(event.args[0])
+			return
+		&"encounter_step":
+			_show_encounter(event.args[0], event.args[1])
 			return
 		&"sun_rekindled":
 			# The guided run's full Sun: the hand goes to the star it lights as the Sun ignites, so the
@@ -564,6 +577,31 @@ func _show_tutorial_step(step: int) -> void:
 			_guide.show_step(step, table_button_at() - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		_:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
+
+
+## An Orion threat's guided encounter (#93): its line at the top of the sky and the hand at what it's
+## about, while it guides; gone once it's done. The mark: the hand acts out a link that saves the
+## marked star. The volley: it points at the countdown above him. The hunting circle: it points at a
+## spot outside it to launch at. It only guides: nothing is held back.
+func _show_encounter(threat: int, step: int) -> void:
+	if step != Encounter.Step.GUIDING:
+		_guide.hide_guide()
+		return
+	var top: int = _run.sky_rect.position.y + TutorialView.TOP
+	var left: int = _run.sky_rect.position.x + ENCOUNTER_LINE_LEFT
+	match threat:
+		Encounter.Threat.MARK:
+			var link: Array[int] = _run.encounter_link()
+			var target: Star = _run.marked_star()
+			var at: Vector2i = target.position - Vector2i(0, StarView.half_extent(target.size)) if target != null else Vector2i.ZERO
+			_guide.show_line(ENCOUNTER_LINES[threat], at, target != null, TutorialView.Point.DOWN, top, left)
+			if not link.is_empty():
+				_guide.follow_path(link, _link_positions(link), _link_centres(link))
+		Encounter.Threat.VOLLEY:
+			# Down onto the countdown above his head (its row's top is the node's origin).
+			_guide.show_line(ENCOUNTER_LINES[threat] % _run.volley.interval, Vector2i(_volley.position), true, TutorialView.Point.DOWN, top, left)
+		Encounter.Threat.HUNT:
+			_guide.show_line(ENCOUNTER_LINES[threat], _run.safe_launch_spot(), true, TutorialView.Point.DOWN, top, left)
 
 
 ## The link being traced changed: the tutorial's hand moves on to the next star to pick.

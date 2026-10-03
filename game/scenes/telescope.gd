@@ -85,6 +85,9 @@ var _sky_pressed: bool = false
 var _aim_requested: bool = false
 ## The guided first run holds the aim (a step that doesn't launch).
 var _tutorial_hold: bool = false
+## The mark's encounter (#93) shows a link to make: the telescope doesn't aim by itself meanwhile, so
+## the sky takes the link; a tap on it still aims (the encounter only guides).
+var _encounter_hold: bool = false
 ## The planet seated inside (its window shows), and the one dropping in: seconds into its load, or
 ## -1 when none is loading.
 var _seated_kind: String = ""
@@ -113,6 +116,7 @@ func _draw() -> void:
 func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_aim_requested = false
 	_tutorial_hold = false
+	_encounter_hold = false
 	_has_aim = false
 	_seated_kind = ""
 	_load_time = -1.0
@@ -248,7 +252,7 @@ func advance(delta: float) -> void:
 		_load_time += delta
 		if _load_time >= LOAD_TIME:
 			_seat(shown_pack(), true)
-	if _aim_requested and _sequencer != null and not _sequencer.is_busy() and not is_loading():
+	if _aim_requested and not _encounter_hold and _sequencer != null and not _sequencer.is_busy() and not is_loading():
 		_aim_requested = false
 		if shown_pack() != "":
 			start_aim()
@@ -362,8 +366,28 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_stop_aim()
 		elif can_process():
 			_aim_requested = true
+	if event.type == &"encounter_step" and event.args[0] == Encounter.Threat.MARK:
+		hold_for_encounter(event.args[1] == Encounter.Step.GUIDING)
 	if event.type == &"pack_loaded" and can_process() and is_loading():
 		_sequencer.hold(LOAD_TIME)
+
+
+## The mark's encounter guides a link (`on`): stop aiming and don't aim again by itself, so the
+## player's touch picks stars; once it's done, aim again as usual.
+func hold_for_encounter(on: bool) -> void:
+	if on == _encounter_hold:
+		return
+	_encounter_hold = on
+	if on:
+		if _aiming:
+			_stop_aim()
+			_aim_requested = true
+	elif can_process():
+		_aim_requested = true
+
+
+func is_held_for_encounter() -> bool:
+	return _encounter_hold
 
 
 ## Seats `kind` inside: the dropping planet hides and the window shows it. `click` for feedback.
