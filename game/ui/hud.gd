@@ -67,6 +67,15 @@ const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's first hunting area of a run (#71) says what the ring means.
 const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
+## Each Orion encounter's line (#93), at the top of the sky like the tutorial's, centred right of
+## ENCOUNTER_LINE_LEFT so it clears Orion's corner (two lines at most, 5x7, no punctuation). The
+## volley's says its interval.
+const ENCOUNTER_LINE_LEFT: int = 42
+const ENCOUNTER_LINES: Dictionary = {
+	Encounter.Threat.MARK: "LINK THE MARKED STAR\nOR HIS ARROW TAKES IT",
+	Encounter.Threat.VOLLEY: "EVERY %d LINKS\nHIS ARROWS FALL",
+	Encounter.Threat.HUNT: "LAUNCH AWAY FROM\nHIS CIRCLE",
+}
 ## Orion's volley countdown (#70) sits centred this far from his figure's top-left: above his head.
 const VOLLEY_COUNTER_OFFSET := Vector2i(15, -8)
 
@@ -418,6 +427,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"tutorial_step":
 			_show_tutorial_step(event.args[0])
 			return
+		&"encounter_step":
+			_show_encounter(event.args[0], event.args[1])
+			return
 		&"sun_rekindled":
 			# The guided run's full Sun: the hand goes to the star it lights as the Sun ignites, so the
 			# lighting is seen (the step itself comes once the sky has cleared).
@@ -539,6 +551,31 @@ func _show_tutorial_step(step: int) -> void:
 			_guide.show_step(step, table_button_at() - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		_:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
+
+
+## An Orion threat's guided encounter (#93): its line at the top of the sky and the hand at what it's
+## about, while it guides; gone once it's done. The mark: the hand acts out a link that saves the
+## marked star. The volley: it points at the countdown above him. The hunting circle: it points at a
+## spot outside it to launch at. It only guides: nothing is held back.
+func _show_encounter(threat: int, step: int) -> void:
+	if step != Encounter.Step.GUIDING:
+		_guide.hide_guide()
+		return
+	var top: int = _run.sky_rect.position.y + TutorialView.TOP
+	var left: int = _run.sky_rect.position.x + ENCOUNTER_LINE_LEFT
+	match threat:
+		Encounter.Threat.MARK:
+			var link: Array[int] = _run.encounter_link()
+			var target: Star = _run.marked_star()
+			var at: Vector2i = target.position - Vector2i(0, StarView.half_extent(target.size)) if target != null else Vector2i.ZERO
+			_guide.show_line(ENCOUNTER_LINES[threat], at, target != null, TutorialView.Point.DOWN, top, left)
+			if not link.is_empty():
+				_guide.follow_path(link, _link_positions(link), _link_centres(link))
+		Encounter.Threat.VOLLEY:
+			# Down onto the countdown above his head (its row's top is the node's origin).
+			_guide.show_line(ENCOUNTER_LINES[threat] % _run.volley.interval, Vector2i(_volley.position), true, TutorialView.Point.DOWN, top, left)
+		Encounter.Threat.HUNT:
+			_guide.show_line(ENCOUNTER_LINES[threat], _run.safe_launch_spot(), true, TutorialView.Point.DOWN, top, left)
 
 
 ## The link being traced changed: the tutorial's hand moves on to the next star to pick.
