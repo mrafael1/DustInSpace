@@ -74,6 +74,9 @@ func _ready() -> void:
 		_streams[cue] = load(AUDIO_DIR + cue + ".wav")
 	for i: int in VOICES:
 		var player := AudioStreamPlayer.new()
+		# Use Godot's mixer on Web; native Sample routing can silently drop custom buses.
+		if OS.has_feature("web"):
+			player.playback_type = AudioServer.PLAYBACK_TYPE_STREAM
 		player.bus = BUS
 		add_child(player)
 		_players.append(player)
@@ -273,7 +276,8 @@ func _cut_all() -> void:
 func _ensure_bus() -> void:
 	if AudioServer.get_bus_index(BUS) != -1:
 		return
-	AudioServer.add_bus()
+	# An explicit append position avoids Godot's Web Sample add_bus(-1) routing bug.
+	AudioServer.add_bus(AudioServer.bus_count)
 	var index: int = AudioServer.bus_count - 1
 	AudioServer.set_bus_name(index, BUS)
 	AudioServer.set_bus_send(index, &"Master")

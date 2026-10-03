@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dust In Space — Chapter 1 | AloneLab</title>
+  <meta name="description" content="Play Chapter 1 of Dust In Space. Launch planets, link stars and complete Scorpio.">
+  <link rel="icon" href="/icon.png" type="image/png">
+  <style>
+    :root { color-scheme: dark; font-family: monospace; background: #07091f; color: #fffbea; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    #canvas { display: block; width: 100%; height: 100dvh; touch-action: none; image-rendering: pixelated; outline: none; }
+    #launch { position: fixed; inset: 0; display: grid; place-items: center; background: #07091f; padding: 24px; overflow: auto; }
+    #launch[hidden] { display: none; }
+    .panel { width: min(100%, 420px); text-align: center; border: 2px solid #5a51a6; padding: 28px 20px; }
+    h1 { font-size: 24px; margin: 0 0 12px; }
+    p { line-height: 1.6; }
+    button, a { font: inherit; }
+    button { border: 2px solid #ffc062; background: #151d4a; color: #fffbea; min-height: 48px; padding: 12px 20px; cursor: pointer; }
+    button:disabled { cursor: wait; }
+    button:focus-visible, a:focus-visible { outline: 2px solid #fffbea; outline-offset: 4px; }
+    a { color: #ffe59a; }
+    progress { width: 100%; accent-color: #ffc062; margin-top: 16px; }
+    #notice { white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style>
+  $GODOT_HEAD_INCLUDE
+</head>
+<body>
+  <canvas id="canvas" tabindex="0" aria-label="Dust In Space game">Your browser needs canvas support to play.</canvas>
+  <section id="launch" aria-label="Launch Chapter 1">
+    <div class="panel">
+      <h1>DUST IN SPACE</h1>
+      <p>CHAPTER 1 · SCORPIO</p>
+      <p>Launch planets. Link three stars. Complete the constellation.</p>
+      <button id="play" type="button">PLAY CHAPTER 1</button>
+      <progress id="progress" hidden aria-label="Loading game"></progress>
+      <p id="notice" role="status" aria-live="polite">Use your mouse or touch. Sound starts with interaction.</p>
+      <p>Your chapter progress saves in this browser. Clearing site data removes it.</p>
+      <p><a href="/">BACK TO ALONELAB</a></p>
+      <noscript><p>Enable JavaScript to play Chapter 1.</p></noscript>
+    </div>
+  </section>
+  <script src="$GODOT_URL"></script>
+  <script>
+    'use strict';
+    const config = $GODOT_CONFIG;
+    const engine = new Engine(config);
+    const play = document.getElementById('play');
+    const progress = document.getElementById('progress');
+    const notice = document.getElementById('notice');
+    const launch = document.getElementById('launch');
+    const missing = Engine.getMissingFeatures({ threads: $GODOT_THREADS_ENABLED });
+    if (missing.length) {
+      play.disabled = true;
+      notice.textContent = 'This browser cannot run the game. Missing: ' + missing.join(', ') + '. Try a current browser with WebGL 2 enabled.';
+    }
+    play.addEventListener('click', async () => {
+      play.disabled = true;
+      progress.hidden = false;
+      notice.textContent = 'Loading Chapter 1…';
+      try {
+        await engine.startGame({
+          onProgress(current, total) {
+            if (total > 0) { progress.max = total; progress.value = current; }
+            else { progress.removeAttribute('value'); }
+          },
+          onExit() {
+            launch.hidden = false;
+            notice.textContent = 'The game stopped. Reload this page to play again.';
+            progress.hidden = true;
+          }
+        });
+        launch.hidden = true;
+        document.getElementById('canvas').focus();
+      } catch (error) {
+        console.error(error);
+        notice.textContent = 'Unable to load Chapter 1. Check your connection and reload this page.\n' + (error.message || String(error));
+        progress.hidden = true;
+      }
+    });
+  </script>
+</body>
+</html>
