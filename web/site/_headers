@@ -1,0 +1,12 @@
+/dust-in-space/*
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Content-Type-Options: nosniff
+
+/dust-in-space/*.wasm
+  Content-Type: application/wasm
+
+/dust-in-space/*.pck
+  Content-Type: application/octet-stream
+
+/dust-in-space/*.js
+  Content-Type: application/javascript; charset=utf-8
