@@ -245,6 +245,8 @@ func _wire_sound() -> void:
 ## refused action the views feed back.
 func _wire_playtest_log() -> void:
 	_idle_hint.touch_started.connect(_playtest_log.touched)
+	_idle_hint.touch_ended.connect(_playtest_log.released)
+	_idle_hint.dragged.connect(_playtest_log.dragged)
 	_hud.tap_refused.connect(_playtest_log.pack_tap_refused)
 	# Whatever these signals carry, only the kind of refusal is logged.
 	_telescope.empty_tapped.connect(func(..._args: Array) -> void: _playtest_log.refused("launch"))

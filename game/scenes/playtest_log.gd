@@ -7,8 +7,9 @@ extends Node
 ## - step_entered / step_left: a tutorial step and, on leaving, the seconds spent on it (free play,
 ##   Tutorial.Step.DONE, isn't one).
 ## - refusal: a refused action's kind (launch, link, buy, load), on which step and stage.
-## - idle: a gap of at least IDLE_MIN seconds without a touch, on which step (logged at the touch
-##   that ends it, or when the run ends).
+## - idle: a gap of at least IDLE_MIN seconds without any interaction, on which step: it starts
+##   when the last finger lifts (holding, dragging and aiming are interaction) and is logged at the
+##   touch that ends it, or when the run ends.
 ## - run_ended: the stage, won, lost or left (a restart, or back to the chart), packs launched and
 ##   the run's seconds.
 ## Presentation-side: it only listens to RunState's signals and the views' feedback signals (Main
@@ -33,6 +34,8 @@ var _run: RunState
 ## Seconds since the run started, counted in `advance`.
 var _time: float = 0.0
 var _last_touch: float = 0.0
+## Fingers down now: no gap runs while one is.
+var _fingers: int = 0
 var _step: int = -1
 var _step_since: float = 0.0
 var _launches: int = 0
@@ -49,6 +52,7 @@ func setup(run: RunState, _sequencer: EventSequencer) -> void:
 	_run = run
 	_time = 0.0
 	_last_touch = 0.0
+	_fingers = 0
 	_step = -1
 	_step_since = 0.0
 	_launches = 0
@@ -76,9 +80,22 @@ func stage() -> String:
 	return _run.scorpio.map.id if _run.scorpio != null else "sun"
 
 
-## A touch began (IdleHint sees every one first): a long enough gap since the last is an idle record.
+## A touch began (IdleHint sees every one first): a long enough gap since the last interaction
+## ended is an idle record.
 func touched() -> void:
 	_log_idle()
+	_fingers += 1
+	_last_touch = _time
+
+
+## A finger lifted: if it was the last, the next gap starts now.
+func released() -> void:
+	_fingers = maxi(_fingers - 1, 0)
+	_last_touch = _time
+
+
+## A finger moved: still interacting.
+func dragged() -> void:
 	_last_touch = _time
 
 
@@ -166,7 +183,7 @@ func _leave_step() -> void:
 
 func _log_idle() -> void:
 	var gap: float = _time - _last_touch
-	if gap >= IDLE_MIN and not _ended:
+	if gap >= IDLE_MIN and _fingers == 0 and not _ended:
 		write({"type": "idle", "seconds": snappedf(gap, 0.01), "step": _step_name(), "stage": stage()})
 
 
