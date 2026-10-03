@@ -34,8 +34,9 @@ signal sunbeam_landed(at: Vector2i)
 ## The link being traced changed: `ids` are in it now, in order (empty once it ends). Feedback only
 ## (the tutorial's hand follows it).
 signal link_traced(ids: Array[int])
-## Scorpio: a second landmark was picked for one link; the link was dropped at once. Feedback only.
-signal link_refused
+## A pick couldn't stand (`reason`, a RunState.PickRefusal: a second landmark in one link); the link
+## was dropped at once. The HUD says why (#91).
+signal link_refused(reason: RunState.PickRefusal)
 ## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
 signal step_refused
 ## Scorpio: the constellation is complete and a star left in the sky burst at `at` (or Orion's
@@ -281,8 +282,9 @@ func _on_touch(touch: InputEventScreenTouch) -> bool:
 
 
 func _on_selection_changed(ids: Array[int]) -> void:
-	if _too_many_landmarks(ids):
-		_refuse_link(ids)
+	var refusal: RunState.PickRefusal = _run.pick_refusal(ids) if _run != null else RunState.PickRefusal.NONE
+	if refusal != RunState.PickRefusal.NONE:
+		_refuse_link(refusal)
 		return
 	for id: int in _views:
 		_views[id].selected = ids.has(id)
@@ -329,18 +331,12 @@ func link_points(ids: Array[int]) -> Array[Vector2i]:
 	return _positions_of_ids(ids)
 
 
-## Scorpio: a link can hold only Scorpio.LANDMARKS_PER_COMBO landmarks; picking another is
-## refused on the spot, with the red shake of a wrong link, so the rule shows on the first try.
-func _too_many_landmarks(ids: Array[int]) -> bool:
-	if _run == null or _run.scorpio == null:
-		return false
-	return ids.filter(_run.scorpio.is_landmark).size() > Scorpio.LANDMARKS_PER_COMBO
-
-
-func _refuse_link(ids: Array[int]) -> void:
-	_link_layer.flash_rejected(_positions_of_ids(ids))
+## A pick the core refuses (RunState.pick_refusal: a second landmark in one link) drops the link on
+## the spot; the HUD's line says why instead of the red shake and buzz of a wrong link (#91), so the
+## rule shows on the first try.
+func _refuse_link(reason: RunState.PickRefusal) -> void:
 	_gesture.cancel()
-	link_refused.emit()
+	link_refused.emit(reason)
 
 
 func _on_link_requested(ids: Array[int]) -> void:

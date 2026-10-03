@@ -84,6 +84,8 @@ func _ready() -> void:
 	_end_screen.watch_payouts(_collect)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
 	_sky.link_traced.connect(_hud.follow_link)
+	# A refused pick: the line says why (#91), instead of the shake and buzz of a wrong link.
+	_sky.link_refused.connect(_hud.explain_refusal)
 	# The idle hint (#90) shows a link in the sky. It holds still while payouts fly or the Sun
 	# ignites, and while the tutorial's own hand is out (one hand at a time).
 	_idle_hint.sky = _sky
@@ -216,7 +218,6 @@ func _wire_sound() -> void:
 	_telescope.launch_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_telescope.planet_seated.connect(func(_kind: String) -> void: _sfx.play(&"pack_load", 1.5))
 	_sky.star_selected.connect(_sfx.on_star_selected)
-	_sky.link_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.star_exploded.connect(_on_star_exploded)
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))

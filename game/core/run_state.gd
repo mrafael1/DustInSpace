@@ -69,6 +69,9 @@ signal run_lost
 enum Outcome { PLAYING, WON, LOST }
 ## The loss check's three conditions: a lost run has all of them.
 enum LossReason { NO_PACKS, NO_DUST, NO_COMBINATION }
+## Why the picks of a link being traced can't stand, for the views to explain (#91): none, or a
+## second constellation star in one link (Scorpio.LANDMARKS_PER_COMBO).
+enum PickRefusal { NONE, SECOND_LANDMARK }
 
 
 ## The hunt's encounter: a safe launch spot keeps every burst point of the loaded pack this far
@@ -598,6 +601,15 @@ func link_candidates(star_ids: Array[int]) -> Array[int]:
 				found.append(next)
 				break
 	return found
+
+
+## Why the picks `star_ids` (in pick order) can't stand as a link in progress, or
+## PickRefusal.NONE. The only such rule: one constellation star per link, so picking a second one
+## is refused on the spot. (A step out of reach is refused before the pick: in_reach.)
+func pick_refusal(star_ids: Array[int]) -> PickRefusal:
+	if scorpio != null and star_ids.filter(scorpio.is_landmark).size() > Scorpio.LANDMARKS_PER_COMBO:
+		return PickRefusal.SECOND_LANDMARK
+	return PickRefusal.NONE
 
 
 ## The combo a link would make (Combos.INVALID if none), without making it. For previews.
