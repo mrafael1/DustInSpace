@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AloneLab — Indie Mobile Studio</title>
+  <title>AloneLab · Independent games</title>
   <link rel="icon" type="image/png" href="icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --sky-top:      #3aade8;
@@ -26,7 +26,7 @@
     html { scroll-behavior: smooth; }
 
     body {
-      font-family: 'Nunito', sans-serif;
+      font-family: 'Manrope', sans-serif;
       background: var(--sky-mid);
       overflow-x: hidden;
     }
@@ -415,12 +415,75 @@
       .hero { padding:90px 18px 40px; }
       .mascot-img { width:140px; }
     }
+
+    /* Studio polish: quieter framing, expressive project lettering. */
+    :root { --px:#07091f; --dark:#07091f; --white:#fffbea; --yellow:#ffc062; --yellow-dark:#a45a78; --lob-red:#c8413a; }
+    body { background:#07091f; color:#fffbea; -webkit-font-smoothing:antialiased; }
+    html { scroll-padding-top:85px; }
+    a:focus-visible { outline:2px solid #ffc062; outline-offset:6px; }
+    nav { position:absolute; background:transparent; backdrop-filter:none; border-bottom:1px solid #2a3375; padding:26px max(40px,calc((100vw - 1120px)/2)); }
+    .nav-logo { font-size:11px; text-shadow:none; gap:4px; } .nav-logo img { display:none; } .nav-logo em { color:#a77fd8; }
+    .nav-links { gap:26px; } .nav-links a { font-family:Manrope,sans-serif; font-size:11px; text-shadow:none; font-weight:600; }
+    .sky-section { background:#07091f; } .sky-section::after,.cloud-layer { display:none; }
+    .hero { min-height:720px; align-items:flex-start; text-align:left; max-width:1200px; margin:auto; padding:180px 40px 85px; }
+    .hero::before { content:''; position:absolute; inset:0; background:url('dust_space.png') center/960px 600px; image-rendering:pixelated; opacity:.16; pointer-events:none; }
+    .hero>* { position:relative; } .hero-eyebrow { font-family:Manrope,sans-serif; font-size:10px; letter-spacing:.2em; color:#9fb0ee; margin-bottom:45px; text-shadow:none; }
+    .hero-title { font-size:clamp(44px,8.5vw,105px); letter-spacing:-.05em; color:#fffbea; text-shadow:none; line-height:1.35; }
+    .brand-letters { display:flex; gap:.035em; } .hero-title .lab { text-shadow:none; color:#9fb0ee; letter-spacing:.15em; position:relative; font-size:.46em; }
+    .air-letter { color:#62b4f0; text-shadow:0 4px 0 #1d4696; position:relative; }
+    .lob-letter { position:relative; } .lob-letter::after { content:''; position:absolute; width:38%; height:5px; left:-6%; top:49%; background:#c8413a; box-shadow:14px 8px 0 #862032,-5px -14px 0 #c8413a; animation:brandBug 9s steps(1) infinite; }
+    .space-letter { position:relative; color:#a77fd8; text-shadow:0 4px 0 #3e3f8a; } .space-letter::after { content:''; position:absolute; width:4px; height:4px; background:#d9e2ff; top:9%; right:8%; box-shadow:0 -4px 0 #9fb0ee,0 4px 0 #9fb0ee,-4px 0 0 #9fb0ee,4px 0 0 #9fb0ee,13px 18px 0 #7e68c8; }
+    .brand-fragment { position:absolute; left:55%; bottom:6px; width:5px; height:5px; background:#a77fd8; box-shadow:10px -10px 0 #3e3f8a,20px -5px 0 #a77fd8; }
+    .hero-sub { font-weight:500; font-size:18px; color:#d9e2ff; text-shadow:none; margin-top:36px; }
+    .hero-cta { margin-top:28px; } .hero-mascot { display:none; }
+    .px-btn { font-family:Manrope,sans-serif; font-weight:800; font-size:12px; border:1px solid #ffc062; box-shadow:none; padding:18px 24px; }
+    .px-btn:hover { transform:translateY(-2px); box-shadow:none; background:#fffbea; }
+    section { padding:85px max(40px,calc((100vw - 1120px)/2)); }
+    .px-label { font-family:Manrope,sans-serif; font-size:10px; letter-spacing:.18em; color:#9fb0ee; text-shadow:none; }
+    .px-title { text-shadow:none; font-size:22px; } .section-header { text-align:left; margin-bottom:40px; }
+    #dust-in-space { display:grid; grid-template-columns:1.2fr .8fr; align-items:center; gap:50px; padding:85px max(40px,calc((100vw - 1120px)/2)); border-block:1px solid #2a3375; }
+    #dust-in-space .section-header { max-width:none; margin:0; } #dust-in-space .px-title { text-shadow:none; font-size:clamp(28px,4vw,48px); line-height:1.55; }
+    #dust-in-space .px-label { text-shadow:none; } #dust-in-space .dust-description { margin:24px 0 28px; font-size:16px; text-shadow:none; max-width:450px; }
+    #dust-in-space .px-btn { box-shadow:none; border:1px solid #ffc062; } #dust-in-space .px-btn:hover { box-shadow:none; background:#fffbea; }
+    .title-star { color:#a77fd8; font-size:.55em; vertical-align:top; margin-left:10px; }
+    .dust-note { font-size:10px; letter-spacing:.06em; color:#9fb0ee; margin-top:18px; }
+    .orbit-display { text-align:center; } .orbit-art { width:min(100%,350px); shape-rendering:crispEdges; } .orbit-display span { display:block; font-size:10px; letter-spacing:.18em; color:#9fb0ee; margin-top:16px; }
+    #projects { background:#07091f; } .projects-grid { max-width:none; gap:0; border-top:1px solid #2a3375; border-left:1px solid #2a3375; }
+    .proj-card,.proj-card.active,.proj-card.teaser,.proj-card.locked { background:transparent; border:0; border-right:1px solid #2a3375; border-bottom:1px solid #2a3375; box-shadow:none; opacity:1; padding:36px 12px 25px; text-decoration:none; min-width:0; cursor:default; }
+    a.proj-card { cursor:pointer; } a.proj-card:hover { background:#151d4a; transform:none; box-shadow:none; }
+    .proj-letter { font-size:54px; height:68px; } .proj-card.teaser .proj-letter { color:#c8413a; text-shadow:3px 0 0 #862032; position:relative; }
+    .proj-card.teaser .proj-letter::after { content:''; position:absolute; width:38px; height:5px; top:28px; left:-5px; background:#07091f; box-shadow:8px 5px 0 #c8413a; }
+    .proj-card.locked .proj-letter { color:#3e3f8a; text-shadow:none; }
+    .proj-name { font-family:Manrope,sans-serif; font-size:12px; color:#fffbea; letter-spacing:0; font-weight:700; margin-top:16px; }
+    .proj-status { font-family:Manrope,sans-serif; font-size:9px; padding:0; border:0; background:none; color:#9fb0ee; animation:none; } .status-live { color:#62b4f0; } .status-play { color:#ffc062; }
+    #airtime { background:#b8e6ff; } #airtime .px-label { color:#1d4696; } #airtime .px-title { color:#07091f; }
+    .airtime-inner { max-width:none; gap:80px; } .phone-frame { width:192px; border:8px solid #07091f; border-radius:20px; overflow:hidden; box-shadow:12px 12px 0 #62b4f0; animation:none; }
+    .phone-notch,.phone-chin { height:8px; border:0; background:#07091f; }
+    .airtime-title { text-shadow:none; color:#07091f; font-size:38px; margin-bottom:25px; } .airtime-desc { font-weight:500; }
+    .tag-row { gap:8px 18px; } .px-tag { font-family:Manrope,sans-serif; font-size:10px; font-weight:700; padding:0; border:0; background:none; box-shadow:none; }
+    .store-btn { border:1px solid #07091f; box-shadow:none; padding:12px 18px; } .store-btn:hover { transform:none; box-shadow:none; } .store-btn.unavailable { background:transparent; color:#07091f; }
+    .store-txt-sm { font-size:8px; } .store-txt-lg { font-size:14px; } .store-icon { font-size:18px; }
+    #airtime>div:last-child:not(.airtime-inner):not(.section-header) { display:none; }
+    #lobotomy { background:#0a0c26; text-align:left; padding:85px max(40px,calc((100vw - 1120px)/2)); border-bottom:1px solid #45193a; }
+    .lob-title { font-size:clamp(25px,5.4vw,62px); text-shadow:none; animation:none; } .lob-sub { font-family:Manrope,sans-serif; font-size:11px; color:#a77fd8; text-align:left; letter-spacing:.06em; }
+    .redacted { background:#45193a; } .lob-warning { border:0; box-shadow:none; padding:0; font-family:Manrope,sans-serif; font-size:11px; animation:none; margin-top:30px; }
+    #about { background:#07091f; } .about-inner { max-width:none; display:grid; grid-template-columns:1fr 1fr; gap:55px; }
+    .about-box { border:0; box-shadow:none; padding:0; background:none; } .about-box h3 { font-family:Manrope,sans-serif; font-size:23px; font-weight:500; color:#fffbea; line-height:1.4; }
+    .about-box p { font-weight:400; font-size:14px; color:#9fb0ee; line-height:1.9; } .stats-row { display:none; }
+    footer { background:#07091f; border-top:1px solid #2a3375; padding:32px max(40px,calc((100vw - 1120px)/2)); } .footer-logo { font-size:10px; text-shadow:none; color:#a77fd8; } .footer-logo img { display:none; }
+    .footer-copy,.footer-links a { font-family:Manrope,sans-serif; font-size:10px; color:#9fb0ee; }
+    @keyframes brandBug { 0%,94%,100% { transform:none; } 95% { transform:translateX(6px); } 97% { transform:translateX(-4px); } }
+    @media(max-width:860px) { .nav-links { display:flex; } .nav-links li:nth-child(2),.nav-links li:nth-child(4),.nav-links li:nth-child(6) { display:none; } .projects-grid { grid-template-columns:repeat(5,1fr); } .airtime-inner { grid-template-columns:1fr 1fr; gap:35px; } .hero-title { font-size:10vw; } }
+    @media(max-width:600px) { nav { padding:25px 20px; } .nav-links { gap:18px; } .nav-links li:nth-child(5) { display:none; } .nav-links a { font-size:10px; } section { padding:50px 20px; } .hero { min-height:630px; padding:145px 20px 65px; } .hero-title { font-size:12.8vw; } .hero-eyebrow { font-size:9px; } .hero-sub { font-size:16px; } #dust-in-space { padding:48px 20px; grid-template-columns:1fr; gap:30px; } .orbit-display { order:-1; } .orbit-art { width:175px; } .orbit-display span { display:none; } #dust-in-space .px-title { font-size:8vw; } #dust-in-space .dust-description { font-size:14px; } .proj-card { padding:24px 5px 18px !important; } .proj-letter { font-size:30px; height:42px; } .proj-name { font-size:9px; line-height:1.5; min-height:28px; overflow-wrap:anywhere; } .proj-status { font-size:8px; line-height:1.5; } .proj-card.teaser .proj-letter::after { width:22px; height:3px; top:15px; left:0; } .airtime-inner { grid-template-columns:1fr; gap:35px; } .phone-frame { width:155px; } .airtime-title { font-size:30px; } #lobotomy { padding:55px 20px; } .lob-title { font-size:7.6vw; } .lob-warning { line-height:1.8; } .about-inner { grid-template-columns:1fr; gap:30px; } footer { padding:30px 20px; } .px-title { font-size:19px; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { animation:none !important; transition:none !important; opacity:1 !important; } }
+
+.space-letter::before { content:""; position:absolute; height:2px; background:#9fb0ee; width:120%; top:52%; left:-10%; transform:rotate(-25deg); }
   </style>
 </head>
 <body>
 
 <!-- ─── NAV ─── -->
-<nav>
+<nav aria-label="Main navigation">
   <a href="#" class="nav-logo">
     <img src="icon.png" alt="AloneLab icon">
     ALONE<em>LAB</em>
@@ -435,6 +498,7 @@
   </ul>
 </nav>
 
+<main>
 <!-- ─── HERO ─── -->
 <div class="sky-section">
   <div class="cloud-layer">
@@ -442,15 +506,27 @@
     <div class="cloud c3"></div><div class="cloud c4"></div>
   </div>
   <section class="hero">
-    <div class="hero-eyebrow">✦ INDIE MOBILE STUDIO ✦</div>
-    <h1 class="hero-title">ALONE<span class="lab">LAB</span></h1>
-    <p class="hero-sub">Five letters. Five games. Zero chill.</p>
-    <div class="hero-cta"><a href="#projects" class="px-btn">▶ SEE PROJECTS</a></div>
+    <div class="hero-eyebrow">INDEPENDENT GAME STUDIO</div>
+    <h1 class="hero-title" aria-label="AloneLab"><span class="brand-letters" aria-hidden="true"><span class="air-letter">A</span><span class="lob-letter">L</span><span class="space-letter">O</span><span>N</span><span>E</span></span><span class="lab" aria-hidden="true">LAB<span class="brand-fragment"></span></span></h1>
+    <p class="hero-sub">A little strange. Hard to put down.<br>Small games. Distinct worlds.</p>
+    <div class="hero-cta"><a href="#dust-in-space" class="px-btn">EXPLORE THE LATEST ↗</a></div>
     <div class="hero-mascot">
       <img src="icon.png" alt="Airtime mascot" />
     </div>
   </section>
 </div>
+
+<!-- ─── DUST IN SPACE ─── -->
+<section id="dust-in-space">
+  <div class="section-header">
+    <span class="px-label">THE LATEST FROM THE LAB / CHAPTER 1</span>
+    <h2 class="px-title dust-title">DUST<br>IN SPACE<span class="title-star" aria-hidden="true">✦</span></h2>
+    <p class="dust-description">Launch a planet. Watch it burst into stars.<br>Link three and bring a constellation to life.</p>
+    <a href="/dust-in-space/" class="px-btn">PLAY CHAPTER 1 ↗</a>
+    <p class="dust-note">FREE TO PLAY · MOUSE OR TOUCH</p>
+  </div>
+  <div class="orbit-display" aria-hidden="true"><svg viewBox="0 0 180 180" class="orbit-art"><path d="M58 28H116V34H130V46H140V62H146V116H140V132H128V144H112V150H58V144H44V132H34V116H28V62H34V46H46V34H58Z" fill="#151d4a" stroke="#7e68c8" stroke-width="2"/><path d="M62 42H112V48H124V62H132V112H126V126H112V134H62V128H50V114H42V64H48V50H62Z" fill="#07091f" stroke="#3e3f8a" stroke-width="2"/><path d="M20 128L38 118L60 108L84 94L106 78L130 60L158 44" fill="none" stroke="#9fb0ee"/><path d="M20 128V120M16 124H24M60 108V100M56 104H64M106 78V70M102 74H110M158 44V36M154 40H162M140 27V39M134 33H146M37 145V157M31 151H43" stroke="#d9e2ff" stroke-width="2"/></svg><span>O / A WORLD IN ORBIT</span></div>
+</section>
 
 <!-- ─── PROJECTS ─── -->
 <section id="projects" class="sky-section">
@@ -461,46 +537,36 @@
   </div>
   <div class="projects-grid">
 
-    <div class="proj-card active">
-      <img src="icon.png" class="proj-icon" alt="Airtime icon">
-      <span class="proj-name">AIRTIME</span>
-      <span class="proj-status status-live">● LIVE</span>
-    </div>
+    <a href="#airtime" class="proj-card active">
+      <span class="proj-letter air-letter" aria-hidden="true">A</span>
+      <span class="proj-name">Airtime</span>
+      <span class="proj-status status-live">Available</span>
+    </a>
 
-    <div class="proj-card teaser">
+    <a href="#lobotomy" class="proj-card teaser">
       <span class="proj-letter">L</span>
-      <span class="proj-name">LOBOTOMY</span>
-      <span class="proj-status status-soon">◈ SOON</span>
-    </div>
+      <span class="proj-name">Lobotomy</span>
+      <span class="proj-status status-soon">Coming soon</span>
+    </a>
 
-    <div class="proj-card locked">
-      <span class="proj-letter">O</span>
-      <span class="proj-name">???</span>
-      <span class="proj-status status-tbd">○ TBD</span>
-    </div>
+    <a href="#dust-in-space" class="proj-card space-card">
+      <span class="proj-letter space-letter" aria-hidden="true">O</span>
+      <span class="proj-name">Dust in Space</span>
+      <span class="proj-status status-play">Chapter 1</span>
+    </a>
 
     <div class="proj-card locked">
       <span class="proj-letter">N</span>
-      <span class="proj-name">???</span>
-      <span class="proj-status status-tbd">○ TBD</span>
+      <span class="proj-name">Unknown</span>
+      <span class="proj-status status-tbd">Unrevealed</span>
     </div>
 
     <div class="proj-card locked">
       <span class="proj-letter">E</span>
-      <span class="proj-name">???</span>
-      <span class="proj-status status-tbd">○ TBD</span>
+      <span class="proj-name">Unknown</span>
+      <span class="proj-status status-tbd">Unrevealed</span>
     </div>
 
-  </div>
-</section>
-
-<!-- ─── DUST IN SPACE ─── -->
-<section id="dust-in-space">
-  <div class="section-header">
-    <span class="px-label">PLAY IN YOUR BROWSER</span>
-    <h2 class="px-title">DUST IN SPACE</h2>
-    <p class="dust-description">Launch planets, link stars and complete Scorpio. Play the current Chapter 1 with your mouse or touch.</p>
-    <a href="/dust-in-space/" class="px-btn">▶ PLAY CHAPTER 1</a>
   </div>
 </section>
 
@@ -508,7 +574,7 @@
 <section id="airtime" class="sky-section">
   <div class="cloud-layer"><div class="cloud c1"></div><div class="cloud c3"></div></div>
   <div class="section-header">
-    <span class="px-label">A — FIRST DROP</span>
+    <span class="px-label">A / AIRTIME</span>
     <h2 class="px-title">NOW PLAYING</h2>
   </div>
 
@@ -527,7 +593,7 @@
     <div>
       <h2 class="airtime-title">AIR<br>TIME</h2>
       <p class="airtime-desc">The game is simple. The stakes are real.</p>
-      <p class="airtime-desc">Toss your phone into the air. The longer it flies, the higher your score. Every throw is a bet against gravity — and your screen protector.</p>
+      <p class="airtime-desc">Toss your phone into the air. The longer it flies, the higher your score. Every throw tests gravity and your screen protector.</p>
 
       <div class="tag-row">
         <span class="px-tag">ACCELEROMETER</span>
@@ -538,13 +604,13 @@
       </div>
 
       <div class="store-row">
-        <a href="#" class="store-btn">
-          <span class="store-icon">🍎</span>
+        <div class="store-btn unavailable" aria-label="Cancelled from the App Store">
+          <span class="store-icon" aria-hidden="true">×</span>
           <div>
             <span class="store-txt-sm">CANCEL FROM THE</span>
             <span class="store-txt-lg">App Store</span>
           </div>
-        </a>
+        </div>
         <a href="https://play.google.com/store/apps/details?id=com.alonelab.airtime&amp;hl=en" class="store-btn">
           <span class="store-icon">▶</span>
           <div>
@@ -569,14 +635,14 @@
 <!-- ─── LOBOTOMY ─── -->
 <section id="lobotomy">
   <div class="section-header">
-    <span class="px-label" style="color:#c0392b;">L — NEXT SIGNAL</span>
+    <span class="px-label" style="color:#c0392b;">L / LOBOTOMY</span>
   </div>
-  <div class="lob-title">LOBOTOMY</div>
+  <h2 class="lob-title">LOBOTOMY</h2>
   <div class="lob-sub">
     PROJECT L &nbsp;·&nbsp; STATUS: <span class="redacted">CLASSIFIED</span><br>
     PLATFORM: <span class="redacted">REDACTED</span> &nbsp;·&nbsp; ETA: <span class="redacted">UNKNOWN</span>
   </div>
-  <div><span class="lob-warning">⚠ SOMETHING IS BEING BUILT. IT WILL NOT BE GENTLE.</span></div>
+  <div><span class="lob-warning">FURTHER INFORMATION WITHHELD.</span></div>
 </section>
 
 <!-- ─── ABOUT ─── -->
@@ -589,11 +655,11 @@
   <div class="about-inner">
     <div class="about-box">
       <h3>BUILT ALONE. FELT BY EVERYONE.</h3>
-      <p>AloneLab is an independent mobile studio with one mission: make you feel something. High adrenaline, dead-simple mechanics, and zero respect for conventional game design.</p>
+      <p>AloneLab is an independent mobile studio with one mission: make you feel something. Tactile mechanics, distinct pixel worlds, and a reason to try one more time.</p>
     </div>
     <div class="about-box">
       <h3>THE CONCEPT</h3>
-      <p>Each project maps to a letter in ALONE. Five letters, five distinct worlds — all built with the same obsessive attention to that one moment of pure, stupid fun.</p>
+      <p>Each project maps to a letter in ALONE. Five letters, five distinct worlds. Each built around one moment that makes you want to play again.</p>
     </div>
     <div class="stats-row">
       <div class="stat-box"><span class="stat-num">1</span><span class="stat-label">LIVE APP</span></div>
@@ -603,17 +669,18 @@
   </div>
 </section>
 
+</main>
 <!-- ─── FOOTER ─── -->
 <footer>
   <a href="#" class="footer-logo">
     <img src="icon.png" alt="AloneLab">
     ALONELAB
   </a>
-  <div class="footer-copy">© 2025 ALONELAB · ALL RIGHTS RESERVED</div>
+  <div class="footer-copy">© 2026 ALONELAB · ALL RIGHTS RESERVED</div>
   <ul class="footer-links">
     <li><a href="mailto:hello@alonelab.com">HELLO@ALONELAB.COM</a></li>
     <li><a href="mailto:support@alonelab.com">SUPPORT</a></li>
-    <li><a href="#">PRIVACY</a></li>
+
   </ul>
 </footer>
 
