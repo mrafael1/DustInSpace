@@ -56,6 +56,7 @@ var _extra: int = 0
 @onready var _sparks: BurstSparks = $BurstSparks
 @onready var _payouts: PayoutPopups = $Payouts
 @onready var _idle_hint: IdleHint = $IdleHint
+@onready var _playtest_log: PlaytestLog = $PlaytestLog
 
 ## The world's process modes while the table (#94) holds it still.
 var _paused: Dictionary[Node, Node.ProcessMode] = {}
@@ -100,6 +101,7 @@ func _ready() -> void:
 	_hud.table_opened.connect(_pause_world.bind(true))
 	_hud.table_closed.connect(_pause_world.bind(false))
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
+	_wire_playtest_log()
 	switch_launcher(use_telescope)
 	_wire_sound()
 	get_window().size_changed.connect(fit_screen)
@@ -117,6 +119,7 @@ func start_run(balance: Balance) -> bool:
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), StarMap.by_id(star_map))
 	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)
+	_playtest_log.guided = tutorial
 	for child: Node in get_children():
 		if child.has_method("setup"):
 			child.setup(run, _sequencer)
@@ -225,7 +228,7 @@ func _wire_sound() -> void:
 	orion.entered.connect(_sfx.play.bind(&"tremble", 0.6))
 	orion.roared.connect(_sfx.play.bind(&"big_bang_collapse", 1.5))
 	orion.hurt_taken.connect(_sfx.play.bind(&"link_reject", 0.6))
-	_hud.tap_refused.connect(func(_kind: String) -> void: _sfx.play(&"tap_refused"))
+	_hud.tap_refused.connect(func(_kind: String, _part: StringName) -> void: _sfx.play(&"tap_refused"))
 	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
 	_sound_toggle.toggled.connect(_sfx.cycle_level)
 	_sfx.level_changed.connect(_hud.show_sound_level)
@@ -236,6 +239,20 @@ func _wire_sound() -> void:
 	_sun.ignited.connect(_sfx.play.bind(&"sun_ignite", 1.0))
 	_end_screen.shown.connect(_sfx.on_end_shown)
 	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
+
+
+## The playtest log (#89, debug builds) hears the touches first (through the idle hint) and every
+## refused action the views feed back.
+func _wire_playtest_log() -> void:
+	_idle_hint.touch_started.connect(_playtest_log.touched)
+	_idle_hint.touch_ended.connect(_playtest_log.released)
+	_idle_hint.dragged.connect(_playtest_log.dragged)
+	_hud.tap_refused.connect(_playtest_log.pack_tap_refused)
+	# Whatever these signals carry, only the kind of refusal is logged.
+	_telescope.empty_tapped.connect(func(..._args: Array) -> void: _playtest_log.refused("launch"))
+	_telescope.launch_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("launch"))
+	_sky.link_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
+	_sky.step_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
 
 
 func _on_encounter_step(threat: int, step: int) -> void:

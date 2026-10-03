@@ -22,8 +22,9 @@ extends CanvasLayer
 ## pays. While it shows the game holds still (Main pauses the world on table_opened; the HUD holds
 ## its own counters, message and guide) and any tap closes it.
 
-## A pack tap the run refused (the icon nudges). Feedback only (sound).
-signal tap_refused(kind: String)
+## A pack tap the run refused (the icon nudges): `part` is &"icon" (a load) or &"cost" (a buy).
+## Feedback only (sound, the playtest log).
+signal tap_refused(kind: String, part: StringName)
 ## A pack became buyable as the dust landed (its slot's cue). Feedback only (sound).
 signal pack_ready(kind: String)
 ## The player picked a planet with its icon or its buy button, and it loaded (or was bought and
@@ -387,7 +388,7 @@ func _tap(kind: String, part: StringName) -> void:
 		planet_chosen.emit(kind)
 	if not done:
 		_slots[kind].nudge()
-		tap_refused.emit(kind)
+		tap_refused.emit(kind, part)
 
 
 func _on_event_played(event: EventSequencer.RunEvent) -> void:
