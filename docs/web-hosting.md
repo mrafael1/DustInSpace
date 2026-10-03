@@ -86,6 +86,12 @@ The game opens full-window with its existing nearest filtering and integer viewp
 Mouse clicks are emulated as touches by the existing project setting; phone controls use touch.
 The launch button provides the first interaction; browsers may require another touch on the
 game to activate audio. Use the browser's Back button to return to the site after launching.
+Web SFX use Stream playback so the Godot mixer handles the custom SFX bus. This avoids
+silent Sample routing in the bundled runtime, at the cost of higher latency without threads.
+The bus is also appended with an explicit position rather than `add_bus(-1)`; see
+[Godot's Web bus bug](https://github.com/godotengine/godot/issues/119026).
+After building, run `node tools/web/check_audio_routing.cjs` to check the generated runtime's
+bus routing. Verify actual output during a launch as well; playback calls alone do not prove sound.
 The browser stores `user://` files in IndexedDB; progress and sound settings stay on the same
 origin. A draft Netlify URL and alonelab.com have separate saves. Private browsing, blocked
 storage, clearing site data or changing browsers/devices can remove or isolate progress.
