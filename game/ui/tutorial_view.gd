@@ -96,6 +96,10 @@ var _demo: Array[Vector2i] = []
 var _picked: int = 0
 ## Whether the payout step's time-out was sent already.
 var _timed_out: bool = false
+## Where the line's space starts (an encounter's line keeps clear of Orion's corner).
+var _left: int = 0
+## An encounter's own line (show_line), shown again once a link it guides is dropped.
+var _line: String = ""
 
 
 func _ready() -> void:
@@ -132,10 +136,22 @@ func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = f
 	_demo.clear()
 	_picked = 0
 	_timed_out = false
+	_left = 0
+	_line = ""
 	_tap.visible = Tutorial.is_info(step) and not Tutorial.is_timed(step)
 	_set_text(TEXTS.get(step, ""))
 	visible = true
 	queue_redraw()
+
+
+## A line of its own, outside the guided run's steps, and the hand at `target` when `has_target`:
+## an Orion encounter's guide (#93). The line is centred between `left` and the screen's right edge
+## (clear of Orion's corner). Nothing waits for a tap; hide_guide ends it.
+func show_line(line: String, target: Vector2i = Vector2i.ZERO, has_target: bool = false, point: Point = Point.DOWN, top: int = 78 + TOP, left: int = 0) -> void:
+	show_step(-1, target, has_target, point, top)
+	_left = left
+	_line = line
+	_set_text(line)
 
 
 func hide_guide() -> void:
@@ -198,7 +214,7 @@ func follow(selected: Array[int]) -> void:
 	_has_target = next >= 0
 	if next >= 0:
 		_target = _path_points[next]
-	_set_text(SHINE_TEXT if not selected.is_empty() else TEXTS.get(_step, ""))
+	_set_text(SHINE_TEXT if not selected.is_empty() else (_line if _step < 0 else TEXTS.get(_step, "")))
 	queue_redraw()
 
 
@@ -322,8 +338,8 @@ func _set_text(value: String) -> void:
 	_label.text = value
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_lines = value.count("\n") + 1
-	_label.size = Vector2(ScreenZones.SCREEN.x, _label.get_minimum_size().y)
-	_label.position = Vector2(0, _top)
+	_label.size = Vector2(ScreenZones.SCREEN.x - _left, _label.get_minimum_size().y)
+	_label.position = Vector2(_left, _top)
 	_label.visible = true
 	_tap.size = _tap.get_minimum_size()
 	_tap.position = Vector2(ScreenZones.SCREEN.x / 2 - floori(_tap.size.x / 2.0), _top + _lines * LINE_STEP)

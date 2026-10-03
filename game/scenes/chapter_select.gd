@@ -27,7 +27,8 @@ extends CanvasLayer
 ## won, the crown is the boss's point: bigger, with diagonal glints, wearing an ember ring (S4).
 ## The chart assembles the painted Scorpio as the parts are won: each won part's piece of it
 ## (assets/art/scorpio_piece_<part>.png) lies behind the chart's stars, dormant (a few steps darker
-## on the N ramp); back from a part's win its piece rises first, as a stage's painting does. Winning
+## on the N ramp); back from a part's win its piece forms first from that part's stars on the chart,
+## as a stage's painting does (#100, Apparition). Winning
 ## the final brings the scorpion to life: the whole figure flashes C0 twice, then shows in full
 ## colour from then on.
 ## Once the guided first run is finished, a TUTORIAL plaque (the MAP button's style) in the
@@ -1039,8 +1040,8 @@ func _draw_unlock() -> void:
 
 
 ## The Scorpio behind the chart: alive in full colour once the final is won (flashing C0 twice as
-## it comes to life); before that, each won part's dormant piece, the one just won rising from the
-## bottom up with a bright edge, then one C0 flash.
+## it comes to life); before that, each won part's dormant piece, the one just won forming from its
+## stars with a bright edge, then one C0 flash.
 func _draw_figure() -> void:
 	if shows_figure():
 		if _figure_stage == Chapter.FINAL and life_flashing(_figure_time):
@@ -1060,8 +1061,8 @@ func _draw_figure() -> void:
 			_chart.draw_texture(dormant_piece(stage), Vector2.ZERO)
 
 
-## Part `stage`'s piece rising after its win: the rows from its front down, the front row C0 and the
-## next C1; then one C0 flash.
+## Part `stage`'s piece forming after its win, from its stars on the chart: what's inside the edge
+## dormant, the edge C0 at the front and C1 behind; then one C0 flash.
 func _draw_rising_piece(stage: int) -> void:
 	var path: String = piece_path(stage)
 	var rows: Dictionary = ConstellationView.figure_rows(path)
@@ -1070,16 +1071,20 @@ func _draw_rising_piece(stage: int) -> void:
 			for x: int in rows[y]:
 				_dot(Vector2i(x, y), Palette.C0)
 		return
-	var tex: Texture2D = dormant_piece(stage)
-	var front: int = ConstellationView.figure_front(_figure_time / ConstellationView.FIGURE_RISE, path)
-	var edge: Array[Color] = ConstellationView.FIGURE_EDGE
-	var below: int = front + edge.size()
-	var size: Vector2 = tex.get_size()
-	if below < size.y:
-		_chart.draw_texture_rect_region(tex, Rect2(0, below, size.x, size.y - below), Rect2(0, below, size.x, size.y - below))
-	for k: int in edge.size():
-		for x: int in rows.get(front + k, []):
-			_dot(Vector2i(x, front + k), edge[k])
+	var forming: Apparition = piece_apparition(stage)
+	var radius: int = forming.radius_at(_figure_time / ConstellationView.FIGURE_RISE)
+	_chart.draw_texture(forming.formed(radius), Vector2.ZERO)
+	var edge: Dictionary[Vector2i, Color] = forming.edge(radius)
+	for p: Vector2i in edge:
+		_dot(p, edge[p])
+
+
+## How part `stage`'s dormant piece forms on the chart: from that part's stars there.
+static func piece_apparition(stage: int) -> Apparition:
+	var stars: Array[Vector2i] = []
+	for index: int in Chapter.stars(stage):
+		stars.append(Scorpio.LANDMARKS[index])
+	return Apparition.of(piece_path(stage) + "|dormant", dormant_piece(stage), stars)
 
 
 func _ring(at: Vector2i) -> void:

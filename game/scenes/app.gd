@@ -18,6 +18,9 @@ signal stage_opened(point: int)
 const MainScene := preload("res://game/scenes/main.tscn")
 ## Where the guided first run's state is saved, beside the chapter's.
 const TUTORIAL_ID: String = "tutorial"
+## Which Orion threats' guided encounters (#93) have been played through, saved with the progress:
+## {"mark": true, ...}. Each plays only the first time its stage is played.
+const ENCOUNTERS_ID: String = "encounters"
 
 ## Where progress is kept. Tests point it at a file of their own.
 @export var progress_path: String = ProgressStore.DEFAULT_PATH
@@ -25,6 +28,7 @@ const TUTORIAL_ID: String = "tutorial"
 var chapter: Chapter
 ## The guided first run was finished once.
 var tutorial_done: bool = false
+var encounters_met: Dictionary = {}
 var _store: ProgressStore
 ## The stage in play, or null on the chart.
 var _stage: Main
@@ -43,6 +47,7 @@ func _ready() -> void:
 	chapter = Chapter.new()
 	chapter.from_save(_store.load_chapter(Chapter.ID))
 	tutorial_done = _store.load_chapter(TUTORIAL_ID).get("done", false) == true
+	encounters_met = _store.load_chapter(ENCOUNTERS_ID)
 	_chart.setup(chapter)
 	_chart.stage_chosen.connect(open_stage)
 	_chart.tutorial_requested.connect(replay_tutorial)
@@ -121,6 +126,9 @@ func open_stage(point: int, guided: bool = false) -> void:
 	_stage.star_map = chapter.map_id(point)
 	_stage.tutorial = point == 0 and (guided or not tutorial_done)
 	_stage.tutorial_finished.connect(_on_tutorial_finished)
+	var threat: int = Encounter.threat_of(StarMap.by_id(_stage.star_map))
+	_stage.encounter = threat >= 0 and encounters_met.get(Encounter.threat_name(threat), false) != true
+	_stage.encounter_finished.connect(_on_encounter_finished)
 	_stage.stage_won.connect(_on_stage_won)
 	_stage.map_requested.connect(back_to_chart)
 	_show_chart(false)
@@ -155,6 +163,11 @@ func _on_tutorial_finished() -> void:
 	tutorial_done = true
 	_store.save_chapter(TUTORIAL_ID, {"done": true})
 	_chart.show_tutorial_button(true)
+
+
+func _on_encounter_finished(threat: int) -> void:
+	encounters_met[Encounter.threat_name(threat)] = true
+	_store.save_chapter(ENCOUNTERS_ID, encounters_met)
 
 
 func _on_stage_won() -> void:
