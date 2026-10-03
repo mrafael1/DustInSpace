@@ -56,16 +56,16 @@ func test_the_crosshair_is_unlike_the_landmark_cue() -> void:
 
 
 func test_the_second_burst_marks_a_star_and_launches_never_shoot() -> void:
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
 	assert_null(orion.marked(), "launch 1: no mark")
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
 	var target: Star = run.marked_star()
 	assert_eq(orion.marked(), sky.star_view(target.id), "the crosshair is on the marked star")
 	orion.advance(OrionView.MARK_TIME)
 	assert_true(orion.shows_reticle())
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
 	assert_false(orion.is_shooting())
 	assert_eq(orion.marked(), sky.star_view(target.id), "the mark stands through a launch")
@@ -104,8 +104,8 @@ func test_tracing_a_link_that_leaves_the_mark_readies_the_bow_and_linking_shoots
 func test_a_volley_warning_never_aims_at_the_mark() -> void:
 	# With both threats (planned for the Claws), a link that saves the mark but looses the volley
 	# lights the bow without the sight line; only a link that would shoot the mark aims at it.
-	run.launch(Vector2i(60, 150))
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
 	orion.advance(OrionView.MARK_TIME)
 	orion.show_volley_charge(1, 3)
@@ -132,9 +132,9 @@ func test_a_cancelled_trace_stands_the_bow_down() -> void:
 
 
 func test_collecting_the_marked_star_moves_the_crosshair_to_a_new_mark() -> void:
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
 	var target: Star = run.marked_star()
 	var a: Star = run.add_star(target.size, target.position + Vector2i(6, 0))
@@ -147,10 +147,10 @@ func test_collecting_the_marked_star_moves_the_crosshair_to_a_new_mark() -> void
 
 
 func test_a_new_mark_flashes_the_figure_and_runs_a_sight_line_to_the_star() -> void:
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
 	var rest: Dictionary[Vector2i, Color] = orion.figure_pixels()
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
 	# Replay the mark from its start.
 	var view: StarView = orion.marked()
@@ -185,9 +185,9 @@ func test_a_new_mark_flashes_the_figure_and_runs_a_sight_line_to_the_star() -> v
 
 
 func test_the_locked_reticle_pulses_and_never_blinks_off() -> void:
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
 	var steps: Array[int] = []
 	for i: int in 120:
@@ -217,9 +217,9 @@ func test_the_figure_is_laid_out_like_orion() -> void:
 
 
 func test_a_restart_clears_the_mark_and_the_arrow() -> void:
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
-	run.launch(Vector2i(60, 150))
+	Fixtures.launch(run, Vector2i(60, 150))
 	_play()
 	assert_not_null(orion.marked())
 	main.restart()
@@ -242,7 +242,7 @@ func test_the_figure_is_ember_like_the_boss() -> void:
 
 func _launch_until_a_trio_leaves_the_mark() -> Array[int]:
 	for launch: int in 6:
-		run.launch(Vector2i(60 + 10 * launch, 150))
+		Fixtures.launch(run, Vector2i(60 + 10 * launch, 150))
 		_play()
 		if not run.orion.has_target():
 			continue

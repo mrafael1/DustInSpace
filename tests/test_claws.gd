@@ -68,7 +68,7 @@ func test_the_claws_bring_the_mark_and_the_circle_and_open_without_an_intro() ->
 func test_the_first_launch_marks_a_circle_then_a_star() -> void:
 	var run: RunState = _claws_run()
 	_record(run)
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	assert_eq(events.slice(0, 4), [&"pack_launched", &"pack_burst", &"area_marked", &"star_marked"] as Array[StringName])
 	assert_true(run.hunt.has_area())
 	assert_true(run.orion.has_target())
@@ -76,12 +76,12 @@ func test_the_first_launch_marks_a_circle_then_a_star() -> void:
 
 func test_a_launch_strikes_the_circle_before_any_new_mark_and_never_shoots() -> void:
 	var run: RunState = _claws_run()
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	var target: Star = run.marked_star()
 	# Keep the mark out of the circle: this launch's strike can't take it.
 	run.hunt.centre = _far_from(target.position)
 	_record(run)
-	run.launch(Vector2i(60, 200))
+	Fixtures.launch(run, Vector2i(60, 200))
 	assert_eq(events.slice(0, 4), [&"pack_launched", &"pack_burst", &"area_struck", &"area_marked"] as Array[StringName])
 	assert_false(events.has(&"star_shot"), "a launch never fires the single arrow")
 	assert_false(events.has(&"star_marked"), "the standing mark stays")
@@ -90,7 +90,7 @@ func test_a_launch_strikes_the_circle_before_any_new_mark_and_never_shoots() -> 
 
 func test_a_marked_star_inside_the_circle_is_struck_and_a_new_mark_follows() -> void:
 	var run: RunState = _claws_run()
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	var target: Star = run.marked_star()
 	run.hunt.centre = target.position
 	var struck: Array[Star] = []
@@ -100,7 +100,7 @@ func test_a_marked_star_inside_the_circle_is_struck_and_a_new_mark_follows() -> 
 	var shot: Array[Star] = []
 	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
 	_record(run)
-	run.launch(_far_from(target.position))
+	Fixtures.launch(run, _far_from(target.position))
 	assert_true(struck.has(target), "the strike takes it")
 	assert_false(run.stars.has(target))
 	assert_eq(events.find(&"area_struck") < events.find(&"star_marked"), true, "the new mark comes after the strike")
@@ -119,7 +119,7 @@ func test_a_marked_star_inside_the_circle_is_struck_and_a_new_mark_follows() -> 
 
 func test_links_never_strike_or_move_the_circle() -> void:
 	var run: RunState = _claws_run(10)
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	var centre: Vector2i = run.hunt.centre
 	var struck: Array[bool] = []
 	run.area_struck.connect(func(_at: Vector2i, _stars: Array[Star]) -> void: struck.append(true))
@@ -133,7 +133,7 @@ func test_links_never_strike_or_move_the_circle() -> void:
 
 func test_a_link_that_leaves_the_mark_has_it_shot_and_no_volley_ever_follows() -> void:
 	var run: RunState = _claws_run(10)
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	var target: Star = run.marked_star()
 	var centre: Vector2i = run.hunt.centre
 	var trio: Array[int] = _corner_trio(run)
@@ -149,7 +149,7 @@ func test_a_link_that_leaves_the_mark_has_it_shot_and_no_volley_ever_follows() -
 	assert_eq(run.dust, dust + run.balance.combos[combo].dust, "only the combo pays")
 	assert_eq(run.hunt.centre, centre, "the circle waits for the next launch")
 	for i: int in 6:
-		run.launch(MID_SKY)
+		Fixtures.launch(run, MID_SKY)
 		run.link(_corner_trio(run))
 	for kind: StringName in [&"volley_fired", &"volley_counted", &"volley_intro_placed"]:
 		assert_false(events.has(kind), "no %s on the Claws" % kind)
@@ -157,7 +157,7 @@ func test_a_link_that_leaves_the_mark_has_it_shot_and_no_volley_ever_follows() -
 
 func test_rescuing_the_mark_saves_it() -> void:
 	var run: RunState = _claws_run()
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	var target: Star = run.marked_star()
 	var link: Array[int] = [target.id, run.add_star(target.size, target.position + Vector2i(6, 0)).id, run.add_star(target.size, target.position + Vector2i(0, 6)).id]
 	assert_false(run.link_shoots(link), "a link with the mark saves it")
@@ -169,12 +169,12 @@ func test_rescuing_the_mark_saves_it() -> void:
 
 func test_a_big_bang_launch_clears_the_mark_and_the_strike_finds_nothing() -> void:
 	var run: RunState = _claws_run()
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	run.force_next_big_bang = true
 	var struck: Array[Array] = []
 	run.area_struck.connect(func(_at: Vector2i, stars: Array[Star]) -> void: struck.append(stars))
 	_record(run)
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	assert_eq(struck.size(), 1)
 	assert_true(struck[0].is_empty(), "the sky was cleared first")
 	assert_true(events.has(&"area_marked"), "a new circle anyway")
@@ -203,7 +203,7 @@ func test_landmarks_are_never_hit_and_every_star_leaves_once_over_many_seeds() -
 		for turn: int in 10:
 			if run.is_over():
 				break
-			run.launch(Vector2i(50 + 9 * turn, 130 + 8 * turn))
+			Fixtures.launch(run, Vector2i(50 + 9 * turn, 130 + 8 * turn))
 			_link_any(run)
 			_link_any(run)
 		for id: int in gone:
@@ -214,7 +214,7 @@ func test_landmarks_are_never_hit_and_every_star_leaves_once_over_many_seeds() -
 
 func test_completing_the_claws_skips_every_threat() -> void:
 	var run: RunState = _claws_run()
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	for i: int in 6:
 		run.scorpio.light(i)
 	var claw := Vector2i(156, 200)
@@ -237,21 +237,21 @@ func test_a_launchs_strike_can_lose_the_run() -> void:
 	data["packs"]["blue"]["stars"] = 2
 	data["packs"]["blue"]["weights"] = {"small": 100, "medium": 0, "big": 0}
 	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.claws())
-	run.launch(CORNER)
+	Fixtures.launch(run, CORNER)
 	_forget_sky(run)
 	# The only combo left sits in the circle.
 	for offset: Vector2i in [Vector2i(-6, 0), Vector2i(6, 0), Vector2i(0, 6)]:
 		run.add_star(Star.Size.MEDIUM, run.hunt.centre + offset)
 	assert_true(run.has_remaining_combo())
 	_record(run)
-	run.launch(CORNER)
+	Fixtures.launch(run, CORNER)
 	assert_true(events.find(&"area_struck") < events.find(&"run_lost"), "the loss check sees the sky after the strike")
 	assert_eq(run.outcome, RunState.Outcome.LOST)
 
 
 func test_a_restart_has_no_mark_and_no_circle() -> void:
 	var run: RunState = _claws_run()
-	run.launch(MID_SKY)
+	Fixtures.launch(run, MID_SKY)
 	run.link(_corner_trio(run))
 	assert_true(run.hunt.has_area())
 	var fresh: RunState = _claws_run()
@@ -277,7 +277,7 @@ func test_the_threats_draw_from_their_own_streams() -> void:
 		run.area_marked.connect(func(at: Vector2i, _radius: int) -> void: seen.append("area %s" % at))
 		run.star_marked.connect(func(star: Star) -> void: seen.append("mark %d" % star.id))
 		for launch: int in 4:
-			run.launch(Vector2i(50 + 25 * launch, 150))
+			Fixtures.launch(run, Vector2i(50 + 25 * launch, 150))
 		skies.append(sky)
 		threats.append(seen)
 	assert_eq(threats[0], threats[1], "same seed, same circles and marks")
@@ -362,9 +362,12 @@ func _link_any(run: RunState) -> void:
 					return
 
 
+## Records the run's signals in order, but not the slingshot loading and emptying between launches.
 func _record(run: RunState) -> void:
 	for info: Dictionary in run.get_script().get_script_signal_list():
 		var signal_name: StringName = info["name"]
+		if signal_name == &"pack_loaded":
+			continue
 		run.connect(signal_name, func(...args: Array) -> void: events.append(signal_name))
 
 

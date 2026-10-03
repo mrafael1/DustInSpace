@@ -108,7 +108,7 @@ func test_landing_particles_tick_the_hud_and_the_sun() -> void:
 func test_the_sky_shows_the_run_in_play() -> void:
 	var sky: SkyView = main.get_node("Sky")
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
-	main.run.launch(Vector2i(90, 160))
+	Fixtures.launch(main.run, Vector2i(90, 160))
 	_play_until_idle(sequencer)
 	assert_eq(sky.star_count(), main.run.stars.size())
 	main.start_run(Fixtures.balance())
@@ -145,7 +145,7 @@ func test_same_seed_and_same_debug_launches_replay_the_same_sky() -> void:
 func test_a_restart_mid_launch_leaves_no_pack_in_the_air() -> void:
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
 	var flying: PackView = main.get_node("Launcher/FlyingPack")
-	main.run.launch(Vector2i(90, 160))
+	Fixtures.launch(main.run, Vector2i(90, 160))
 	sequencer.advance(0.0)
 	assert_true(flying.visible)
 	assert_true(main.start_run(Fixtures.balance()))
@@ -195,7 +195,7 @@ func test_a_planet_picked_in_the_hud_aims_the_telescope() -> void:
 
 func test_both_launchers_follow_a_launch() -> void:
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
-	main.run.launch(Vector2i(90, 150))
+	Fixtures.launch(main.run, Vector2i(90, 150))
 	_play_until_idle(sequencer)
 	var kind: String = main.run.loaded_pack
 	assert_eq((main.get_node("Telescope") as Telescope).loaded_pack(), kind)
@@ -218,5 +218,5 @@ func _invalid_balance() -> Balance:
 
 
 func _burst_sizes() -> Array[int]:
-	main.run.launch(Vector2i(90, 160))
+	Fixtures.launch(main.run, Vector2i(90, 160))
 	return main.run.sky_sizes()

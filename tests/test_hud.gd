@@ -66,9 +66,9 @@ func test_a_flight_reveals_nothing_ahead_of_it() -> void:
 	hud.refresh()
 	run.force_next_big_bang = true
 	sequencer.event_played.connect(_hold_on_launch)
-	assert_true(run.launch(Vector2i(90, 100)))
+	assert_true(Fixtures.launch(run, Vector2i(90, 100)))
 	assert_gt(run.dust, 7, "the Big Bang pays enough for a red pack")
-	assert_eq(run.loaded_pack, "red", "the run has already moved on")
+	assert_eq(run.loaded_pack, "", "the run has already moved on: the slingshot is empty")
 	sequencer.advance(0.0)
 	assert_eq(_label("Dust").text, "0", "no Big Bang payout mid-flight")
 	assert_eq(_slot_label("blue", "Count").text, "×0")
@@ -81,7 +81,7 @@ func test_a_flight_reveals_nothing_ahead_of_it() -> void:
 	hud.receive_dust(7)
 	assert_eq(_slot_label("red", "Cost").label_settings.font_color, Palette.D0, "the Big Bang's dust made red affordable")
 	assert_true(hud.slot("red").is_cueing(), "and it cues as the counter gets there")
-	assert_true(hud.slot("red").is_loaded())
+	assert_false(hud.slot("red").is_loaded(), "a launch loads nothing")
 	hud.receive_dust(run.dust - 7)
 	assert_eq(_label("Dust").text, "%d" % run.dust)
 	_assert_shows_the_run()
@@ -337,7 +337,7 @@ func test_launching_the_last_pack_clears_the_marker() -> void:
 	run.owned_packs["blue"] = 1
 	run.owned_packs["red"] = 0
 	hud.refresh()
-	assert_true(run.launch(Vector2i(90, 100)))
+	assert_true(Fixtures.launch(run, Vector2i(90, 100)))
 	sequencer.advance(0.0)
 	assert_eq(run.loaded_pack, "")
 	assert_false(hud.slot("blue").is_loaded(), "no pack left to mark")

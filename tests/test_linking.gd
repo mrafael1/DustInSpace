@@ -141,7 +141,7 @@ func test_a_sequence_starting_drops_a_link_in_progress() -> void:
 	var ids: Array[int] = _seed_sky([S, M, B])
 	_tap(run.find_star(ids[0]).position)
 	_touch(run.find_star(ids[1]).position, true)
-	run.launch(Vector2i(90, 180))
+	Fixtures.launch(run, Vector2i(90, 180))
 	assert_true(sky.selected_ids().is_empty())
 	assert_false(sky.star_view(ids[0]).selected)
 	_touch(run.find_star(ids[1]).position, false)

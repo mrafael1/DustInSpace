@@ -22,7 +22,7 @@ func before_each() -> void:
 
 
 func test_stars_appear_when_the_burst_plays_not_when_the_run_resolves() -> void:
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	assert_eq(sky.star_count(), 0, "the core resolved instantly; the view waits for the event")
 	sequencer.advance(0.0)
 	assert_eq(sky.star_count(), run.stars.size())
@@ -31,7 +31,7 @@ func test_stars_appear_when_the_burst_plays_not_when_the_run_resolves() -> void:
 
 
 func test_burst_stars_fly_from_the_burst_point_and_settle_on_their_positions() -> void:
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	var burst := Vector2i(90, 160)
 	sequencer.advance(0.0)
 	for star: Star in run.stars:
@@ -45,7 +45,7 @@ func test_burst_stars_fly_from_the_burst_point_and_settle_on_their_positions() -
 
 func test_input_returns_once_the_last_star_is_past_its_overshoot() -> void:
 	var burst := Vector2i(90, 160)
-	run.launch(burst)
+	Fixtures.launch(run, burst)
 	var count: int = run.stars.size()
 	sequencer.advance(0.0)
 	assert_true(sequencer.is_busy(), "input stays locked while stars fly out")
@@ -94,7 +94,7 @@ func test_no_star_leaves_the_sky_from_a_burst_at_any_edge() -> void:
 	sequencer.bind(run)
 	sky.setup(run, sequencer)
 	for target: Vector2i in targets:
-		assert_true(run.launch(target))
+		assert_true(Fixtures.launch(run, target))
 		sequencer.advance(0.0)
 		for i: int in 90:
 			_play(STEP)
@@ -129,7 +129,7 @@ func test_a_big_bang_opens_into_decoys_then_collapses_every_star() -> void:
 	_seed_sky([Star.Size.SMALL, Star.Size.MEDIUM])
 	run.force_next_big_bang = true
 	var burst := Vector2i(90, 160)
-	run.launch(burst)
+	Fixtures.launch(run, burst)
 	sequencer.advance(0.0)
 	assert_eq(sky.star_count(), 0, "the run's stars are gone at once")
 	var decoys: int = run.balance.packs["blue"].stars
@@ -158,7 +158,7 @@ func test_a_corner_big_bang_keeps_every_star_on_screen() -> void:
 	run.add_star(Star.Size.MEDIUM, Vector2i(170, 90))
 	sky.setup(run, sequencer)
 	run.force_next_big_bang = true
-	run.launch(Vector2i(8, 86))
+	Fixtures.launch(run, Vector2i(8, 86))
 	sequencer.advance(0.0)
 	var bounds: Rect2i = StarScatter.inner_rect(run.sky_rect)
 	var off_screen: int = 0
@@ -174,7 +174,7 @@ func test_a_corner_big_bang_keeps_every_star_on_screen() -> void:
 
 func test_decoys_are_never_linkable() -> void:
 	run.force_next_big_bang = true
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	sequencer.advance(0.0)
 	_play(StarView.SETTLE_TIME * 0.2)
 	for view: StarView in _views():
@@ -183,7 +183,7 @@ func test_decoys_are_never_linkable() -> void:
 
 
 func test_a_new_run_replaces_the_old_views() -> void:
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	sequencer.advance(0.0)
 	var next_run: RunState = Fixtures.run({}, 2)
 	next_run.add_star(Star.Size.BIG, Vector2i(40, 120))
@@ -198,7 +198,7 @@ func test_a_new_run_replaces_the_old_views() -> void:
 
 func test_setup_twice_with_one_sequencer_hears_each_event_once() -> void:
 	sky.setup(run, sequencer)
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	sequencer.advance(0.0)
 	assert_eq(_views().size(), run.stars.size(), "no duplicate views from a second connection")
 

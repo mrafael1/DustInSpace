@@ -38,7 +38,7 @@ func test_split_points_sit_across_the_aim_and_inside_the_sky() -> void:
 func test_a_red_launch_splits_then_bursts_twice() -> void:
 	var run: RunState = _run()
 	_record(run)
-	assert_true(run.launch(Vector2i(90, 150)))
+	assert_true(Fixtures.launch(run, Vector2i(90, 150)))
 	var names: Array = events.map(func(e: Array) -> StringName: return e[0])
 	assert_eq(names.slice(0, 4), [&"pack_launched", &"pack_split", &"pack_burst", &"pack_burst"])
 	var points: Array = events[1][1][2]
@@ -54,7 +54,7 @@ func test_blue_still_bursts_once() -> void:
 	var run: RunState = _run()
 	run.load_pack("blue")
 	_record(run)
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	var names: Array = events.map(func(e: Array) -> StringName: return e[0])
 	assert_false(names.has(&"pack_split"))
 	assert_eq(names.count(&"pack_burst"), 1)
@@ -64,7 +64,7 @@ func test_a_red_big_bang_splits_then_collapses_at_the_aim() -> void:
 	var run: RunState = _run()
 	_record(run)
 	run.force_next_big_bang = true
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	var names: Array = events.map(func(e: Array) -> StringName: return e[0])
 	assert_eq(names.slice(0, 3), [&"pack_launched", &"pack_split", &"big_bang_started"], "it opens like any red pack")
 	assert_false(names.has(&"pack_burst"))
@@ -77,9 +77,9 @@ func test_it_is_one_launch_for_orions_circle() -> void:
 	data["hunt"] = {"radius": 40, "intro_stars": 0}
 	data["start_packs"] = {"blue": 0, "red": 3}
 	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY, StarMap.heart())
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	_record(run)
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	var names: Array = events.map(func(e: Array) -> StringName: return e[0])
 	assert_eq(names.count(&"area_struck"), 1, "one strike")
 	assert_gt(names.find(&"area_struck"), names.rfind(&"pack_burst"), "after both bursts")
@@ -118,7 +118,7 @@ func _play_launch(run: RunState, aim: Vector2i) -> Array:
 	scope.setup(run, sequencer)
 	scope.aim_at(aim)
 	assert_eq(scope.burst_points(), StarScatter.split_points(scope.burst_preview(), 44, 2, Fixtures.SKY), "the aim previews both bursts")
-	run.launch(scope.burst_preview())
+	Fixtures.launch(run, scope.burst_preview())
 	var most: int = 0
 	for frame: int in 600:
 		sequencer.advance(STEP)
