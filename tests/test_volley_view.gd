@@ -115,7 +115,7 @@ func test_the_hanging_arrows_shiver_on_the_last_link() -> void:
 func test_tracing_the_link_that_fires_readies_the_bow() -> void:
 	var trio: Array[int] = []
 	for launch: int in 4:
-		run.launch(Vector2i(50 + 30 * launch, 150))
+		Fixtures.launch(run, Vector2i(50 + 30 * launch, 150))
 		_play()
 		trio = _sky_trio()
 		if not trio.is_empty():
@@ -137,7 +137,7 @@ func test_tracing_the_link_that_fires_readies_the_bow() -> void:
 
 func test_at_zero_the_arrows_rain_down_one_onto_each_star_it_takes() -> void:
 	for launch: int in 3:
-		run.launch(Vector2i(50 + 40 * launch, 150))
+		Fixtures.launch(run, Vector2i(50 + 40 * launch, 150))
 		_play()
 	run.volley.counted = 2
 	var victims: Array[Star] = []

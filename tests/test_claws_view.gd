@@ -44,7 +44,7 @@ func test_the_claws_open_quietly_with_no_countdown() -> void:
 
 
 func test_the_first_burst_shows_the_ring_and_the_crosshair_together() -> void:
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	_settle()
 	assert_true(orion.has_area(), "the ring")
 	assert_not_null(orion.marked(), "the crosshair's star")
@@ -58,11 +58,11 @@ func test_the_first_burst_shows_the_ring_and_the_crosshair_together() -> void:
 
 
 func test_the_strike_takes_a_marked_star_in_the_ring_and_the_crosshair_moves_on() -> void:
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	_settle()
 	var target: Star = run.marked_star()
 	run.hunt.centre = target.position
-	run.launch(Vector2i(140, 210) if target.position.x < 90 else Vector2i(50, 210))
+	Fixtures.launch(run, Vector2i(140, 210) if target.position.x < 90 else Vector2i(50, 210))
 	_settle()
 	assert_false(run.stars.has(target))
 	if run.marked_star() != null:
@@ -83,7 +83,7 @@ func _settle() -> void:
 
 
 func test_links_and_restart_never_show_a_volley_countdown_or_effect() -> void:
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	_settle()
 	for turn: int in 3:
 		var ids: Array[int] = []

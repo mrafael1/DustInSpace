@@ -73,13 +73,15 @@ func test_the_run_events_sound_as_they_play() -> void:
 
 ## No launcher holds the sequencer here, so a launch's events all play in one step.
 func test_a_launch_whooshes_and_bursts_and_a_big_bang_opens_like_any_burst() -> void:
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	sequencer.advance(0.0)
 	assert_eq(played.slice(0, 2), [&"launch", &"burst"] as Array[StringName])
+	run.load_pack("blue")
+	sequencer.advance(0.0)
 	played.clear()
 	sfx.advance(1.0)
 	run.force_next_big_bang = true
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	sequencer.advance(0.0)
 	assert_eq(played.slice(0, 2), [&"launch", &"burst"] as Array[StringName], "no spoiler: the same burst")
 	for cue: StringName in played:
@@ -216,7 +218,7 @@ func test_the_big_bang_marks_its_timeline_once_each() -> void:
 	big_bang.silence_started.connect(func() -> void: marks.append("silence"))
 	big_bang.banged.connect(func() -> void: marks.append("bang"))
 	run.force_next_big_bang = true
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	sequencer.advance(0.0)
 	sequencer.advance(0.0)
 	var t: float = 0.0
@@ -297,7 +299,7 @@ func test_the_speaker_works_while_a_sequence_blocks_the_game() -> void:
 	var main: Main = _main()
 	var main_sfx: Sfx = main.get_node("Sfx")
 	main.run.dust = 20
-	main.run.launch(Vector2i(90, 160))
+	Fixtures.launch(main.run, Vector2i(90, 160))
 	assert_true((main.get_node("EventSequencer") as EventSequencer).is_busy())
 	_tap_screen(Vector2i(8, 8))
 	assert_eq(main_sfx.level, Sfx.Level.LOW, "turned down mid-launch")
@@ -369,7 +371,7 @@ func test_a_full_pull_launches_without_a_cancel() -> void:
 func test_the_sky_signals_each_star_joining_a_link() -> void:
 	var main: Main = _main()
 	var sky: SkyView = main.get_node("Sky")
-	main.run.launch(Vector2i(90, 160))
+	Fixtures.launch(main.run, Vector2i(90, 160))
 	var main_sequencer: EventSequencer = main.get_node("EventSequencer")
 	for i: int in 120:
 		main_sequencer.advance(1.0 / 30.0)
@@ -389,7 +391,7 @@ func test_restarting_during_the_big_bang_silence_leaves_nothing_behind() -> void
 	var main_sequencer: EventSequencer = main.get_node("EventSequencer")
 	var big_bang: BigBangSequence = main.get_node("BigBang")
 	main.run.force_next_big_bang = true
-	main.run.launch(Vector2i(90, 160))
+	Fixtures.launch(main.run, Vector2i(90, 160))
 	main_sequencer.advance(0.0)
 	main_sequencer.advance(Launcher.FLIGHT_TIME + Launcher.TREMBLE_TIME)
 	assert_true(big_bang.is_playing())

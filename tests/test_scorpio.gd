@@ -350,7 +350,7 @@ func test_the_preview_queries_match_the_link() -> void:
 func test_a_big_bang_clears_the_sky_but_not_the_constellation() -> void:
 	_light(3)
 	run.force_next_big_bang = true
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	assert_eq(run.stars.size(), 0)
 	assert_true(run.scorpio.is_lit(3), "lit landmarks stay lit")
 
@@ -360,7 +360,7 @@ func test_bursts_keep_stars_off_the_landmarks() -> void:
 		var fresh: RunState = _scorpio_run()
 		fresh.owned_packs["red"] = 1
 		fresh.load_pack("red")
-		fresh.launch(landmark)
+		Fixtures.launch(fresh, landmark)
 		for star: Star in fresh.stars:
 			for other: Vector2i in Scorpio.LANDMARKS:
 				assert_gte(Vector2(star.position).distance_to(Vector2(other)), StarScatter.LANDMARK_SPACING - 1.0,
@@ -512,7 +512,7 @@ func test_on_a_taller_sky_the_rules_use_the_moved_map() -> void:
 	assert_true(r.scorpio.is_lit(3))
 	r.owned_packs["red"] = 1
 	r.load_pack("red")
-	r.launch(r.scorpio.landmark_position(4))
+	Fixtures.launch(r, r.scorpio.landmark_position(4))
 	for star: Star in r.stars:
 		for p: Vector2i in r.scorpio.landmark_positions():
 			assert_gte(Vector2(star.position).distance_to(Vector2(p)), StarScatter.LANDMARK_SPACING - 1.0, "bursts keep off the moved map")
