@@ -175,6 +175,33 @@
       color: var(--white); text-shadow: 3px 3px 0 var(--px); line-height: 1.5;
     }
 
+    /* ─── DUST IN SPACE: Chapter 1's own pixel star field ─── */
+    #dust-in-space {
+      background-color: #07091f;
+      background-image: url('dust_space.png');
+      background-size: 960px 600px;
+      background-position: center;
+      image-rendering: pixelated;
+      border-top: 4px solid #2a3375;
+      border-bottom: 4px solid #2a3375;
+      color: #d9e2ff;
+      padding: 100px 24px;
+    }
+    #dust-in-space .section-header { max-width: 640px; margin: 0 auto; }
+    #dust-in-space .px-label { color: #a77fd8; text-shadow: 2px 2px 0 #07091f; }
+    #dust-in-space .px-title { color: #fffbea; text-shadow: 3px 3px 0 #07091f; }
+    #dust-in-space .dust-description {
+      margin: 24px auto 32px; max-width: 520px; line-height: 1.7;
+      font-size: 18px; text-shadow: 2px 2px 0 #07091f;
+    }
+    #dust-in-space .px-btn {
+      background: #ffc062; color: #07091f; border-color: #07091f;
+      box-shadow: 5px 5px 0 #3e3f8a;
+    }
+    #dust-in-space .px-btn:hover { box-shadow: 3px 3px 0 #3e3f8a; }
+    #dust-in-space .px-btn:active { box-shadow: none; }
+    #dust-in-space .px-btn:focus-visible { outline: 3px solid #fffbea; outline-offset: 5px; }
+
     /* ─── PROJECTS GRID ─── */
     #projects { background: linear-gradient(180deg,#5ec2f8 0%,#a8dff8 100%); }
 
@@ -468,11 +495,11 @@
 </section>
 
 <!-- ─── DUST IN SPACE ─── -->
-<section id="dust-in-space" class="sky-section">
+<section id="dust-in-space">
   <div class="section-header">
     <span class="px-label">PLAY IN YOUR BROWSER</span>
     <h2 class="px-title">DUST IN SPACE</h2>
-    <p style="margin:24px auto;max-width:560px;line-height:1.7">Launch planets, link stars and complete Scorpio. Play the current Chapter 1 with your mouse or touch.</p>
+    <p class="dust-description">Launch planets, link stars and complete Scorpio. Play the current Chapter 1 with your mouse or touch.</p>
     <a href="/dust-in-space/" class="px-btn">▶ PLAY CHAPTER 1</a>
   </div>
 </section>

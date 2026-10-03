@@ -34,6 +34,13 @@ Generated binaries are ignored by Git. Rebuild the whole package after updating 
 The existing `screenshot.jpg` and `phone-cute.png` were retrieved from the live site so their
 homepage references keep working in the complete package.
 The homepage gains a Dust In Space section and a navigation link. Airtime and Lobotomy remain.
+Its space background is generated from Chapter 1's own `ChapterSelect.space_image`, using
+the game's palette and crisp integer scaling. To regenerate it after an art update:
+
+```sh
+godot --headless --path . -s tools/web/export_space_background.gd
+```
+
 If the live homepage changes, update this source before rebuilding.
 
 ## Preview locally
