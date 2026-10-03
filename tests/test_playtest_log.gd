@@ -74,6 +74,66 @@ func test_short_gaps_arent_idle() -> void:
 		assert_ne(record["type"], "idle")
 
 
+func test_a_long_hold_or_drag_isnt_idle() -> void:
+	log.setup(run, null)
+	log.touched()
+	for i: int in 5:
+		log.advance(1.0)
+		log.dragged()
+	log.released()
+	log.touched()
+	log.released()
+	log.touched()
+	log.advance(6.0)
+	log.released()
+	log.touched()
+	for record: Dictionary in _records():
+		assert_ne(record["type"], "idle", "aiming, tracing and holding are interaction")
+
+
+func test_the_gap_starts_when_the_last_finger_lifts() -> void:
+	log.setup(run, null)
+	log.touched()
+	log.advance(4.0)
+	log.released()
+	log.advance(3.0)
+	log.touched()
+	var idles: Array[float] = []
+	for record: Dictionary in _records():
+		if record["type"] == "idle":
+			idles.append(float(record["seconds"]))
+	assert_eq(idles.size(), 1)
+	assert_almost_eq(idles[0], 3.0, 0.01, "from the release, not from the press")
+
+
+func test_main_hears_drags_and_releases_through_the_idle_hint() -> void:
+	var main: Main = MainScene.instantiate()
+	main.seed_override = 7
+	add_child_autofree(main)
+	var main_log: PlaytestLog = main.get_node("PlaytestLog")
+	main_log.enabled = true
+	main_log.log_dir = DIR
+	main_log.set_process(false)
+	var hint: IdleHint = main.get_node("IdleHint")
+	var press := InputEventScreenTouch.new()
+	press.pressed = true
+	hint.observe(press)
+	for i: int in 5:
+		main_log.advance(1.0)
+		hint.observe(InputEventScreenDrag.new())
+	var lift := InputEventScreenTouch.new()
+	hint.observe(lift)
+	main_log.advance(3.0)
+	hint.observe(press)
+	var idles: Array[float] = []
+	for record: Dictionary in _records():
+		if record["type"] == "idle":
+			idles.append(float(record["seconds"]))
+	assert_eq(idles.size(), 1, "a five-second drag is no stall; the gap after it is")
+	assert_almost_eq(idles[0], 3.0, 0.01)
+	main_log.enabled = false
+
+
 func test_planet_taps_are_loads_or_buys() -> void:
 	log.setup(run, null)
 	log.pack_tap_refused("red", &"icon")
