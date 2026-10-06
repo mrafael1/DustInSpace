@@ -11,6 +11,8 @@ extends RefCounted
 ## piece of it, fitted to its stars, for a part stage.
 const FIGURE := "res://assets/art/scorpio_figure.png"
 const PART_PAINTING := "res://assets/art/scorpio_part_%s.png"
+## Chapter 2's painted Aquarius, for its chart and final (not drawn yet: the chart skips it).
+const AQUARIUS_FIGURE := "res://assets/art/aquarius_figure.png"
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -203,6 +205,39 @@ static func final() -> StarMap:
 	return map
 
 
+## The full Aquarius (chapter 2's chart and, once built, its final): 14 stars of its usual figure,
+## spread out to at least 24 px apart like the Scorpio, keeping the shape with east to the left:
+## the hand (epsilon) and shoulder (Sadalsuud) on the right, the head (Sadalmelik), the water jar
+## at the upper left (Sadachbia, zeta, eta, pi: its Y), the body (theta) down to the knee (lambda),
+## the leg (tau, Skat) to the lower right, and the stream (phi, psi, 98) pouring down the left.
+## Sizes follow brightness: Sadalsuud, Sadalmelik and Skat big; Sadachbia, zeta, lambda and 98
+## medium; the rest small. The hand starts lit. No painting yet (AQUARIUS_FIGURE is missing).
+static func aquarius() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aquarius"
+	map.title = "AQUARIUS"
+	map.landmarks = [
+		Vector2i(150, 156), Vector2i(124, 140), Vector2i(98, 124), Vector2i(74, 118),
+		Vector2i(50, 112), Vector2i(26, 118), Vector2i(52, 88), Vector2i(90, 150),
+		Vector2i(66, 160), Vector2i(70, 186), Vector2i(88, 206), Vector2i(42, 170),
+		Vector2i(30, 192), Vector2i(24, 218),
+	]
+	map.segments = [
+		Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5),
+		Vector2i(4, 6), Vector2i(2, 7), Vector2i(7, 8), Vector2i(8, 9), Vector2i(9, 10),
+		Vector2i(8, 11), Vector2i(11, 12), Vector2i(12, 13),
+	]
+	map.sizes = [
+		Star.Size.SMALL, Star.Size.BIG, Star.Size.BIG, Star.Size.MEDIUM,
+		Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.SMALL, Star.Size.SMALL,
+		Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL,
+		Star.Size.SMALL, Star.Size.MEDIUM,
+	]
+	map.starting_lit = [0, 1]
+	map.painting = AQUARIUS_FIGURE
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -218,6 +253,8 @@ static func by_id(p_id: String) -> StarMap:
 			return claws()
 		"final":
 			return final()
+		"aquarius":
+			return aquarius()
 	return scorpio()
 
 

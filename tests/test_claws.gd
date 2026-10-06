@@ -287,7 +287,7 @@ func test_the_threats_draw_from_their_own_streams() -> void:
 func test_the_claws_unlock_after_the_heart() -> void:
 	var chapter := Chapter.new()
 	assert_eq(chapter.map_id(4), "claws")
-	assert_eq(Chapter.stage_name(4), "CLAWS")
+	assert_eq(Chapter.new().stage_name(4), "CLAWS")
 	for stage: int in 3:
 		chapter.complete(stage)
 	assert_eq(chapter.state(4), Chapter.PointState.LOCKED, "until the Heart is won")
