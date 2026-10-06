@@ -339,3 +339,24 @@ func test_the_box_turns_a_quarter_each_launch_and_drains_on_every_side() -> void
 		var star := Star.new(1, Star.Size.SMALL, near[way])
 		var to: Vector2i = current.preview([star] as Array[Star], SKY, [])[1]
 		assert_true(current.leaves(star.position, to), "the %s side drains" % way)
+
+
+## Issue #128: a replay keeps the whole reveal but holds the painting more briefly.
+func test_a_replayed_stage_holds_its_painting_more_briefly() -> void:
+	var first: float = ConstellationView.completion_time(StarMap.aquarius_hand())
+	var again: float = ConstellationView.completion_time(StarMap.aquarius_hand(), true)
+	assert_almost_eq(first, 5.2, 0.001, "tune 1.7 + rise 1.8 + flash 0.1 + hold 1.6")
+	assert_almost_eq(first - again, ConstellationView.FIGURE_CODA - ConstellationView.REPEAT_CODA, 0.001, "only the hold is shorter")
+	assert_gt(again, ConstellationView.TUNE_TIME + ConstellationView.FIGURE_RISE + ConstellationView.FIGURE_FLASH, "the reveal plays whole")
+	var app: App = AppScene.instantiate()
+	app.progress_path = STORE
+	add_child_autofree(app)
+	app.switch_chapter()
+	app.open_stage(0)
+	assert_false(app.stage().replay, "a first win holds it fully")
+	assert_false((app.stage().get_node("Sky/ConstellationLayer") as ConstellationView).repeat)
+	app.stage().stage_won.emit()
+	app.back_to_chart()
+	app.open_stage(0)
+	assert_true(app.stage().replay, "a replay of a won stage")
+	assert_true((app.stage().get_node("Sky/ConstellationLayer") as ConstellationView).repeat)

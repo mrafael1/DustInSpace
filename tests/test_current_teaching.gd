@@ -104,3 +104,15 @@ func test_the_final_arrives_with_its_box_coming_alight_and_its_title() -> void:
 		var stage: Main = _main(map_id)
 		assert_false((stage.get_node("HUD") as Hud).boss_banner().is_showing(), "%s has no arrival" % map_id)
 		assert_false((stage.get_node("Sky/CurrentLayer") as CurrentView).is_arriving())
+
+
+func test_chevrons_slide_clear_of_crowding_stars() -> void:
+	var area := Rect2i(24, 78, 132, 172)
+	var plain: Dictionary[Vector2i, Color] = CurrentView.chevron_pixels(area, Vector2i.LEFT)
+	var mid_tip := Vector2i(area.position.x + CurrentView.CHEVRON_IN, area.position.y + area.size.y / 2)
+	assert_true(plain.has(mid_tip))
+	var crowded: Dictionary[Vector2i, Color] = CurrentView.chevron_pixels(area, Vector2i.LEFT, [mid_tip] as Array[Vector2i])
+	assert_eq(crowded.size(), plain.size(), "still three chevrons")
+	assert_false(crowded.has(mid_tip), "the one under a star moved")
+	for p: Vector2i in crowded:
+		assert_gt(p.distance_to(Vector2(mid_tip)), 4.0, "clear of the star")
