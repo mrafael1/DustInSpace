@@ -19,15 +19,17 @@ Keep the three sizes, three-star combos, one landmark per link, existing pack ro
 
 ## First experiment: double-edged currents
 
-Use a debug-only switch on the existing **Tail** map. Keep its normal packs, landmarks, and Orion single mark. Compare current off/on on that same map and seed range. No chapter selection, save migration, new chart, or general effects framework is needed.
+Use a debug-only switch on the existing **Tail** map. Keep its normal packs and landmarks. No chapter selection, save migration, new chart, or general effects framework is needed.
 
-One current shifts loose stars on a successful launch; landmarks stay fixed and the sky stays still between actions. Both red bursts resolve before the single movement step. Buying, cancelled gestures, and invalid actions do not advance it. These are the minimum assumptions for the experiment, not the final movement specification.
+Orion's mark already asks "link first or launch first": a link that leaves the mark behind loses it, and launching to find a rescue is his cost. Currents ask the same question, so a plain off/on comparison with Orion present can't say which one changed the player's choices. Compare all four cases on the same seed range: current off/on × Orion off/on (a map without an `orion` block never marks). Orion off with current on is the main reading of the current alone; the Orion-on pair shows whether the two pressures add up or merely repeat each other.
+
+One current shifts loose stars on a successful launch; landmarks stay fixed and the sky stays still between actions. Both red bursts resolve before the single movement step. Buying, cancelled gestures, and invalid actions do not advance it. Orion's mark stays on its star when the current moves it, so a current can carry the marked star out of every rescue's reach (or into one); the bow warning and the arrow follow the star. Treat this as a deliberate part of the Orion-on cases and record when it happens. These are the minimum assumptions for the experiment, not the final movement specification.
 
 The layout must demonstrate both outcomes:
 
 - A launch brings previously stranded stars into useful reach.
 - That same launch carries another usable cluster away from its landmark or breaks its useful reach.
-- Launching directly beside the target does not consistently bypass the trade-off: new burst stars are affected too.
+- Aiming upstream so the current carries the burst where it's wanted is the intended skill. What must not happen is aim removing the cost: new burst stars move too, and no aim point reliably helps one cluster without moving another.
 - Linking the saved cluster first prevents that loss of opportunity, but uses stars the player might otherwise save.
 
 Show this conflict in ordinary random play after the initial example. If it exists only in a scripted board, or the best answer is always "link everything before launching," revise or drop the current.
@@ -57,22 +59,24 @@ An echo should remain an ordinary star, with a finite source such as one emissio
 
 Movement and a free star are not replacements for the Big Bang's anticipation and payoff. Each chapter needs a noticeable payout spike that fits its objective; completion paintings alone are not enough.
 
-First payoff hypothesis: a **rare pack jackpot** opens with familiar anticipation, delivers an unusually rich ordinary burst and a visible dust spike, and preserves banked stars and lit landmarks. It avoids the old constellation Big Bang problem of wiping useful stars without helping the objective. Amount, chance, and burst tuning remain undecided.
+First payoff hypothesis: a **Big Bang that doesn't clear the sky**. It keeps the Big Bang's rare roll and its build-up, then delivers an unusually rich ordinary burst and a visible dust spike, and keeps saved stars and lit landmarks. That avoids the reason the Big Bang is off on constellation stages (it wiped the stars saved for a landmark). Amount, chance, and burst tuning remain undecided.
+
+This would change Scorpio's constellation stages as much as any new chapter, so it is its own topic: it needs the user's approval, its own branch and its own balance report, and it does not ride along with the currents experiment.
 
 For Aquarius, the exciting result would be a rich burst followed by a readable rearrangement that exposes several opportunities. For Gemini, it would supply a contested area and let the player choose which completion to pursue. Neither should silently auto-complete landmarks or introduce a new currency.
 
-Evaluate the idea early with a forced debug presentation or paper sequence, separately from ordinary current/echo trials. A forced example tests readability and the feeling of the payout, not its natural frequency or balance. If it is only a bigger number and does not feel like a memorable opening, revise it before planning a full chapter. Natural jackpots and their economics need separate tuning evidence before release.
+Evaluate the idea early with a forced debug presentation or paper sequence, separately from ordinary current/echo trials. A forced example tests readability and the feeling of the payout, not its natural frequency or balance. If it is only a bigger number and does not feel like a memorable opening, revise it before planning a full chapter. Natural non-clearing Big Bangs and their economics need separate tuning evidence before release.
 
 ## Cheap sequence and decision gates
 
-Only the currents experiment is next. Gemini, jackpot tuning, and chapter infrastructure do not become parallel implementation tasks.
+Only the currents experiment is next. Gemini, the non-clearing Big Bang, and chapter infrastructure do not become parallel implementation tasks.
 
 | Step | Work | Gate |
 |---|---|---|
 | A | Sketch one Tail current conflict and its busiest aim state. Outline the payout moment. | A visible gain and cost; phone-scale readability; a quick choice that preserves anticipation. |
-| B | Add one debug-only current to Tail, with minimum core checks and view cues. | The existing map runs unchanged with the switch off; movement matches cues and keeps stars selectable. |
-| C | Play current off/on across matched seeds; observe human touch play early. | Players notice both helping and harming, sometimes link first and sometimes launch first, and cannot routinely bypass the field by aiming. |
-| D | Compare simple and current-aware core bots; try the forced payout presentation separately. | Useful decisions survive unscripted runs; losses are explainable; rich openings are legible and satisfying. |
+| B | Add one debug-only current to Tail, with minimum core checks and view cues. | The existing map runs unchanged with the switch off; movement matches cues and keeps stars selectable; a moved mark stays on its star. |
+| C | Play current off/on × Orion off/on across matched seeds; observe human touch play early. | Players notice both helping and harming, sometimes link first and sometimes launch first, and aiming upstream is a skill that never removes the cost. |
+| D | Run the existing simple bot across the four cases; current-aware bots only if human play leaves the keep/drop call unclear. Try the forced payout presentation separately. | Useful decisions survive unscripted runs; losses are explainable; rich openings are legible and satisfying. |
 | E | Record keep, revise, or drop. | No dominant trivial answer, no clutter-heavy preview, and meaningful stakes. |
 | After E | Specify only a surviving mechanic; revisit Gemini sketches, then consider chapter maps and progression. | An echo trade-off must pass its own gate before any Gemini chapter commitment. |
 
@@ -82,7 +86,7 @@ Wells and resonance are outside this sequence. Full stage progressions, boss nam
 
 For the current prototype, check fixed landmarks, one step per successful launch including red twins, invalid/cancelled actions changing nothing, safe selectable positions, shown destinations matching execution, and remaining reachable combos being checked before loss. Movement rules stay in pure typed GDScript; scenes observe events. Use integer pixels, the existing palette, and injectable randomness. Previews must not alter pack draws.
 
-Record the map, seeds, bot policy, wins/losses, packs, links, gains and losses of reachable opportunities after movement, and chosen launch/link order. Human observation should include first-use understanding, preview confusion, refused touches, decision time, and explanations of a surprising outcome. Compare blue-only and deliberate mixed-pack play; classify deliberate star sacrifices separately from mistakes.
+Record the map, the case (current and Orion on or off), seeds, bot policy, wins/losses, packs, links, gains and losses of reachable opportunities after movement, chosen launch/link order, and marks the current moved into or out of a rescue. Human observation should include first-use understanding, preview confusion, refused touches, decision time, and explanations of a surprising outcome. Compare blue-only and deliberate mixed-pack play; classify deliberate star sacrifices separately from mistakes.
 
 All tuning belongs in game/config/balance.json. If it changes, run and report the required Python simulator as well as spatial core runs, explicitly describing what each models. No balancing or gameplay tests are claimed for this documentation revision.
 
