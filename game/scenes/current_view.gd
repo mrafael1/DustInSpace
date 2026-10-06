@@ -93,9 +93,16 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2(point), Vector2.ONE), dots[point], true)
 
 
+## The run is over and everything it queued has been seen: the last launch's burst and drift, and
+## any extinction still flaring. The core ends a run the moment a losing launch resolves; its drains
+## still play out after that, so the field stays until then.
+func _played_out() -> bool:
+	return _run.is_over() and (_sequencer == null or not _sequencer.is_busy()) and _flashes.is_empty()
+
+
 func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	if _run == null or _run.current == null or _run.is_over():
+	if _run == null or _run.current == null or _played_out():
 		return result
 	var area: Rect2i = _run.current.region
 	result.merge(water_pixels(area, _shown_flow, _time))
