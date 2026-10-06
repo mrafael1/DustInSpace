@@ -1,6 +1,7 @@
 extends GutTest
-## Aquarius stages 1 and 2: the Hand teaches the flow alone, the Body brings the drain. Each reads
-## its own current step from balance.json.
+## Aquarius stages 1 to 4: the Hand teaches the flow alone, the Body brings the drain, the Legs
+## branch either side of it, the Stream pours down. Each reads its own current step from
+## balance.json, ramping up.
 
 const AppScene := preload("res://game/scenes/app.tscn")
 const MainScene := preload("res://game/scenes/main.tscn")
@@ -60,6 +61,8 @@ func test_each_stage_reads_its_own_step_from_the_balance_file() -> void:
 	assert_true(file.is_valid(), str(file.errors))
 	assert_eq(file.current_step_for("aquarius_hand"), 24)
 	assert_eq(file.current_step_for("aquarius_body"), 24)
+	assert_eq(file.current_step_for("aquarius_legs"), 28, "the chapter ramps up")
+	assert_eq(file.current_step_for("aquarius_stream"), 32)
 	assert_eq(file.current_step_for("current_trial"), file.current_step, "anything else uses the default")
 	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(Balance.DEFAULT_PATH))
 	data.currents = {"step": 24, "stages": {"aquarius_hand": 16}}
@@ -73,11 +76,15 @@ func test_aquarius_opens_on_the_hand_and_winning_it_opens_the_body() -> void:
 	var chapter := Chapter.new(ChapterDef.aquarius())
 	assert_eq(chapter.map_id(0), "aquarius_hand")
 	assert_eq(chapter.map_id(1), "aquarius_body")
-	assert_eq(chapter.map_id(2), "", "the Jar isn't built yet")
+	assert_eq(chapter.map_id(2), "aquarius_legs")
+	assert_eq(chapter.map_id(3), "aquarius_stream")
+	assert_eq(chapter.map_id(4), "", "the Jar isn't built yet")
 	assert_eq(chapter.state(0), Chapter.PointState.AVAILABLE)
 	assert_eq(chapter.complete(0), 1)
 	assert_eq(chapter.state(1), Chapter.PointState.AVAILABLE)
-	assert_eq(chapter.complete(1), -1, "nothing after the Body to open yet")
+	assert_eq(chapter.complete(1), 2, "the Body opens the Legs")
+	assert_eq(chapter.complete(2), 3, "the Legs open the Stream")
+	assert_eq(chapter.complete(3), -1, "nothing after the Stream to open yet")
 
 
 func test_playing_the_hand_from_the_chart_is_not_the_tutorial_and_saves_as_aquarius() -> void:
@@ -140,3 +147,52 @@ func test_the_first_move_of_a_run_says_what_the_current_does() -> void:
 				break
 		var expected: String = Hud.DRAIN_MESSAGE if map_id == "aquarius_body" else Hud.FLOW_MESSAGE
 		assert_eq(hud.message(), expected, map_id)
+
+
+func test_the_legs_branch_either_side_of_the_knee_with_the_shin_near_the_drain() -> void:
+	var map: StarMap = StarMap.aquarius_legs()
+	_check_pickable(map)
+	assert_eq(map.count(), 6)
+	assert_eq(map.starting_lit, [0] as Array[int], "the hip starts lit: five to light")
+	assert_true(map.current_drains)
+	assert_eq(map.current_direction, Vector2i.LEFT)
+	assert_eq(map.current_region.position.x, 48)
+	assert_eq(map.neighbours(1).size(), 3, "the knee joins the hip and both legs")
+	assert_false(map.current_region.has_point(map.landmarks[3]), "the foot lies past the drain")
+	assert_lt(map.landmarks[2].x - map.current_region.position.x, 24, "the shin is a step from the drain")
+	assert_eq(StarMap.by_id("aquarius_legs").title, "LEGS")
+
+
+func test_the_stream_pours_down_into_a_drain_along_its_bottom() -> void:
+	var map: StarMap = StarMap.aquarius_stream()
+	_check_pickable(map)
+	assert_eq(map.current_direction, Vector2i.DOWN, "a waterfall")
+	assert_true(map.current_drains)
+	assert_eq(map.current_region.end.y, 200)
+	for index: int in 5:
+		assert_true(map.current_region.has_point(map.landmarks[index]), "the stream runs through the flow")
+	assert_gt(map.landmarks[5].y, map.current_region.end.y, "its last star lies below the drain")
+	var run := RunState.new(Balance.load_file(), Fixtures.rng(), SKY, map)
+	assert_eq(run.current.displacement, Vector2i(0, 32), "down, at the stream's own step")
+	var doomed: Star = run.add_star(Star.Size.SMALL, Vector2i(150, 190))
+	var kept: Star = run.add_star(Star.Size.SMALL, Vector2i(150, 120))
+	var preview: Dictionary[int, Vector2i] = run.current_preview()
+	assert_true(run.current.leaves(doomed.position, preview[doomed.id]), "low stars fall into the drain")
+	assert_eq(preview[kept.id], Vector2i(150, 152), "higher ones fall a step")
+	assert_eq(StarMap.by_id("aquarius_stream").title, "STREAM")
+
+
+func test_a_downward_drain_shows_along_the_bottom_and_splashes_back_up() -> void:
+	var area := Rect2i(16, 78, 148, 122)
+	var view := CurrentView.new()
+	var water: Dictionary[Vector2i, Color] = CurrentView.water_pixels(area, Vector2i.DOWN * 32, 1.0)
+	for p: Vector2i in water:
+		assert_true(area.has_point(p))
+	var at := Vector2i(100, area.end.y)
+	var mid: Dictionary[Vector2i, Color] = CurrentView.extinction_pixels(at, Vector2i.DOWN * 32, 0.2, area)
+	var up: int = 0
+	for p: Vector2i in mid:
+		if (mid[p] == Palette.M5 or mid[p] == Palette.M4) and p.y < at.y - 4:
+			up += 1
+	assert_gt(up, 2, "the splash goes back up the waterfall")
+	view.free()

@@ -47,6 +47,8 @@ var boss: bool = false
 var current_region: Rect2i = Rect2i()
 ## The flow drains: stars it carries out of current_region are lost, for nothing.
 var current_drains: bool = false
+## Which way the flow runs (chapter 2's stream pours down; the rest run left).
+var current_direction: Vector2i = Vector2i.LEFT
 
 
 ## The full Scorpio (#61): every star of Scorpius's figure.
@@ -165,6 +167,47 @@ static func aquarius_body() -> StarMap:
 	map.intros = false
 	map.current_region = _full_height_from(48)
 	map.current_drains = true
+	return map
+
+
+## Aquarius, stage 3: the Legs. Two legs branch from the hip (upper right, lit) at the knee: one
+## reaches down and left through the flow, its shin near the drain at x 48 and its foot past it;
+## the other stays upstream to the right, its calf and heel (Skat, big) in the flow. Stars saved by
+## the shin have little time; stars by the right leg drift across toward the knee and shin. Five to
+## light. Strings are 36-39 px. Its painting isn't drawn yet.
+static func aquarius_legs() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aquarius_legs"
+	map.title = "LEGS"
+	map.landmarks = [Vector2i(124, 100), Vector2i(96, 124), Vector2i(68, 148), Vector2i(34, 166), Vector2i(116, 154), Vector2i(140, 184)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(1, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.SMALL, Star.Size.SMALL, Star.Size.BIG]
+	map.starting_lit = [0]
+	map.painting = AQUARIUS_PART % "legs"
+	map.intros = false
+	map.current_region = _full_height_from(48)
+	map.current_drains = true
+	return map
+
+
+## Aquarius, stage 4: the Stream. The water pours down: the flow runs downward over the sky from
+## x 16 to 163 and drains along its bottom edge (y 200), like a waterfall. The stream winds down
+## from its source at the top left (lit) through the flow; its last star lies below the drain, in
+## the still strip above the ground. Stars saved low in the stream fall into the drain soonest.
+## Five to light. Strings are 33-50 px. Its painting isn't drawn yet.
+static func aquarius_stream() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aquarius_stream"
+	map.title = "STREAM"
+	map.landmarks = [Vector2i(44, 100), Vector2i(72, 122), Vector2i(48, 148), Vector2i(80, 170), Vector2i(110, 188), Vector2i(132, 226)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = AQUARIUS_PART % "stream"
+	map.intros = false
+	map.current_region = Rect2i(16, Scorpio.HOME_SKY.position.y, 148, 200 - Scorpio.HOME_SKY.position.y)
+	map.current_drains = true
+	map.current_direction = Vector2i.DOWN
 	return map
 
 
@@ -298,6 +341,10 @@ static func by_id(p_id: String) -> StarMap:
 			return aquarius_hand()
 		"aquarius_body":
 			return aquarius_body()
+		"aquarius_legs":
+			return aquarius_legs()
+		"aquarius_stream":
+			return aquarius_stream()
 	return scorpio()
 
 

@@ -152,7 +152,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			var area := Rect2i(region.position + scorpio.shift, region.size)
 			if region.position.y <= Scorpio.HOME_SKY.position.y and region.end.y >= Scorpio.HOME_SKY.end.y:
 				area = Rect2i(area.position.x, p_sky_rect.position.y, area.size.x, p_sky_rect.size.y)
-			current = StarCurrent.new(area, Vector2i.LEFT * step, scorpio.map.current_drains)
+			current = StarCurrent.new(area, scorpio.map.current_direction * step, scorpio.map.current_drains)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
