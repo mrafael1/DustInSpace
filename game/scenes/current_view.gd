@@ -33,12 +33,22 @@ var aiming: bool = false:
 			queue_redraw()
 var _run: RunState
 var _sequencer: EventSequencer
+## A turning flow points at the edge its next launch drains to: CHEVRONS ember chevrons along it,
+## CHEVRON_IN px inside the field (#128: which way it goes must read before the launch).
+const CHEVRONS: int = 3
+const CHEVRON_IN: int = 3
+## A box of drains (four ways or more) comes alight as its stage opens: each side flares solid in
+## the order the flow will take them, ARRIVAL_STEP apart, then settles.
+const ARRIVAL_STEP: float = 0.22
+
 ## Extinctions playing: the edge point each star left by, and the seconds since.
 var _flashes: Dictionary[Vector2i, float] = {}
 ## The way each of those stars was flowing when it went.
 var _flash_ways: Dictionary[Vector2i, Vector2i] = {}
 ## Seconds the water has flowed.
 var _time: float = 0.0
+## Seconds since a box of drains began coming alight (-1: not, or done).
+var _arrival: float = -1.0
 ## The flow the water and drains show. A turning flow turns in the core the moment a launch
 ## resolves; the view turns only once that launch has played out (its burst and drift), so the
 ## water never changes way under stars still moving the old way.
@@ -56,6 +66,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_flashes.clear()
 	_flash_ways.clear()
 	_shown_flow = run.current.displacement if run.current != null else Vector2i.ZERO
+	_arrival = 0.0 if run.current != null and run.current.turns.size() >= 4 else -1.0
 	set_process(run.current != null)
 	queue_redraw()
 
@@ -78,6 +89,10 @@ func flash_drain(at: Vector2i, way: Vector2i = Vector2i.ZERO) -> void:
 ## out. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	_time += delta
+	if _arrival >= 0.0:
+		_arrival += delta
+		if _arrival >= ARRIVAL_STEP * (_run.current.turns.size() + 1):
+			_arrival = -1.0
 	if _run != null and _run.current != null and _sequencer != null and not _sequencer.is_busy():
 		_shown_flow = _run.current.displacement
 	for at: Vector2i in _flashes.keys():
@@ -116,6 +131,13 @@ func pixels() -> Dictionary[Vector2i, Color]:
 				result[point] = Palette.S2
 		for point: Vector2i in _drain_edge(area, now):
 			result[point] = Palette.S3
+		if _run.current.turns.size() > 1:
+			result.merge(chevron_pixels(area, now), true)
+		if is_arriving():
+			for k: int in _run.current.turns.size():
+				if _arrival >= ARRIVAL_STEP * k:
+					for point: Vector2i in _solid_edge(area, _run.current.turns[k]):
+						result[point] = Palette.S4 if _arrival < ARRIVAL_STEP * (k + 1) else Palette.S3
 		for at: Vector2i in _flashes:
 			var went: Vector2i = _flash_ways.get(at, Vector2i.ZERO)
 			result.merge(extinction_pixels(at, went if went != Vector2i.ZERO else _shown_flow, _flashes[at], area), true)
@@ -223,8 +245,45 @@ static func extinction_pixels(at: Vector2i, flow: Vector2i, t: float, area: Rect
 	return kept
 
 
+## A box of drains is coming alight (its sides flaring in turn).
+func is_arriving() -> bool:
+	return _arrival >= 0.0
+
+
+## Ember chevrons just inside the edge a flow running `way` drains to, pointing at it.
+static func chevron_pixels(area: Rect2i, way: Vector2i) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	var line := Vector2i(absi(way.y), absi(way.x))
+	var edge: Array[Vector2i] = _drain_edge(area, way)
+	if edge.is_empty():
+		return pixels
+	var first: Vector2i = edge[0]
+	var span: int = area.size.y if way.x != 0 else area.size.x
+	for k: int in CHEVRONS:
+		var along: int = span * (k + 1) / (CHEVRONS + 1)
+		var tip: Vector2i = first + line * along - way * CHEVRON_IN
+		for d: int in 3:
+			pixels[tip - way * d + line * d] = Palette.S4
+			pixels[tip - way * d - line * d] = Palette.S4
+	return pixels
+
+
+## Every pixel of the side a flow running `way` drains to.
+static func _solid_edge(area: Rect2i, way: Vector2i) -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	if way.x != 0:
+		var x: int = area.position.x if way.x < 0 else area.end.x - 1
+		for y: int in range(area.position.y, area.end.y):
+			points.append(Vector2i(x, y))
+	else:
+		var y: int = area.position.y if way.y < 0 else area.end.y - 1
+		for x: int in range(area.position.x, area.end.x):
+			points.append(Vector2i(x, y))
+	return points
+
+
 ## The field's downstream side, where the flow drains: an ember dotted line, one dot in two.
-func _drain_edge(area: Rect2i, flow: Vector2i) -> Array[Vector2i]:
+static func _drain_edge(area: Rect2i, flow: Vector2i) -> Array[Vector2i]:
 	var points: Array[Vector2i] = []
 	if flow.x != 0:
 		var x: int = area.position.x if flow.x < 0 else area.end.x - 1

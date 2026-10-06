@@ -67,14 +67,17 @@ const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's first hunting area of a run (#71) says what the ring means.
 const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
-## A current's first move of a run (chapter 2) says what it does: it moves stars, or, where it
-## drains, that it takes the stars it carries past its edge.
+## A current's rule, said once a run as the player first aims (#128: before the first launch is
+## committed; revisits and retries hear it again, it's short): it moves stars; where it drains,
+## that it takes the stars it carries past its edge; a tide or box, that it turns and drains.
+## At most 22 characters a line (132 px).
 const FLOW_MESSAGE: String = "EACH LAUNCH, THE FLOW\nMOVES THE STARS"
 const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
-## A turning flow (the Jar's tide) says it turns.
-const TIDE_MESSAGE: String = "THE TIDE TURNS\nAFTER EVERY LAUNCH"
-## A flow that turns all the way round (the final's box).
-const BOX_MESSAGE: String = "THE FLOW TURNS EACH\nLAUNCH, ROUND THE BOX"
+const TIDE_MESSAGE: String = "TIDE TURNS EACH LAUNCH\nBOTH SIDES DRAIN STARS"
+const BOX_MESSAGE: String = "FLOW TURNS EACH LAUNCH\nEVERY SIDE DRAINS"
+const RULE_MESSAGE_TIME: float = 3.5
+## A final that isn't Orion's arrives with its title card for this long (no threat, no roar).
+const ARRIVAL_TIME: float = 2.2
 ## A refused pick's reason, said on the message line (#91): two lines, so it fits the 180 px screen.
 ## It stays RULE_TIME, and the same reason again within RULE_QUIET says nothing new.
 const REFUSAL_MESSAGES: Dictionary = {
@@ -209,6 +212,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_volley.reset(run.volley.links_left(), run.volley.interval)
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
+	if run.scorpio != null and run.scorpio.map.arrival_epithet != "":
+		_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.M6, Palette.M4)
 	_guide.hide_guide()
 	close_table()
 	_press([])
@@ -252,6 +257,23 @@ func advance(delta: float) -> void:
 		_refusal_quiet[reason] -= delta
 		if _refusal_quiet[reason] <= 0.0:
 			_refusal_quiet.erase(reason)
+
+
+## The run's current says its rule, once a run (Main calls it as the player first aims).
+func tell_current_rule() -> void:
+	if _current_told or _run == null or _run.current == null:
+		return
+	_current_told = true
+	show_message(current_rule(_run.current), RULE_MESSAGE_TIME)
+
+
+## What a current's message says: a box, a tide, a drain or a plain flow.
+static func current_rule(current: StarCurrent) -> String:
+	if current.turns.size() > 2:
+		return BOX_MESSAGE
+	if current.turns.size() > 1:
+		return TIDE_MESSAGE
+	return DRAIN_MESSAGE if current.drains else FLOW_MESSAGE
 
 
 ## Shows a short message above the launcher for `seconds` ("" clears it).
@@ -473,10 +495,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_guide.show_step(Tutorial.Step.SUN_FULL, _landmark_top(event.args[0]), true, TutorialView.Point.DOWN, _run.sky_rect.position.y + TutorialView.TOP)
 			return
 		&"stars_shifted":
-			if not _current_told:
-				_current_told = true
-				var rule: String = BOX_MESSAGE if _run.current.turns.size() > 2 else TIDE_MESSAGE if _run.current.turns.size() > 1 else DRAIN_MESSAGE if _run.current.drains else FLOW_MESSAGE
-				show_message(rule, ORION_MESSAGE_TIME)
+			# Normally said when the player first aimed; a launch made without aiming says it here.
+			tell_current_rule()
 			return
 		&"star_marked":
 			if not _orion_told:
