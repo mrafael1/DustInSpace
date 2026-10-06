@@ -73,6 +73,8 @@ const FLOW_MESSAGE: String = "EACH LAUNCH, THE FLOW\nMOVES THE STARS"
 const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
 ## A turning flow (the Jar's tide) says it turns.
 const TIDE_MESSAGE: String = "THE TIDE TURNS\nAFTER EVERY LAUNCH"
+## A flow that turns all the way round (the final's box).
+const BOX_MESSAGE: String = "THE FLOW TURNS EACH\nLAUNCH, ROUND THE BOX"
 ## A refused pick's reason, said on the message line (#91): two lines, so it fits the 180 px screen.
 ## It stays RULE_TIME, and the same reason again within RULE_QUIET says nothing new.
 const REFUSAL_MESSAGES: Dictionary = {
@@ -473,7 +475,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"stars_shifted":
 			if not _current_told:
 				_current_told = true
-				var rule: String = TIDE_MESSAGE if _run.current.turns.size() > 1 else DRAIN_MESSAGE if _run.current.drains else FLOW_MESSAGE
+				var rule: String = BOX_MESSAGE if _run.current.turns.size() > 2 else TIDE_MESSAGE if _run.current.turns.size() > 1 else DRAIN_MESSAGE if _run.current.drains else FLOW_MESSAGE
 				show_message(rule, ORION_MESSAGE_TIME)
 			return
 		&"star_marked":

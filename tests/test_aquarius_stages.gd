@@ -80,14 +80,14 @@ func test_aquarius_opens_on_the_hand_and_winning_it_opens_the_body() -> void:
 	assert_eq(chapter.map_id(2), "aquarius_legs")
 	assert_eq(chapter.map_id(3), "aquarius_stream")
 	assert_eq(chapter.map_id(4), "aquarius_jar")
-	assert_eq(chapter.map_id(Chapter.FINAL), "", "the final isn't built yet")
+	assert_eq(chapter.map_id(Chapter.FINAL), "aquarius_final")
 	assert_eq(chapter.state(0), Chapter.PointState.AVAILABLE)
 	assert_eq(chapter.complete(0), 1)
 	assert_eq(chapter.state(1), Chapter.PointState.AVAILABLE)
 	assert_eq(chapter.complete(1), 2, "the Body opens the Legs")
 	assert_eq(chapter.complete(2), 3, "the Legs open the Stream")
 	assert_eq(chapter.complete(3), 4, "the Stream opens the Jar")
-	assert_eq(chapter.complete(4), -1, "the final isn't built yet")
+	assert_eq(chapter.complete(4), Chapter.FINAL, "the Jar opens the final")
 
 
 func test_playing_the_hand_from_the_chart_is_not_the_tutorial_and_saves_as_aquarius() -> void:
@@ -110,12 +110,15 @@ func test_playing_the_hand_from_the_chart_is_not_the_tutorial_and_saves_as_aquar
 
 
 func test_a_stage_without_a_painting_yet_completes_without_one() -> void:
-	assert_lt(ConstellationView.completion_time(StarMap.aquarius_hand()), ConstellationView.completion_time(StarMap.stinger()) - 2.5, "no empty wait for a painting")
-	assert_eq(ConstellationView.completion_time(StarMap.aquarius_hand()), ConstellationView.TUNE_TIME + ConstellationView.VIBRATE_TIME, "the song, then its last string rings out")
+	var bare: StarMap = StarMap.aquarius_hand()
+	bare.painting = "res://assets/art/not_drawn_yet.png"
+	assert_lt(ConstellationView.completion_time(bare), ConstellationView.completion_time(StarMap.stinger()) - 2.5, "no empty wait for a painting")
+	assert_eq(ConstellationView.completion_time(bare), ConstellationView.TUNE_TIME + ConstellationView.VIBRATE_TIME, "the song, then its last string rings out")
 	assert_eq(ConstellationView.completion_time(StarMap.stinger()), ConstellationView.completion_time(), "painted stages keep their time")
-	assert_false(ConstellationView.has_painting(StarMap.aquarius_hand()))
-	assert_false(ConstellationView.has_painting(StarMap.aquarius_body()))
-	assert_true(ConstellationView.has_painting(StarMap.stinger()))
+	assert_false(ConstellationView.has_painting(bare))
+	for map_id: String in ["aquarius_hand", "aquarius_body", "aquarius_legs", "aquarius_stream", "aquarius_jar", "aquarius_final"]:
+		assert_true(ConstellationView.has_painting(StarMap.by_id(map_id)), "%s is painted" % map_id)
+		assert_eq(ConstellationView.completion_time(StarMap.by_id(map_id)), ConstellationView.completion_time(), "and plays its painting")
 	var main: Main = MainScene.instantiate()
 	main.star_map = "aquarius_hand"
 	main.in_chapter = true
@@ -306,3 +309,63 @@ func test_the_water_turns_only_once_the_launch_has_played_out() -> void:
 			break
 	view.advance(0.0)
 	assert_eq(view.pixels().get(left), Palette.S2, "then the water turns")
+
+
+func test_the_final_is_the_whole_aquarius_in_a_rotating_box_of_drains() -> void:
+	var map: StarMap = StarMap.aquarius_final()
+	var figure: StarMap = StarMap.aquarius()
+	assert_eq(map.landmarks, figure.landmarks, "the chart's figure")
+	assert_eq(map.segments, figure.segments)
+	assert_eq(map.starting_lit, [0, 1] as Array[int], "hand and shoulder lit: twelve to light")
+	assert_false(map.orion or map.hunt or map.volley != "" or map.boss, "no Orion")
+	assert_true(map.current_drains)
+	assert_eq(map.current_turns, [Vector2i.LEFT, Vector2i.DOWN, Vector2i.RIGHT, Vector2i.UP] as Array[Vector2i])
+	var inner: Rect2i = StarScatter.inner_rect(SKY)
+	assert_true(inner.encloses(map.current_region.grow(1)), "every side can drain: stars can leave the box")
+	var outside: Array[int] = []
+	for index: int in map.count():
+		if not map.current_region.has_point(map.landmarks[index]):
+			outside.append(index)
+	assert_eq(outside, [6] as Array[int], "only pi, atop the jar, sits above the box")
+	assert_eq(StarMap.by_id("aquarius_final").id, "aquarius_final")
+	assert_eq(Chapter.new(ChapterDef.aquarius()).map_id(Chapter.FINAL), "aquarius_final")
+
+
+func test_the_box_turns_a_quarter_each_launch_and_drains_on_every_side() -> void:
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(Balance.DEFAULT_PATH))
+	data.currents = {"step": 24, "stages": {"aquarius_final": 40}}
+	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(5), SKY, StarMap.aquarius_final())
+	var ways: Array[Vector2i] = []
+	for launch: int in 5:
+		ways.append(Vector2i(signi(run.current.displacement.x), signi(run.current.displacement.y)))
+		run.current.turn()
+	assert_eq(ways, [Vector2i.LEFT, Vector2i.DOWN, Vector2i.RIGHT, Vector2i.UP, Vector2i.LEFT] as Array[Vector2i])
+	var box: Rect2i = run.current.region
+	var near: Dictionary[Vector2i, Vector2i] = {
+		Vector2i.LEFT: Vector2i(box.position.x + 10, 150),
+		Vector2i.DOWN: Vector2i(120, box.end.y - 10),
+		Vector2i.RIGHT: Vector2i(box.end.x - 10, 150),
+		Vector2i.UP: Vector2i(120, box.position.y + 10),
+	}
+	for way: Vector2i in near:
+		var current := StarCurrent.new(box, way * 40, true)
+		var star := Star.new(1, Star.Size.SMALL, near[way])
+		var to: Vector2i = current.preview([star] as Array[Star], SKY, [])[1]
+		assert_true(current.leaves(star.position, to), "the %s side drains" % way)
+
+
+func test_the_finals_first_launch_says_the_flow_turns_round_the_box() -> void:
+	var main: Main = MainScene.instantiate()
+	main.star_map = "aquarius_final"
+	main.in_chapter = true
+	main.seed_override = 7
+	add_child_autofree(main)
+	var hud: Hud = main.get_node("HUD")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	main.run.add_star(Star.Size.SMALL, Vector2i(100, 200) + main.run.scorpio.shift)
+	assert_true(main.run.launch(Vector2i(130, 210) + main.run.scorpio.shift))
+	for tick: int in 100:
+		sequencer.advance(0.03)
+		if hud.message() != "":
+			break
+	assert_eq(hud.message(), Hud.BOX_MESSAGE)
