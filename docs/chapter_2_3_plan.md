@@ -6,10 +6,12 @@
 
 Chapter 1 asks the player to protect stars. Chapter 2 should ask when to rearrange them at a cost. Chapter 3 needs a genuine competing use for its echoes before it earns a place in the campaign.
 
+**Confirmed chapter identity:** Orion is exclusive to chapter 1 and its Scorpio mythology. His mark, volley, and hunting area do not carry into chapters 2 or 3, including their prototypes. Do not reskin those threats to supply later chapters with pressure; each chapter must establish its own mechanic and stakes.
+
 | Concept | Status | Proposed pressure | Decision that must exist |
 |---|---|---|---|
-| 2: Aquarius / currents | First experiment | Launching can move a saved cluster out of reach while helping another; keep the existing map's single mark during the experiment. | Link a useful cluster first, or risk moving it to obtain a new opportunity? |
-| 3: Gemini / echoes | Weaker concept; paper work only for now | A scarce echo can serve its partner or a competing landmark; use the existing single-mark threat as the baseline for any later prototype. | Spend the echo here, or save/use it elsewhere at a real cost? |
+| 2: Aquarius / currents | First experiment | Launching can move a saved cluster out of reach while helping another; movement itself must create the cost. | Link a useful cluster first, or risk moving it to obtain a new opportunity? |
+| 3: Gemini / echoes | Weaker concept; paper work only for now | A scarce echo can serve its partner or a competing landmark; chapter-specific pressure remains unresolved. | Spend the echo here, or save/use it elsewhere at a real cost? |
 
 Finite packs and dust alone are not proof of pressure. A later chapter must retain meaningful losses and understandable consequences. Early stages can teach gently; mastery stages should aim for stakes comparable to late Scorpio, measured with the same spatial core bots and human playtests. No numerical win target is chosen yet, and no new win rates are claimed.
 
@@ -19,11 +21,11 @@ Keep the three sizes, three-star combos, one landmark per link, existing pack ro
 
 ## First experiment: double-edged currents
 
-Use a debug-only switch on the existing **Tail** map. Keep its normal packs and landmarks. No chapter selection, save migration, new chart, or general effects framework is needed.
+Use a debug-only copy of the existing **Tail layout**, with Orion and all his threats disabled. Keep its normal packs and landmarks. This borrows geometry only; normal chapter 1 play keeps Orion and its existing rules. No chapter selection, save migration, new chart, or general effects framework is needed.
 
-Orion's mark already asks "link first or launch first": a link that leaves the mark behind loses it, and launching to find a rescue is his cost. Currents ask the same question, so a plain off/on comparison with Orion present can't say which one changed the player's choices. Compare all four cases on the same seed range: current off/on × Orion off/on (a map without an `orion` block never marks). Orion off with current on is the main reading of the current alone; the Orion-on pair shows whether the two pressures add up or merely repeat each other.
+Compare current off/on on this same threat-free layout and seed range. The experiment must demonstrate that currents produce meaningful pressure independently. If movement is only a convenience, revise or drop it rather than borrow Orion's threats.
 
-One current shifts loose stars on a successful launch; landmarks stay fixed and the sky stays still between actions. Both red bursts resolve before the single movement step. Buying, cancelled gestures, and invalid actions do not advance it. Orion's mark stays on its star when the current moves it, so a current can carry the marked star out of every rescue's reach (or into one); the bow warning and the arrow follow the star. Treat this as a deliberate part of the Orion-on cases and record when it happens. These are the minimum assumptions for the experiment, not the final movement specification.
+One current shifts loose stars on a successful launch; landmarks stay fixed and the sky stays still between actions. Both red bursts resolve before the single movement step. Buying, cancelled gestures, and invalid actions do not advance it. These are the minimum assumptions for the experiment, not the final movement specification.
 
 The layout must demonstrate both outcomes:
 
@@ -51,7 +53,7 @@ Sketch two alternatives separately:
 
 Prefer the competing-destination sketch first because it can use ordinary stars without another size rule. Test combo dependence only if the spatial competition is weak. Do not stack both ideas immediately.
 
-For any later prototype, keep the Tail's single-mark threat as the baseline for pressure; use a small debug-only paired layout or overlay, not a new campaign chapter. Compare against that same threat/layout without echoes. Demonstrate a case where taking a link sacrifices another useful opportunity or a threatened star. Extra stars that merely make every run easier fail the concept gate.
+Before any later prototype, identify Gemini's own source of pressure in the paper sketches. Use a small debug-only paired layout or overlay with no Orion threats, not a new campaign chapter. Compare that same layout with echoes off/on. Demonstrate a case where taking a link sacrifices another useful opportunity, and establish why that sacrifice matters to the run. Extra stars that merely make every run easier fail the concept gate; Gemini stays unresolved until it has independent stakes.
 
 An echo should remain an ordinary star, with a finite source such as one emission per pair. Reject unlimited generation or a guaranteed completion chain. The unresolved size mapping, pair layout, Sun interaction, and exact timing remain questions for a surviving concept, not committed rules.
 
@@ -73,10 +75,10 @@ Only the currents experiment is next. Gemini, the non-clearing Big Bang, and cha
 
 | Step | Work | Gate |
 |---|---|---|
-| A | Sketch one Tail current conflict and its busiest aim state. Outline the payout moment. | A visible gain and cost; phone-scale readability; a quick choice that preserves anticipation. |
-| B | Add one debug-only current to Tail, with minimum core checks and view cues. | The existing map runs unchanged with the switch off; movement matches cues and keeps stars selectable; a moved mark stays on its star. |
-| C | Play current off/on × Orion off/on across matched seeds; observe human touch play early. | Players notice both helping and harming, sometimes link first and sometimes launch first, and aiming upstream is a skill that never removes the cost. |
-| D | Run the existing simple bot across the four cases; current-aware bots only if human play leaves the keep/drop call unclear. Try the forced payout presentation separately. | Useful decisions survive unscripted runs; losses are explainable; rich openings are legible and satisfying. |
+| A | Sketch one current conflict on the threat-free Tail layout and its busiest aim state. Outline the payout moment. | A visible gain and cost without Orion; phone-scale readability; a quick choice that preserves anticipation. |
+| B | Add one debug-only current to that layout, with minimum core checks and view cues. | The switch-off case reproduces the threat-free baseline; normal Scorpio play stays unchanged; movement matches cues and keeps stars selectable. |
+| C | Play current off/on across matched seeds with no Orion threats; observe human touch play early. | Players notice both helping and harming, sometimes link first and sometimes launch first, and aiming upstream is a skill that never removes the cost. |
+| D | Run the existing simple bot across the two cases; current-aware bots only if human play leaves the keep/drop call unclear. Try the forced payout presentation separately. | Useful decisions survive unscripted runs; losses are explainable; rich openings are legible and satisfying. |
 | E | Record keep, revise, or drop. | No dominant trivial answer, no clutter-heavy preview, and meaningful stakes. |
 | After E | Specify only a surviving mechanic; revisit Gemini sketches, then consider chapter maps and progression. | An echo trade-off must pass its own gate before any Gemini chapter commitment. |
 
@@ -86,7 +88,7 @@ Wells and resonance are outside this sequence. Full stage progressions, boss nam
 
 For the current prototype, check fixed landmarks, one step per successful launch including red twins, invalid/cancelled actions changing nothing, safe selectable positions, shown destinations matching execution, and remaining reachable combos being checked before loss. Movement rules stay in pure typed GDScript; scenes observe events. Use integer pixels, the existing palette, and injectable randomness. Previews must not alter pack draws.
 
-Record the map, the case (current and Orion on or off), seeds, bot policy, wins/losses, packs, links, gains and losses of reachable opportunities after movement, chosen launch/link order, and marks the current moved into or out of a rescue. Human observation should include first-use understanding, preview confusion, refused touches, decision time, and explanations of a surprising outcome. Compare blue-only and deliberate mixed-pack play; classify deliberate star sacrifices separately from mistakes.
+Record the layout, the case (current on or off, with all Orion threats disabled), seeds, bot policy, wins/losses, packs, links, gains and losses of reachable opportunities after movement, and chosen launch/link order. Human observation should include first-use understanding, preview confusion, refused touches, decision time, and explanations of a surprising outcome. Compare blue-only and deliberate mixed-pack play; classify deliberate star sacrifices separately from mistakes.
 
 All tuning belongs in game/config/balance.json. If it changes, run and report the required Python simulator as well as spatial core runs, explicitly describing what each models. No balancing or gameplay tests are claimed for this documentation revision.
 
