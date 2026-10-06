@@ -87,6 +87,15 @@ The game opens on Scorpio's chart: the constellation drawn as a pixel-art star c
 - **Progression:** a stage counts as won as soon as the core decides it, and is saved on the device (`user://progress.json`). The chart's progress is separate from the constellation built inside a stage. No upgrades, currencies or buffs.
 - **Built so far:** every part (the Stinger, the Tail, the Body, the Heart and the Claws) and the final (the boss stage).
 
+### Chapter 2: Aquarius (in progress)
+
+The second chapter, built around the draining current kept in the trial ([chapter plan](chapter_2_3_plan.md)). No Orion.
+
+- **Chapters:** each is a `ChapterDef` (its figure, five part stages and final, crown point and art); `Chapter` keeps one chapter's progress, saved under its id beside the others. Every chapter has five parts and a final.
+- **Opening:** Aquarius opens once Scorpio's final is won. The chart then shows a plaque in its top-left corner naming the other chapter; tapping it switches charts. The chart opens on the latest open chapter. Debug builds can always switch (the FLOW trial button sits below the plaque). The TUTORIAL plaque and the guided first run stay Scorpio's.
+- **Its chart:** the full Aquarius, 14 stars spread at least 24 px apart, east to the left: the hand (epsilon) and shoulder (Sadalsuud) on the right, the head (Sadalmelik), the water jar's Y at the upper left (Sadachbia, zeta, eta, pi), the body (theta) down to the knee (lambda), the leg (tau, Skat) to the lower right, and the stream (phi, psi, 98) pouring down the left. Sizes follow brightness. Parts, travelled from the hand: **Hand** (epsilon, Sadalsuud), **Body** (Sadalmelik, theta), **Jar** (Sadachbia, zeta, eta, pi), **Legs** (lambda, tau, Skat), **Stream** (phi, psi, 98), then the full **Aquarius** at the crown above the figure.
+- **Not built yet:** no stage has a map, so the chart says COMING SOON; paintings are missing and the chart leaves them out until they exist. Agreed plan: stage 1 teaches the flow alone, the drain arrives in stage 2 and stays; each stage reads its own current step from balance.json.
+
 ### Tutorial: the guided first run
 
 The Stinger's first play is guided. Each step shows a line or two under the Sun, at the top of the sky (playtest: at the bottom it fought with the land and the telescope), with the combo card below it, and a pointing hand (C0/C1, N0 outline, bobbing 2 px). **Only the launches are gated**: a launch goes only on its own launch step (where it says), so the scripted packs land, and switching the loaded planet waits for free play. **Links and buys go through at any step**; only the step that asks for one moves on. A refused action is refused like an invalid one (nothing is spent).
