@@ -213,20 +213,33 @@ func test_aquarius_trial_shows_its_drain_and_trails_a_draining_star_out_in_ember
 	assert_null(main.run.current)
 
 
-func test_a_drained_star_drifts_out_then_bursts_and_leaves_the_sky() -> void:
+func test_a_drained_star_drifts_to_the_edge_and_cuts_out_as_the_drain_flashes() -> void:
 	var main: Main = _aquarius()
 	var doomed: Star = main.run.add_star(Star.Size.SMALL, Vector2i(60, 120))
 	var sky: SkyView = main.get_node("Sky")
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var flow: CurrentView = main.get_node("Sky/CurrentLayer")
 	sky.setup(main.run, sequencer)
 	var view: StarView = sky.star_view(doomed.id)
+	var drained_at: Array[Vector2i] = []
+	sky.star_drained.connect(func(at: Vector2i) -> void: drained_at.append(at))
+	var exploded: Array[Vector2i] = []
+	sky.star_exploded.connect(func(at: Vector2i) -> void: exploded.append(at))
 	assert_true(main.run.launch(Vector2i(150, 230)))
+	var edge := Vector2i(main.run.current.region.position.x - 1, 120)
 	for tick: int in 200:
 		sequencer.advance(0.03)
 		for child: Node in sky.get_node("StarLayer").get_children():
-			(child as StarView).advance(0.03)
-		if not sequencer.is_busy():
+			if is_instance_valid(child) and not child.is_queued_for_deletion():
+				(child as StarView).advance(0.03)
+		if not drained_at.is_empty():
 			break
-	assert_false(sequencer.is_busy())
+	assert_eq(drained_at, [edge] as Array[Vector2i], "it stops on the field's edge, not past it")
+	assert_true(view.is_queued_for_deletion(), "a hard cut: no flare, no burst")
+	assert_true(exploded.is_empty(), "no gold sparks: it's a loss, not a clear")
 	assert_null(sky.star_view(doomed.id), "the sky forgets it")
-	assert_true(view.is_exploding(), "it bursts like a star Orion breaks")
+	var x: int = main.run.current.region.position.x
+	assert_eq(flow.pixels().get(Vector2i(x, 120 + CurrentView.FLASH_HALF)), Palette.S4, "the drain flashes solid where it went")
+	assert_eq(flow.pixels().get(Vector2i(x, 121)), Palette.S4, "between the line's own dots too")
+	flow.advance(CurrentView.FLASH_TIME)
+	assert_ne(flow.pixels().get(Vector2i(x, 121)), Palette.S4, "then cuts back to the dotted line")
