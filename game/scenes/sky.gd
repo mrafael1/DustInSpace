@@ -205,6 +205,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	match event.type:
 		&"pack_burst":
 			_burst(event.args[1], event.args[2])
+		&"stars_shifted":
+			for move: StarCurrent.Move in event.args[0]:
+				if _views.has(move.star_id):
+					_views[move.star_id].drift_to(move.to)
+			_sequencer.hold(StarView.DRIFT_TIME)
 		&"combo_collected":
 			_link_layer.flash_collected(_positions(event.args[1]))
 			_dissolve(event.args[1])
@@ -454,7 +459,9 @@ func _burst(burst: Vector2i, stars: Array[Star]) -> void:
 	for i: int in stars.size():
 		_spawn(stars[i]).fly_from(burst, i * BURST_STAGGER)
 	# Input returns once the last star is past its overshoot; the settle keeps playing after.
-	_sequencer.hold(BURST_STAGGER * maxi(stars.size() - 1, 0) + StarView.SETTLE_TIME * StarView.OVERSHOOT_PEAK)
+	# A current starts from the settled positions shown in its preview.
+	var flight: float = StarView.SETTLE_TIME if _run.current != null else StarView.SETTLE_TIME * StarView.OVERSHOOT_PEAK
+	_sequencer.hold(BURST_STAGGER * maxi(stars.size() - 1, 0) + flight)
 
 
 ## The Big Bang's stars: decoys fly out like a normal burst, then at the freeze every star,

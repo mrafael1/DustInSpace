@@ -34,6 +34,9 @@ signal encounter_finished(threat: int)
 ## The stage's Orion threat hasn't been met yet (App sets it): each run plays its guided encounter
 ## (#93) until it's done once.
 @export var encounter: bool = false
+## Debug-only Aquarius experiment, using Tail geometry with every Orion rule disabled.
+@export var current_trial: bool = false
+@export var current_enabled: bool = true
 
 var run: RunState
 ## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
@@ -103,6 +106,8 @@ func _ready() -> void:
 	_hud.table_opened.connect(_pause_world.bind(true))
 	_hud.table_closed.connect(_pause_world.bind(false))
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
+	($DebugKeys as DebugKeys).current_switch_requested.connect(switch_current)
+	($CurrentTrialControls as CurrentTrialControls).current_switch_requested.connect(switch_current)
 	_wire_playtest_log()
 	switch_launcher(use_telescope)
 	_wire_sound()
@@ -118,7 +123,9 @@ func start_run(balance: Balance) -> bool:
 		_report_balance_errors(balance.errors)
 		return false
 	_balance_errors.visible = false
-	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), StarMap.by_id(star_map))
+	var map: StarMap = StarMap.current_trial(current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
+	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
+	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)
 	_playtest_log.guided = tutorial
@@ -143,6 +150,22 @@ func start_run(balance: Balance) -> bool:
 	return true
 
 
+func _process(_delta: float) -> void:
+	var aiming: bool = run != null and run.current != null and not _sequencer.is_busy() and (
+		_telescope.is_aiming() if use_telescope else _launcher.is_pulling())
+	($Sky/CurrentLayer as CurrentView).aiming = aiming
+	($Sky/ConstellationLayer as ConstellationView).current_aiming = aiming
+
+
+## C restarts the trial with the same seed and the other setting.
+func switch_current() -> void:
+	if not OS.is_debug_build() or not current_trial or _sequencer.is_busy() or not _paused.is_empty():
+		return
+	seed_override = run.run_seed
+	current_enabled = not current_enabled
+	restart()
+
+
 ## Fills the window and places the game's 180x320 screen in it (a phone that isn't 9:16 shows
 ## more; see ScreenZones): the camera moves the world, the UI layers follow it, and the Backdrop
 ## fills the rest.
@@ -154,12 +177,13 @@ func fit_screen() -> void:
 	var visible: Vector2 = get_viewport().get_visible_rect().size
 	var offset: Vector2i = ScreenZones.game_offset(visible)
 	($BigBang/Shake as Camera2D).position = Vector2(-offset)
-	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front] as Array[CanvasLayer]:
+	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front, $CurrentTrialControls] as Array[CanvasLayer]:
 		layer.offset = Vector2(offset)
 	_sound_toggle.screen_offset = offset
 	_backdrop.fit(offset, Vector2i(visible))
 	# The UI anchors to the real screen's edges, not the game's 180x320 (the Sun's counter aside).
 	var screen := Rect2i(-offset, Vector2i(visible))
+	($CurrentTrialControls as CurrentTrialControls).fit_screen(screen)
 	_hud.fit_screen(screen)
 	_payouts.fit_screen(screen)
 	_sound_toggle.target = _hud.sound_target()

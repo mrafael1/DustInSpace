@@ -83,6 +83,11 @@ var _selected: Array[int] = []
 var _hinted: Array[int] = []
 var _hint_time: float = 0.0
 var _tracing: bool = false
+var current_aiming: bool = false:
+	set(value):
+		if current_aiming != value:
+			current_aiming = value
+			queue_redraw()
 ## Which landmarks show lit: the run's as of setup, then each played landmark_lit.
 var _shown_lit: Array[bool] = []
 var _preview_strings: Array[int] = []
@@ -240,7 +245,7 @@ func hinted() -> Array[int]:
 
 ## Whether string `segment` shows thinned: a link is traced and it wouldn't form the string.
 func shows_thin(segment: int) -> bool:
-	return _tracing and not _preview_strings.has(segment)
+	return (_tracing or current_aiming) and not _preview_strings.has(segment)
 
 
 ## Whether unlit landmark `index` shows dimmed: a link is traced and it can't come next.

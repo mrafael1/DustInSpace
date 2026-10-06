@@ -14,7 +14,9 @@ signal exploded(view: StarView)
 ## The halo appeared, changed or disappeared; whoever paints halos should redraw.
 signal halo_changed(view: StarView)
 
-enum State { SETTLING, IDLE, DISSOLVING, COLLAPSING }
+enum State { SETTLING, IDLE, DISSOLVING, COLLAPSING, DRIFTING }
+
+const DRIFT_TIME: float = 0.3
 
 ## Burst timing from the game-feel skill: stars scatter with an ease-out-back.
 const SETTLE_TIME: float = 0.65
@@ -121,7 +123,7 @@ func _draw() -> void:
 	match state:
 		State.SETTLING:
 			_draw_settling()
-		State.IDLE:
+		State.IDLE, State.DRIFTING:
 			_draw_idle()
 		State.DISSOLVING:
 			_draw_dissolve()
@@ -147,6 +149,13 @@ func fly_from(start: Vector2i, delay: float = 0.0) -> void:
 	_time = -delay
 	position = Vector2(flight_point(_from, _to, 0.0, _bounds))
 	visible = delay <= 0.0
+
+
+## A current moves the intact star, in whole-pixel steps, without another burst.
+func drift_to(destination: Vector2i) -> void:
+	_from = Vector2i(position)
+	_to = destination
+	_enter(State.DRIFTING)
 
 
 ## Flares, then vanishes and frees itself.
@@ -213,6 +222,13 @@ func advance(delta: float) -> void:
 	_time += delta
 	_hint_time += delta
 	match state:
+		State.DRIFTING:
+			var k: float = minf(_time / DRIFT_TIME, 1.0)
+			position = Vector2(Vector2i(Vector2(_from).lerp(Vector2(_to), k * k * (3.0 - 2.0 * k)).round()))
+			_refresh()
+			if k >= 1.0:
+				_enter(State.IDLE)
+				settled.emit(self)
 		State.SETTLING:
 			_advance_flight()
 		State.DISSOLVING:
@@ -235,7 +251,7 @@ func advance(delta: float) -> void:
 ## 20% further out (HALO_COLOURS).
 func halo_dots() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
-	var shows_halo: bool = state == State.IDLE or (state == State.DISSOLVING and _dissolve_frame() == 0)
+	var shows_halo: bool = state == State.IDLE or state == State.DRIFTING or (state == State.DISSOLVING and _dissolve_frame() == 0)
 	if not shows_halo or (dimmed and state == State.IDLE):
 		return dots
 	var center := Vector2i(position)
