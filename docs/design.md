@@ -248,7 +248,9 @@ Both strategies should stay viable: red is faster, blue is safer. Rerun the simu
 
 ## Later, not now
 
-Chapter 2 and 3 ideas and their prototype/evaluation steps are recorded in [chapter_2_3_plan.md](chapter_2_3_plan.md). This is a proposal, not an approved change to the current rules.
+Chapter 2 and 3 ideas and their prototype/evaluation steps are recorded in [chapter_2_3_plan.md](chapter_2_3_plan.md). The first chapter 2 current experiment is authorized and playable in debug builds; later chapter rules remain proposals. See [the trial and its measurements](chapter_2_current_trial.md).
+
+The trial uses Tail geometry with every Orion threat disabled, without saving campaign progress. A successful normal launch moves loose stars in one leftward field by `currents.step`; fixed landmarks, linking and buying do not move it. Both red bursts resolve before one step, including their new stars. Aiming previews reserve existing destinations; a blocked destination keeps its original position. This is an experiment, not a new campaign chapter or an approved difficulty target.
 
 - Run buffs, revealed with the exploding-star opening (hold to compress, release to explode, dust forms the buffs), plus a Big Bang reveal for legendaries.
 - Chain reactions: a completed link makes a star explode, its dust forms a planet, and the planet's effect helps trigger the next link.

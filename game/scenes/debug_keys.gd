@@ -8,6 +8,7 @@ extends Node
 
 ## T was pressed (Main swaps the launchers).
 signal launcher_switch_requested
+signal current_switch_requested
 
 ## XOR'd into the run seed so debug targets get their own stream.
 const TARGET_SEED_SALT: int = 0xDEB6
@@ -35,6 +36,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_T:
 		launcher_switch_requested.emit()
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_C and _run != null and _run.scorpio != null and _run.scorpio.map.id.begins_with("current_"):
+		current_switch_requested.emit()
 		get_viewport().set_input_as_handled()
 
 

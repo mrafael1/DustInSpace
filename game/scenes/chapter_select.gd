@@ -39,6 +39,7 @@ extends CanvasLayer
 signal stage_chosen(stage: int)
 ## The player asked to play the guided first run again (the TUTORIAL button).
 signal tutorial_requested
+signal current_trial_requested
 
 ## How a string of the path shows: a cool guide, the way to the stage to play next, or travelled.
 enum Leg { GUIDE, NEXT, LIT }
@@ -168,6 +169,8 @@ var _then_travel_to: int = -1
 var _pressed_point: int = -1
 var _pressed_play: bool = false
 var _pressed_tutorial: bool = false
+var _pressed_flow: bool = false
+var _flow: MapButton
 ## The TUTORIAL plaque (hidden until the guided first run has been finished).
 var _tutorial: MapButton
 ## The final's unlock playing: seconds since it began (-1: none), and whether one waits for the
@@ -223,6 +226,11 @@ func _ready() -> void:
 	_tutorial.text = "TUTORIAL"
 	_tutorial.visible = false
 	add_child(_tutorial)
+	if OS.is_debug_build():
+		_flow = MapButtonScene.instantiate()
+		_flow.name = "CurrentTrialButton"
+		_flow.text = "FLOW"
+		add_child(_flow)
 	_place_tutorial()
 	_place_heading()
 	for stage: int in Chapter.stage_count():
@@ -624,6 +632,8 @@ func tutorial_target() -> Rect2i:
 
 
 func _place_tutorial() -> void:
+	if _flow != null:
+		_flow.position = Vector2(_screen.position + Vector2i(TUTORIAL_INSET, TUTORIAL_INSET))
 	if _tutorial == null:
 		return
 	var width: int = _tutorial.plaque_size().x
@@ -636,6 +646,12 @@ func handle_pointer(event: InputEvent) -> bool:
 	if touch == null or touch.index != 0 or _chapter == null:
 		return false
 	var at := Vector2i(touch.position.floor())
+	if _flow != null and (_pressed_flow or (touch.pressed and _flow.target().has_point(at))):
+		_pressed_flow = touch.pressed
+		_flow.pressed = touch.pressed
+		if not touch.pressed and not touch.canceled and _flow.target().has_point(at) and not is_unlocking():
+			current_trial_requested.emit()
+		return true
 	if _tutorial.visible and (_pressed_tutorial or (touch.pressed and tutorial_target().has_point(at))):
 		return _press_tutorial(touch, at)
 	if touch.pressed:

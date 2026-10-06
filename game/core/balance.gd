@@ -77,6 +77,8 @@ var hunt_intro_stars: int = 0
 ## The idle hint (#90): seconds without interaction (animations aside) before a valid link shines.
 ## Optional: without a "hints" block there is none (0).
 var hint_idle_seconds: float = 0.0
+## Native pixels per launch in the debug-only current trial; absent means no current.
+var current_step: int = 0
 
 var errors: Array[String] = []
 
@@ -147,6 +149,8 @@ func _parse(data: Dictionary) -> void:
 			hunt_intro_stars = _read_int(hunt, "intro_stars", "hunt.", 0)
 	if data.has("hints"):
 		hint_idle_seconds = _read_seconds(_read_dict(data, "hints", ""), "idle_seconds", "hints.")
+	if data.has("currents"):
+		current_step = _read_int(_read_dict(data, "currents", ""), "step", "currents.", 1)
 	for block: String in VOLLEY_BLOCKS:
 		if data.has(block):
 			volleys[block] = _parse_volley(_read_dict(data, block, ""), block + ".")

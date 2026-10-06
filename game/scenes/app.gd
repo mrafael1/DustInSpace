@@ -51,17 +51,26 @@ func _ready() -> void:
 	_chart.setup(chapter)
 	_chart.stage_chosen.connect(open_stage)
 	_chart.tutorial_requested.connect(replay_tutorial)
+	_chart.current_trial_requested.connect(open_current_trial)
 	_chart.show_tutorial_button(tutorial_done)
 	get_window().size_changed.connect(fit_screen)
 	fit_screen()
 	set_process_unhandled_key_input(OS.is_debug_build())
+	if OS.is_debug_build():
+		if "--currents" in OS.get_cmdline_user_args():
+			open_current_trial()
+		elif "--currents-off" in OS.get_cmdline_user_args():
+			open_current_trial(false)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo or _stage != null:
 		return
-	if key.keycode == KEY_U:
+	if key.keycode == KEY_C:
+		open_current_trial(not key.shift_pressed)
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_U:
 		debug_win_parts()
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_F:
@@ -110,6 +119,24 @@ func stage() -> Main:
 ## Plays the guided first run again: the Stinger, guided.
 func replay_tutorial() -> void:
 	open_stage(0, true)
+
+
+## No progress callbacks: experimental wins never count toward Scorpio.
+func open_current_trial(enabled: bool = true, seed_value: int = 0) -> void:
+	if not OS.is_debug_build() or _stage != null:
+		return
+	_end_preview()
+	_stage_point = -1
+	_won_point = -1
+	_unlocked = -1
+	_stage = MainScene.instantiate()
+	_stage.in_chapter = true
+	_stage.current_trial = true
+	_stage.current_enabled = enabled
+	_stage.seed_override = seed_value
+	_stage.map_requested.connect(back_to_chart)
+	_show_chart(false)
+	add_child(_stage)
 
 
 ## Opens stage `point` (only one that can be played); `guided` plays the guided first run on it (the

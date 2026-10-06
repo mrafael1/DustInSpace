@@ -1,6 +1,6 @@
 # Chapters 2 and 3: ideas to test
 
-**Status: revised proposal, 2026-10-06.** This is a short experiment plan, not a chapter specification or gameplay implementation request. [design.md](design.md) remains the current rules reference. Aquarius and Gemini are working themes; stage lists, detailed effect rules, and tuning wait until the ideas survive evaluation.
+**Status: first current experiment built, 2026-10-06.** The user authorized starting chapter 2. Its first debug-only experiment and measurements are recorded in [chapter_2_current_trial.md](chapter_2_current_trial.md); it has not passed the pressure gate. This remains an experiment plan, not a complete chapter specification. [design.md](design.md) remains the current rules reference. Aquarius and Gemini are working themes; stage lists, detailed effect rules, and tuning wait until the ideas survive evaluation.
 
 ## Direction and stakes
 
