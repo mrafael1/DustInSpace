@@ -8,6 +8,8 @@ extends Node2D
 ## over the last part of it, so the limit is felt before it's hit. Past the reach, the line stops
 ## at the limit with a flickering ember spark where it broke, and runs on to the finger as sparse
 ## M5 dots. (Which stars are in reach shows through the link hint: the others dim.)
+## Let go: while a release would cancel the link (the drag left its last star), the whole line,
+## out to the finger, is sparse M5 dots like the loose end: cold and broken, not a link.
 
 ## A travelling C0 pixel every PULSE_SPACING px along the line.
 const PULSE_SPACING: int = 5
@@ -48,6 +50,8 @@ var _path: Array[Vector2i] = []
 var _loose_end: bool = false
 ## How long the last step (to the finger) may be, in px; 0 for no reach shown.
 var _reach: int = 0
+## A release now would let the link go: the line is drawn let go.
+var _let_go: bool = false
 var _flashes: Array[Flash] = []
 var _time: float = 0.0
 var _pulse_frame: int = -1
@@ -58,7 +62,9 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	if (_loose_end or _reach > 0) and _path.size() > 1:
+	if _let_go:
+		_draw_let_go(path_pixels(_path))
+	elif (_loose_end or _reach > 0) and _path.size() > 1:
 		_draw_link(path_pixels(_path.slice(0, -1)))
 		_draw_finger_step(_path[-2], _path[-1])
 	else:
@@ -69,18 +75,23 @@ func _draw() -> void:
 
 ## Shows the link being traced through `points` (star centres, then the finger while dragging).
 ## `loose_end`: the last step, to the finger, is out of reach. `reach`: how long that step may be,
-## so the line can strain toward it (0: none).
-func show_path(points: Array[Vector2i], loose_end: bool = false, reach: int = 0) -> void:
-	if points == _path and loose_end == _loose_end and reach == _reach:
+## so the line can strain toward it (0: none). `let_go`: a release now would cancel the link.
+func show_path(points: Array[Vector2i], loose_end: bool = false, reach: int = 0, let_go: bool = false) -> void:
+	if points == _path and loose_end == _loose_end and reach == _reach and let_go == _let_go:
 		return
 	_path = points.duplicate()
 	_loose_end = loose_end
 	_reach = reach
+	_let_go = let_go
 	queue_redraw()
 
 
 func is_loose_end() -> bool:
 	return _loose_end
+
+
+func is_let_go() -> bool:
+	return _let_go
 
 
 func flash_collected(points: Array[Vector2i]) -> void:
@@ -185,6 +196,11 @@ func _draw_finger_step(a: Vector2i, b: Vector2i) -> void:
 		var spark: Color = Palette.C3 if _pulse_frame % 2 == 0 else Palette.C2
 		for n: Vector2i in NEIGHBOURS:
 			_dot(solid[-1] + n, spark)
+
+
+func _draw_let_go(pixels: Array[Vector2i]) -> void:
+	for i: int in range(LOOSE_DOT_SPACING - 1, pixels.size(), LOOSE_DOT_SPACING):
+		_dot(pixels[i], Palette.M5)
 
 
 func _draw_glow(pixels: Array[Vector2i]) -> void:

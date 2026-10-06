@@ -39,6 +39,9 @@ signal link_traced(ids: Array[int])
 signal link_refused(reason: RunState.PickRefusal)
 ## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
 signal step_refused
+## The player let a traced link go: the drag was released away from its last star, so nothing was
+## linked and the selection is gone. Feedback only (sound).
+signal link_cancelled
 ## Scorpio: the constellation is complete and a star left in the sky burst at `at` (or Orion's
 ## arrow broke it). Feedback only.
 signal star_exploded(at: Vector2i)
@@ -90,6 +93,7 @@ func _ready() -> void:
 	_gesture.link_requested.connect(_on_link_requested)
 	_gesture.can_join = _can_join
 	_gesture.join_refused.connect(_on_join_refused)
+	_gesture.link_cancelled.connect(func() -> void: link_cancelled.emit())
 	_orion.star_fell.connect(func(at: Vector2i) -> void: star_exploded.emit(at))
 	_orion.fallen.connect(_constellation.play_completion)
 
@@ -360,16 +364,20 @@ func _on_join_refused(ids: Array[int], id: int) -> void:
 
 
 ## Line through the selected stars (and to the finger while dragging), plus the reward preview.
-## With a reach, the line to the finger goes loose past it.
+## With a reach, the line to the finger goes loose past it. A drag that has left its last star (a
+## release now lets the link go) shows the whole line let go, out to the finger.
 func _show_link() -> void:
 	var points: Array[Vector2i] = _positions_of_ids(_gesture.selected)
 	var loose: bool = false
 	var reach: int = 0
-	if _gesture.is_dragging() and points.size() < Combos.LINK_LENGTH:
+	var letting_go: bool = _gesture.is_letting_go()
+	if letting_go:
+		points.append(_finger)
+	elif _gesture.is_dragging() and points.size() < Combos.LINK_LENGTH:
 		loose = not points.is_empty() and not _run.in_reach(points[-1], _finger)
 		reach = _run.link_reach()
 		points.append(_finger)
-	_link_layer.show_path(points, loose, reach)
+	_link_layer.show_path(points, loose, reach, letting_go)
 	_show_preview()
 	# Orion readies his bow while the link would leave his mark behind (the sight line holds on it),
 	# or loose the volley.
