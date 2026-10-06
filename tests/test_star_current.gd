@@ -188,8 +188,8 @@ func test_last_pack_keeps_run_alive_when_a_reachable_combo_remains_after_flow() 
 	assert_eq(run.outcome, RunState.Outcome.PLAYING)
 
 
-## The Aquarius flow layout: inner landmarks sit in the field, the catcher waits downstream of it.
-func test_aquarius_flow_layout_feeds_its_catcher_and_has_no_threats() -> void:
+## The Aquarius flow layout: inner landmarks sit in the draining field, the last one lies past it.
+func test_aquarius_flow_layout_drains_past_its_inner_landmarks_and_has_no_threats() -> void:
 	var map: StarMap = StarMap.aquarius_flow()
 	assert_eq(map.count(), 6)
 	assert_eq(map.segment_count(), 5, "the strings form a tree")
@@ -202,7 +202,58 @@ func test_aquarius_flow_layout_feeds_its_catcher_and_has_no_threats() -> void:
 			assert_gt(Vector2(map.landmarks[i]).distance_to(Vector2(map.landmarks[j])), 2.0 * SkyView.HIT_RADIUS)
 	for index: int in [1, 2, 3, 5]:
 		assert_true(map.current_region.has_point(map.landmarks[index]), "inner landmark %d sits in the flow" % index)
-	assert_false(map.current_region.has_point(map.landmarks[4]), "the catcher waits outside it")
-	assert_lt(map.landmarks[4].x, map.current_region.position.x, "downstream of a leftward flow")
+	assert_false(map.current_region.has_point(map.landmarks[4]), "the last landmark lies out of the flow")
+	assert_lt(map.landmarks[4].x, map.current_region.position.x, "past the drain of a leftward flow")
+	assert_true(map.current_drains)
+	assert_false(StarMap.current_trial().current_drains, "the Tail trial keeps its stars")
 	assert_false(StarMap.aquarius_flow(false).current_region.has_area(), "the baseline has no flow")
 	assert_eq(StarMap.aquarius_flow(false).landmarks, map.landmarks, "same geometry either way")
+
+
+func test_a_draining_flow_loses_what_it_carries_out_and_frees_the_spot_behind() -> void:
+	# FIELD starts at x 64: the leading star leaves at 62; the one behind lands 14 px from that exit.
+	var stars: Array[Star] = [Star.new(2, Star.Size.SMALL, Vector2i(86, 160)), Star.new(1, Star.Size.SMALL, Vector2i(100, 160))]
+	var draining := StarCurrent.new(FIELD, Vector2i(-24, 0), true)
+	var result: Dictionary[int, Vector2i] = draining.preview(stars, SKY, [])
+	assert_eq(result[2], Vector2i(62, 160))
+	assert_eq(result[1], Vector2i(76, 160), "a drained star never blocks the stars behind it")
+	var moves: Array[StarCurrent.Move] = draining.moves(stars, result)
+	assert_eq(moves.size(), 2)
+	for move: StarCurrent.Move in moves:
+		assert_eq(move.drained, move.star_id == 2)
+	var kept: Dictionary[int, Vector2i] = _current().preview(stars, SKY, [])
+	assert_eq(kept[2], Vector2i(62, 160), "without a drain the star stays in the sky")
+	assert_eq(kept[1], Vector2i(100, 160), "and still blocks the one behind")
+	assert_false(_current().moves(stars, kept)[0].drained)
+
+
+func test_a_drained_star_leaves_the_run_for_nothing_and_the_aim_warns_first() -> void:
+	var run := RunState.new(Balance.load_file(), Fixtures.rng(), SKY, StarMap.aquarius_flow())
+	var doomed: Star = run.add_star(Star.Size.SMALL, Vector2i(60, 120))
+	assert_true(run.current.leaves(doomed.position, run.current_preview()[doomed.id]), "the aim shows it going")
+	var drained: Array[int] = []
+	run.stars_shifted.connect(func(moves: Array[StarCurrent.Move]) -> void:
+		for move: StarCurrent.Move in moves:
+			if move.drained:
+				drained.append(move.star_id))
+	assert_true(run.launch(Vector2i(150, 230)))
+	assert_has(drained, doomed.id)
+	assert_null(run.find_star(doomed.id))
+	assert_eq(run.dust, 0, "a drained star pays nothing")
+
+
+## The loss check runs after the drain: a combo it carried off doesn't keep the run alive.
+func test_a_drain_that_takes_the_last_combo_loses_the_run() -> void:
+	for enabled: bool in [true, false]:
+		var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(Balance.DEFAULT_PATH))
+		data.start_packs = {"blue": 1, "red": 0}
+		data.packs.blue.stars = 2
+		data.packs.blue.weights = {"small": 0, "medium": 1, "big": 0}
+		var run := RunState.new(Balance.from_dict(data), Fixtures.rng(7), SKY, StarMap.aquarius_flow(enabled))
+		# Two small stars beside the small landmark at (72, 178), at the drain's edge.
+		run.add_star(Star.Size.SMALL, Vector2i(60, 170))
+		run.add_star(Star.Size.SMALL, Vector2i(62, 192))
+		assert_true(run.has_remaining_combo())
+		assert_true(run.launch(Vector2i(160, 100)))
+		var expected: RunState.Outcome = RunState.Outcome.LOST if enabled else RunState.Outcome.PLAYING
+		assert_eq(run.outcome, expected, "drain on" if enabled else "no flow")
