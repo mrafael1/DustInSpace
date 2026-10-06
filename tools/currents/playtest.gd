@@ -41,7 +41,7 @@ func _simulate() -> void:
 	print("Paired seeds 1..%d; %s layout; NO Orion; reach %d; step %d" % [_runs, _map, _balance.scorpio_max_link_distance, _balance.current_step])
 	for policy: Dictionary in POLICIES:
 		for enabled: bool in [false, true]:
-			var row: Dictionary = {"map": _map, "step": _balance.current_step, "reach": _balance.scorpio_max_link_distance, "policy": policy.name, "current": enabled, "runs": _runs, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "moving_launches": 0, "probe_boards": 0, "boards_losing_links": 0, "boards_gaining_links": 0, "boards_with_both": 0, "runs_with_both": 0, "waiting_stars_carried_off": 0, "stars_carried_in": 0, "boards_carrying_off_and_in": 0, "runs_carrying_off_and_in": 0}
+			var row: Dictionary = {"map": _map, "step": _balance.current_step, "reach": _balance.scorpio_max_link_distance, "policy": policy.name, "current": enabled, "runs": _runs, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "moving_launches": 0, "probe_boards": 0, "boards_losing_links": 0, "boards_gaining_links": 0, "boards_with_both": 0, "runs_with_both": 0, "waiting_stars_carried_off": 0, "stars_carried_in": 0, "boards_carrying_off_and_in": 0, "runs_carrying_off_and_in": 0, "stars_drained": 0, "runs_draining": 0}
 			for seed_value: int in range(1, _runs + 1):
 				_play(seed_value, enabled, policy, row)
 				if seed_value % 20 == 0:
@@ -55,7 +55,7 @@ func _simulate() -> void:
 
 
 func _layout(enabled: bool) -> StarMap:
-	return StarMap.aquarius_flow(enabled) if _map == "aquarius" else StarMap.current_trial(enabled)
+	return StarMap.current_layout(_map, enabled)
 
 
 func _play(seed_value: int, enabled: bool, policy: Dictionary, row: Dictionary) -> void:
@@ -65,6 +65,10 @@ func _play(seed_value: int, enabled: bool, policy: Dictionary, row: Dictionary) 
 	var packs: int = 0
 	var had_conflict: bool = false
 	var had_waiting_conflict: bool = false
+	var drained: Array[int] = [0]
+	run.stars_shifted.connect(func(moves: Array[StarCurrent.Move]) -> void:
+		for move: StarCurrent.Move in moves:
+			drained[0] += int(move.drained))
 	for action: int in 200:
 		if run.is_over():
 			break
@@ -102,6 +106,8 @@ func _play(seed_value: int, enabled: bool, policy: Dictionary, row: Dictionary) 
 		row.launches += 1
 	row.runs_with_both += int(had_conflict)
 	row.runs_carrying_off_and_in += int(had_waiting_conflict)
+	row.stars_drained += drained[0]
+	row.runs_draining += int(drained[0] > 0)
 	match run.outcome:
 		RunState.Outcome.WON:
 			row.wins += 1
@@ -146,16 +152,21 @@ func _best_link(run: RunState, links: Array[Array]) -> Array[int]:
 ## x/y: complete landmark links lost/gained (canonical sets, so orders count once).
 ## z/w: loose stars carried out of / into reach of every unlit landmark. A star in reach of one is
 ## a waiting star: any second star completes a combo with the landmark, so it's half a link.
+## Stars a draining flow would carry off are out of the sky for the "after" counts.
 func _probe(run: RunState) -> Vector4i:
 	var before: Dictionary[String, bool] = _landmark_links(run)
 	var near_before: Dictionary[int, bool] = _waiting_stars(run)
 	var original: Dictionary[int, Vector2i] = {}
+	var sky: Array[Star] = run.stars.duplicate()
 	var preview: Dictionary[int, Vector2i] = run.current_preview()
-	for star: Star in run.stars:
+	for star: Star in sky:
 		original[star.id] = star.position
 		star.position = preview[star.id]
+		if run.current.leaves(original[star.id], star.position):
+			run.stars.erase(star)
 	var after: Dictionary[String, bool] = _landmark_links(run)
 	var near_after: Dictionary[int, bool] = _waiting_stars(run)
+	run.stars.assign(sky)
 	for star: Star in run.stars:
 		star.position = original[star.id]
 	var result := Vector4i.ZERO
