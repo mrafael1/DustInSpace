@@ -13,6 +13,8 @@ const FIGURE := "res://assets/art/scorpio_figure.png"
 const PART_PAINTING := "res://assets/art/scorpio_part_%s.png"
 ## Chapter 2's painted Aquarius, for its chart and final (not drawn yet: the chart skips it).
 const AQUARIUS_FIGURE := "res://assets/art/aquarius_figure.png"
+## An Aquarius stage's own painting (none drawn yet: a stage without one completes without it).
+const AQUARIUS_PART := "res://assets/art/aquarius_part_%s.png"
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -112,27 +114,64 @@ static func current_layout(layout: String, enabled: bool = true) -> StarMap:
 	return aquarius_flow(enabled) if layout == "aquarius" else current_trial(enabled)
 
 
-## Debug experiment: a small Aquarius layout built around a leftward, draining flow that runs the
-## sky's full height from x 48 to the right edge. The jar's stream falls from the upper right
-## through it, so stars saved beside the inner landmarks drift a launch at a time toward the drain
-## at its left edge (a waiting pair has a clock), while stars stranded upstream drift toward the
-## landmarks below and left of them. The last one lies past the drain, in the strip it leaves
-## still. The jar starts lit: five to light. Strings are 33-49 px.
-## Placeholder painting (Tail's).
+## Debug experiment: the Aquarius Body's layout (aquarius_body) as a trial that the FLOW ON/OFF
+## switch can turn the current off on, to compare. The Tail's painting stands in.
 static func aquarius_flow(enabled: bool = true) -> StarMap:
-	var map := StarMap.new()
+	var map: StarMap = aquarius_body()
 	map.id = "current_aquarius" if enabled else "current_aquarius_off"
 	map.title = "AQUARIUS FLOW" if enabled else "AQUARIUS OFF"
+	map.painting = PART_PAINTING % "tail"
+	if not enabled:
+		map.current_region = Rect2i()
+		map.current_drains = false
+	return map
+
+
+## Aquarius, stage 1: the Hand. An arm of five stars reaching from the shoulder (upper right, lit)
+## down to the hand (lower left): four to light. It teaches the current on its own: a leftward flow
+## over the sky's full height from x 72 to the right edge, with no drain. Stars launched by the upper
+## arm drift down the arm toward the forearm and hand, which sit just past the flow, where drifting
+## stars come to rest. Strings are 34-35 px. Its painting isn't drawn yet.
+static func aquarius_hand() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aquarius_hand"
+	map.title = "HAND"
+	map.landmarks = [Vector2i(146, 104), Vector2i(120, 126), Vector2i(94, 148), Vector2i(64, 166), Vector2i(36, 186)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4)]
+	map.sizes = [Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = AQUARIUS_PART % "hand"
+	map.intros = false
+	map.current_region = _full_height_from(72)
+	return map
+
+
+## Aquarius, stage 2: the Body. The drain arrives: a leftward flow over the sky's full height from
+## x 48 to the right edge, and any star it carries out past that edge is lost. The head (lit) sits
+## at the upper right; the neck and body fall through the flow to the knee at its edge, with a hip
+## branching right, so stars saved beside them drift a launch at a time toward the drain (a waiting
+## pair has a clock), while stars stranded upstream drift toward them. The foot lies past the
+## drain, in the strip the flow leaves still. Five to light. Strings are 33-49 px. Measured as the
+## current trial's Aquarius layout (docs/chapter_2_current_trial.md). Its painting isn't drawn yet.
+static func aquarius_body() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aquarius_body"
+	map.title = "BODY"
 	map.landmarks = [Vector2i(146, 104), Vector2i(128, 132), Vector2i(104, 156), Vector2i(72, 178), Vector2i(32, 196), Vector2i(140, 190)]
 	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5)]
 	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
 	map.starting_lit = [0]
-	map.painting = PART_PAINTING % "tail"
+	map.painting = AQUARIUS_PART % "body"
 	map.intros = false
-	if enabled:
-		map.current_region = Rect2i(48, Scorpio.HOME_SKY.position.y, Scorpio.HOME_SKY.end.x - 48, Scorpio.HOME_SKY.size.y)
-		map.current_drains = true
+	map.current_region = _full_height_from(48)
+	map.current_drains = true
 	return map
+
+
+## A current over the home sky's full height (a taller sky stretches it: RunState) from `x` to the
+## right edge.
+static func _full_height_from(x: int) -> Rect2i:
+	return Rect2i(x, Scorpio.HOME_SKY.position.y, Scorpio.HOME_SKY.end.x - x, Scorpio.HOME_SKY.size.y)
 
 
 ## The Body, stage 3 (#70): nine stars, more connected than the Tail. A spine of five runs from the
@@ -255,6 +294,10 @@ static func by_id(p_id: String) -> StarMap:
 			return final()
 		"aquarius":
 			return aquarius()
+		"aquarius_hand":
+			return aquarius_hand()
+		"aquarius_body":
+			return aquarius_body()
 	return scorpio()
 
 
