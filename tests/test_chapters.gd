@@ -99,7 +99,7 @@ func test_the_chapter_plaque_switches_the_chart_and_each_keeps_its_progress() ->
 	assert_eq(ProgressStore.new(STORE).load_chapter("aquarius"), {}, "nothing saved for Aquarius")
 
 
-func test_the_aquarius_chart_draws_its_own_figure_and_leaves_out_missing_art() -> void:
+func test_the_aquarius_chart_draws_its_own_figure_and_paintings() -> void:
 	var chart: ChapterSelect = ChartScene.instantiate()
 	add_child_autofree(chart)
 	var def: ChapterDef = ChapterDef.aquarius()
@@ -113,8 +113,12 @@ func test_the_aquarius_chart_draws_its_own_figure_and_leaves_out_missing_art() -
 	assert_eq(ChapterSelect.stage_position(4, def), def.figure.landmarks[3], "the jar's point is Sadachbia")
 	assert_eq(ChapterSelect.stage_position(Chapter.FINAL, def), def.final_at)
 	assert_eq(ChapterSelect.stage_at(def.figure.landmarks[12] + Vector2i(2, 2), def), 3, "psi is in the stream")
-	assert_false(chart.shows_piece(0), "no piece painted yet")
-	assert_false(chart.shows_figure(), "no painting yet")
+	assert_true(chart.shows_piece(0), "the Hand's piece of the painting")
+	assert_true(chart.shows_figure(), "the painted Aquarius, once the final is won")
+	assert_eq(ChapterSelect.piece_path(0, def), "res://assets/art/aquarius_piece_hand.png", "pieces are named by part")
+	var bare: ChapterDef = ChapterDef.aquarius()
+	bare.piece = "res://assets/art/not_drawn_%s.png"
+	assert_false(ChapterSelect.has_art(ChapterSelect.piece_path(0, bare)), "art that isn't there is left out")
 	var background: Array[Vector2i] = ChapterSelect.space_stars(Rect2i(Vector2i.ZERO, ScreenZones.SCREEN), def)
 	for star: Vector2i in def.figure.landmarks:
 		for p: Vector2i in background:

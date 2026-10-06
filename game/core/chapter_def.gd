@@ -16,7 +16,7 @@ var stages: Array[Dictionary] = []
 var figure: StarMap
 ## The final stage's crown point on the chart, above the figure.
 var final_at: Vector2i
-## A won part's piece of the painting: a path with %s for the part's map id.
+## A won part's piece of the painting: a path with %s for the part's "piece" name (else its map id).
 var piece: String = ""
 ## The chapter whose final opens this one, or "" for open from the start.
 var unlocked_by: String = ""
@@ -52,11 +52,11 @@ static func aquarius() -> ChapterDef:
 	def.title = "AQUARIUS"
 	def.number = 2
 	def.stages = [
-		{"name": "HAND", "map": "aquarius_hand", "stars": [0, 1]},
-		{"name": "BODY", "map": "aquarius_body", "stars": [2, 7]},
-		{"name": "LEGS", "map": "aquarius_legs", "stars": [8, 9, 10]},
-		{"name": "STREAM", "map": "aquarius_stream", "stars": [11, 12, 13]},
-		{"name": "JAR", "map": "aquarius_jar", "stars": [3, 4, 5, 6]},
+		{"name": "HAND", "map": "aquarius_hand", "piece": "hand", "stars": [0, 1]},
+		{"name": "BODY", "map": "aquarius_body", "piece": "body", "stars": [2, 7]},
+		{"name": "LEGS", "map": "aquarius_legs", "piece": "legs", "stars": [8, 9, 10]},
+		{"name": "STREAM", "map": "aquarius_stream", "piece": "stream", "stars": [11, 12, 13]},
+		{"name": "JAR", "map": "aquarius_jar", "piece": "jar", "stars": [3, 4, 5, 6]},
 		{"name": "AQUARIUS", "map": "aquarius_final", "stars": []},
 	]
 	def.figure = StarMap.aquarius()
@@ -74,4 +74,4 @@ static func all() -> Array[ChapterDef]:
 ## A won part's piece of the painting, or "" while it has no map (and so no piece).
 func piece_path(stage: int) -> String:
 	var map: String = stages[stage]["map"]
-	return piece % map if map != "" else ""
+	return piece % stages[stage].get("piece", map) if map != "" else ""
