@@ -19,5 +19,5 @@
   "volley": { "interval": 2, "fraction": 1.0, "intro_stars": 6 },
   "hunt": { "radius": 38, "intro_stars": 3 },
   "hints": { "idle_seconds": 4 },
-  "currents": { "step": 24, "stages": { "aquarius_hand": 24, "aquarius_body": 24 } }
+  "currents": { "step": 24, "stages": { "aquarius_hand": 24, "aquarius_body": 24, "aquarius_legs": 28, "aquarius_stream": 32, "aquarius_jar": 56 } }
 }

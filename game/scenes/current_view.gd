@@ -35,8 +35,14 @@ var _run: RunState
 var _sequencer: EventSequencer
 ## Extinctions playing: the edge point each star left by, and the seconds since.
 var _flashes: Dictionary[Vector2i, float] = {}
+## The way each of those stars was flowing when it went.
+var _flash_ways: Dictionary[Vector2i, Vector2i] = {}
 ## Seconds the water has flowed.
 var _time: float = 0.0
+## The flow the water and drains show. A turning flow turns in the core the moment a launch
+## resolves; the view turns only once that launch has played out (its burst and drift), so the
+## water never changes way under stars still moving the old way.
+var _shown_flow: Vector2i = Vector2i.ZERO
 
 
 func _ready() -> void:
@@ -48,6 +54,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_sequencer = sequencer
 	aiming = false
 	_flashes.clear()
+	_flash_ways.clear()
+	_shown_flow = run.current.displacement if run.current != null else Vector2i.ZERO
 	set_process(run.current != null)
 	queue_redraw()
 
@@ -59,18 +67,24 @@ func _process(delta: float) -> void:
 
 
 ## Plays a star's extinction where it crossed the drain, at `at` (the edge point it left by).
-func flash_drain(at: Vector2i) -> void:
+## `way`: the way it was flowing (a turning flow may already have turned; ZERO: the flow's now).
+func flash_drain(at: Vector2i, way: Vector2i = Vector2i.ZERO) -> void:
 	_flashes[at] = 0.0
+	_flash_ways[at] = way
 	queue_redraw()
 
 
-## Moves the water and the extinctions on. Driven by `_process`; tests call it directly.
+## Moves the water and the extinctions on, and turns the shown flow once the launch has played
+## out. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	_time += delta
+	if _run != null and _run.current != null and _sequencer != null and not _sequencer.is_busy():
+		_shown_flow = _run.current.displacement
 	for at: Vector2i in _flashes.keys():
 		_flashes[at] += delta
 		if _flashes[at] >= DRAIN_TIME:
 			_flashes.erase(at)
+			_flash_ways.erase(at)
 
 
 func _draw() -> void:
@@ -84,12 +98,20 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _run == null or _run.current == null or _run.is_over():
 		return result
 	var area: Rect2i = _run.current.region
-	result.merge(water_pixels(area, _run.current.displacement, _time))
+	result.merge(water_pixels(area, _shown_flow, _time))
 	if _run.current.drains:
-		for point: Vector2i in _drain_edge(area, _run.current.displacement):
+		# Every side the flow can drain to: the next launch's in ember, any other dimmer.
+		var now := Vector2i(signi(_shown_flow.x), signi(_shown_flow.y))
+		for way: Vector2i in _run.current.ways():
+			if way == now:
+				continue
+			for point: Vector2i in _drain_edge(area, way):
+				result[point] = Palette.S2
+		for point: Vector2i in _drain_edge(area, now):
 			result[point] = Palette.S3
 		for at: Vector2i in _flashes:
-			result.merge(extinction_pixels(at, _run.current.displacement, _flashes[at], area), true)
+			var went: Vector2i = _flash_ways.get(at, Vector2i.ZERO)
+			result.merge(extinction_pixels(at, went if went != Vector2i.ZERO else _shown_flow, _flashes[at], area), true)
 	if aiming and not _sequencer.is_busy():
 		var destinations: Dictionary[int, Vector2i] = _run.current_preview()
 		for star: Star in _run.stars:

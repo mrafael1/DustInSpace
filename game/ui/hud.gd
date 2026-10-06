@@ -71,6 +71,8 @@ const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
 ## drains, that it takes the stars it carries past its edge.
 const FLOW_MESSAGE: String = "EACH LAUNCH, THE FLOW\nMOVES THE STARS"
 const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
+## A turning flow (the Jar's tide) says it turns.
+const TIDE_MESSAGE: String = "THE TIDE TURNS\nAFTER EVERY LAUNCH"
 ## A refused pick's reason, said on the message line (#91): two lines, so it fits the 180 px screen.
 ## It stays RULE_TIME, and the same reason again within RULE_QUIET says nothing new.
 const REFUSAL_MESSAGES: Dictionary = {
@@ -471,7 +473,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"stars_shifted":
 			if not _current_told:
 				_current_told = true
-				show_message(DRAIN_MESSAGE if _run.current.drains else FLOW_MESSAGE, ORION_MESSAGE_TIME)
+				var rule: String = TIDE_MESSAGE if _run.current.turns.size() > 1 else DRAIN_MESSAGE if _run.current.drains else FLOW_MESSAGE
+				show_message(rule, ORION_MESSAGE_TIME)
 			return
 		&"star_marked":
 			if not _orion_told:

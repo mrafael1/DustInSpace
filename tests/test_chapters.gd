@@ -64,10 +64,10 @@ func test_the_aquarius_figure_is_a_pickable_tree_and_its_parts_share_it_out() ->
 func test_aquarius_is_its_own_chapter_built_from_the_hand() -> void:
 	var aquarius := Chapter.new(ChapterDef.aquarius())
 	assert_eq(aquarius.id, "aquarius")
-	assert_eq(aquarius.stage_name(2), "JAR")
-	assert_eq(aquarius.stage_of(5), 2, "eta is in the jar")
+	assert_eq(aquarius.stage_name(4), "JAR", "the jar, where the water comes from, is the last part")
+	assert_eq(aquarius.stage_of(5), 4, "eta is in the jar")
 	assert_eq(aquarius.state(0), Chapter.PointState.AVAILABLE, "the Hand (tests/test_aquarius_stages.gd)")
-	for stage: int in range(2, Chapter.stage_count()):
+	for stage: int in range(5, Chapter.stage_count()):
 		assert_eq(aquarius.map_id(stage), "", "not built yet")
 		assert_eq(aquarius.state(stage), Chapter.PointState.LOCKED)
 	assert_eq(Chapter.new().id, "scorpio", "Scorpio by default")
@@ -110,17 +110,17 @@ func test_the_aquarius_chart_draws_its_own_figure_and_leaves_out_missing_art() -
 	chart.setup(aquarius)
 	assert_eq((chart.get_node("Title") as Label).text, "AQUARIUS")
 	assert_eq((chart.get_node("Subtitle") as Label).text, "CHAPTER 2")
-	assert_eq(ChapterSelect.stage_position(2, def), def.figure.landmarks[3], "the jar's point is Sadachbia")
+	assert_eq(ChapterSelect.stage_position(4, def), def.figure.landmarks[3], "the jar's point is Sadachbia")
 	assert_eq(ChapterSelect.stage_position(Chapter.FINAL, def), def.final_at)
-	assert_eq(ChapterSelect.stage_at(def.figure.landmarks[12] + Vector2i(2, 2), def), 4, "psi is in the stream")
+	assert_eq(ChapterSelect.stage_at(def.figure.landmarks[12] + Vector2i(2, 2), def), 3, "psi is in the stream")
 	assert_false(chart.shows_piece(0), "no piece painted yet")
 	assert_false(chart.shows_figure(), "no painting yet")
 	var background: Array[Vector2i] = ChapterSelect.space_stars(Rect2i(Vector2i.ZERO, ScreenZones.SCREEN), def)
 	for star: Vector2i in def.figure.landmarks:
 		for p: Vector2i in background:
 			assert_true((star - p).length_squared() >= ChapterSelect.STAR_CLEAR * ChapterSelect.STAR_CLEAR, "clear of the figure")
-	var path: Array[Vector2i] = ChapterSelect.travel_pixels(2, 3, def)
-	assert_eq(path[0], def.figure.landmarks[3], "the jar's comet leaves Sadachbia")
-	assert_eq(path[-1], def.figure.landmarks[8], "and lands on the knee, through the body")
+	var path: Array[Vector2i] = ChapterSelect.travel_pixels(3, 4, def)
+	assert_eq(path[0], def.figure.landmarks[11], "the stream's comet leaves phi")
+	assert_eq(path[-1], def.figure.landmarks[3], "and climbs to the jar, through the knee and the head")
 	(chart.get_node("Chart") as CanvasItem).queue_redraw()
 	await get_tree().process_frame
