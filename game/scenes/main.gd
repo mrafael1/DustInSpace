@@ -28,6 +28,8 @@ signal encounter_finished(threat: int)
 ## The constellation layout to play when balance.json turns the constellation on (a StarMap id:
 ## a chapter stage's, #62; the full Scorpio by default).
 @export var star_map: String = "scorpio"
+## This stage was won before (App sets it): its completion holds its painting more briefly.
+@export var replay: bool = false
 ## The guided first run (App sets it for the Stinger's first play): each run starts the tutorial
 ## until it's finished once.
 @export var tutorial: bool = false
@@ -130,6 +132,7 @@ func start_run(balance: Balance) -> bool:
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
 	set_process(run.current != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
+	($Sky/ConstellationLayer as ConstellationView).repeat = replay
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)

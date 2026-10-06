@@ -68,6 +68,9 @@ const FIGURE_RISE: float = 1.8
 const FIGURE_FLASH: float = 0.1
 ## The finished figure holds the screen this long before the end screen.
 const FIGURE_CODA: float = 1.6
+## A stage won before (a replay) keeps its whole reveal but holds the painting only this long
+## (#128: the first reveal is the reward; seen again, the hold just delays the end screen).
+const REPEAT_CODA: float = 0.5
 ## A sung string vibrates: a standing wave of VIBRATE_AMPLITUDE px, VIBRATE_CYCLES swings, dying
 ## out over VIBRATE_TIME. Whole pixels, across the string.
 const VIBRATE_TIME: float = 0.5
@@ -83,6 +86,8 @@ var _selected: Array[int] = []
 var _hinted: Array[int] = []
 var _hint_time: float = 0.0
 var _tracing: bool = false
+## This stage was won before (Main sets it): its completion holds the painting for REPEAT_CODA.
+var repeat: bool = false
 var current_aiming: bool = false:
 	set(value):
 		if current_aiming != value:
@@ -163,13 +168,13 @@ func _map() -> StarMap:
 	return _run.scorpio.map if _run != null and _run.scorpio != null else StarMap.scorpio()
 
 
-## How long the completion plays: the tune, the painting forming and flashing, the hold. A map
-## without its painting yet (`map`; the full Scorpio's has one) ends once the last string has
-## rung, instead of holding an empty sky for the painting.
-static func completion_time(map: StarMap = null) -> float:
+## How long the completion plays: the tune, the painting forming and flashing, the hold (shorter
+## on a `replay`). A map without its painting yet (`map`; the full Scorpio's has one) ends once
+## the last string has rung, instead of holding an empty sky for the painting.
+static func completion_time(map: StarMap = null, replay: bool = false) -> float:
 	if map != null and not has_painting(map):
 		return TUNE_TIME + VIBRATE_TIME
-	return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + FIGURE_CODA
+	return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + (REPEAT_CODA if replay else FIGURE_CODA)
 
 
 ## Whether `map`'s painting has been drawn (a new chapter's stages come before their art: they
@@ -436,7 +441,7 @@ func advance(delta: float) -> void:
 		var order: Array[int] = song_order(_map())
 		for k: int in range(before + 1, mini(now, order.size() - 1) + 1):
 			string_sung.emit(order[k], k)
-		if _completion_time >= completion_time(_map()):
+		if _completion_time >= completion_time(_map(), repeat):
 			_completion_time = -1.0
 			_revealed = true
 		redraw = true

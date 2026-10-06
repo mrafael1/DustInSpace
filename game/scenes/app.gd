@@ -215,6 +215,7 @@ func open_stage(point: int, guided: bool = false) -> void:
 	_stage.star_map = chapter.map_id(point)
 	# The guided first run is Scorpio's Stinger: the first chapter's first stage.
 	_stage.tutorial = chapter == chapters[0] and point == 0 and (guided or not tutorial_done)
+	_stage.replay = chapter.is_completed(point)
 	_stage.tutorial_finished.connect(_on_tutorial_finished)
 	var threat: int = Encounter.threat_of(StarMap.by_id(_stage.star_map))
 	_stage.encounter = threat >= 0 and encounters_met.get(Encounter.threat_name(threat), false) != true
