@@ -31,7 +31,7 @@ func test_it_opens_on_the_stinger_ready_to_play() -> void:
 
 func test_tapping_any_star_picks_the_part_it_belongs_to() -> void:
 	for landmark: int in Scorpio.LANDMARKS.size():
-		assert_eq(ChapterSelect.stage_at(Scorpio.LANDMARKS[landmark] + Vector2i(3, -3)), Chapter.stage_of(landmark))
+		assert_eq(ChapterSelect.stage_at(Scorpio.LANDMARKS[landmark] + Vector2i(3, -3)), Chapter.new().stage_of(landmark))
 	assert_eq(ChapterSelect.stage_at(ChapterSelect.FINAL_AT), Chapter.FINAL, "the crown is the final")
 	assert_eq(ChapterSelect.stage_at(Vector2i(90, 30)), -1, "the title isn't a stage")
 

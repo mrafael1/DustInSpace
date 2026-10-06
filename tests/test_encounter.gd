@@ -264,7 +264,7 @@ func test_the_app_plays_each_encounter_once_and_saves_it() -> void:
 	var chapter := Chapter.new()
 	for stage: int in 3:
 		chapter.complete(stage)
-	ProgressStore.new(store_path).save_chapter(Chapter.ID, chapter.to_save())
+	ProgressStore.new(store_path).save_chapter(ChapterDef.scorpio().id, chapter.to_save())
 	var app: App = AppScene.instantiate()
 	app.progress_path = store_path
 	add_child_autofree(app)

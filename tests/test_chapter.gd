@@ -14,18 +14,18 @@ func after_each() -> void:
 
 func test_the_parts_share_out_every_chart_star_from_the_tail() -> void:
 	assert_eq(Chapter.stage_count(), 6, "five parts and the final")
-	assert_eq(Chapter.stage_name(0), "STINGER")
-	assert_eq(Chapter.stage_name(Chapter.FINAL), "SCORPIO")
-	assert_true(Chapter.stars(0).has(13), "the Stinger owns Shaula")
-	assert_true(Chapter.stars(4).has(Scorpio.HEAD), "the Claws own the head")
+	assert_eq(Chapter.new().stage_name(0), "STINGER")
+	assert_eq(Chapter.new().stage_name(Chapter.FINAL), "SCORPIO")
+	assert_true(Chapter.new().stars(0).has(13), "the Stinger owns Shaula")
+	assert_true(Chapter.new().stars(4).has(Scorpio.HEAD), "the Claws own the head")
 	var owners: Dictionary = {}
 	for stage: int in Chapter.FINAL:
-		for star: int in Chapter.stars(stage):
+		for star: int in Chapter.new().stars(stage):
 			assert_false(owners.has(star), "star %d in one part only" % star)
 			owners[star] = stage
 	assert_eq(owners.size(), Scorpio.LANDMARKS.size(), "every star belongs to a part")
-	assert_eq(Chapter.stage_of(13), 0)
-	assert_eq(Chapter.stars(Chapter.FINAL), [] as Array[int], "the final is the whole figure")
+	assert_eq(Chapter.new().stage_of(13), 0)
+	assert_eq(Chapter.new().stars(Chapter.FINAL), [] as Array[int], "the final is the whole figure")
 
 
 func test_every_part_and_the_final_are_built() -> void:
