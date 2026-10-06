@@ -37,6 +37,8 @@ var _sequencer: EventSequencer
 ## CHEVRON_IN px inside the field (#128: which way it goes must read before the launch).
 const CHEVRONS: int = 3
 const CHEVRON_IN: int = 3
+## A chevron keeps this far from any loose star's centre (a big star's sprite reaches ~7 px).
+const CHEVRON_CLEAR: int = 10
 ## A box of drains (four ways or more) comes alight as its stage opens: each side flares solid in
 ## the order the flow will take them, ARRIVAL_STEP apart, then settles.
 const ARRIVAL_STEP: float = 0.22
@@ -132,7 +134,10 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		for point: Vector2i in _drain_edge(area, now):
 			result[point] = Palette.S3
 		if _run.current.turns.size() > 1:
-			result.merge(chevron_pixels(area, now), true)
+			var stars: Array[Vector2i] = []
+			for star: Star in _run.stars:
+				stars.append(star.position)
+			result.merge(chevron_pixels(area, now, stars), true)
 		if is_arriving():
 			for k: int in _run.current.turns.size():
 				if _arrival >= ARRIVAL_STEP * k:
@@ -250,8 +255,9 @@ func is_arriving() -> bool:
 	return _arrival >= 0.0
 
 
-## Ember chevrons just inside the edge a flow running `way` drains to, pointing at it.
-static func chevron_pixels(area: Rect2i, way: Vector2i) -> Dictionary[Vector2i, Color]:
+## Ember chevrons just inside the edge a flow running `way` drains to, pointing at it. Each slides
+## along the edge to the nearest spot clear of `stars` (#128: on a crowded board stars hid them).
+static func chevron_pixels(area: Rect2i, way: Vector2i, stars: Array[Vector2i] = []) -> Dictionary[Vector2i, Color]:
 	var pixels: Dictionary[Vector2i, Color] = {}
 	var line := Vector2i(absi(way.y), absi(way.x))
 	var edge: Array[Vector2i] = _drain_edge(area, way)
@@ -262,6 +268,11 @@ static func chevron_pixels(area: Rect2i, way: Vector2i) -> Dictionary[Vector2i, 
 	for k: int in CHEVRONS:
 		var along: int = span * (k + 1) / (CHEVRONS + 1)
 		var tip: Vector2i = first + line * along - way * CHEVRON_IN
+		for slide: int in [0, 4, -4, 8, -8, 12, -12, 16, -16, 20, -20, 24, -24]:
+			var spot: Vector2i = tip + line * slide
+			if stars.all(func(at: Vector2i) -> bool: return at.distance_squared_to(spot - way * 1) > CHEVRON_CLEAR * CHEVRON_CLEAR):
+				tip = spot
+				break
 		for d: int in 3:
 			pixels[tip - way * d + line * d] = Palette.S4
 			pixels[tip - way * d - line * d] = Palette.S4
