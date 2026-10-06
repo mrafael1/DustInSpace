@@ -23,14 +23,14 @@ func _init(area: Rect2i, step: Vector2i) -> void:
 	displacement = step
 
 
-## Snapshot membership; stable ID order; one step. A blocked destination leaves the star
+## Snapshot membership; downstream first; one step. A blocked destination leaves the star
 ## where it is instead of squeezing sprites together or silently moving an unaffected star.
 func preview(stars: Array[Star], sky: Rect2i, landmarks: Array[Vector2i], reserved: Dictionary[int, Vector2i] = {}) -> Dictionary[int, Vector2i]:
 	var destinations: Dictionary[int, Vector2i] = {}
 	for star: Star in stars:
 		destinations[star.id] = reserved.get(star.id, star.position)
 	var ordered: Array[Star] = stars.duplicate()
-	ordered.sort_custom(func(a: Star, b: Star) -> bool: return a.id < b.id)
+	ordered.sort_custom(_downstream_first)
 	for star: Star in ordered:
 		if reserved.has(star.id) or not region.has_point(star.position):
 			continue
@@ -47,6 +47,14 @@ func moves(stars: Array[Star], destinations: Dictionary[int, Vector2i]) -> Array
 		if star.position != to:
 			result.append(Move.new(star.id, star.position, to))
 	return result
+
+
+## Vacate downstream positions before upstream stars try to follow. Creation age is only
+## a tie-break at the same distance along the flow, never the order of a moving cluster.
+func _downstream_first(a: Star, b: Star) -> bool:
+	var along_a: int = a.position.x * displacement.x + a.position.y * displacement.y
+	var along_b: int = b.position.x * displacement.x + b.position.y * displacement.y
+	return a.id < b.id if along_a == along_b else along_a > along_b
 
 
 func _has_room(point: Vector2i, occupied: Dictionary[int, Vector2i], landmarks: Array[Vector2i]) -> bool:

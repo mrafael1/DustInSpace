@@ -25,6 +25,20 @@ func test_blocked_destinations_keep_original_positions() -> void:
 	assert_eq(result[2], stars[1].position, "fixed landmarks block this step")
 
 
+func test_upstream_stars_follow_downstream_neighbors_regardless_of_age() -> void:
+	for left_id: int in [1, 2]:
+		var right_id: int = 3 - left_id
+		var stars: Array[Star] = [
+			Star.new(left_id, Star.Size.SMALL, Vector2i(100, 160)),
+			Star.new(right_id, Star.Size.SMALL, Vector2i(120, 160)),
+		]
+		var result: Dictionary[int, Vector2i] = _current().preview(stars, SKY, [])
+		assert_eq(result[left_id], Vector2i(76, 160))
+		assert_eq(result[right_id], Vector2i(96, 160), "creation order must not split a moving cluster")
+		stars.reverse()
+		assert_eq(_current().preview(stars, SKY, []), result, "array order must not affect the flow either")
+
+
 func test_order_is_stable_and_targets_stay_inside_safe_bounds() -> void:
 	var current := StarCurrent.new(Rect2i(0, 78, 180, 172), Vector2i(-80, 0))
 	var stars: Array[Star] = [Star.new(2, Star.Size.SMALL, Vector2i(60, 190)), Star.new(1, Star.Size.BIG, Vector2i(32, 190))]
