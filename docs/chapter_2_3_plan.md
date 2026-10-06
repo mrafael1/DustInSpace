@@ -1,207 +1,99 @@
-# Chapters 2 and 3: ideas and prototype plan
+# Chapters 2 and 3: ideas to test
 
-**Status: proposal, 2026-10-06.** This records ideas from the chapter research and plans how to evaluate them. The user requested a plan; gameplay implementation, final themes, and tuning have not been approved. [design.md](design.md) remains the reference for the current game. The rules below are provisional design choices, not shipped behavior.
+**Status: revised proposal, 2026-10-06.** This is a short experiment plan, not a chapter specification or gameplay implementation request. [design.md](design.md) remains the current rules reference. Aquarius and Gemini are working themes; stage lists, detailed effect rules, and tuning wait until the ideas survive evaluation.
 
-## Campaign direction
+## Direction and stakes
 
-Give each chapter a new use for the existing launch-and-link controls. Preserve the anticipation of random packs, frequent tactile actions, and satisfying dust and light payouts.
+Chapter 1 asks the player to protect stars. Chapter 2 should ask when to rearrange them at a cost. Chapter 3 needs a genuine competing use for its echoes before it earns a place in the campaign.
 
-| Chapter | Proposed identity | Main decision | Desired player reaction |
+| Concept | Status | Proposed pressure | Decision that must exist |
 |---|---|---|---|
-| 1: Scorpio | Protect stars from Orion | Which stars should I save before acting? | "I saved the star he was hunting." |
-| 2: Aquarius | Arrange the sky through predictable movement | Link now, or launch to bring stars together? | "That launch made the combo possible." |
-| 3: Gemini | Use paired landmarks to prepare another success | Which completion sets up the next one? | "That echo gave me the missing star." |
+| 2: Aquarius / currents | First experiment | Launching can move a saved cluster out of reach while helping another; keep the existing map's single mark during the experiment. | Link a useful cluster first, or risk moving it to obtain a new opportunity? |
+| 3: Gemini / echoes | Weaker concept; paper work only for now | A scarce echo can serve its partner or a competing landmark; use the existing single-mark threat as the baseline for any later prototype. | Spend the echo here, or save/use it elsewhere at a real cost? |
 
-Aquarius and Gemini are working themes. Mechanics can be retained if the themes change. Part-stage names below are working labels, not claims about astronomical constellation subdivisions.
+Finite packs and dust alone are not proof of pressure. A later chapter must retain meaningful losses and understandable consequences. Early stages can teach gently; mastery stages should aim for stakes comparable to late Scorpio, measured with the same spatial core bots and human playtests. No numerical win target is chosen yet, and no new win rates are claimed.
 
-The baseline keeps three star sizes, exactly three stars per valid link, triples and mixed-size sequences, one unlit landmark per link, the two existing pack roles, dust, light, the Sun, and constellation completion. New chapters initially omit Orion's threats. No new currency, inventory, persistent upgrade, or run buff is proposed.
+The Python simulator ignores positions and link reach. Historical all-win estimates for unthreatened configurations do not establish current chapter difficulty; threatened stages also have lower recorded rates. Neither a higher simulator win rate nor more free resources proves an interesting mechanic.
 
-## Chapter 2: Aquarius
+Keep the three sizes, three-star combos, one landmark per link, existing pack roles, dust, light, and constellation objective. No new currency, persistent upgrade, or inventory. Do not increase targets simply to disguise a mechanic that only helps.
 
-### Main mechanic: star currents
+## First experiment: double-edged currents
 
-Visible current regions shift loose stars when a pack is launched. The sky stays still between actions, including while a link is traced. This changes placement without changing star sizes or destroying resources.
+Use a debug-only switch on the existing **Tail** map. Keep its normal packs, landmarks, and Orion single mark. Compare current off/on on that same map and seed range. No chapter selection, save migration, new chart, or general effects framework is needed.
 
-**Provisional prototype rules:**
+One current shifts loose stars on a successful launch; landmarks stay fixed and the sky stays still between actions. Both red bursts resolve before the single movement step. Buying, cancelled gestures, and invalid actions do not advance it. These are the minimum assumptions for the experiment, not the final movement specification.
 
-- Both bursts of a red pack finish before movement resolves. A red pack triggers one current step, like a blue pack.
-- All loose stars, including the new burst's stars, are eligible. Landmarks remain fixed.
-- Determine field membership from a snapshot of positions before movement. Each eligible star moves once; entering another field does not trigger another step.
-- Start with non-overlapping current regions and fixed directions. A star on the boundary counts as inside, using the same rule in preview and resolution.
-- Displacement is an integer vector. Clamp destinations to the safe playable sky; no star leaves the screen.
-- Resolve crowding deterministically with the existing scatter/spacing concepts and a stable star-ID order. Preview and execution must use the same placement function. Never merge stars or change their sizes to make room.
-- Only a successful launch advances currents. Buying, loading, aiming, cancelling, and invalid links do not move them. Ordinary successful links do not move them either.
-- Refresh legal links and hints after movement, then perform the normal loss check. With no affordable or owned launch and no legal link, there is no free current tick that rescues the run.
+The layout must demonstrate both outcomes:
 
-Example: two small stars lie beyond useful reach of a small landmark. Launching upstream shifts them closer while adding new stars. The player can now link the landmark with those stars.
+- A launch brings previously stranded stars into useful reach.
+- That same launch carries another usable cluster away from its landmark or breaks its useful reach.
+- Launching directly beside the target does not consistently bypass the trade-off: new burst stars are affected too.
+- Linking the saved cluster first prevents that loss of opportunity, but uses stars the player might otherwise save.
 
-**Presentation:** cool stepped ribbons and arrow shapes show flow; palette colours must come from the existing N/M ramps. Warm colours mark an actionable preview or useful destination. While aiming, preview exact destinations for existing stars and an uncertainty region for the unopened burst. Do not imply that unknown star sizes or scatter positions are guaranteed. Keep silhouettes, touch targets, and constellation strings readable.
+Show this conflict in ordinary random play after the initial example. If it exists only in a scripted board, or the best answer is always "link everything before launching," revise or drop the current.
 
-**First playable experiment:** one current, one direction, a compact map, and one guided useful launch. Use ordinary packs after the demonstration. Test whether the player can then use the current deliberately without another prompt.
+**Readability is an early pass/fail condition.** Before implementing movement, mock up the busiest aim state at 180x320 and on a phone: existing strings, scatter preview, flow cue, and affected stars. Do not add a persistent layer of exact trajectories for every star.
 
-### Optional companion: gravity wells
+Try a short flow arrow plus destination dots only for affected stars while aiming. Keep link hints and reach feedback for tracing; let nonessential strings recede during aiming. Existing-star destinations must match execution if shown. Unopened contents and scatter remain uncertain. If the player needs a dense board-analysis overlay to understand the cost, simplify the effect or reject it.
 
-Only explore wells if currents need another kind of decision. A well pulls nearby loose stars after a successful link. That gives launches and links distinct spatial effects.
+The player should make a quick launch-or-link choice, then enjoy a random burst and its consequences. Do not turn each shot into a long calculation. Spacing, integer movement, safe bounds, and hint/loss updates are implementation necessities to settle when building the small prototype.
 
-- Resolve normal rewards, landmark lighting, and any Sun clear first.
-- On a continuing run, pull remaining loose stars once from a position snapshot; landmarks stay fixed. A final completion skips the pulse.
-- Use bounded integer displacement, stable spacing, and a preview of the affected stars while tracing a valid link.
-- A well never consumes stars, grants a reward, or advances while the player waits.
-- Start with one well and no overlapping influences. Keep more elaborate fields out of the first prototype.
+## Gemini must first prove a trade-off
 
-Example: collecting a medium triple pulls two remaining small stars within reach of a small landmark. The combo pays normally and prepares another useful link.
+The original equal-size, partner-matching echo is mostly a free star. Do not prototype that version as a chapter, and do not write its Sun/clear/event-order specification yet.
 
-The difficulty should come from choosing an action and anticipating its effect. Avoid continuous physics, stars escaping the sky, or movement timed to finger speed.
+Sketch two alternatives separately:
 
-### Proposed stage progression
+- **Combo-dependent echo:** the combo used to light the first twin changes the echo's size. Triples could echo their repeated size; a mixed sequence needs a simple, visibly understandable outcome. First ask whether choosing a different valid combo is actually possible often enough to matter.
+- **Competing destination:** the echo lands near the partner but also within useful reach of another unfinished landmark. Using it for one prevents using that same star for the other. Completing the same map in either order without a meaningful cost is not sufficient.
 
-| Stage | Working label | Content and teaching goal |
+Prefer the competing-destination sketch first because it can use ordinary stars without another size rule. Test combo dependence only if the spatial competition is weak. Do not stack both ideas immediately.
+
+For any later prototype, keep the Tail's single-mark threat as the baseline for pressure; use a small debug-only paired layout or overlay, not a new campaign chapter. Compare against that same threat/layout without echoes. Demonstrate a case where taking a link sacrifices another useful opportunity or a threatened star. Extra stars that merely make every run easier fail the concept gate.
+
+An echo should remain an ordinary star, with a finite source such as one emission per pair. Reject unlimited generation or a guaranteed completion chain. The unresolved size mapping, pair layout, Sun interaction, and exact timing remain questions for a surviving concept, not committed rules.
+
+## A chapter also needs a payout spike
+
+Movement and a free star are not replacements for the Big Bang's anticipation and payoff. Each chapter needs a noticeable payout spike that fits its objective; completion paintings alone are not enough.
+
+First payoff hypothesis: a **rare pack jackpot** opens with familiar anticipation, delivers an unusually rich ordinary burst and a visible dust spike, and preserves banked stars and lit landmarks. It avoids the old constellation Big Bang problem of wiping useful stars without helping the objective. Amount, chance, and burst tuning remain undecided.
+
+For Aquarius, the exciting result would be a rich burst followed by a readable rearrangement that exposes several opportunities. For Gemini, it would supply a contested area and let the player choose which completion to pursue. Neither should silently auto-complete landmarks or introduce a new currency.
+
+Evaluate the idea early with a forced debug presentation or paper sequence, separately from ordinary current/echo trials. A forced example tests readability and the feeling of the payout, not its natural frequency or balance. If it is only a bigger number and does not feel like a memorable opening, revise it before planning a full chapter. Natural jackpots and their economics need separate tuning evidence before release.
+
+## Cheap sequence and decision gates
+
+Only the currents experiment is next. Gemini, jackpot tuning, and chapter infrastructure do not become parallel implementation tasks.
+
+| Step | Work | Gate |
 |---|---|---|
-| 1 | First Flow | One current helps the player reach a landmark; teach launch, movement, then link. |
-| 2 | Forked Stream | Separate current regions serve different landmarks; choose which area to feed. |
-| 3 | Gathering Pool | Introduce one gravity well if justified; otherwise deepen current layouts. |
-| 4 | Confluence | Combine current and well timing, or combine established current layouts. |
-| 5 | Return Flow | Test planning across a longer constellation using established rules. Direction reversal is a separate optional experiment, not required content. |
-| 6 | Aquarius / Maelstrom | Finale built from mastered movement rules and deliberate placement; no additional mechanic required. |
+| A | Sketch one Tail current conflict and its busiest aim state. Outline the payout moment. | A visible gain and cost; phone-scale readability; a quick choice that preserves anticipation. |
+| B | Add one debug-only current to Tail, with minimum core checks and view cues. | The existing map runs unchanged with the switch off; movement matches cues and keeps stars selectable. |
+| C | Play current off/on across matched seeds; observe human touch play early. | Players notice both helping and harming, sometimes link first and sometimes launch first, and cannot routinely bypass the field by aiming. |
+| D | Compare simple and current-aware core bots; try the forced payout presentation separately. | Useful decisions survive unscripted runs; losses are explainable; rich openings are legible and satisfying. |
+| E | Record keep, revise, or drop. | No dominant trivial answer, no clutter-heavy preview, and meaningful stakes. |
+| After E | Specify only a surviving mechanic; revisit Gemini sketches, then consider chapter maps and progression. | An echo trade-off must pass its own gate before any Gemini chapter commitment. |
 
-Keep the finale objective as lighting the constellation. "Maelstrom" is an environmental encounter concept; a new enemy character or separate boss-health system is not required.
+Wells and resonance are outside this sequence. Full stage progressions, boss names, paintings, chapter unlocks, and save generalisation wait. If currents fail, leave Scorpio intact and return to the reserve ideas rather than grow systems around them.
 
-## Chapter 3: Gemini
+## Evidence and boundaries
 
-### Main mechanic: twin echoes
+For the current prototype, check fixed landmarks, one step per successful launch including red twins, invalid/cancelled actions changing nothing, safe selectable positions, shown destinations matching execution, and remaining reachable combos being checked before loss. Movement rules stay in pure typed GDScript; scenes observe events. Use integer pixels, the existing palette, and injectable randomness. Previews must not alter pack draws.
 
-Some landmarks have a visible partner. Lighting the first member of a pair sends a helpful ordinary sky star toward the still-unlit partner. It creates a finite opportunity for another link.
+Record the map, seeds, bot policy, wins/losses, packs, links, gains and losses of reachable opportunities after movement, and chosen launch/link order. Human observation should include first-use understanding, preview confusion, refused touches, decision time, and explanations of a surprising outcome. Compare blue-only and deliberate mixed-pack play; classify deliberate star sacrifices separately from mistakes.
 
-**Provisional prototype rules:**
+All tuning belongs in game/config/balance.json. If it changes, run and report the required Python simulator as well as spatial core runs, explicitly describing what each models. No balancing or gameplay tests are claimed for this documentation revision.
 
-- A pair emits once, when its first member becomes lit during the run. Pairs with a member already lit at the start are treated as spent; no opening free echo.
-- The echo matches the receiving landmark's size. Prefer equal-size pairs in the introduction so the visual echo reads simply.
-- The echo is an ordinary small, medium, or big star with normal rewards and no persistent special status. Its arrival effect identifies where it came from.
-- Landing points sit near the receiving landmark and use deterministic safe placement, with clear spacing from the landmark and other stars. An echo never occupies the landmark's touch target.
-- Direct combo lighting and Sun-triggered lighting both qualify. Resolve a Sun clear before delivering echoes generated by that action, so the arrival is useful rather than immediately erased.
-- If both members become lit in the same action, emit nothing for that pair. Final completion takes priority over echo delivery.
-- Echo arrival does not automatically collect a combo, light another landmark, or trigger another echo. The player makes the next link.
-- Resolve pending arrivals before checking for remaining combos and loss. Echo placement must not consume the pack RNG stream.
+## Reserve and research
 
-Example: completing a small landmark sends a small star beside its unlit partner. One additional small sky star is enough to form a triple with that partner. A previously unhelpful small star elsewhere may now be worth saving or moving toward the pair.
-
-**Presentation:** a pair has a distinctive dotted connection that cannot be mistaken for a completed gold constellation string. On completion, a pulse travels along it and the ordinary star appears with a brief arrival effect. During tracing, show the destination if that link would generate an echo. Avoid introducing another permanent selection ring or star colour.
-
-**First playable experiment:** one pair, a visible echo landing point, and an ordinary link opportunity afterward. The player should understand that the arriving star can be linked without learning a new star type.
-
-### Optional companion: paired resonance
-
-An extra light payout rewards completing the two members of a pair on consecutive successful links. This introduces timing through player choices rather than a real-time deadline.
-
-- A direct link that lights the first member primes its partner.
-- If the next successful link directly lights that partner, award bonus light once for the pair, alongside normal rewards.
-- Launches, purchases, loading, cancelled gestures, and invalid links preserve the opportunity. A different successful link expires it.
-- Missing the opportunity never dims a completed landmark or removes progress.
-- Sun-triggered lighting still generates echoes but does not start or satisfy resonance. This is a provisional distinction: the bonus rewards deliberate paired links and must be taught visibly.
-- Apply earned bonus light before evaluating the Sun threshold. Preserve the existing rules for Sun overflow and final completion until a separate design decision changes them.
-- A successful link settles the previous opportunity before potentially priming a different pair. There is only one pending opportunity; no stack of hidden bonuses.
-
-Example: a useful dust triple is available, but collecting it would end the pending resonance. The player can instead spend a pack preparing the paired landmark for a larger light payout.
-
-The Sun can clear saved stars when resonance fills it. Preview an imminent rekindle while tracing so the consequence is visible. Start without resonance and add it only if echoes leave room for a meaningful collect-now-or-prepare decision.
-
-### Proposed stage progression
-
-| Stage | Working label | Content and teaching goal |
-|---|---|---|
-| 1 | First Answer | One pair demonstrates an echo, then lets the player use it. |
-| 2 | Twin Paths | Multiple pairs let the player choose which side to complete first. |
-| 3 | In Harmony | Introduce resonance if justified; otherwise deepen echo placement choices. |
-| 4 | Crossing Voices | Echo arrivals and existing stars prepare opportunities across different pairs. No additional star type. |
-| 5 | Shared Light | Test the choice between immediate dust and a prepared paired payout. Without resonance, test completion order instead. |
-| 6 | Gemini / The Twins | Finale combines established pair layouts, echo placement, and optional resonance. Keep the usual constellation objective. |
-
-Do not require finishing both twins simultaneously, undo completed landmarks, or make all non-resonant links invalid. An unfinished pair remains completable even after its bonus opportunity expires.
-
-## Build and evaluation order
-
-Implement these steps only after a gameplay task is authorized. Each implementation topic gets its own branch and PR; this document does not create executable tasks or approve all optional ideas.
-
-| Step | Deliverable | Evidence needed before continuing |
-|---|---|---|
-| A | Paper layouts for a current stage and an echo stage | Both offer a useful choice through existing controls; rules are expressible with a short demonstration. |
-| B | Standalone current prototype with core tests and a minimal view | Preview matches movement; stars remain selectable; players intentionally use movement to make links. |
-| C | Standalone echo prototype with core tests and a minimal view | Arrival and pairing are understood; echo use creates a choice; no repeated free-star loop. |
-| D | Comparative spatial bot runs and touch playtests | Planning produces useful opportunities across varied seeds; results are not driven solely by extra resources or one scripted solution. |
-| E | Decide keep, revise, or drop each main mechanic | Record observed misunderstandings and successful strategies. Do not build a whole chapter around an unproven prototype. |
-| F | Minimal support for multiple chapter definitions, maps, and saved progress | Existing Scorpio saves and behavior remain compatible; chapter progress stays separate. |
-| G | First two Aquarius stages, then remaining stages | Layout variation supports the mechanic. Test wells only if needed, and replace optional stages with layout challenges if dropped. |
-| H | First two Gemini stages, then remaining stages | Pair order and echo placement stay readable. Test resonance only if needed. |
-| I | Chapter charts, paintings, encounter feedback, and finales | Pixel and palette review, small-screen touch review, complete runs, and documented balance checks. |
-
-Prototype effects behind explicit development-only access. Do not expose unfinished chapters through the normal campaign or unlock them in existing saves.
-
-### Implementation boundaries
-
-- `Chapter` currently fixes Scorpio's identity and stage list; `ChapterSelect` draws its chart and paintings. Generalize only the definitions and view inputs needed for an actual second chapter. Avoid a general effects framework or unrelated rename/refactor.
-- `StarMap` already provides per-stage landmark layouts. Add chapter maps and explicit mechanic settings there; keep costs, chances, rewards, targets, displacement amounts, field radii, and other tuning exclusively in `game/config/balance.json`.
-- `ProgressStore` already loads and saves by chapter ID. Preserve existing Scorpio records and tutorial/encounter flags. Campaign unlock conditions remain an open design decision.
-- Pure typed GDScript classes decide movement, pairing, rewards, and loss; `RunState` owns action order. Views and the event sequencer animate past-tense events and never decide rules.
-- Random streams remain injectable. Presentation, previews, demonstrations, and placement must not silently change future pack contents. Use integer coordinates and the existing pixel grid throughout.
-- Keep the COMBOS table true to the base combinations. Show chapter effects through a replayable demonstration or compact help view; explain conditional bonus light where it becomes relevant.
-- Begin with Big Bang disabled on these constellation prototypes, matching the current constellation-stage baseline. Restoring it needs a separate useful interaction with the new chapter objective.
-
-### Checks that matter
-
-| Area | Required coverage for implementation |
+| Reserve idea | Reason to defer |
 |---|---|
-| Currents | Fixed landmarks; movement once per launch including red twin bursts; snapshot membership; bounds; stable crowding; preview equality; no movement on cancelled or invalid actions; new legal links recognized before loss. |
-| Optional wells | Valid-link trigger only; fixed landmarks; one pulse; remaining stars after a Sun clear; completion priority; spacing and reachable-link checks after movement. |
-| Echoes | One emission per eligible pair; ordinary star size and rewards; safe placement; starting-lit pairs; direct and Sun lighting; both members lit in one action; delivery after clear and before loss; no automatic links or emission loops. |
-| Optional resonance | Consecutive successful direct links; launch/buy preservation; invalid links preserve state; unrelated links expire it; Sun lighting is excluded visibly; bonus counted once; final completion and Sun ordering. |
-| Chapters | Unlock/replay behavior, separate progress, old-save compatibility, missing or malformed data, and unchanged Scorpio rules. |
-| Presentation | 180x320 and taller layouts; selectable stars after movement; distinguishable field and pair cues; integer pixels; palette-only colours; labels rendered as text. |
+| Gravity wells | Another movement system before currents prove useful. |
+| Paired resonance | Expiry and Sun exceptions add complexity before echoes prove a choice. |
+| Wormholes / conducting strings | More routing and preview rules; revisit only after simpler spatial ideas. |
+| Triangle enclosure / size transformation | Touch geometry or changing silhouettes need independent readability experiments. |
+| Eclipse / rhythm / longer combos / buffs | Broader timing or rules changes; outside the cheap current experiment. |
 
-The Python balance simulator currently ignores positions and link reach. It can evaluate resource economics after being extended for new rules, but cannot validate currents or spatial echo placement by itself. Supplement it with seeded bot runs through the actual GDScript core. Report simulator win rates whenever balance changes, and label which rules each measurement models.
-
-Compare matched seeds with effects enabled and disabled. Separate ordinary greedy play from movement/pair-aware play, and compare blue-only, red-when-affordable, and deliberate mixed-pack strategies. Include map, seed range, run count, wins/losses, packs used, useful current moves, echoes used, and optional resonance bonuses. More wins alone do not prove the mechanic is interesting; inspect whether players make and understand different decisions.
-
-Human playtests should capture first-use understanding, deliberate use after the demonstration, tracing refusals, crowding mistakes, time to choose an action, and the player's explanation of a surprising outcome. Desired win rates, chapter duration, and acceptable difficulty are still undecided. Define those targets after prototype evidence, then tune through the shared balance file.
-
-## Decisions to revisit
-
-| Decision | Proposed starting point | Still open |
-|---|---|---|
-| Themes | Aquarius, then Gemini | Keep these names and figures or choose alternatives. |
-| Chapter structure | Five part stages plus a finale | Final layouts, part names, and landmark counts. |
-| Main mechanics | Currents; one-time paired echoes | Keep only after prototype evidence. |
-| Companion mechanics | Wells; resonance | Optional; neither is required to ship a chapter. |
-| Echo fairness | Predictable size and placement; one emission per pair | How much reliable help is appropriate alongside random packs. |
-| Sun interaction | Keep current clears/overflow; deliver new echoes after the clear | Whether this remains understandable and satisfying in Gemini. |
-| Finale identity | Environmental Maelstrom; paired Twins encounter | Narrative, enemy art, and presentation, with no separate health currency. |
-| Campaign unlocks | Separate progress per chapter | Whether later chapters require the previous finale or a different completion condition. |
-| Difficulty | No numerical target yet | Playtest targets and resource tuning; no claimed win rates for unbuilt chapters. |
-
-## Reserve ideas
-
-| Idea | Why keep it | Why defer it |
-|---|---|---|
-| Wormholes | Deliver stars between separated regions. | Transport previews, arrival spacing, and portal-link reach need their own prototype. Start with star transport, not links through portals. |
-| Triangle enclosure | Existing trios could activate a beacon inside their triangle. | Thin triangles and precise touch geometry may feel arbitrary. Needs a forgiving preview and a distinct rule for the closing edge. |
-| Eclipse phases | A visible phase could reward different familiar combos. | Competes with resonance and adds another timing cue. Test as an alternative, not another required layer. |
-| Transformation fields | Turn awkward sizes into useful ones through placement. | Changing silhouettes undermines recognition unless the result is previewed clearly. |
-| Conducting strings | Completed constellation branches could route useful effects. | Requires rules for branching and effect destinations; better explored after paired echoes. |
-| Rhythm / Lyra | Links and sound could support a musical chapter. | Real-time timing changes the current pace and accessibility; separate experiment. |
-| Longer links, fourth size, buffs, upgrades | Potential later expansion. | Broader changes to rules, economy, tutorial, and UI; outside this proposal's baseline. |
-
-## Research behind the proposal
-
-These are references for mechanics and design methods, not evidence that the proposed chapters will succeed. The applications to Dust In Space are original design inferences.
-
-| Primary source | Relevant observation | Proposed application |
-|---|---|---|
-| [Osmos: official game page](https://www.osmos-game.com/) | Attractors and repulsors vary spatial play. | Predictable fields create chapter variety through the same controls. |
-| [Into the Breach: developer's game description](https://store.steampowered.com/app/590380/Into_the_Breach/) | Attacks are telegraphed before resolution. | Preview movement and action consequences before commitment. |
-| [Grindstone: developer AMA](https://www.reddit.com/r/Grindstone/comments/i1a9e4/) | Bridge objects support larger chains; saving resources can improve later opportunities; layouts were also prototyped on paper grids. | Echoes create useful future setups; test layouts before chapter art. |
-| [Peglin: developer's game description](https://store.steampowered.com/app/1296610/Peglin/) | Aiming interacts with crit, refresh, and bomb board features. | Visible regions make launch location more expressive. |
-| [Two Dots: official square mechanic explanation](https://dots.helpshift.com/hc/en/3-two-dots/faq/382-why-does-the-game-prompt-me-to-make-squares/) | Closed squares and enclosure add effects to familiar linking. | Reserve triangle geometry as a separate experiment. |
-| [Balatro: official FAQ](https://www.playbalatro.com/faq/) | Boss rounds restrict familiar hands. | Finales test established mechanics rather than require another system. |
-| [Mini Metro: developer's game page](https://dinopoloclub.com/games/mini-metro/) | Players draw and revise routes between stations. | Reserve useful constellation strings for later exploration. |
-| [Railbound: developer press kit](https://afterburn.games/press/sheet.php?p=railbound) | Tunnels and other route features vary connection puzzles. | Wormholes are a possible transport experiment. |
-| [Luck be a Landlord: Questions and Danswers](https://blog.trampolinetales.com/questions-and-danswers/) | Early content deliberately carries less complexity. | Teach main mechanics before optional companions. |
-| [Luck be a Landlord: Making Rules and Breaking Rules](https://blog.trampolinetales.com/making-rules-and-breaking-rules/) | Unclear exceptions can be reported as bugs even when implemented intentionally. | Keep chapter rules accessible and test Sun/resonance exceptions explicitly. |
+Research informs these hypotheses; it does not validate them. [Osmos](https://www.osmos-game.com/) supplies a spatial-field reference. [Into the Breach](https://store.steampowered.com/app/590380/Into_the_Breach/) supplies consequence telegraphing, not a target pace for this game. [Grindstone's developer AMA](https://www.reddit.com/r/Grindstone/comments/i1a9e4/) supports testing resource opportunities on paper grids. [Peglin](https://store.steampowered.com/app/1296610/Peglin/) is an aiming-and-randomness reference. [Luck be a Landlord's rules discussion](https://blog.trampolinetales.com/making-rules-and-breaking-rules/) is a reason to avoid premature exceptions.
