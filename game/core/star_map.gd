@@ -49,6 +49,9 @@ var current_region: Rect2i = Rect2i()
 var current_drains: bool = false
 ## Which way the flow runs (chapter 2's stream pours down; the rest run left).
 var current_direction: Vector2i = Vector2i.LEFT
+## A flow that turns after every launch takes these ways in order (the Jar's tide: left, right).
+## Empty: it always runs current_direction.
+var current_turns: Array[Vector2i] = []
 
 
 ## The full Scorpio (#61): every star of Scorpius's figure.
@@ -211,6 +214,28 @@ static func aquarius_stream() -> StarMap:
 	return map
 
 
+## Aquarius, stage 5: the Jar, where the water comes from, and the tide. The flow reverses after
+## every launch (left, then right, then left...) over the sky's full height from x 24 to 155, and
+## drains at both sides: a star safe on one launch can be carried out the other way on the next.
+## The jar's Y (pi, lit, at the top; zeta at its centre; eta and Sadachbia its arms) stands in the
+## middle, its lip below with the spout pouring down and left. Five to light. Strings are 28-42 px.
+## Its painting isn't drawn yet.
+static func aquarius_jar() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aquarius_jar"
+	map.title = "JAR"
+	map.landmarks = [Vector2i(90, 100), Vector2i(90, 128), Vector2i(60, 146), Vector2i(120, 146), Vector2i(90, 170), Vector2i(66, 196)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(1, 3), Vector2i(1, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = AQUARIUS_PART % "jar"
+	map.intros = false
+	map.current_region = Rect2i(24, Scorpio.HOME_SKY.position.y, 132, Scorpio.HOME_SKY.size.y)
+	map.current_drains = true
+	map.current_turns = [Vector2i.LEFT, Vector2i.RIGHT]
+	return map
+
+
 ## A current over the home sky's full height (a taller sky stretches it: RunState) from `x` to the
 ## right edge.
 static func _full_height_from(x: int) -> Rect2i:
@@ -345,6 +370,8 @@ static func by_id(p_id: String) -> StarMap:
 			return aquarius_legs()
 		"aquarius_stream":
 			return aquarius_stream()
+		"aquarius_jar":
+			return aquarius_jar()
 	return scorpio()
 
 

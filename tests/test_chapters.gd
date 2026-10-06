@@ -67,7 +67,7 @@ func test_aquarius_is_its_own_chapter_built_from_the_hand() -> void:
 	assert_eq(aquarius.stage_name(4), "JAR", "the jar, where the water comes from, is the last part")
 	assert_eq(aquarius.stage_of(5), 4, "eta is in the jar")
 	assert_eq(aquarius.state(0), Chapter.PointState.AVAILABLE, "the Hand (tests/test_aquarius_stages.gd)")
-	for stage: int in range(4, Chapter.stage_count()):
+	for stage: int in range(5, Chapter.stage_count()):
 		assert_eq(aquarius.map_id(stage), "", "not built yet")
 		assert_eq(aquarius.state(stage), Chapter.PointState.LOCKED)
 	assert_eq(Chapter.new().id, "scorpio", "Scorpio by default")

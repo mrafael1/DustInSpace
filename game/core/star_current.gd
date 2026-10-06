@@ -3,6 +3,8 @@ extends RefCounted
 ## One launch-driven flow. No randomness, nodes or rewards. Existing destinations can be
 ## reserved before a burst, so newly arriving stars never invalidate the aiming preview.
 ## A draining flow loses every star it carries out of its field: it pays nothing.
+## A turning flow (a tide, a rotating box) runs each way in `turns` in order, one launch each:
+## turn() moves it on once a launch has resolved, so the aim always previews the flow it will get.
 
 class Move:
 	extends RefCounted
@@ -24,14 +26,47 @@ class Move:
 const SIDESTEPS: Array[int] = [4, -4, 8, -8, 12, -12, 16, -16]
 
 var region: Rect2i
+## This launch's flow: its way times its step.
 var displacement: Vector2i
 var drains: bool
+## The ways a turning flow takes, in order (empty: it always runs one way).
+var turns: Array[Vector2i] = []
+var _turn: int = 0
+var _step: int = 0
 
 
-func _init(area: Rect2i, step: Vector2i, p_drains: bool = false) -> void:
+## `step`: the first launch's flow. `p_turns`: the ways it takes after each launch, from the first
+## (its length is the step's).
+func _init(area: Rect2i, step: Vector2i, p_drains: bool = false, p_turns: Array[Vector2i] = []) -> void:
 	region = area
 	displacement = step
 	drains = p_drains
+	turns = p_turns
+	_step = maxi(absi(step.x), absi(step.y))
+	if not turns.is_empty():
+		displacement = turns[0] * _step
+
+
+## A launch resolved: a turning flow takes its next way.
+func turn() -> void:
+	if turns.size() < 2:
+		return
+	_turn = (_turn + 1) % turns.size()
+	displacement = turns[_turn] * _step
+
+
+## The way the flow runs after this launch's (the same, unless it turns).
+func next_way() -> Vector2i:
+	if turns.size() < 2:
+		return Vector2i(signi(displacement.x), signi(displacement.y))
+	return turns[(_turn + 1) % turns.size()]
+
+
+## Every way this flow ever runs (one, or each of its turns).
+func ways() -> Array[Vector2i]:
+	if turns.is_empty():
+		return [Vector2i(signi(displacement.x), signi(displacement.y))]
+	return turns
 
 
 ## Snapshot membership; downstream first; one step. A star whose step is blocked (another star or
