@@ -119,6 +119,8 @@ The Stinger's first play is guided. Each step shows a line or two under the Sun,
 
 ### Final stage: Orion, the boss (stage 6, a prototype)
 
+**Chapter identity:** Orion and his mark, volley, and hunting area belong exclusively to chapter 1, tied to Scorpio's mythology. They must not carry into later chapters or their prototypes, including as reskinned threats. Later chapters need their own mechanics and sources of pressure.
+
 The **final** is the full Scorpio (`StarMap.final`: the 14 landmarks, the claw arc lit, so 11 to light) and the chapter's boss stage. Orion brings **every threat at once**, each with its shared tuning: the single mark, the volley and the hunting area, with no intros. It should feel like a boss: the fight is framed around him.
 
 - **Unlock (chart):** back from the win that completes the fifth part, the Claws' point lights, then a comet flies from every part's main star into the crown (from the tail, a beat apart), rings close in on it, and it bursts: a ring thrown out to the screen's edge, eight rays, and every string flashing C0 for a beat. Then the final is selected and PLAY shows. While open and not yet won, the crown is the boss's point: bigger, flaring like the point to play next, and wearing an ember ring (S4) instead of the warm one. No sound on the chart yet.
