@@ -432,7 +432,7 @@ func _unlit_shown() -> int:
 func _completion_time() -> float:
 	var map: StarMap = _run.scorpio.map if _run != null and _run.scorpio != null else null
 	var fall: float = OrionView.FALL_TIME if map != null and map.boss else 0.0
-	return fall + ConstellationView.completion_time()
+	return fall + ConstellationView.completion_time(map)
 
 
 func _positions(stars: Array[Star]) -> Array[Vector2i]:

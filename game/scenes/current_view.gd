@@ -1,12 +1,30 @@
 class_name CurrentView
 extends Node2D
-## Cool flow cues behind stars, with an ember line where a draining flow loses stars (flashing
-## solid where one goes). Destination brackets appear only while aiming, and an ember trail from a
-## star that would drain; random pack contents stay hidden. The core supplies every destination.
+## Flowing water behind stars (cool streaks gliding downstream), with an ember line where a
+## draining flow loses stars, and each star's extinction where it goes (extinction_pixels).
+## Destination brackets appear only while aiming, and an ember trail from a star that would drain;
+## random pack contents stay hidden. The core supplies every destination.
 
-## A drained star flashes the drain where it crossed: a solid ember stretch, cut after this long.
-const FLASH_TIME: float = 0.25
-const FLASH_HALF: int = 6
+## The water: streaks gliding downstream in whole pixels, one per STREAK_AREA px² of the field,
+## each STREAK_LENGTH long at STREAK_SPEED px/s (both by a fixed hash, so the pattern is stable).
+## Leading pixel M5, then M4, then the M3 tail.
+const STREAK_AREA: int = 900
+const STREAK_LENGTH := Vector2i(4, 9)
+const STREAK_SPEED := Vector2i(10, 18)
+## A drained star's extinction where it crossed the drain, DRAIN_TIME long, in hard steps: its
+## white-hot core pinches to a point, the line flares (C2, then S4) and narrows, ember sparks race
+## up and down the line, and water droplets splash back upstream and fall away.
+const DRAIN_TIME: float = 0.42
+## The line's flare: until x seconds, y px either side, in FLARE_COLOURS[z].
+const FLARE_STEPS: Array[Vector3] = [Vector3(0.05, 10, 0), Vector3(0.15, 10, 1), Vector3(0.25, 6, 1), Vector3(0.32, 2, 2)]
+const FLARE_COLOURS: Array[Color] = [Palette.C2, Palette.S4, Palette.S3]
+const SPARKS: int = 6
+const SPARK_SPEED := Vector2(70.0, 150.0)
+const SPARK_TIME: float = 0.35
+const DROPLET_SPREAD: Array[float] = [-0.9, -0.45, 0.0, 0.45, 0.9]
+const DROPLET_SPEED := Vector2(40.0, 66.0)
+const DROPLET_FALL: float = 160.0
+const DROPLET_TIME: float = 0.4
 
 var aiming: bool = false:
 	set(value):
@@ -15,8 +33,10 @@ var aiming: bool = false:
 			queue_redraw()
 var _run: RunState
 var _sequencer: EventSequencer
-## Drain flashes: the edge point each lit up, and its seconds left.
+## Extinctions playing: the edge point each star left by, and the seconds since.
 var _flashes: Dictionary[Vector2i, float] = {}
+## Seconds the water has flowed.
+var _time: float = 0.0
 
 
 func _ready() -> void:
@@ -38,17 +58,18 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-## Lights the drain where a star crossed it, at `at` (the edge point it left by).
+## Plays a star's extinction where it crossed the drain, at `at` (the edge point it left by).
 func flash_drain(at: Vector2i) -> void:
-	_flashes[at] = FLASH_TIME
+	_flashes[at] = 0.0
 	queue_redraw()
 
 
-## Counts the drain flashes down. Driven by `_process`; tests call it directly.
+## Moves the water and the extinctions on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
+	_time += delta
 	for at: Vector2i in _flashes.keys():
-		_flashes[at] -= delta
-		if _flashes[at] <= 0.0:
+		_flashes[at] += delta
+		if _flashes[at] >= DRAIN_TIME:
 			_flashes.erase(at)
 
 
@@ -63,19 +84,12 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _run == null or _run.current == null or _run.is_over():
 		return result
 	var area: Rect2i = _run.current.region
-	for x: int in range(area.position.x, area.end.x, 8):
-		result[Vector2i(x, area.position.y)] = Palette.M3
-		result[Vector2i(x, area.end.y - 1)] = Palette.M3
-	for y: int in range(area.position.y + 12, area.end.y - 4, 28):
-		for x: int in range(area.position.x + 12, area.end.x - 4, 32):
-			for offset: Vector2i in [Vector2i(0, 0), Vector2i(1, -1), Vector2i(1, 1), Vector2i(2, -2), Vector2i(2, 2), Vector2i(2, 0), Vector2i(3, 0), Vector2i(4, 0)] as Array[Vector2i]:
-				result[Vector2i(x, y) + offset] = Palette.M4
+	result.merge(water_pixels(area, _run.current.displacement, _time))
 	if _run.current.drains:
 		for point: Vector2i in _drain_edge(area, _run.current.displacement):
 			result[point] = Palette.S3
 		for at: Vector2i in _flashes:
-			for point: Vector2i in _flash(area, _run.current.displacement, at):
-				result[point] = Palette.S4
+			result.merge(extinction_pixels(at, _run.current.displacement, _flashes[at], area), true)
 	if aiming and not _sequencer.is_busy():
 		var destinations: Dictionary[int, Vector2i] = _run.current_preview()
 		for star: Star in _run.stars:
@@ -104,16 +118,80 @@ func _trail(from: Vector2i, to: Vector2i, skip: int) -> Array[Vector2i]:
 	return points
 
 
-## A solid stretch of the drain line, FLASH_HALF px either side of where a star crossed it.
-func _flash(area: Rect2i, flow: Vector2i, at: Vector2i) -> Array[Vector2i]:
-	var edge: Array[Vector2i] = _drain_edge(area, flow)
-	var points: Array[Vector2i] = []
-	for offset: int in range(-FLASH_HALF, FLASH_HALF + 1):
-		var along: Vector2i = Vector2i(0, offset) if flow.x != 0 else Vector2i(offset, 0)
-		var point: Vector2i = Vector2i(edge[0].x, at.y) + along if flow.x != 0 else Vector2i(at.x, edge[0].y) + along
-		if area.has_point(point):
-			points.append(point)
-	return points
+## The water at `time` seconds: streaks gliding along `flow` through `area`, each wrapping round
+## to its upstream edge once it has left the downstream one. Pixel positions only, no fades.
+static func water_pixels(area: Rect2i, flow: Vector2i, time: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	var along := Vector2i(signi(flow.x), signi(flow.y))
+	if along == Vector2i.ZERO or not area.has_area():
+		return pixels
+	var horizontal: bool = along.x != 0
+	var run_length: int = area.size.x if horizontal else area.size.y
+	var across_length: int = area.size.y if horizontal else area.size.x
+	for i: int in maxi(1, area.get_area() / STREAK_AREA):
+		var h: int = _hash(i)
+		var length: int = STREAK_LENGTH.x + h % (STREAK_LENGTH.y - STREAK_LENGTH.x + 1)
+		var speed: int = STREAK_SPEED.x + (h / 7) % (STREAK_SPEED.y - STREAK_SPEED.x + 1)
+		var lane: int = 2 + (h / 101) % maxi(1, across_length - 4)
+		var travelled: int = (h / 13 + floori(time * speed)) % (run_length + length)
+		for k: int in length:
+			var step: int = travelled - k
+			if step < 0 or step >= run_length:
+				continue
+			var at_run: int = (area.end.x - 1 - step) if along.x < 0 else (area.position.x + step) if along.x > 0 else 0
+			if not horizontal:
+				at_run = (area.end.y - 1 - step) if along.y < 0 else (area.position.y + step)
+			var p := Vector2i(at_run, area.position.y + lane) if horizontal else Vector2i(area.position.x + lane, at_run)
+			pixels[p] = Palette.M5 if k == 0 else Palette.M4 if k < 3 else Palette.M3
+	return pixels
+
+
+static func _hash(i: int) -> int:
+	return absi((i * 2654435761 + 0x9E37) ^ (i * 40503)) % 1000003
+
+
+## A drained star's extinction `t` seconds after it reached the drain at `at` (flowing along
+## `flow`): the pixels to draw over the line, kept within a few px of `area` across the line.
+static func extinction_pixels(at: Vector2i, flow: Vector2i, t: float, area: Rect2i) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	if t < 0.0 or t >= DRAIN_TIME:
+		return pixels
+	var along := Vector2i(signi(flow.x), signi(flow.y))
+	var line := Vector2i(absi(along.y), absi(along.x))
+	var edge: Vector2i = at - along
+	# The line flares where it went, then narrows.
+	for flare: Vector3 in FLARE_STEPS:
+		if t < flare.x:
+			for offset: int in range(-int(flare.y), int(flare.y) + 1):
+				pixels[edge + line * offset] = FLARE_COLOURS[int(flare.z)]
+			break
+	# Ember sparks race both ways along the line, easing out.
+	if t < SPARK_TIME:
+		for i: int in SPARKS:
+			var speed: float = lerpf(SPARK_SPEED.x, SPARK_SPEED.y, float(i) / (SPARKS - 1))
+			var reach: float = speed * t * (1.0 - t / (2.0 * SPARK_TIME))
+			var side: int = 1 if i % 2 == 0 else -1
+			var spark: Vector2i = edge + line * side * roundi(reach) - along * (i % 3 - 1)
+			pixels[spark] = Palette.S4 if t < SPARK_TIME * 0.6 else Palette.S3
+	# Water splashes back upstream and falls.
+	if t < DROPLET_TIME:
+		for i: int in DROPLET_SPREAD.size():
+			var speed: float = lerpf(DROPLET_SPEED.x, DROPLET_SPEED.y, float(i) / (DROPLET_SPREAD.size() - 1))
+			var velocity: Vector2 = Vector2(-along) * speed + Vector2(line) * DROPLET_SPREAD[i] * speed
+			var drop: Vector2 = Vector2(edge) + velocity * t + Vector2(0.0, DROPLET_FALL) * t * t * 0.5
+			pixels[Vector2i(drop.round())] = Palette.M5 if t < DROPLET_TIME * 0.5 else Palette.M4
+	# The star's white-hot core pinches to a point and is gone.
+	if t < 0.05:
+		for d: Vector2i in [Vector2i.ZERO, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP * 2, Vector2i.DOWN * 2, Vector2i.LEFT * 2, Vector2i.RIGHT * 2] as Array[Vector2i]:
+			pixels[at + d] = Palette.C0 if d.length_squared() <= 1 else Palette.C1
+	elif t < 0.1:
+		pixels[at] = Palette.C0
+	var kept: Dictionary[Vector2i, Color] = {}
+	var span: Rect2i = area.grow_individual(4, 0, 4, 0) if line.y != 0 else area.grow_individual(0, 4, 0, 4)
+	for p: Vector2i in pixels:
+		if span.has_point(p):
+			kept[p] = pixels[p]
+	return kept
 
 
 ## The field's downstream side, where the flow drains: an ember dotted line, one dot in two.

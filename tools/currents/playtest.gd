@@ -1,7 +1,8 @@
 extends SceneTree
 ## Paired seeded runs through the spatial core. Bots are deliberately simple; this is
 ## pressure evidence, not a prediction of human difficulty or a chapter tuning target.
-## --map=tail (the first trial) or --map=aquarius (the flow layout); --runs=N; --step=N and
+## --map=tail (the first trial), --map=aquarius (the flow layout) or a stage's StarMap id (e.g.
+## aquarius_hand: the stage as played, its step from balance.json); --runs=N; --step=N and
 ## --reach=N override currents.step and scorpio.max_link_distance for a what-if (balance.json is
 ## untouched).
 
@@ -32,16 +33,17 @@ func _initialize() -> void:
 	_balance = Balance.load_file()
 	if _step > 0:
 		_balance.current_step = _step
+		_balance.current_steps.clear()
 	if _reach > 0:
 		_balance.scorpio_max_link_distance = _reach
 	_simulate.call_deferred()
 
 
 func _simulate() -> void:
-	print("Paired seeds 1..%d; %s layout; NO Orion; reach %d; step %d" % [_runs, _map, _balance.scorpio_max_link_distance, _balance.current_step])
+	print("Paired seeds 1..%d; %s layout; NO Orion; reach %d; step %d" % [_runs, _map, _balance.scorpio_max_link_distance, _step_shown()])
 	for policy: Dictionary in POLICIES:
 		for enabled: bool in [false, true]:
-			var row: Dictionary = {"map": _map, "step": _balance.current_step, "reach": _balance.scorpio_max_link_distance, "policy": policy.name, "current": enabled, "runs": _runs, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "moving_launches": 0, "probe_boards": 0, "boards_losing_links": 0, "boards_gaining_links": 0, "boards_with_both": 0, "runs_with_both": 0, "waiting_stars_carried_off": 0, "stars_carried_in": 0, "boards_carrying_off_and_in": 0, "runs_carrying_off_and_in": 0, "stars_drained": 0, "runs_draining": 0}
+			var row: Dictionary = {"map": _map, "step": _step_shown(), "reach": _balance.scorpio_max_link_distance, "policy": policy.name, "current": enabled, "runs": _runs, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "moving_launches": 0, "probe_boards": 0, "boards_losing_links": 0, "boards_gaining_links": 0, "boards_with_both": 0, "runs_with_both": 0, "waiting_stars_carried_off": 0, "stars_carried_in": 0, "boards_carrying_off_and_in": 0, "runs_carrying_off_and_in": 0, "stars_drained": 0, "runs_draining": 0}
 			for seed_value: int in range(1, _runs + 1):
 				_play(seed_value, enabled, policy, row)
 				if seed_value % 20 == 0:
@@ -49,13 +51,24 @@ func _simulate() -> void:
 			_rows.append(row)
 			print(JSON.stringify(row))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/currents/out"))
-	var file: FileAccess = FileAccess.open("res://tools/currents/out/results-%s-step%d-reach%d.json" % [_map, _balance.current_step, _balance.scorpio_max_link_distance], FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open("res://tools/currents/out/results-%s-step%d-reach%d.json" % [_map, _step_shown(), _balance.scorpio_max_link_distance], FileAccess.WRITE)
 	file.store_string(JSON.stringify(_rows, "  ") + "\n")
 	quit()
 
 
 func _layout(enabled: bool) -> StarMap:
-	return StarMap.current_layout(_map, enabled)
+	if _map == "tail" or _map == "aquarius":
+		return StarMap.current_layout(_map, enabled)
+	var map: StarMap = StarMap.by_id(_map)
+	if not enabled:
+		map.current_region = Rect2i()
+		map.current_drains = false
+	return map
+
+
+func _step_shown() -> int:
+	var id: String = _layout(true).id
+	return _balance.current_step_for(id)
 
 
 func _play(seed_value: int, enabled: bool, policy: Dictionary, row: Dictionary) -> void:

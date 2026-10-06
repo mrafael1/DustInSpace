@@ -61,13 +61,14 @@ func test_the_aquarius_figure_is_a_pickable_tree_and_its_parts_share_it_out() ->
 	assert_eq(StarMap.by_id("aquarius").title, "AQUARIUS")
 
 
-func test_aquarius_is_its_own_chapter_and_nothing_is_built_yet() -> void:
+func test_aquarius_is_its_own_chapter_built_from_the_hand() -> void:
 	var aquarius := Chapter.new(ChapterDef.aquarius())
 	assert_eq(aquarius.id, "aquarius")
 	assert_eq(aquarius.stage_name(2), "JAR")
 	assert_eq(aquarius.stage_of(5), 2, "eta is in the jar")
-	for stage: int in Chapter.stage_count():
-		assert_eq(aquarius.map_id(stage), "")
+	assert_eq(aquarius.state(0), Chapter.PointState.AVAILABLE, "the Hand (tests/test_aquarius_stages.gd)")
+	for stage: int in range(2, Chapter.stage_count()):
+		assert_eq(aquarius.map_id(stage), "", "not built yet")
 		assert_eq(aquarius.state(stage), Chapter.PointState.LOCKED)
 	assert_eq(Chapter.new().id, "scorpio", "Scorpio by default")
 
