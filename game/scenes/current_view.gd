@@ -1,9 +1,15 @@
 class_name CurrentView
 extends Node2D
-## Cool flow cues behind stars, with an ember line where a draining flow loses stars (flashing
+## Flowing water behind stars (cool streaks gliding downstream), with an ember line where a draining flow loses stars (flashing
 ## solid where one goes). Destination brackets appear only while aiming, and an ember trail from a
 ## star that would drain; random pack contents stay hidden. The core supplies every destination.
 
+## The water: streaks gliding downstream in whole pixels, one per STREAK_AREA px² of the field,
+## each STREAK_LENGTH long at STREAK_SPEED px/s (both by a fixed hash, so the pattern is stable).
+## Leading pixel M5, then M4, then the M3 tail.
+const STREAK_AREA: int = 900
+const STREAK_LENGTH := Vector2i(4, 9)
+const STREAK_SPEED := Vector2i(10, 18)
 ## A drained star flashes the drain where it crossed: a solid ember stretch, cut after this long.
 const FLASH_TIME: float = 0.25
 const FLASH_HALF: int = 6
@@ -17,6 +23,8 @@ var _run: RunState
 var _sequencer: EventSequencer
 ## Drain flashes: the edge point each lit up, and its seconds left.
 var _flashes: Dictionary[Vector2i, float] = {}
+## Seconds the water has flowed.
+var _time: float = 0.0
 
 
 func _ready() -> void:
@@ -46,6 +54,7 @@ func flash_drain(at: Vector2i) -> void:
 
 ## Counts the drain flashes down. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
+	_time += delta
 	for at: Vector2i in _flashes.keys():
 		_flashes[at] -= delta
 		if _flashes[at] <= 0.0:
@@ -63,13 +72,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _run == null or _run.current == null or _run.is_over():
 		return result
 	var area: Rect2i = _run.current.region
-	for x: int in range(area.position.x, area.end.x, 8):
-		result[Vector2i(x, area.position.y)] = Palette.M3
-		result[Vector2i(x, area.end.y - 1)] = Palette.M3
-	for y: int in range(area.position.y + 12, area.end.y - 4, 28):
-		for x: int in range(area.position.x + 12, area.end.x - 4, 32):
-			for offset: Vector2i in [Vector2i(0, 0), Vector2i(1, -1), Vector2i(1, 1), Vector2i(2, -2), Vector2i(2, 2), Vector2i(2, 0), Vector2i(3, 0), Vector2i(4, 0)] as Array[Vector2i]:
-				result[Vector2i(x, y) + offset] = Palette.M4
+	result.merge(water_pixels(area, _run.current.displacement, _time))
 	if _run.current.drains:
 		for point: Vector2i in _drain_edge(area, _run.current.displacement):
 			result[point] = Palette.S3
@@ -102,6 +105,38 @@ func _trail(from: Vector2i, to: Vector2i, skip: int) -> Array[Vector2i]:
 	for step: int in range(skip, length + 1, 2):
 		points.append(Vector2i((Vector2(from).lerp(Vector2(to), float(step) / length)).round()))
 	return points
+
+
+## The water at `time` seconds: streaks gliding along `flow` through `area`, each wrapping round
+## to its upstream edge once it has left the downstream one. Pixel positions only, no fades.
+static func water_pixels(area: Rect2i, flow: Vector2i, time: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	var along := Vector2i(signi(flow.x), signi(flow.y))
+	if along == Vector2i.ZERO or not area.has_area():
+		return pixels
+	var horizontal: bool = along.x != 0
+	var run_length: int = area.size.x if horizontal else area.size.y
+	var across_length: int = area.size.y if horizontal else area.size.x
+	for i: int in maxi(1, area.get_area() / STREAK_AREA):
+		var h: int = _hash(i)
+		var length: int = STREAK_LENGTH.x + h % (STREAK_LENGTH.y - STREAK_LENGTH.x + 1)
+		var speed: int = STREAK_SPEED.x + (h / 7) % (STREAK_SPEED.y - STREAK_SPEED.x + 1)
+		var lane: int = 2 + (h / 101) % maxi(1, across_length - 4)
+		var travelled: int = (h / 13 + floori(time * speed)) % (run_length + length)
+		for k: int in length:
+			var step: int = travelled - k
+			if step < 0 or step >= run_length:
+				continue
+			var at_run: int = (area.end.x - 1 - step) if along.x < 0 else (area.position.x + step) if along.x > 0 else 0
+			if not horizontal:
+				at_run = (area.end.y - 1 - step) if along.y < 0 else (area.position.y + step)
+			var p := Vector2i(at_run, area.position.y + lane) if horizontal else Vector2i(area.position.x + lane, at_run)
+			pixels[p] = Palette.M5 if k == 0 else Palette.M4 if k < 3 else Palette.M3
+	return pixels
+
+
+static func _hash(i: int) -> int:
+	return absi((i * 2654435761 + 0x9E37) ^ (i * 40503)) % 1000003
 
 
 ## A solid stretch of the drain line, FLASH_HALF px either side of where a star crossed it.

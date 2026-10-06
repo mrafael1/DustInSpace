@@ -243,3 +243,25 @@ func test_a_drained_star_drifts_to_the_edge_and_cuts_out_as_the_drain_flashes() 
 	assert_eq(flow.pixels().get(Vector2i(x, 121)), Palette.S4, "between the line's own dots too")
 	flow.advance(CurrentView.FLASH_TIME)
 	assert_ne(flow.pixels().get(Vector2i(x, 121)), Palette.S4, "then cuts back to the dotted line")
+
+
+func test_the_water_glides_downstream_in_whole_pixels_inside_the_field() -> void:
+	var area := Rect2i(48, 78, 132, 172)
+	var flow := Vector2i(-24, 0)
+	var before: Dictionary[Vector2i, Color] = CurrentView.water_pixels(area, flow, 1.0)
+	var after: Dictionary[Vector2i, Color] = CurrentView.water_pixels(area, flow, 1.25)
+	assert_false(before.is_empty())
+	assert_eq(CurrentView.water_pixels(area, flow, 1.0), before, "a stable pattern")
+	assert_ne(after, before, "it moves")
+	var heads_before: int = 0
+	var heads_after: int = 0
+	for p: Vector2i in before:
+		assert_true(area.has_point(p), "inside the field")
+		assert_has([Palette.M3, Palette.M4, Palette.M5], before[p], "cool palette only")
+		if before[p] == Palette.M5:
+			heads_before += p.x
+	for p: Vector2i in after:
+		if after[p] == Palette.M5:
+			heads_after += p.x
+	assert_lt(heads_after, heads_before, "the leading pixels head left, with the flow")
+	assert_true(CurrentView.water_pixels(area, Vector2i.ZERO, 1.0).is_empty(), "no flow, no water")
