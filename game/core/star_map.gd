@@ -52,6 +52,8 @@ var current_direction: Vector2i = Vector2i.LEFT
 ## A flow that turns after every launch takes these ways in order (the Jar's tide: left, right).
 ## Empty: it always runs current_direction.
 var current_turns: Array[Vector2i] = []
+## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
+var arrival_epithet: String = ""
 
 
 ## The full Scorpio (#61): every star of Scorpius's figure.
@@ -248,6 +250,7 @@ static func aquarius_final() -> StarMap:
 	map.current_region = Rect2i(20, 96, 140, 132)
 	map.current_drains = true
 	map.current_turns = [Vector2i.LEFT, Vector2i.DOWN, Vector2i.RIGHT, Vector2i.UP]
+	map.arrival_epithet = "THE WATER BEARER"
 	return map
 
 

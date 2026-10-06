@@ -151,6 +151,10 @@ func start_run(balance: Balance) -> bool:
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
 		run.start_encounter()
+	# A current's rule is said as the player first aims; a launcher already aiming (it can start
+	# before the HUD is bound, and keeps aiming through a restart) says it now.
+	if _telescope.is_aiming() if use_telescope else _launcher.is_pulling():
+		_hud.tell_current_rule()
 	run_started.emit(run)
 	return true
 
@@ -242,6 +246,9 @@ func _wire_sound() -> void:
 	_launcher.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
 	_telescope.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
 	_telescope.aim_started.connect(_sfx.play.bind(&"pull_start", 1.0))
+	# A current's rule is said as the player first aims, before the first launch is committed.
+	_telescope.aim_started.connect(_hud.tell_current_rule)
+	_launcher.pull_started.connect(_hud.tell_current_rule)
 	_telescope.aim_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_telescope.empty_tapped.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_telescope.launch_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))

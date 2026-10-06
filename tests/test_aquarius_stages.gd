@@ -136,23 +136,27 @@ func test_a_stage_without_a_painting_yet_completes_without_one() -> void:
 	assert_true(main.run.scorpio.is_complete(), "the song and the missing painting played through")
 
 
-func test_the_first_move_of_a_run_says_what_the_current_does() -> void:
-	for map_id: String in ["aquarius_hand", "aquarius_body"]:
+func test_each_stage_says_its_rule_as_it_opens_before_any_launch() -> void:
+	var rules: Dictionary[String, String] = {
+		"aquarius_hand": Hud.FLOW_MESSAGE, "aquarius_body": Hud.DRAIN_MESSAGE,
+		"aquarius_jar": Hud.TIDE_MESSAGE, "aquarius_final": Hud.BOX_MESSAGE,
+	}
+	for map_id: String in rules:
 		var main: Main = MainScene.instantiate()
 		main.star_map = map_id
 		main.in_chapter = true
 		main.seed_override = 7
 		add_child_autofree(main)
 		var hud: Hud = main.get_node("HUD")
+		var telescope: Telescope = main.get_node("Telescope")
 		var sequencer: EventSequencer = main.get_node("EventSequencer")
-		main.run.add_star(Star.Size.SMALL, Vector2i(150, 220) + main.run.scorpio.shift)
-		assert_true(main.run.launch(Vector2i(160, 230) + main.run.scorpio.shift))
-		for tick: int in 100:
-			sequencer.advance(0.03)
-			if hud.message() != "":
+		for tick: int in 200:
+			if telescope.is_aiming():
 				break
-		var expected: String = Hud.DRAIN_MESSAGE if map_id == "aquarius_body" else Hud.FLOW_MESSAGE
-		assert_eq(hud.message(), expected, map_id)
+			sequencer.advance(0.03)
+			telescope.advance(0.03)
+		assert_eq(main.run.total_packs(), 3, "%s: nothing launched" % map_id)
+		assert_eq(hud.message(), rules[map_id], map_id)
 
 
 func test_the_legs_branch_either_side_of_the_knee_with_the_shin_near_the_drain() -> void:
@@ -265,23 +269,6 @@ func test_a_star_lost_to_the_tide_splashes_back_the_way_it_came() -> void:
 	assert_gt(back, 2, "lost out to the right, it splashes back left")
 
 
-func test_the_jars_first_launch_says_the_tide_turns() -> void:
-	var main: Main = MainScene.instantiate()
-	main.star_map = "aquarius_jar"
-	main.in_chapter = true
-	main.seed_override = 7
-	add_child_autofree(main)
-	var hud: Hud = main.get_node("HUD")
-	var sequencer: EventSequencer = main.get_node("EventSequencer")
-	main.run.add_star(Star.Size.SMALL, Vector2i(100, 220) + main.run.scorpio.shift)
-	assert_true(main.run.launch(Vector2i(130, 230) + main.run.scorpio.shift))
-	for tick: int in 100:
-		sequencer.advance(0.03)
-		if hud.message() != "":
-			break
-	assert_eq(hud.message(), Hud.TIDE_MESSAGE)
-
-
 func test_the_water_turns_only_once_the_launch_has_played_out() -> void:
 	var main: Main = MainScene.instantiate()
 	main.star_map = "aquarius_jar"
@@ -352,20 +339,3 @@ func test_the_box_turns_a_quarter_each_launch_and_drains_on_every_side() -> void
 		var star := Star.new(1, Star.Size.SMALL, near[way])
 		var to: Vector2i = current.preview([star] as Array[Star], SKY, [])[1]
 		assert_true(current.leaves(star.position, to), "the %s side drains" % way)
-
-
-func test_the_finals_first_launch_says_the_flow_turns_round_the_box() -> void:
-	var main: Main = MainScene.instantiate()
-	main.star_map = "aquarius_final"
-	main.in_chapter = true
-	main.seed_override = 7
-	add_child_autofree(main)
-	var hud: Hud = main.get_node("HUD")
-	var sequencer: EventSequencer = main.get_node("EventSequencer")
-	main.run.add_star(Star.Size.SMALL, Vector2i(100, 200) + main.run.scorpio.shift)
-	assert_true(main.run.launch(Vector2i(130, 210) + main.run.scorpio.shift))
-	for tick: int in 100:
-		sequencer.advance(0.03)
-		if hud.message() != "":
-			break
-	assert_eq(hud.message(), Hud.BOX_MESSAGE)
