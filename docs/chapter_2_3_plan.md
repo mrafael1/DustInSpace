@@ -1,6 +1,6 @@
 # Chapters 2 and 3: ideas to test
 
-**Status: first current experiment built, 2026-10-06.** The user authorized starting chapter 2. Its first debug-only experiment and measurements are recorded in [chapter_2_current_trial.md](chapter_2_current_trial.md); it has not passed the pressure gate. This remains an experiment plan, not a complete chapter specification. [design.md](design.md) remains the current rules reference. Aquarius and Gemini are working themes; stage lists, detailed effect rules, and tuning wait until the ideas survive evaluation.
+**Status: currents kept, with a drain, 2026-10-06.** The user authorized starting chapter 2. The first debug experiment didn't pass the pressure gate; a second, the Aquarius flow layout with a **draining** current, did, and the user decided to **keep** it (step E, below). Both are recorded in [chapter_2_current_trial.md](chapter_2_current_trial.md). It is still a debug trial: no Aquarius stages, chart or saves yet. [design.md](design.md) remains the current rules reference. Aquarius and Gemini are working themes; stage lists and tuning wait for the next decisions.
 
 ## Direction and stakes
 
@@ -79,10 +79,21 @@ Only the currents experiment is next. Gemini, the non-clearing Big Bang, and cha
 | B | Add one debug-only current to that layout, with minimum core checks and view cues. | The switch-off case reproduces the threat-free baseline; normal Scorpio play stays unchanged; movement matches cues and keeps stars selectable. |
 | C | Play current off/on across matched seeds with no Orion threats; observe human touch play early. | Players notice both helping and harming, sometimes link first and sometimes launch first, and aiming upstream is a skill that never removes the cost. |
 | D | Run the existing simple bot across the two cases; current-aware bots only if human play leaves the keep/drop call unclear. Try the forced payout presentation separately. | Useful decisions survive unscripted runs; losses are explainable; rich openings are legible and satisfying. |
-| E | Record keep, revise, or drop. | No dominant trivial answer, no clutter-heavy preview, and meaningful stakes. |
+| E | Record keep, revise, or drop. | No dominant trivial answer, no clutter-heavy preview, and meaningful stakes. **Done: kept, with a drain** (below). |
 | After E | Specify only a surviving mechanic; revisit Gemini sketches, then consider chapter maps and progression. | An echo trade-off must pass its own gate before any Gemini chapter commitment. |
 
 Wells and resonance are outside this sequence. Full stage progressions, boss names, paintings, chapter unlocks, and save generalisation wait. If currents fail, leave Scorpio intact and return to the reserve ideas rather than grow systems around them.
+
+### Decision E: keep currents, with a drain
+
+Recorded 2026-10-06. A current that only moves stars did not create stakes: reach (56 px) dwarfs a 24-48 px drift, and linking everything first was always safe. The user chose a **drain**: a star the flow carries out of its field is lost for nothing. On the Aquarius flow layout (full-height field, drain at x 48) that meets the gate:
+
+- **Stakes:** hoarding loses runs (launch-first 96.4% at step 24, 64.9% at step 32); link-first loses some (98.8% / 94.7%).
+- **No dominant trivial answer:** linking first no longer avoids the cost, since a waiting pair drifts toward the drain while the player launches for its third star.
+- **Skill:** aiming one step upstream drains about 40% fewer stars and almost never loses (100% / 99.8%).
+- **Readable preview:** one ember trail per star that would drain, the cool brackets for the rest, an ember drain line.
+
+Bots only; human touch play is still owed and can revise this. Still open: `currents.step` (24 shipped, 32 the stronger what-if; it also drives the Tail trial), whether draining is the chapter's rule on every stage or a feature of some, and then chapter 2's stages, chart and saves. Wells and the reserve ideas stay out.
 
 ## Evidence and boundaries
 
