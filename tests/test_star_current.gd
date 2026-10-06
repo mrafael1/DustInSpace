@@ -186,3 +186,23 @@ func test_last_pack_keeps_run_alive_when_a_reachable_combo_remains_after_flow() 
 	assert_eq(run.dust, 0)
 	assert_true(run.has_remaining_combo())
 	assert_eq(run.outcome, RunState.Outcome.PLAYING)
+
+
+## The Aquarius flow layout: inner landmarks sit in the field, the catcher waits downstream of it.
+func test_aquarius_flow_layout_feeds_its_catcher_and_has_no_threats() -> void:
+	var map: StarMap = StarMap.aquarius_flow()
+	assert_eq(map.count(), 6)
+	assert_eq(map.segment_count(), 5, "the strings form a tree")
+	assert_eq(map.starting_lit, [0] as Array[int], "the jar starts lit: five to light")
+	assert_false(map.orion or map.hunt or map.volley != "", "Orion stays in chapter 1")
+	var inner: Rect2i = StarScatter.inner_rect(SKY)
+	for i: int in map.count():
+		assert_true(inner.has_point(map.landmarks[i]))
+		for j: int in range(i + 1, map.count()):
+			assert_gt(Vector2(map.landmarks[i]).distance_to(Vector2(map.landmarks[j])), 2.0 * SkyView.HIT_RADIUS)
+	for index: int in [1, 2, 3, 5]:
+		assert_true(map.current_region.has_point(map.landmarks[index]), "inner landmark %d sits in the flow" % index)
+	assert_false(map.current_region.has_point(map.landmarks[4]), "the catcher waits outside it")
+	assert_lt(map.landmarks[4].x, map.current_region.position.x, "downstream of a leftward flow")
+	assert_false(StarMap.aquarius_flow(false).current_region.has_area(), "the baseline has no flow")
+	assert_eq(StarMap.aquarius_flow(false).landmarks, map.landmarks, "same geometry either way")

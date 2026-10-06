@@ -102,6 +102,26 @@ static func current_trial(enabled: bool = true) -> StarMap:
 	return map
 
 
+## Debug experiment: a small Aquarius layout built around a leftward flow. The jar's stream falls
+## from the upper right through the field, so stars saved beside the inner landmarks drift away a
+## launch at a time (a waiting pair has a clock), while stars stranded upstream drift toward the
+## landmarks below and left of them; the last one waits just outside the field to catch them. The
+## jar starts lit: five to light. Strings are 33-49 px. Placeholder painting (Tail's).
+static func aquarius_flow(enabled: bool = true) -> StarMap:
+	var map := StarMap.new()
+	map.id = "aquarius_flow" if enabled else "aquarius_baseline"
+	map.title = "AQUARIUS FLOW" if enabled else "AQUARIUS OFF"
+	map.landmarks = [Vector2i(146, 104), Vector2i(128, 132), Vector2i(104, 156), Vector2i(72, 178), Vector2i(40, 196), Vector2i(140, 190)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = PART_PAINTING % "tail"
+	map.intros = false
+	if enabled:
+		map.current_region = Rect2i(56, 96, 120, 120)
+	return map
+
+
 ## The Body, stage 3 (#70): nine stars, more connected than the Tail. A spine of five runs from the
 ## upper right down to the lower left (landmarks 0-4), and its second and third stars each branch
 ## to a leg on either side (5-8), so two stars join four strings. The top left stays Orion's: he
