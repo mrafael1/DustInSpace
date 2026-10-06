@@ -66,6 +66,7 @@ var _paused: Dictionary[Node, Node.ProcessMode] = {}
 
 
 func _ready() -> void:
+	set_process(false)
 	# _input runs from the last child up: the idle hint watches every touch first (it takes none),
 	# then the speaker, then the sequencer's input lock.
 	assert(_idle_hint.get_index() == get_child_count() - 1, "IdleHint must be Main's last child")
@@ -125,6 +126,8 @@ func start_run(balance: Balance) -> bool:
 	_balance_errors.visible = false
 	var map: StarMap = StarMap.current_trial(current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
+	set_process(run.current != null)
+	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)

@@ -21,12 +21,24 @@ func _main() -> Main:
 func test_trial_switch_replays_same_seed_without_orion() -> void:
 	var main: Main = _main()
 	assert_not_null(main.run.current)
+	var flow: CurrentView = main.get_node("Sky/CurrentLayer")
+	var constellation: ConstellationView = main.get_node("Sky/ConstellationLayer")
+	assert_true(main.is_processing())
+	assert_true(flow.is_processing())
+	flow.aiming = true
+	constellation.current_aiming = true
 	main.switch_current()
 	assert_null(main.run.current)
+	assert_false(main.is_processing(), "flow-off baseline needs no current updates")
+	assert_false(flow.is_processing())
+	assert_false(flow.aiming, "switching off clears the old destination preview")
+	assert_false(constellation.current_aiming, "normal strings return without waiting for a process tick")
 	assert_null(main.run.orion)
 	assert_eq(main.run.run_seed, 7)
 	main.switch_current()
 	assert_not_null(main.run.current)
+	assert_true(main.is_processing())
+	assert_true(flow.is_processing())
 	assert_eq(main.run.run_seed, 7)
 
 
@@ -37,6 +49,8 @@ func test_normal_run_cannot_switch_into_a_trial() -> void:
 	main.switch_current()
 	assert_eq(main.run, run)
 	assert_null(main.run.current)
+	assert_false(main.is_processing(), "normal stages need no current updates")
+	assert_false((main.get_node("Sky/CurrentLayer") as CurrentView).is_processing())
 
 
 func test_trial_win_cannot_save_scorpio_or_tutorial_progress() -> void:

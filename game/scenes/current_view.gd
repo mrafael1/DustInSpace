@@ -12,9 +12,15 @@ var _run: RunState
 var _sequencer: EventSequencer
 
 
+func _ready() -> void:
+	set_process(false)
+
+
 func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_run = run
 	_sequencer = sequencer
+	aiming = false
+	set_process(run.current != null)
 	queue_redraw()
 
 
