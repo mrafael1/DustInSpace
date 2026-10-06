@@ -213,7 +213,7 @@ func test_aquarius_trial_shows_its_drain_and_trails_a_draining_star_out_in_ember
 	assert_null(main.run.current)
 
 
-func test_a_drained_star_drifts_to_the_edge_and_cuts_out_as_the_drain_flashes() -> void:
+func test_a_drained_star_drifts_to_the_edge_and_cuts_out_as_the_drain_flares() -> void:
 	var main: Main = _aquarius()
 	var doomed: Star = main.run.add_star(Star.Size.SMALL, Vector2i(60, 120))
 	var sky: SkyView = main.get_node("Sky")
@@ -239,9 +239,10 @@ func test_a_drained_star_drifts_to_the_edge_and_cuts_out_as_the_drain_flashes() 
 	assert_true(exploded.is_empty(), "no gold sparks: it's a loss, not a clear")
 	assert_null(sky.star_view(doomed.id), "the sky forgets it")
 	var x: int = main.run.current.region.position.x
-	assert_eq(flow.pixels().get(Vector2i(x, 120 + CurrentView.FLASH_HALF)), Palette.S4, "the drain flashes solid where it went")
-	assert_eq(flow.pixels().get(Vector2i(x, 121)), Palette.S4, "between the line's own dots too")
-	flow.advance(CurrentView.FLASH_TIME)
+	assert_eq(flow.pixels().get(Vector2i(x, 126)), Palette.C2, "the drain flares where it went")
+	flow.advance(0.06)
+	assert_eq(flow.pixels().get(Vector2i(x, 129)), Palette.S4, "solid ember, between the line's own dots too")
+	flow.advance(CurrentView.DRAIN_TIME)
 	assert_ne(flow.pixels().get(Vector2i(x, 121)), Palette.S4, "then cuts back to the dotted line")
 
 
@@ -265,3 +266,31 @@ func test_the_water_glides_downstream_in_whole_pixels_inside_the_field() -> void
 			heads_after += p.x
 	assert_lt(heads_after, heads_before, "the leading pixels head left, with the flow")
 	assert_true(CurrentView.water_pixels(area, Vector2i.ZERO, 1.0).is_empty(), "no flow, no water")
+
+
+
+func test_a_drained_stars_extinction_sparks_splashes_and_is_gone_in_hard_steps() -> void:
+	var area := Rect2i(48, 78, 132, 172)
+	var at := Vector2i(47, 160)
+	var flow := Vector2i(-24, 0)
+	var start: Dictionary[Vector2i, Color] = CurrentView.extinction_pixels(at, flow, 0.0, area)
+	assert_eq(start.get(at), Palette.C0, "the white-hot core")
+	var mid: Dictionary[Vector2i, Color] = CurrentView.extinction_pixels(at, flow, 0.2, area)
+	var sparks_up: int = 0
+	var sparks_down: int = 0
+	var droplets_upstream: int = 0
+	for p: Vector2i in mid:
+		assert_has([Palette.C0, Palette.C1, Palette.C2, Palette.S3, Palette.S4, Palette.M4, Palette.M5], mid[p], "palette only")
+		if mid[p] == Palette.S4 or mid[p] == Palette.S3:
+			if p.y < at.y - 6:
+				sparks_up += 1
+			elif p.y > at.y + 6:
+				sparks_down += 1
+		if (mid[p] == Palette.M4 or mid[p] == Palette.M5) and p.x > at.x + 4:
+			droplets_upstream += 1
+	assert_gt(sparks_up, 0, "sparks race up the line")
+	assert_gt(sparks_down, 0, "and down it")
+	assert_gt(droplets_upstream, 2, "water splashes back upstream")
+	assert_ne(mid.get(at), Palette.C0, "the core is gone")
+	assert_true(CurrentView.extinction_pixels(at, flow, CurrentView.DRAIN_TIME, area).is_empty(), "then nothing")
+	assert_eq(CurrentView.extinction_pixels(at, flow, 0.2, area), mid, "the same every time")
