@@ -18,11 +18,20 @@ func test_preview_is_pure_and_only_moves_stars_inside_the_field() -> void:
 	assert_eq(_current().preview(stars, SKY, []), result)
 
 
-func test_blocked_destinations_keep_original_positions() -> void:
+func test_a_blocked_star_flows_round_like_water() -> void:
 	var stars: Array[Star] = [Star.new(1, Star.Size.SMALL, Vector2i(120, 160)), Star.new(2, Star.Size.BIG, Vector2i(96, 160))]
 	var result: Dictionary[int, Vector2i] = _current().preview(stars, SKY, [Vector2i(72, 160)])
-	assert_eq(result[1], stars[0].position, "another star blocks this step")
-	assert_eq(result[2], stars[1].position, "fixed landmarks block this step")
+	assert_eq(result[2], Vector2i(72, 144), "round the landmark at its full step, nearest side first")
+	assert_eq(result[1], Vector2i(96, 160), "then the star behind takes the freed spot")
+
+
+func test_a_star_with_no_room_anywhere_on_its_path_stays_put() -> void:
+	var landmarks: Array[Vector2i] = []
+	for x: int in range(60, 104, 8):
+		for y: int in range(136, 188, 8):
+			landmarks.append(Vector2i(x, y))
+	var stars: Array[Star] = [Star.new(1, Star.Size.SMALL, Vector2i(100, 160))]
+	assert_eq(_current().preview(stars, SKY, landmarks)[1], Vector2i(100, 160), "never squeezed in")
 
 
 func test_upstream_stars_follow_downstream_neighbors_regardless_of_age() -> void:
@@ -46,7 +55,7 @@ func test_order_is_stable_and_targets_stay_inside_safe_bounds() -> void:
 	stars.reverse()
 	assert_eq(current.preview(stars, SKY, []), first)
 	assert_eq(first[1], Vector2i(8, 190))
-	assert_eq(first[2], Vector2i(60, 190))
+	assert_eq(first[2], Vector2i(8, 174), "clamped onto the star ahead, it flows round it")
 
 
 func test_reserved_destination_survives_new_arrival() -> void:
@@ -223,7 +232,7 @@ func test_a_draining_flow_loses_what_it_carries_out_and_frees_the_spot_behind() 
 		assert_eq(move.drained, move.star_id == 2)
 	var kept: Dictionary[int, Vector2i] = _current().preview(stars, SKY, [])
 	assert_eq(kept[2], Vector2i(62, 160), "without a drain the star stays in the sky")
-	assert_eq(kept[1], Vector2i(100, 160), "and still blocks the one behind")
+	assert_eq(kept[1], Vector2i(76, 152), "and the one behind flows round it")
 	assert_false(_current().moves(stars, kept)[0].drained)
 
 
