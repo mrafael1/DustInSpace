@@ -16,6 +16,7 @@ signal pack_burst(kind: String, burst_position: Vector2i, stars: Array[Star])
 ## (a pack_burst for each follows; a Big Bang splits too, then collapses at `at`).
 signal pack_split(kind: String, at: Vector2i, points: Array[Vector2i])
 ## The burst(s) settled, then the current shifted loose stars. Positions are event snapshots.
+## A move flagged drained took its star out of the sky, for nothing.
 signal stars_shifted(moves: Array[StarCurrent.Move])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
@@ -146,8 +147,11 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.hunt and balance.hunt_radius > 0:
 			hunt = Hunt.new(balance.hunt_radius, run_seed)
 		if scorpio.map.current_region.has_area() and balance.current_step > 0:
-			var area := Rect2i(scorpio.map.current_region.position + scorpio.shift, scorpio.map.current_region.size)
-			current = StarCurrent.new(area, Vector2i.LEFT * balance.current_step)
+			var region: Rect2i = scorpio.map.current_region
+			var area := Rect2i(region.position + scorpio.shift, region.size)
+			if region.position.y <= Scorpio.HOME_SKY.position.y and region.end.y >= Scorpio.HOME_SKY.end.y:
+				area = Rect2i(area.position.x, p_sky_rect.position.y, area.size.x, p_sky_rect.size.y)
+			current = StarCurrent.new(area, Vector2i.LEFT * balance.current_step, scorpio.map.current_drains)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -729,6 +733,9 @@ func _shift_stars() -> void:
 	var shifted: Array[StarCurrent.Move] = current.moves(stars, destinations)
 	for star: Star in stars:
 		star.position = destinations[star.id]
+	for move: StarCurrent.Move in shifted:
+		if move.drained:
+			stars.erase(find_star(move.star_id))
 	if not shifted.is_empty():
 		stars_shifted.emit(shifted)
 

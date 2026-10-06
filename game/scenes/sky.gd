@@ -45,6 +45,8 @@ signal link_cancelled
 ## Scorpio: the constellation is complete and a star left in the sky burst at `at` (or Orion's
 ## arrow broke it). Feedback only.
 signal star_exploded(at: Vector2i)
+## A draining current took a star at `at`, on the field's edge. Feedback only.
+signal star_drained(at: Vector2i)
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -83,6 +85,7 @@ var _completion_waiting: bool = false
 @onready var _link_layer: LinkLayer = $LinkLayer
 @onready var _star_layer: Node2D = $StarLayer
 @onready var _orion: OrionView = $OrionLayer
+@onready var _current: CurrentView = $CurrentLayer
 
 
 func _ready() -> void:
@@ -206,10 +209,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"pack_burst":
 			_burst(event.args[1], event.args[2])
 		&"stars_shifted":
-			for move: StarCurrent.Move in event.args[0]:
-				if _views.has(move.star_id):
-					_views[move.star_id].drift_to(move.to)
-			_sequencer.hold(StarView.DRIFT_TIME)
+			_shift(event.args[0])
 		&"combo_collected":
 			_link_layer.flash_collected(_positions(event.args[1]))
 			_dissolve(event.args[1])
@@ -534,6 +534,30 @@ func _shoot(star: Star) -> void:
 
 ## Orion's hunting area (#71): his arrow flies to the ring's centre, and the stars inside burst as
 ## it lands; the next events (the new ring) wait for it.
+## The current: every moved star drifts; a drained one drifts to the field's edge and cuts out
+## there as the drain flashes, for nothing.
+func _shift(moves: Array[StarCurrent.Move]) -> void:
+	for move: StarCurrent.Move in moves:
+		var view: StarView = _views.get(move.star_id)
+		if view == null:
+			continue
+		if not move.drained:
+			view.drift_to(move.to)
+			continue
+		_views.erase(move.star_id)
+		view.drained.connect(func(v: StarView) -> void:
+			_current.flash_drain(Vector2i(v.position))
+			star_drained.emit(Vector2i(v.position)))
+		view.drain_to(_edge_point(move.to))
+	_sequencer.hold(StarView.DRIFT_TIME)
+
+
+## Where a drained star's path meets the field's edge: the first pixel outside it.
+func _edge_point(exit: Vector2i) -> Vector2i:
+	var area: Rect2i = _run.current.region
+	return Vector2i(clampi(exit.x, area.position.x - 1, area.end.x), clampi(exit.y, area.position.y - 1, area.end.y))
+
+
 func _strike_area(stars: Array[Star]) -> void:
 	var landing: float = _orion.strike_area()
 	for star: Star in stars:

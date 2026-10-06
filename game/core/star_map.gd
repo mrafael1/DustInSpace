@@ -38,8 +38,11 @@ var intros: bool = true
 ## The chapter's boss stage (the final): Orion opens it by showing himself and fights for the sky.
 ## Presentation only; the threats above are its rules.
 var boss: bool = false
-## Debug trial flow geometry in home layout. Its strength is tuning, read from Balance.
+## Debug trial flow geometry in home layout. Its strength is tuning, read from Balance. A region
+## spanning Scorpio.HOME_SKY's full height spans the whole play sky's height on any screen.
 var current_region: Rect2i = Rect2i()
+## The flow drains: stars it carries out of current_region are lost, for nothing.
+var current_drains: bool = false
 
 
 ## The full Scorpio (#61): every star of Scorpius's figure.
@@ -99,6 +102,34 @@ static func current_trial(enabled: bool = true) -> StarMap:
 	map.boss = false
 	if enabled:
 		map.current_region = Rect2i(64, 124, 108, 100)
+	return map
+
+
+## A debug current trial's map: "aquarius" (the flow layout) or the Tail trial (anything else).
+static func current_layout(layout: String, enabled: bool = true) -> StarMap:
+	return aquarius_flow(enabled) if layout == "aquarius" else current_trial(enabled)
+
+
+## Debug experiment: a small Aquarius layout built around a leftward, draining flow that runs the
+## sky's full height from x 48 to the right edge. The jar's stream falls from the upper right
+## through it, so stars saved beside the inner landmarks drift a launch at a time toward the drain
+## at its left edge (a waiting pair has a clock), while stars stranded upstream drift toward the
+## landmarks below and left of them. The last one lies past the drain, in the strip it leaves
+## still. The jar starts lit: five to light. Strings are 33-49 px.
+## Placeholder painting (Tail's).
+static func aquarius_flow(enabled: bool = true) -> StarMap:
+	var map := StarMap.new()
+	map.id = "current_aquarius" if enabled else "current_aquarius_off"
+	map.title = "AQUARIUS FLOW" if enabled else "AQUARIUS OFF"
+	map.landmarks = [Vector2i(146, 104), Vector2i(128, 132), Vector2i(104, 156), Vector2i(72, 178), Vector2i(32, 196), Vector2i(140, 190)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = PART_PAINTING % "tail"
+	map.intros = false
+	if enabled:
+		map.current_region = Rect2i(48, Scorpio.HOME_SKY.position.y, Scorpio.HOME_SKY.end.x - 48, Scorpio.HOME_SKY.size.y)
+		map.current_drains = true
 	return map
 
 

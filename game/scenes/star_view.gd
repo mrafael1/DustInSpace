@@ -13,6 +13,8 @@ signal dissolved(view: StarView)
 signal exploded(view: StarView)
 ## The halo appeared, changed or disappeared; whoever paints halos should redraw.
 signal halo_changed(view: StarView)
+## A draining current carried it to the field's edge (drain_to): it's gone, and frees itself.
+signal drained(view: StarView)
 
 enum State { SETTLING, IDLE, DISSOLVING, COLLAPSING, DRIFTING }
 
@@ -110,6 +112,8 @@ static var _masks: Dictionary = {}
 var _collapse_swirl: float = 0.0
 var _collapse_hover: int = 0
 ## Seconds left before explode() bursts the star, or -1 when it isn't waiting to.
+## drain_to: the drift ends the star.
+var _draining: bool = false
 var _explode_wait: float = -1.0
 ## explode() was called: waiting to burst, or bursting.
 var _exploding: bool = false
@@ -155,7 +159,16 @@ func fly_from(start: Vector2i, delay: float = 0.0) -> void:
 func drift_to(destination: Vector2i) -> void:
 	_from = Vector2i(position)
 	_to = destination
+	_draining = false
 	_enter(State.DRIFTING)
+
+
+## A draining current: drifts like drift_to to `edge`, where the field ends, then cuts out at once
+## (a hard cut, no flare: it's lost, not collected).
+func drain_to(edge: Vector2i) -> void:
+	drift_to(edge)
+	selected = false
+	_draining = true
 
 
 ## Flares, then vanishes and frees itself.
@@ -226,7 +239,11 @@ func advance(delta: float) -> void:
 			var k: float = minf(_time / DRIFT_TIME, 1.0)
 			position = Vector2(Vector2i(Vector2(_from).lerp(Vector2(_to), k * k * (3.0 - 2.0 * k)).round()))
 			_refresh()
-			if k >= 1.0:
+			if k >= 1.0 and _draining:
+				visible = false
+				drained.emit(self)
+				queue_free()
+			elif k >= 1.0:
 				_enter(State.IDLE)
 				settled.emit(self)
 		State.SETTLING:

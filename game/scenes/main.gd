@@ -37,6 +37,8 @@ signal encounter_finished(threat: int)
 ## Debug-only Aquarius experiment, using Tail geometry with every Orion rule disabled.
 @export var current_trial: bool = false
 @export var current_enabled: bool = true
+## Which trial map: "tail" or "aquarius" (StarMap.current_layout).
+@export var current_layout: String = "tail"
 
 var run: RunState
 ## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
@@ -124,7 +126,7 @@ func start_run(balance: Balance) -> bool:
 		_report_balance_errors(balance.errors)
 		return false
 	_balance_errors.visible = false
-	var map: StarMap = StarMap.current_trial(current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
+	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
 	set_process(run.current != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
@@ -248,6 +250,8 @@ func _wire_sound() -> void:
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.link_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_sky.star_exploded.connect(_on_star_exploded)
+	# A drained star is the player's loss: the refused link's buzz, low.
+	_sky.star_drained.connect(func(_at: Vector2i) -> void: _sfx.play(&"link_reject", 0.7))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)

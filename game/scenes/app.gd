@@ -51,7 +51,7 @@ func _ready() -> void:
 	_chart.setup(chapter)
 	_chart.stage_chosen.connect(open_stage)
 	_chart.tutorial_requested.connect(replay_tutorial)
-	_chart.current_trial_requested.connect(open_current_trial)
+	_chart.current_trial_requested.connect(open_current_trial.bind(true, 0, "aquarius"))
 	_chart.show_tutorial_button(tutorial_done)
 	get_window().size_changed.connect(fit_screen)
 	fit_screen()
@@ -61,6 +61,10 @@ func _ready() -> void:
 			open_current_trial()
 		elif "--currents-off" in OS.get_cmdline_user_args():
 			open_current_trial(false)
+		elif "--aquarius" in OS.get_cmdline_user_args():
+			open_current_trial(true, 0, "aquarius")
+		elif "--aquarius-off" in OS.get_cmdline_user_args():
+			open_current_trial(false, 0, "aquarius")
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -69,6 +73,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	if key.keycode == KEY_C:
 		open_current_trial(not key.shift_pressed)
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_A:
+		open_current_trial(not key.shift_pressed, 0, "aquarius")
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_U:
 		debug_win_parts()
@@ -121,8 +128,9 @@ func replay_tutorial() -> void:
 	open_stage(0, true)
 
 
-## No progress callbacks: experimental wins never count toward Scorpio.
-func open_current_trial(enabled: bool = true, seed_value: int = 0) -> void:
+## No progress callbacks: experimental wins never count toward Scorpio. `layout`: "tail" or
+## "aquarius" (StarMap.current_layout).
+func open_current_trial(enabled: bool = true, seed_value: int = 0, layout: String = "tail") -> void:
 	if not OS.is_debug_build() or _stage != null:
 		return
 	_end_preview()
@@ -133,6 +141,7 @@ func open_current_trial(enabled: bool = true, seed_value: int = 0) -> void:
 	_stage.in_chapter = true
 	_stage.current_trial = true
 	_stage.current_enabled = enabled
+	_stage.current_layout = layout
 	_stage.seed_override = seed_value
 	_stage.map_requested.connect(back_to_chart)
 	_show_chart(false)

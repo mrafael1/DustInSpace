@@ -4,10 +4,10 @@
 
 ## Play and compare
 
-- In the Godot editor/debug build, tap **FLOW** on the chart, or press **C**. Shift+C opens the control with flow off.
+- In the Godot editor/debug build, press **C** on the chart for this Tail trial (Shift+C: flow off). **FLOW** on the chart, or **A** (Shift+A: off), opens the later Aquarius flow layout (below).
 - In the trial, tap **FLOW ON/OFF**, or press **C**, to restart with the same seed and the other setting. The control is blocked during animations and while the combination table is open.
 - **MAP** returns to Scorpio's chart. Ordinary Scorpio stages still use their original threats.
-- CLI: `godot --path . -- --currents` (or `--currents-off`). Debug exports also expose the FLOW button. Release builds do not expose the experiment.
+- CLI: `godot --path . -- --currents` (or `--currents-off`; `--aquarius` / `--aquarius-off` for the Aquarius layout). Debug exports also expose the FLOW button. Release builds do not expose the experiment.
 
 One leftward field covers `(64,124)` through `(171,223)` in the home layout, shifting with the map on taller screens. A successful normal launch resolves its entire pack, then shifts affected loose stars once. Strength is `currents.step` in balance.json (currently 24 native pixels). Stars are processed downstream first (leftmost first here), so upstream stars can follow their neighbours regardless of creation order. A blocked destination leaves the star in place. New stars participate; landmarks stay fixed. Buying, linking, cancelled gestures and invalid actions do not advance the flow. Forced debug Big Bangs keep the existing clearing behavior and bypass the movement step; the trial's normal Big Bang chance remains disabled.
 
@@ -53,3 +53,27 @@ These spatial measurements were rerun after correcting the movement order to dow
 This build supports human comparison; it does not justify expanding into campaign stages. The next experiment should improve the frequency and importance of the launch-or-link choice through flow/layout design before selecting chapter difficulty or adding infrastructure. No Orion fallback or economy inflation is approved.
 
 Godot 4.7 import and startup checks passed; the full GUT suite passed **847/847 tests**. The new cluster regression failed on the original implementation and passed after correcting the flow order. GUT still reports two float/int comparison warnings and ObjectDB/resource cleanup diagnostics at exit (385 instances, 9 resources); these are recorded separately from failed assertions.
+
+## Second experiment: the Aquarius flow layout and a drain
+
+2026-10-06. A layout alone did not create the choice: with reach 56, a 24-48 px drift rarely carries a waiting star out of reach, and on a first Aquarius layout the flow even helped slightly (link-first 3.64 packs off, 3.60 on; still every run won). A shorter reach made aiming a skill but still lost almost no runs, since dust always buys more packs. The user chose a **drain** to give the flow stakes.
+
+**The layout** (`StarMap.aquarius_flow`, debug only, no Orion): six landmarks, the jar at the upper right starting lit, so five to light. The leftward field runs the sky's full height (on any screen) from x 48 to the right edge; four landmarks sit inside it and the last, at x 32, lies past its left edge, in the strip the flow leaves still. Placeholder painting (Tail's).
+
+**The drain** (the field's left edge, so it too runs the full height; a map setting, `StarMap.current_drains`; the Tail trial doesn't drain): a star the flow would carry out of the field is lost and pays nothing. It still moves downstream first, and a drained star never blocks the star behind it. Stars outside the field are never touched. The loss check runs after the drain, so a combo it carries off doesn't keep the run alive. No new tuning: the step is still `currents.step` (24).
+
+**What the player sees:** the field's left edge is an ember dotted line (S3). While aiming, a star the launch would drain trails ember dots (S4) out to where it leaves; other moving stars keep their cool destination brackets. Ember brackets were tried first and read as the landmarks' warm corner hints. On the launch, a drained star drifts to the field's edge and cuts out there (a hard cut, no flare or gold sparks: it's a loss, not a clear) while that stretch of the drain flashes solid ember (S4, 13 px, 0.25 s), with the refused link's buzz pitched low (0.7). The trial control's caption reads DRAIN TAKES STARS.
+
+**Measurements** (`tools/currents/playtest.gd --map=aquarius`, paired seeds 1-1,000, reach 56, same bots as above plus one aiming a step upstream when its target is in the field):
+
+| Policy | Flow off: win / packs | Drain, step 24: win / packs / drained per run | What-if step 32 (`--step=32`): win / packs / drained |
+|---|---:|---:|---:|
+| Link first | 100.0% / 3.67 | 98.8% / 3.96 / 2.8 | 94.7% / 4.19 / 4.5 |
+| Link first, aim upstream | 100.0% / 3.67 | 100.0% / 3.89 / 1.6 | 99.8% / 3.95 / 2.0 |
+| Launch owned first | 100.0% / 4.25 | 96.4% / 4.58 / 4.8 | 64.9% / 5.00 / 7.8 |
+
+The Tail trial is unchanged (no drain): 100% for every policy.
+
+(Measured with the full-height field and the drain at x 48. A first version, with a 120-row field and the drain at x 56, was a little harsher: link-first 98.9% at step 24 and 90.3% at 32, launch-first 95.0% and 50.0%.)
+
+**Reading:** the drain is the first version with stakes. Hoarding is punished (launch-first loses 3.6% at step 24, a third of its runs at 32), and aiming against the flow is a skill (it drains about 40% fewer stars and loses almost nothing: at step 32, 99.8% against 94.7%). At the shipped step 24 the stakes are still mild; step 32 is the more interesting what-if, but `currents.step` also drives the Tail trial, so it is left at 24 until the user decides. These bots never wait for a pair's third star or aim to rescue, so humans should sit between the policies. Human touch play is the next check: whether players see the drain coming, aim upstream on purpose and feel a drained star as their mistake.

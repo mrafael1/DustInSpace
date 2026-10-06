@@ -182,3 +182,64 @@ func test_shift_event_moves_views_after_burst_and_holds_input() -> void:
 			break
 	assert_false(sequencer.is_busy())
 	assert_eq(Vector2i(view.position), star.position)
+
+
+func _aquarius() -> Main:
+	var main: Main = MainScene.instantiate()
+	main.current_trial = true
+	main.current_layout = "aquarius"
+	main.seed_override = 7
+	add_child_autofree(main)
+	return main
+
+
+func test_aquarius_trial_shows_its_drain_and_trails_a_draining_star_out_in_ember() -> void:
+	var main: Main = _aquarius()
+	assert_eq(main.run.scorpio.map.id, "current_aquarius")
+	assert_true(main.run.current.drains)
+	var doomed: Star = main.run.add_star(Star.Size.SMALL, Vector2i(60, 120))
+	var view: CurrentView = main.get_node("Sky/CurrentLayer")
+	var area: Rect2i = main.run.current.region
+	assert_eq(view.pixels().get(Vector2i(area.position.x, area.position.y)), Palette.S3, "the drain edge")
+	view.aiming = true
+	var aim: Dictionary[Vector2i, Color] = view.pixels()
+	assert_eq(aim.get(doomed.position + Vector2i(-6, 0)), Palette.S4, "a trail starts beside it")
+	assert_eq(aim.get(doomed.position + Vector2i(-24, 0)), Palette.S4, "and runs out to its exit")
+	assert_false(aim.has(doomed.position + Vector2i(-24 + 4, 0)) and aim[doomed.position + Vector2i(-20, 0)] == Palette.M5, "no destination bracket")
+	for colour: Color in aim.values():
+		assert_has([Palette.M3, Palette.M4, Palette.M5, Palette.S3, Palette.S4], colour)
+	main.switch_current()
+	assert_eq(main.run.scorpio.map.id, "current_aquarius_off", "the switch keeps the layout")
+	assert_null(main.run.current)
+
+
+func test_a_drained_star_drifts_to_the_edge_and_cuts_out_as_the_drain_flashes() -> void:
+	var main: Main = _aquarius()
+	var doomed: Star = main.run.add_star(Star.Size.SMALL, Vector2i(60, 120))
+	var sky: SkyView = main.get_node("Sky")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var flow: CurrentView = main.get_node("Sky/CurrentLayer")
+	sky.setup(main.run, sequencer)
+	var view: StarView = sky.star_view(doomed.id)
+	var drained_at: Array[Vector2i] = []
+	sky.star_drained.connect(func(at: Vector2i) -> void: drained_at.append(at))
+	var exploded: Array[Vector2i] = []
+	sky.star_exploded.connect(func(at: Vector2i) -> void: exploded.append(at))
+	assert_true(main.run.launch(Vector2i(150, 230)))
+	var edge := Vector2i(main.run.current.region.position.x - 1, 120)
+	for tick: int in 200:
+		sequencer.advance(0.03)
+		for child: Node in sky.get_node("StarLayer").get_children():
+			if is_instance_valid(child) and not child.is_queued_for_deletion():
+				(child as StarView).advance(0.03)
+		if not drained_at.is_empty():
+			break
+	assert_eq(drained_at, [edge] as Array[Vector2i], "it stops on the field's edge, not past it")
+	assert_true(view.is_queued_for_deletion(), "a hard cut: no flare, no burst")
+	assert_true(exploded.is_empty(), "no gold sparks: it's a loss, not a clear")
+	assert_null(sky.star_view(doomed.id), "the sky forgets it")
+	var x: int = main.run.current.region.position.x
+	assert_eq(flow.pixels().get(Vector2i(x, 120 + CurrentView.FLASH_HALF)), Palette.S4, "the drain flashes solid where it went")
+	assert_eq(flow.pixels().get(Vector2i(x, 121)), Palette.S4, "between the line's own dots too")
+	flow.advance(CurrentView.FLASH_TIME)
+	assert_ne(flow.pixels().get(Vector2i(x, 121)), Palette.S4, "then cuts back to the dotted line")
