@@ -236,6 +236,21 @@ static func aquarius_jar() -> StarMap:
 	return map
 
 
+## Aquarius's final: the full figure in a rotating box. A box drains on all four sides (x 20 to
+## 159, y 96 to 227), and its flow turns a quarter after every launch (left, down, right, up), so
+## each side drains in turn: the Jar's tide, now all the way round. The whole Aquarius (the chart's
+## figure) stands in it; only pi, atop the jar, sits just above the box. The hand and shoulder
+## start lit: twelve to light. Its painting isn't drawn yet.
+static func aquarius_final() -> StarMap:
+	var map: StarMap = aquarius()
+	map.id = "aquarius_final"
+	map.intros = false
+	map.current_region = Rect2i(20, 96, 140, 132)
+	map.current_drains = true
+	map.current_turns = [Vector2i.LEFT, Vector2i.DOWN, Vector2i.RIGHT, Vector2i.UP]
+	return map
+
+
 ## A current over the home sky's full height (a taller sky stretches it: RunState) from `x` to the
 ## right edge.
 static func _full_height_from(x: int) -> Rect2i:
@@ -372,6 +387,8 @@ static func by_id(p_id: String) -> StarMap:
 			return aquarius_stream()
 		"aquarius_jar":
 			return aquarius_jar()
+		"aquarius_final":
+			return aquarius_final()
 	return scorpio()
 
 

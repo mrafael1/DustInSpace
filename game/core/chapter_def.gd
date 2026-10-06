@@ -44,8 +44,8 @@ static func scorpio() -> ChapterDef:
 
 ## Chapter 2: Aquarius, the water carrier, whose stream drains the sky. Opens once Scorpio's final
 ## is won. Travelled as the water goes: from the hand through the head and body, down the legs to
-## the stream, then up to the jar it pours from, the last part before the final. Every part is
-## built; the final isn't yet.
+## the stream, then up to the jar it pours from, the last part before the final: the whole
+## Aquarius in a rotating box of drains.
 static func aquarius() -> ChapterDef:
 	var def := ChapterDef.new()
 	def.id = "aquarius"
@@ -57,7 +57,7 @@ static func aquarius() -> ChapterDef:
 		{"name": "LEGS", "map": "aquarius_legs", "stars": [8, 9, 10]},
 		{"name": "STREAM", "map": "aquarius_stream", "stars": [11, 12, 13]},
 		{"name": "JAR", "map": "aquarius_jar", "stars": [3, 4, 5, 6]},
-		{"name": "AQUARIUS", "map": "", "stars": []},
+		{"name": "AQUARIUS", "map": "aquarius_final", "stars": []},
 	]
 	def.figure = StarMap.aquarius()
 	def.final_at = Vector2i(110, 72)
