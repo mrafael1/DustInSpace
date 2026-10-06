@@ -246,6 +246,7 @@ func test_both_drains_show_and_the_next_launchs_is_brighter() -> void:
 	assert_eq(view.pixels().get(left), Palette.S3, "this launch drains left: its line in ember")
 	assert_eq(view.pixels().get(right), Palette.S2, "the other side waits, dimmer")
 	main.run.current.turn()
+	view.advance(0.0)
 	assert_eq(view.pixels().get(right), Palette.S3)
 	assert_eq(view.pixels().get(left), Palette.S2)
 
@@ -276,3 +277,32 @@ func test_the_jars_first_launch_says_the_tide_turns() -> void:
 		if hud.message() != "":
 			break
 	assert_eq(hud.message(), Hud.TIDE_MESSAGE)
+
+
+func test_the_water_turns_only_once_the_launch_has_played_out() -> void:
+	var main: Main = MainScene.instantiate()
+	main.star_map = "aquarius_jar"
+	main.in_chapter = true
+	main.seed_override = 7
+	add_child_autofree(main)
+	var view: CurrentView = main.get_node("Sky/CurrentLayer")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var sky: SkyView = main.get_node("Sky")
+	var area: Rect2i = main.run.current.region
+	var left := Vector2i(area.position.x, area.position.y)
+	main.run.add_star(Star.Size.SMALL, Vector2i(100, 160) + main.run.scorpio.shift)
+	assert_true(main.run.launch(Vector2i(120, 230) + main.run.scorpio.shift))
+	assert_eq(main.run.current.displacement, Vector2i(56, 0), "the core has turned")
+	view.advance(0.03)
+	assert_true(sequencer.is_busy())
+	assert_eq(view.pixels().get(left), Palette.S3, "but the left drain still shows while the launch plays")
+	for tick: int in 200:
+		sequencer.advance(0.03)
+		for child: Node in sky.get_node("StarLayer").get_children():
+			if is_instance_valid(child) and not child.is_queued_for_deletion():
+				(child as StarView).advance(0.03)
+		view.advance(0.03)
+		if not sequencer.is_busy():
+			break
+	view.advance(0.0)
+	assert_eq(view.pixels().get(left), Palette.S2, "then the water turns")
