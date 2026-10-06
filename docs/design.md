@@ -243,6 +243,8 @@ Both strategies should stay viable: red is faster, blue is safer. Rerun the simu
 
 ## Later, not now
 
+Chapter 2 and 3 ideas and their prototype/evaluation steps are recorded in [chapter_2_3_plan.md](chapter_2_3_plan.md). This is a proposal, not an approved change to the current rules.
+
 - Run buffs, revealed with the exploding-star opening (hold to compress, release to explode, dust forms the buffs), plus a Big Bang reveal for legendaries.
 - Chain reactions: a completed link makes a star explode, its dust forms a planet, and the planet's effect helps trigger the next link.
 - Spatial link rules and longer combinations.
