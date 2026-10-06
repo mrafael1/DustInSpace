@@ -250,6 +250,8 @@ func _wire_sound() -> void:
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.link_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_sky.star_exploded.connect(_on_star_exploded)
+	# A drained star is the player's loss: the refused link's buzz, low.
+	_sky.star_drained.connect(func(_at: Vector2i) -> void: _sfx.play(&"link_reject", 0.7))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)

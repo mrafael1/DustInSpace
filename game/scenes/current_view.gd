@@ -1,8 +1,12 @@
 class_name CurrentView
 extends Node2D
-## Cool flow cues behind stars, with an ember line where a draining flow loses stars. Destination
-## brackets appear only while aiming (ember round a star that would drain); random pack contents
-## stay hidden. The core supplies every destination.
+## Cool flow cues behind stars, with an ember line where a draining flow loses stars (flashing
+## solid where one goes). Destination brackets appear only while aiming, and an ember trail from a
+## star that would drain; random pack contents stay hidden. The core supplies every destination.
+
+## A drained star flashes the drain where it crossed: a solid ember stretch, cut after this long.
+const FLASH_TIME: float = 0.25
+const FLASH_HALF: int = 6
 
 var aiming: bool = false:
 	set(value):
@@ -11,6 +15,8 @@ var aiming: bool = false:
 			queue_redraw()
 var _run: RunState
 var _sequencer: EventSequencer
+## Drain flashes: the edge point each lit up, and its seconds left.
+var _flashes: Dictionary[Vector2i, float] = {}
 
 
 func _ready() -> void:
@@ -21,13 +27,29 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_run = run
 	_sequencer = sequencer
 	aiming = false
+	_flashes.clear()
 	set_process(run.current != null)
 	queue_redraw()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	advance(delta)
 	# Core positions change instantly; hide the preview until their views catch up.
 	queue_redraw()
+
+
+## Lights the drain where a star crossed it, at `at` (the edge point it left by).
+func flash_drain(at: Vector2i) -> void:
+	_flashes[at] = FLASH_TIME
+	queue_redraw()
+
+
+## Counts the drain flashes down. Driven by `_process`; tests call it directly.
+func advance(delta: float) -> void:
+	for at: Vector2i in _flashes.keys():
+		_flashes[at] -= delta
+		if _flashes[at] <= 0.0:
+			_flashes.erase(at)
 
 
 func _draw() -> void:
@@ -51,6 +73,9 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _run.current.drains:
 		for point: Vector2i in _drain_edge(area, _run.current.displacement):
 			result[point] = Palette.S3
+		for at: Vector2i in _flashes:
+			for point: Vector2i in _flash(area, _run.current.displacement, at):
+				result[point] = Palette.S4
 	if aiming and not _sequencer.is_busy():
 		var destinations: Dictionary[int, Vector2i] = _run.current_preview()
 		for star: Star in _run.stars:
@@ -76,6 +101,18 @@ func _trail(from: Vector2i, to: Vector2i, skip: int) -> Array[Vector2i]:
 	var length: int = maxi(absi(to.x - from.x), absi(to.y - from.y))
 	for step: int in range(skip, length + 1, 2):
 		points.append(Vector2i((Vector2(from).lerp(Vector2(to), float(step) / length)).round()))
+	return points
+
+
+## A solid stretch of the drain line, FLASH_HALF px either side of where a star crossed it.
+func _flash(area: Rect2i, flow: Vector2i, at: Vector2i) -> Array[Vector2i]:
+	var edge: Array[Vector2i] = _drain_edge(area, flow)
+	var points: Array[Vector2i] = []
+	for offset: int in range(-FLASH_HALF, FLASH_HALF + 1):
+		var along: Vector2i = Vector2i(0, offset) if flow.x != 0 else Vector2i(offset, 0)
+		var point: Vector2i = Vector2i(edge[0].x, at.y) + along if flow.x != 0 else Vector2i(at.x, edge[0].y) + along
+		if area.has_point(point):
+			points.append(point)
 	return points
 
 
