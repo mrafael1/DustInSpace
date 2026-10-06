@@ -38,6 +38,8 @@ var intros: bool = true
 ## The chapter's boss stage (the final): Orion opens it by showing himself and fights for the sky.
 ## Presentation only; the threats above are its rules.
 var boss: bool = false
+## Debug trial flow geometry in home layout. Its strength is tuning, read from Balance.
+var current_region: Rect2i = Rect2i()
 
 
 ## The full Scorpio (#61): every star of Scorpius's figure.
@@ -82,6 +84,21 @@ static func tail() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = PART_PAINTING % "tail"
 	map.orion = true
+	return map
+
+
+## Debug experiment: borrow only Tail geometry, never its Orion threats or progress identity.
+static func current_trial(enabled: bool = true) -> StarMap:
+	var map: StarMap = tail()
+	map.id = "current_trial" if enabled else "current_baseline"
+	map.title = "CURRENT TRIAL" if enabled else "CURRENT OFF"
+	map.orion = false
+	map.volley = ""
+	map.hunt = false
+	map.intros = false
+	map.boss = false
+	if enabled:
+		map.current_region = Rect2i(64, 124, 108, 100)
 	return map
 
 

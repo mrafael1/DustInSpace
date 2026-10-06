@@ -15,6 +15,8 @@ signal pack_burst(kind: String, burst_position: Vector2i, stars: Array[Star])
 ## A pack that splits (the red pack's twin burst) split at `at` into planets that burst at `points`
 ## (a pack_burst for each follows; a Big Bang splits too, then collapses at `at`).
 signal pack_split(kind: String, at: Vector2i, points: Array[Vector2i])
+## The burst(s) settled, then the current shifted loose stars. Positions are event snapshots.
+signal stars_shifted(moves: Array[StarCurrent.Move])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
@@ -109,6 +111,9 @@ var hunt: Hunt
 var tutorial: Tutorial
 ## The stage's guided encounter with the threat it introduces (start_encounter), or null.
 var encounter: Encounter
+var current: StarCurrent
+## Existing-star reservations for this launch, also respected by the burst's scatter.
+var _current_reserved: Dictionary[int, Vector2i] = {}
 ## The guided run's Sun has rekindled once (its own target is spent).
 var _tutorial_rekindled: bool = false
 ## The landmark the last rekindle lit, for the tutorial (-1: none since the link began).
@@ -140,6 +145,9 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			volley = Volley.new(tuning.interval, tuning.fraction, run_seed, tuning.intro_stars)
 		if scorpio.map.hunt and balance.hunt_radius > 0:
 			hunt = Hunt.new(balance.hunt_radius, run_seed)
+		if scorpio.map.current_region.has_area() and balance.current_step > 0:
+			var area := Rect2i(scorpio.map.current_region.position + scorpio.shift, scorpio.map.current_region.size)
+			current = StarCurrent.new(area, Vector2i.LEFT * balance.current_step)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -290,6 +298,13 @@ func loss_reasons() -> Array[LossReason]:
 	return reasons
 
 
+## Pure preview: no RNG draws and no changes to stars. New arrivals yield to these destinations.
+func current_preview() -> Dictionary[int, Vector2i]:
+	if current == null:
+		return {}
+	return current.preview(stars, sky_rect, scorpio.landmark_positions())
+
+
 func find_star(id: int) -> Star:
 	for star: Star in stars:
 		if star.id == id:
@@ -336,6 +351,7 @@ func launch(target: Vector2i) -> bool:
 	var burst: Vector2i = StarScatter.clamp_to_sky(target, sky_rect)
 	if tutorial != null and not tutorial.allows_launch(burst, _tutorial_landmark_at()):
 		return false
+	_current_reserved = current_preview()
 	owned_packs[kind] -= 1
 	pack_launched.emit(kind, burst)
 	if encounter != null and encounter.launched():
@@ -363,6 +379,9 @@ func launch(target: Vector2i) -> bool:
 			_burst(kind, points[i], result.sizes.slice(i * pack.stars, (i + 1) * pack.stars))
 	else:
 		_burst(kind, burst, result.sizes)
+	if current != null and not result.big_bang:
+		_shift_stars()
+	_current_reserved.clear()
 	# The hunting area's strike comes before any single mark, so a mark never lands on a star the
 	# arrow is about to take.
 	if hunt != null:
@@ -690,14 +709,28 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 	var occupied: Array[Vector2i] = []
 	for star: Star in stars:
 		occupied.append(star.position)
+	for destination: Vector2i in _current_reserved.values():
+		if not occupied.has(destination):
+			occupied.append(destination)
 	var landmarks: Array[Vector2i] = []
 	if scorpio != null:
 		landmarks = scorpio.landmark_positions()
 	var positions: Array[Vector2i] = StarScatter.place(sizes.size(), burst, sky_rect, occupied, _layout_rng, landmarks)
 	var born: Array[Star] = []
 	for i: int in sizes.size():
-		born.append(add_star(sizes[i] as Star.Size, positions[i]))
+		var star: Star = add_star(sizes[i] as Star.Size, positions[i])
+		# Core positions change immediately. Record the burst's pre-current positions for views.
+		born.append(Star.new(star.id, star.size, star.position) if current != null else star)
 	pack_burst.emit(kind, burst, born)
+
+
+func _shift_stars() -> void:
+	var destinations: Dictionary[int, Vector2i] = current.preview(stars, sky_rect, scorpio.landmark_positions(), _current_reserved)
+	var shifted: Array[StarCurrent.Move] = current.moves(stars, destinations)
+	for star: Star in stars:
+		star.position = destinations[star.id]
+	if not shifted.is_empty():
+		stars_shifted.emit(shifted)
 
 
 ## Scorpio's rekindle or completion: every star left in the sky goes, for `dust_per_star` each.

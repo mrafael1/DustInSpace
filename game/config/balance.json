@@ -18,5 +18,6 @@
   "orion": { "first_mark_launch": 1 },
   "volley": { "interval": 2, "fraction": 1.0, "intro_stars": 6 },
   "hunt": { "radius": 38, "intro_stars": 3 },
-  "hints": { "idle_seconds": 4 }
+  "hints": { "idle_seconds": 4 },
+  "currents": { "step": 24 }
 }
