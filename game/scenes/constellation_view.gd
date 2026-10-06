@@ -163,8 +163,12 @@ func _map() -> StarMap:
 	return _run.scorpio.map if _run != null and _run.scorpio != null else StarMap.scorpio()
 
 
-## How long the completion plays: the tune, the painting forming and flashing, the hold.
-static func completion_time() -> float:
+## How long the completion plays: the tune, the painting forming and flashing, the hold. A map
+## without its painting yet (`map`; the full Scorpio's has one) ends once the last string has
+## rung, instead of holding an empty sky for the painting.
+static func completion_time(map: StarMap = null) -> float:
+	if map != null and not has_painting(map):
+		return TUNE_TIME + VIBRATE_TIME
 	return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + FIGURE_CODA
 
 
@@ -432,7 +436,7 @@ func advance(delta: float) -> void:
 		var order: Array[int] = song_order(_map())
 		for k: int in range(before + 1, mini(now, order.size() - 1) + 1):
 			string_sung.emit(order[k], k)
-		if _completion_time >= completion_time():
+		if _completion_time >= completion_time(_map()):
 			_completion_time = -1.0
 			_revealed = true
 		redraw = true

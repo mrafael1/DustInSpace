@@ -100,6 +100,9 @@ func test_playing_the_hand_from_the_chart_is_not_the_tutorial_and_saves_as_aquar
 
 
 func test_a_stage_without_a_painting_yet_completes_without_one() -> void:
+	assert_lt(ConstellationView.completion_time(StarMap.aquarius_hand()), ConstellationView.completion_time(StarMap.stinger()) - 2.5, "no empty wait for a painting")
+	assert_eq(ConstellationView.completion_time(StarMap.aquarius_hand()), ConstellationView.TUNE_TIME + ConstellationView.VIBRATE_TIME, "the song, then its last string rings out")
+	assert_eq(ConstellationView.completion_time(StarMap.stinger()), ConstellationView.completion_time(), "painted stages keep their time")
 	assert_false(ConstellationView.has_painting(StarMap.aquarius_hand()))
 	assert_false(ConstellationView.has_painting(StarMap.aquarius_body()))
 	assert_true(ConstellationView.has_painting(StarMap.stinger()))
