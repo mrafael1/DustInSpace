@@ -257,3 +257,12 @@ func test_a_drain_that_takes_the_last_combo_loses_the_run() -> void:
 		assert_true(run.launch(Vector2i(160, 100)))
 		var expected: RunState.Outcome = RunState.Outcome.LOST if enabled else RunState.Outcome.PLAYING
 		assert_eq(run.outcome, expected, "drain on" if enabled else "no flow")
+
+
+func test_aquarius_flow_and_drain_run_the_sky_full_height_on_any_screen() -> void:
+	for sky: Rect2i in [SKY, Rect2i(0, 43, 180, 207)]:
+		var run := RunState.new(Balance.load_file(), Fixtures.rng(), sky, StarMap.aquarius_flow())
+		assert_eq(run.current.region.position.y, sky.position.y)
+		assert_eq(run.current.region.end.y, sky.end.y)
+		assert_eq(run.current.region.position.x, 48, "the drain sits near the left edge")
+		assert_eq(run.current.region.end.x, sky.end.x, "the flow runs to the right edge")

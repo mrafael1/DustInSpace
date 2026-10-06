@@ -147,7 +147,10 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.hunt and balance.hunt_radius > 0:
 			hunt = Hunt.new(balance.hunt_radius, run_seed)
 		if scorpio.map.current_region.has_area() and balance.current_step > 0:
-			var area := Rect2i(scorpio.map.current_region.position + scorpio.shift, scorpio.map.current_region.size)
+			var region: Rect2i = scorpio.map.current_region
+			var area := Rect2i(region.position + scorpio.shift, region.size)
+			if region.position.y <= Scorpio.HOME_SKY.position.y and region.end.y >= Scorpio.HOME_SKY.end.y:
+				area = Rect2i(area.position.x, p_sky_rect.position.y, area.size.x, p_sky_rect.size.y)
 			current = StarCurrent.new(area, Vector2i.LEFT * balance.current_step, scorpio.map.current_drains)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
