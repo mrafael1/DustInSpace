@@ -67,6 +67,10 @@ const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's first hunting area of a run (#71) says what the ring means.
 const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
+## A current's first move of a run (chapter 2) says what it does: it moves stars, or, where it
+## drains, that it takes the stars it carries past its edge.
+const FLOW_MESSAGE: String = "EACH LAUNCH, THE FLOW\nMOVES THE STARS"
+const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
 ## A refused pick's reason, said on the message line (#91): two lines, so it fits the 180 px screen.
 ## It stays RULE_TIME, and the same reason again within RULE_QUIET says nothing new.
 const REFUSAL_MESSAGES: Dictionary = {
@@ -108,6 +112,7 @@ var _rest: Dictionary[Label, Vector2] = {}
 var _message_left: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
+var _current_told: bool = false
 ## Where the loaded planet shows on the launcher (the telescope's window), for the tutorial's hand.
 ## Main wires it: `func() -> Vector2i`.
 var loaded_window_at: Callable
@@ -193,6 +198,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		_sequencer.event_played.connect(_on_event_played)
 	_build_slots(run.balance.pack_kinds())
 	_orion_told = false
+	_current_told = false
 	_volley.visible = run.volley != null
 	if run.volley != null:
 		_volley.position = Vector2(run.sky_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
@@ -461,6 +467,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			# lighting is seen (the step itself comes once the sky has cleared).
 			if _run.tutorial != null and not _run.tutorial.is_done() and event.args[0] >= 0:
 				_guide.show_step(Tutorial.Step.SUN_FULL, _landmark_top(event.args[0]), true, TutorialView.Point.DOWN, _run.sky_rect.position.y + TutorialView.TOP)
+			return
+		&"stars_shifted":
+			if not _current_told:
+				_current_told = true
+				show_message(DRAIN_MESSAGE if _run.current.drains else FLOW_MESSAGE, ORION_MESSAGE_TIME)
 			return
 		&"star_marked":
 			if not _orion_told:

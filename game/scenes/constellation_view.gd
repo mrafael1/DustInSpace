@@ -144,8 +144,9 @@ func setup(run: RunState) -> void:
 	# The map sits where the run's sky puts it (a taller sky moves it up); everything here is drawn
 	# in its home layout, so the whole view moves with it.
 	position = Vector2(run.scorpio.shift) if run.scorpio != null else Vector2.ZERO
-	painting(_map().painting)
-	figure_rows(_map().painting)
+	if has_painting(_map()):
+		painting(_map().painting)
+		figure_rows(_map().painting)
 	_shown_lit.clear()
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
@@ -165,6 +166,12 @@ func _map() -> StarMap:
 ## How long the completion plays: the tune, the painting forming and flashing, the hold.
 static func completion_time() -> float:
 	return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + FIGURE_CODA
+
+
+## Whether `map`'s painting has been drawn (a new chapter's stages come before their art: they
+## complete with their song and no painting).
+static func has_painting(map: StarMap) -> bool:
+	return map.painting != "" and ResourceLoader.exists(map.painting)
 
 
 ## The painting at `path` (a StarMap.painting), loaded once. Views load theirs before they draw
@@ -618,7 +625,7 @@ func _draw_vibrating(segment: int, pixels: Array[Vector2i], age: float) -> void:
 ## painting itself.
 func _draw_figure() -> void:
 	var stage: float = figure_stage()
-	if stage < 0.0:
+	if stage < 0.0 or not has_painting(_map()):
 		return
 	var path: String = _map().painting
 	var rows: Dictionary = figure_rows(path)
