@@ -35,6 +35,8 @@ var _run: RunState
 var _sequencer: EventSequencer
 ## Extinctions playing: the edge point each star left by, and the seconds since.
 var _flashes: Dictionary[Vector2i, float] = {}
+## The way each of those stars was flowing when it went.
+var _flash_ways: Dictionary[Vector2i, Vector2i] = {}
 ## Seconds the water has flowed.
 var _time: float = 0.0
 
@@ -48,6 +50,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_sequencer = sequencer
 	aiming = false
 	_flashes.clear()
+	_flash_ways.clear()
 	set_process(run.current != null)
 	queue_redraw()
 
@@ -59,8 +62,10 @@ func _process(delta: float) -> void:
 
 
 ## Plays a star's extinction where it crossed the drain, at `at` (the edge point it left by).
-func flash_drain(at: Vector2i) -> void:
+## `way`: the way it was flowing (a turning flow may already have turned; ZERO: the flow's now).
+func flash_drain(at: Vector2i, way: Vector2i = Vector2i.ZERO) -> void:
 	_flashes[at] = 0.0
+	_flash_ways[at] = way
 	queue_redraw()
 
 
@@ -71,6 +76,7 @@ func advance(delta: float) -> void:
 		_flashes[at] += delta
 		if _flashes[at] >= DRAIN_TIME:
 			_flashes.erase(at)
+			_flash_ways.erase(at)
 
 
 func _draw() -> void:
@@ -86,10 +92,18 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	var area: Rect2i = _run.current.region
 	result.merge(water_pixels(area, _run.current.displacement, _time))
 	if _run.current.drains:
-		for point: Vector2i in _drain_edge(area, _run.current.displacement):
+		# Every side the flow can drain to: the next launch's in ember, any other dimmer.
+		var now := Vector2i(signi(_run.current.displacement.x), signi(_run.current.displacement.y))
+		for way: Vector2i in _run.current.ways():
+			if way == now:
+				continue
+			for point: Vector2i in _drain_edge(area, way):
+				result[point] = Palette.S2
+		for point: Vector2i in _drain_edge(area, now):
 			result[point] = Palette.S3
 		for at: Vector2i in _flashes:
-			result.merge(extinction_pixels(at, _run.current.displacement, _flashes[at], area), true)
+			var went: Vector2i = _flash_ways.get(at, Vector2i.ZERO)
+			result.merge(extinction_pixels(at, went if went != Vector2i.ZERO else _run.current.displacement, _flashes[at], area), true)
 	if aiming and not _sequencer.is_busy():
 		var destinations: Dictionary[int, Vector2i] = _run.current_preview()
 		for star: Star in _run.stars:

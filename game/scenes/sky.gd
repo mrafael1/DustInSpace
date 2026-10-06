@@ -546,7 +546,7 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 			continue
 		_views.erase(move.star_id)
 		view.drained.connect(func(v: StarView) -> void:
-			_current.flash_drain(Vector2i(v.position))
+			_current.flash_drain(Vector2i(v.position), Vector2i(signi(move.to.x - move.from.x), signi(move.to.y - move.from.y)))
 			star_drained.emit(Vector2i(v.position)))
 		view.drain_to(_edge_point(move.to))
 	_sequencer.hold(StarView.DRIFT_TIME)
