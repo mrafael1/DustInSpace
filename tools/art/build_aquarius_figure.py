@@ -17,11 +17,14 @@ edges, stardust specks, a thin aura). Spheres and capsules suit a segmented scor
 drawn with them reads as a mannequin.
 
 The stars are points on the body, not its joints, so it keeps human proportions (about seven heads,
-kneeling): the shoulders on Sadalmelik and Sadalsuud, the head above them in profile facing the
-jar, the right arm out to the open hand on epsilon, the left arm holding up a Greek amphora
-(Sadachbia on the forearm, zeta on its belly, pi by its foot, eta at its mouth) tipped to pour, the
-tunic belted at theta, the near knee forward on lambda and the shin down through tau, the far knee
-on the ground at Skat, and the water pouring down the left through phi, psi and 98 to a splash.
+kneeling): the shoulders on Sadalmelik and Sadalsuud, the head on a neck above them in profile
+facing the jar, the right arm out to the open hand on epsilon, the left arm holding up a Greek
+amphora (Sadachbia on the forearm, zeta on its belly, pi by its foot, eta at its mouth), the hand
+round its belly, tipped to pour, the tunic belted at theta with a short skirt, the near thigh
+forward to the knee on lambda and the shin down through tau to a foot flat on the same ground as
+the far knee at Skat, and the water pouring from the jar's mouth down the left through phi, psi
+and 98 to a splash. The torso is one smooth piece of cloth: overlapping drapes on it read as
+cracks.
 The water is its own material on the cool M ramp (M3-M6, a D0 rim, sparse glints).
 No colour outside the Stellar Sun palette; every pixel opaque or empty.
 
@@ -136,6 +139,7 @@ class Shapes(sc.Solids):
         super().__init__()
         self.mat = "body"
         self.mats = []
+        self.eyes = []
 
     def _put(self, *args, **kwargs):
         self.mats.append(self.mat)
@@ -224,73 +228,79 @@ def splash(S, at, width=15.0, lift=-14.0):
     S.mat = "body"
 
 
-def head_in_profile(S, head, lift):
-    """A head in profile facing left: brow, nose, lips and chin; hair falling in curls at the
-    back; a fillet band round it."""
+def head_in_profile(S, head, lift, eye=True):
+    """A head in profile facing left: a round skull, brow, straight nose, lips and a firm chin,
+    the jaw back to an ear; short curled hair capping the back of the skull, a fillet band."""
     head = v(head)
 
     def P(x, y):
         return head + v((x, y))
 
-    face = [P(-7, -6), P(-8, -2), P(-11, 1), P(-8, 2), P(-9, 4), P(-7, 5), P(-8, 7), P(-5, 10),
-            P(1, 10), P(6, 7), P(8, 0), P(5, -8), P(-2, -10)]
+    face = [P(-5, -8), P(-7, -4), P(-7, -2), P(-10, 2), P(-7, 3), P(-8, 5), P(-7, 6), P(-7, 8),
+            P(-4, 10), P(1, 10), P(5, 7), P(7, 1), P(7, -5), P(2, -9)]
     S.shape(face, depth=7, lift=lift)
-    hair = [P(-6, -8), P(-1, -11), P(6, -10), P(10, -5), P(11, 1), P(10, 6), P(12, 9), P(8, 11),
-            P(5, 8), P(4, 2), P(1, -3), P(-4, -4), P(-7, -5)]
-    S.shape(hair, depth=5, lift=lift + 2)
-    S.shape(limb([P(-6, -6), P(0, -8), P(7, -5), P(10, -2)], [0.9, 1.0, 1.0, 0.9]), depth=1.2, lift=lift + 4)
+    hair = [P(-6, -7), P(-2, -10), P(4, -9), P(8, -5), P(9, 0), P(8, 4), P(5, 6), P(3, 2), P(1, -2),
+            P(-3, -4), P(-6, -5)]
+    S.shape(hair, depth=4, lift=lift + 1.5)
+    S.shape(limb([P(-6, -5), P(-1, -7), P(5, -6), P(8, -4)], [0.8, 0.9, 0.9, 0.8]), depth=1.0, lift=lift + 3)
+    S.shape(limb([P(1, 3), P(2, 5)], [1.3, 1.3]), depth=1.0, lift=lift + 0.5)  # the ear
+    if eye:
+        S.eyes.append(tuple(np.round(P(-5, 0)).astype(int)))
 
 
 def build_figure(S):
     hand, sadalsuud, sadalmelik, sadachbia, zeta, eta, pi, theta, knee, tau, skat, phi, psi, s98 = map(v, L)
-    up = np.array([0.52, -0.85])
+    up = np.array([0.45, -0.89])
     mid = (sadalmelik + sadalsuud) / 2
+    ground = 210.0
 
-    # The far leg, behind: the thigh from under the tunic to the knee on the ground (Skat), the
-    # shin lying back, the foot.
+    # The far leg, behind: the thigh from under the tunic down to the knee on the ground (Skat),
+    # the shin lying back along the ground, the toes curled under.
     S.tag = "legs"
-    S.shape(limb([(100, 168), (94, 188), skat], [8.0, 7.0, 6.0]), depth=7, lift=-12)
-    S.shape(limb([skat, (106, 210), (122, 209)], [5.5, 4.6, 3.6]), depth=5, lift=-12.5)
-    S.shape([(118, 206), (128, 205), (131, 209), (119, 212)], depth=3, lift=-11.5)
-    # The near leg: the shin from the knee (lambda) down through tau, the foot flat.
-    S.shape(limb([knee, (67, 174), tau, (71, 193)], [6.5, 5.4, 4.6, 4.0]), depth=6, lift=-6)
-    S.shape([(73, 189), (74, 197), (56, 198), (54, 194), (62, 191)], depth=3, lift=-5)
+    S.shape(limb([(100, 164), (95, 186), skat], [8.0, 7.0, 5.6]), depth=7, lift=-12)
+    S.shape(limb([skat, (106, 207), (120, 206)], [5.2, 4.4, 3.4]), depth=5, lift=-12.5)
+    S.shape([(118, 202), (126, 203), (129, ground), (118, ground)], depth=3, lift=-11.5)
+    # The near leg: the thigh forward to the knee (lambda), the shin down through tau to the ankle,
+    # the foot flat on the same ground as the far knee.
+    S.shape(limb([(96, 160), (80, 158), knee], [8.0, 7.0, 6.0]), depth=7, lift=-4)
+    S.shape(limb([knee, tau, (72, ground - 6)], [5.6, 4.6, 3.6]), depth=6, lift=-6)
+    S.shape([(76, ground - 9), (77, ground), (56, ground), (57, ground - 3), (66, ground - 6)], depth=3, lift=-5)
 
-    # The tunic: the torso from the shoulders to the waist (theta), the skirt over the hips and the
-    # near thigh, a belt, a mantle over the left shoulder.
+    # The tunic: the torso from the shoulders to the waist (theta), a belt, a short skirt over the
+    # hips ending above the knees.
     S.tag = "body"
-    torso = [sadalmelik + v((-3, 0)), sadalmelik + v((-6, 10)), (84, 146), (86, 158), (104, 162),
-             (114, 154), (120, 146), sadalsuud + v((3, 1)), sadalsuud + v((0, -6)), mid + up * 8 + v((6, 0)),
-             mid + up * 8 + v((-6, -2)), sadalmelik + v((2, -4))]
-    S.shape(torso, depth=11, lift=0)
-    skirt = [(82, 150), (106, 158), (112, 166), (106, 175), (92, 177), (78, 171), (68, 166), (64, 159), (70, 153)]
-    S.shape(skirt, depth=7, lift=5)
-    S.shape(limb([(83, 153), (111, 160)], [1.4, 1.4]), depth=1.0, lift=6)
-    mantle = [sadalmelik + v((-4, -1)), sadalmelik + v((4, -4)), (106, 134), (108, 152), (100, 158), (94, 146)]
-    S.shape(mantle, depth=6, lift=8)
-    S.shape(limb([mid + up * 6, mid + up * 12], [4.5, 4.2]), depth=4, lift=1)
-    head_in_profile(S, mid + up * 18.0, lift=12)
-
-    # The near knee shows through the drape (lambda sits on it).
-    S.tag = "legs"
-    S.shape(limb([knee + v((6, -1)), knee], [5.5, 5.0]), depth=4, lift=7)
+    torso = [sadalmelik + v((-4, 1)), sadalmelik + v((-7, 10)), (84, 146), (86, 156), (104, 160),
+             (114, 154), (120, 147), sadalsuud + v((3, 2)), sadalsuud + v((1, -5)), mid + up * 7 + v((5, 0)),
+             mid + up * 7 + v((-6, -1)), sadalmelik + v((1, -4))]
+    S.shape(torso, depth=18, lift=0)
+    skirt = [(84, 151), (106, 157), (110, 165), (104, 172), (92, 171), (82, 166), (78, 158)]
+    S.shape(skirt, depth=6, lift=3)
+    S.shape(limb([(84, 152), (108, 159)], [1.3, 1.3]), depth=1.0, lift=4)
+    neck_base = mid + up * 4
+    head = mid + up * 19.0
+    S.shape(limb([neck_base, lerp(neck_base, head, 0.8)], [4.2, 3.6]), depth=4, lift=1)
+    head_in_profile(S, head, lift=6)
 
     # The right arm: a short sleeve, the bare arm out and down to the open hand on epsilon.
     S.tag = "hand"
-    elbow = v((138, 151))
-    S.shape(limb([sadalsuud + v((0, -2)), lerp(sadalsuud, elbow, 0.45)], [7.0, 6.5]), depth=6, lift=6)
-    S.shape(limb([sadalsuud, elbow, (147, 155)], [5.2, 4.2, 3.4]), depth=5, lift=4)
-    S.shape([(146, 152), (153, 152), (157, 155), (156, 159), (149, 160), (145, 157)], depth=3, lift=5)
+    elbow = v((137, 150))
+    wrist = v((145, 154))
+    S.shape(limb([sadalsuud + v((-2, -3)), lerp(sadalsuud, elbow, 0.4)], [6.2, 5.6]), depth=5, lift=5)
+    S.shape(limb([sadalsuud, elbow, wrist], [4.8, 3.9, 3.0]), depth=5, lift=4)
+    open_hand(S, wrist, wrist - elbow + v((0, 1)), lift=4.5)
 
-    # The left arm from beside the shoulder to the amphora (Sadachbia on the forearm), the hand at
-    # its side; the amphora tipped about 45 degrees, its foot up by pi, its mouth down at eta.
+    # The left arm from the shoulder up to the amphora (Sadachbia on the forearm), the hand round
+    # its belly; the amphora tipped about 45 degrees, its foot up by pi, its mouth down at eta.
     S.tag = "jar"
-    S.shape(limb([(91, 125), (84, 123), sadachbia, (57, 105)], [5.4, 4.8, 4.2, 3.8]), depth=5, lift=20)
+    S.shape(limb([sadalmelik + v((-7, 1)), (84, 122), sadachbia, (60, 108)], [5.2, 4.6, 4.0, 3.6]), depth=5, lift=20)
+    S.shape(limb([(61, 109), (55, 104)], [3.6, 3.4]), depth=3, lift=21)
+    for k in range(3):
+        S.shape(limb([(58 - k * 2, 111 - k), (54 - k * 2, 108 - k)], [1.2, 1.1]), depth=1.2, lift=21.5)
     amphora(S, foot=(60, 82), rim=(24, 124))
 
     # The water: from the mouth down the left through phi, psi and 98, drops breaking off, a splash.
     S.tag = "stream"
-    path = water(S, [(24, 126), (22, 140), (32, 156), phi, psi, s98, s98 + v((4, 12))], 2.0, 7.5)
+    path = water(S, [(25, 121), (22, 138), (32, 156), phi, psi, s98, s98 + v((4, 12))], 3.2, 7.5)
     droplets(S, path)
     splash(S, s98 + v((6, 12)))
 
@@ -433,6 +443,12 @@ def stardust(img):
                     img[y, x, :3] = RGB["N8"] if h % 3 else RGB["D0"]
 
 
+def eyes(S, img):
+    """Each head's eye: one dark pixel under the brow."""
+    for x, y in S.eyes:
+        img[y, x, :3] = RGB["N1"]
+
+
 def pieces(S, img):
     """The whole cut by part, as the Scorpio's: each pixel with its part's solid, each aura pixel
     with the body pixel beside it. Every star must lie on a part of its own part."""
@@ -468,6 +484,7 @@ def main():
     build_figure(S)
     img = shade(S)
     stardust(img)
+    eyes(S, img)
     sc.save(img, ART / "aquarius_figure.png")
     for part, piece in pieces(S, img).items():
         sc.save(piece, ART / f"aquarius_piece_{part}.png")
@@ -476,6 +493,7 @@ def main():
         STAGE_BUILDERS[part](stage, landmarks)
         painting = shade(stage)
         stardust(painting)
+        eyes(stage, painting)
         for x, y in landmarks:
             assert stage.owner[y, x] >= 0, f"{part}: landmark ({x}, {y}) sits on nothing"
         sc.save(painting, ART / f"aquarius_part_{part}.png")
