@@ -3,17 +3,23 @@ extends Node
 ## Playtest logging (#89, debug builds only): where testers stall, what they try that gets refused,
 ## and whether they read before moving on. Each record is one JSON object a line, appended to one
 ## file a session (`user://playtest/<timestamp>.jsonl`, shared by every run and stage in it):
-## - run_started: the stage and whether it's the guided run (`guided`, set by Main).
+## - run_started: the stage, whether it's the guided run (`guided`, set by Main), and the platform.
 ## - step_entered / step_left: a tutorial step and, on leaving, the seconds spent on it (free play,
 ##   Tutorial.Step.DONE, isn't one).
 ## - refusal: a refused action's kind (launch, link, buy, load), on which step and stage.
 ## - idle: a gap of at least IDLE_MIN seconds without any interaction, on which step: it starts
 ##   when the last finger lifts (holding, dragging and aiming are interaction) and is logged at the
 ##   touch that ends it, or when the run ends.
-## - run_ended: the stage, won, lost or left (a restart, or back to the chart), packs launched and
-##   the run's seconds.
+## - link: a collected link's combo, stars, dust and light, on which stage.
+## - run_ended: the stage, won, lost or left (a restart, or back to the chart), packs launched, the
+##   run's seconds, links collected, stars linked, links rejected, Big Bangs and dust earned.
+## Every record has the run's time (`t`) and the session's random id (`session`), so records from
+## many players can be told apart.
 ## Presentation-side: it only listens to RunState's signals and the views' feedback signals (Main
-## wires them), and adds no rules. Release builds and headless runs write nothing (`enabled`).
+## wires them), and adds no rules. Release builds and headless runs write no file (`enabled`).
+## Web playtest: each record is also sent to the endpoint in game/config/analytics.json, in any
+## build (AnalyticsUpload; `upload`), so a web build's records reach the developer. No endpoint, no
+## sending; headless runs never send.
 
 ## Gaps shorter than this aren't worth a record.
 const IDLE_MIN: float = 2.0
@@ -26,9 +32,13 @@ var enabled: bool = OS.is_debug_build() and DisplayServer.get_name() != "headles
 var log_dir: String = DEFAULT_DIR
 ## Main sets it before each run: whether this run is the guided first run.
 var guided: bool = false
+## Sends one record (its JSON) somewhere, or empty for nowhere. Tests replace it.
+var upload: Callable = AnalyticsUpload.sender(AnalyticsUpload.endpoint())
 
 ## The session's file, shared by every PlaytestLog in the process (App makes a Main per stage).
 static var _session_file: String = ""
+## The session's random id, shared the same way: it tells one player's records from another's.
+static var _session_id: String = ""
 
 var _run: RunState
 ## Seconds since the run started, counted in `advance`.
@@ -39,6 +49,11 @@ var _fingers: int = 0
 var _step: int = -1
 var _step_since: float = 0.0
 var _launches: int = 0
+var _links: int = 0
+var _stars_linked: int = 0
+var _rejected: int = 0
+var _big_bangs: int = 0
+var _dust_earned: int = 0
 var _ended: bool = false
 
 
@@ -56,13 +71,20 @@ func setup(run: RunState, _sequencer: EventSequencer) -> void:
 	_step = -1
 	_step_since = 0.0
 	_launches = 0
+	_links = 0
+	_stars_linked = 0
+	_rejected = 0
+	_big_bangs = 0
+	_dust_earned = 0
 	_ended = false
 	_run.tutorial_step.connect(_on_tutorial_step)
 	_run.pack_launched.connect(_on_pack_launched)
+	_run.combo_collected.connect(_on_combo_collected)
 	_run.link_rejected.connect(_on_link_rejected)
+	_run.big_bang_started.connect(_on_big_bang_started)
 	_run.run_won.connect(_on_run_won)
 	_run.run_lost.connect(_on_run_lost)
-	write({"type": "run_started", "stage": stage(), "tutorial": guided})
+	write({"type": "run_started", "stage": stage(), "tutorial": guided, "platform": platform()})
 
 
 func _exit_tree() -> void:
@@ -78,6 +100,14 @@ func stage() -> String:
 	if _run == null:
 		return ""
 	return _run.scorpio.map.id if _run.scorpio != null else "sun"
+
+
+## Where the game runs: the OS, and for a web build which browser OS ("web_android", "web_ios"…).
+static func platform() -> String:
+	for feature: String in ["web_android", "web_ios", "web_windows", "web_macos", "web_linuxbsd"]:
+		if OS.has_feature(feature):
+			return feature
+	return OS.get_name().to_lower()
 
 
 ## A touch began (IdleHint sees every one first): a long enough gap since the last interaction
@@ -111,8 +141,40 @@ func pack_tap_refused(_kind: String, part: StringName) -> void:
 	refused("load" if part == &"icon" else "buy")
 
 
-## Appends `record` (with the run's time) to the session's file. Returns whether it was written.
+## Appends `record` (with the run's time and the session's id) to the session's file and sends it
+## (`upload`). Returns whether it was written or sent.
 func write(record: Dictionary) -> bool:
+	if not enabled and not upload.is_valid():
+		return false
+	var line: Dictionary = {"t": snappedf(_time, 0.01), "session": session_id()}
+	line.merge(record)
+	var text: String = JSON.stringify(line)
+	if upload.is_valid():
+		upload.call(text)
+	return _append(text) or upload.is_valid()
+
+
+## The session's random id (12 hex digits), made on first use.
+static func session_id() -> String:
+	if _session_id == "":
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		_session_id = "%06x%06x" % [rng.randi() & 0xffffff, rng.randi() & 0xffffff]
+	return _session_id
+
+
+## The file this session writes to ("" until the first record).
+static func session_file() -> String:
+	return _session_file
+
+
+## Starts a new session file (and id) on the next record (tests).
+static func new_session() -> void:
+	_session_file = ""
+	_session_id = ""
+
+
+func _append(text: String) -> bool:
 	if not enabled:
 		return false
 	if _session_file == "" or not _session_file.begins_with(log_dir + "/"):
@@ -122,21 +184,9 @@ func write(record: Dictionary) -> bool:
 	if file == null:
 		return false
 	file.seek_end()
-	var line: Dictionary = {"t": snappedf(_time, 0.01)}
-	line.merge(record)
-	file.store_line(JSON.stringify(line))
+	file.store_line(text)
 	file.close()
 	return true
-
-
-## The file this session writes to ("" until the first record).
-static func session_file() -> String:
-	return _session_file
-
-
-## Starts a new session file on the next record (tests).
-static func new_session() -> void:
-	_session_file = ""
 
 
 func _on_tutorial_step(step: int) -> void:
@@ -153,8 +203,21 @@ func _on_pack_launched(_kind: String, _at: Vector2i) -> void:
 	_launches += 1
 
 
+func _on_combo_collected(combo: String, stars: Array[Star], dust: int, light: int) -> void:
+	_links += 1
+	_stars_linked += stars.size()
+	_dust_earned += dust
+	write({"type": "link", "combo": combo, "stars": stars.size(), "dust": dust, "light": light, "stage": stage()})
+
+
 func _on_link_rejected(_ids: Array[int]) -> void:
+	_rejected += 1
 	refused("link")
+
+
+func _on_big_bang_started(_at: Vector2i, _cleared: Array[Star], dust: int) -> void:
+	_big_bangs += 1
+	_dust_earned += dust
 
 
 func _on_run_won() -> void:
@@ -171,7 +234,11 @@ func _end(outcome: String) -> void:
 	_log_idle()
 	_leave_step()
 	_ended = true
-	write({"type": "run_ended", "stage": stage(), "outcome": outcome, "packs_used": _launches, "seconds": snappedf(_time, 0.01)})
+	write({
+		"type": "run_ended", "stage": stage(), "outcome": outcome, "packs_used": _launches,
+		"seconds": snappedf(_time, 0.01), "links": _links, "stars_linked": _stars_linked,
+		"links_rejected": _rejected, "big_bangs": _big_bangs, "dust_earned": _dust_earned,
+	})
 
 
 func _leave_step() -> void:

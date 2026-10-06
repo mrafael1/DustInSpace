@@ -177,6 +177,72 @@ func test_release_builds_write_nothing() -> void:
 	assert_false(DirAccess.dir_exists_absolute(DIR), "no folder, no file")
 
 
+func test_every_record_carries_one_session_id() -> void:
+	log.setup(run, null)
+	log.refused("link")
+	var records: Array[Dictionary] = _records()
+	assert_eq(str(records[0]["session"]).length(), 12)
+	assert_eq(records[1]["session"], records[0]["session"], "one id a session")
+	var first: String = PlaytestLog.session_id()
+	PlaytestLog.new_session()
+	assert_ne(PlaytestLog.session_id(), first, "a new session, a new id")
+
+
+func test_records_are_sent_even_where_no_file_is_written() -> void:
+	var sent: Array[String] = []
+	log.enabled = false
+	log.upload = func(text: String) -> void: sent.append(text)
+	log.setup(run, null)
+	run.run_lost.emit()
+	assert_false(DirAccess.dir_exists_absolute(DIR), "a release build writes no file")
+	assert_eq(sent.size(), 2)
+	var started: Dictionary = JSON.parse_string(sent[0])
+	assert_eq(started["type"], "run_started")
+	assert_eq(started["platform"], PlaytestLog.platform())
+	assert_eq(started["session"], PlaytestLog.session_id())
+	assert_eq((JSON.parse_string(sent[1]) as Dictionary)["outcome"], "lost")
+
+
+func test_links_are_logged_and_counted_at_the_end() -> void:
+	log.setup(run, null)
+	var stars: Array[Star] = []
+	for size: Star.Size in [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]:
+		stars.append(run.add_star(size, Vector2i(90, 150)))
+	run.pack_launched.emit("blue", Vector2i(90, 150))
+	run.combo_collected.emit("sequence", stars, 3, 25)
+	run.combo_collected.emit("small_triple", stars, 3, 5)
+	run.link_rejected.emit([1, 2] as Array[int])
+	run.big_bang_started.emit(Vector2i(90, 150), [] as Array[Star], 8)
+	run.run_won.emit()
+	var records: Array[Dictionary] = _records()
+	var link: Dictionary = records[1]
+	assert_eq(link["type"], "link")
+	assert_eq(link["combo"], "sequence")
+	assert_eq(link["stars"], 3.0)
+	assert_eq(link["light"], 25.0)
+	var ended: Dictionary = records[-1]
+	assert_eq(ended["outcome"], "won")
+	assert_eq(ended["packs_used"], 1.0)
+	assert_eq(ended["links"], 2.0)
+	assert_eq(ended["stars_linked"], 6.0)
+	assert_eq(ended["links_rejected"], 1.0)
+	assert_eq(ended["big_bangs"], 1.0)
+	assert_eq(ended["dust_earned"], 14.0, "both links and the Big Bang")
+
+
+func test_the_endpoint_comes_from_the_config_and_none_sends_nothing() -> void:
+	assert_eq(AnalyticsUpload.endpoint(), "", "none is committed: nothing is sent")
+	assert_eq(AnalyticsUpload.endpoint("res://no/such/file.json"), "")
+	var path: String = DIR + "_endpoint.json"
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	file.store_string('{"endpoint": " https://example.com/exec "}')
+	file.close()
+	assert_eq(AnalyticsUpload.endpoint(path), "https://example.com/exec")
+	DirAccess.remove_absolute(path)
+	assert_false(AnalyticsUpload.sender("").is_valid())
+	assert_false(AnalyticsUpload.sender("https://example.com/exec").is_valid(), "headless runs never send")
+
+
 func test_main_hears_the_refusals_and_the_touches() -> void:
 	var main: Main = MainScene.instantiate()
 	main.seed_override = 7
