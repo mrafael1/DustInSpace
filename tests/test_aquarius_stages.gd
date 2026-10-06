@@ -110,12 +110,15 @@ func test_playing_the_hand_from_the_chart_is_not_the_tutorial_and_saves_as_aquar
 
 
 func test_a_stage_without_a_painting_yet_completes_without_one() -> void:
-	assert_lt(ConstellationView.completion_time(StarMap.aquarius_hand()), ConstellationView.completion_time(StarMap.stinger()) - 2.5, "no empty wait for a painting")
-	assert_eq(ConstellationView.completion_time(StarMap.aquarius_hand()), ConstellationView.TUNE_TIME + ConstellationView.VIBRATE_TIME, "the song, then its last string rings out")
+	var bare: StarMap = StarMap.aquarius_hand()
+	bare.painting = "res://assets/art/not_drawn_yet.png"
+	assert_lt(ConstellationView.completion_time(bare), ConstellationView.completion_time(StarMap.stinger()) - 2.5, "no empty wait for a painting")
+	assert_eq(ConstellationView.completion_time(bare), ConstellationView.TUNE_TIME + ConstellationView.VIBRATE_TIME, "the song, then its last string rings out")
 	assert_eq(ConstellationView.completion_time(StarMap.stinger()), ConstellationView.completion_time(), "painted stages keep their time")
-	assert_false(ConstellationView.has_painting(StarMap.aquarius_hand()))
-	assert_false(ConstellationView.has_painting(StarMap.aquarius_body()))
-	assert_true(ConstellationView.has_painting(StarMap.stinger()))
+	assert_false(ConstellationView.has_painting(bare))
+	for map_id: String in ["aquarius_hand", "aquarius_body", "aquarius_legs", "aquarius_stream", "aquarius_jar", "aquarius_final"]:
+		assert_true(ConstellationView.has_painting(StarMap.by_id(map_id)), "%s is painted" % map_id)
+		assert_eq(ConstellationView.completion_time(StarMap.by_id(map_id)), ConstellationView.completion_time(), "and plays its painting")
 	var main: Main = MainScene.instantiate()
 	main.star_map = "aquarius_hand"
 	main.in_chapter = true

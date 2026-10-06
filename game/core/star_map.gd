@@ -11,9 +11,9 @@ extends RefCounted
 ## piece of it, fitted to its stars, for a part stage.
 const FIGURE := "res://assets/art/scorpio_figure.png"
 const PART_PAINTING := "res://assets/art/scorpio_part_%s.png"
-## Chapter 2's painted Aquarius, for its chart and final (not drawn yet: the chart skips it).
+## Chapter 2's painted Aquarius, for its chart and final (tools/art/build_aquarius_figure.py).
 const AQUARIUS_FIGURE := "res://assets/art/aquarius_figure.png"
-## An Aquarius stage's own painting (none drawn yet: a stage without one completes without it).
+## An Aquarius stage's own painting (tools/art/build_aquarius_figure.py).
 const AQUARIUS_PART := "res://assets/art/aquarius_part_%s.png"
 
 var id: String = ""
@@ -136,7 +136,7 @@ static func aquarius_flow(enabled: bool = true) -> StarMap:
 ## down to the hand (lower left): four to light. It teaches the current on its own: a leftward flow
 ## over the sky's full height from x 72 to the right edge, with no drain. Stars launched by the upper
 ## arm drift down the arm toward the forearm and hand, which sit just past the flow, where drifting
-## stars come to rest. Strings are 34-35 px. Its painting isn't drawn yet.
+## stars come to rest. Strings are 34-35 px.
 static func aquarius_hand() -> StarMap:
 	var map := StarMap.new()
 	map.id = "aquarius_hand"
@@ -157,7 +157,7 @@ static func aquarius_hand() -> StarMap:
 ## branching right, so stars saved beside them drift a launch at a time toward the drain (a waiting
 ## pair has a clock), while stars stranded upstream drift toward them. The foot lies past the
 ## drain, in the strip the flow leaves still. Five to light. Strings are 33-49 px. Measured as the
-## current trial's Aquarius layout (docs/chapter_2_current_trial.md). Its painting isn't drawn yet.
+## current trial's Aquarius layout (docs/chapter_2_current_trial.md).
 static func aquarius_body() -> StarMap:
 	var map := StarMap.new()
 	map.id = "aquarius_body"
@@ -177,7 +177,7 @@ static func aquarius_body() -> StarMap:
 ## reaches down and left through the flow, its shin near the drain at x 48 and its foot past it;
 ## the other stays upstream to the right, its calf and heel (Skat, big) in the flow. Stars saved by
 ## the shin have little time; stars by the right leg drift across toward the knee and shin. Five to
-## light. Strings are 36-39 px. Its painting isn't drawn yet.
+## light. Strings are 36-39 px.
 static func aquarius_legs() -> StarMap:
 	var map := StarMap.new()
 	map.id = "aquarius_legs"
@@ -197,7 +197,7 @@ static func aquarius_legs() -> StarMap:
 ## x 16 to 163 and drains along its bottom edge (y 200), like a waterfall. The stream winds down
 ## from its source at the top left (lit) through the flow; its last star lies below the drain, in
 ## the still strip above the ground. Stars saved low in the stream fall into the drain soonest.
-## Five to light. Strings are 33-50 px. Its painting isn't drawn yet.
+## Five to light. Strings are 33-50 px.
 static func aquarius_stream() -> StarMap:
 	var map := StarMap.new()
 	map.id = "aquarius_stream"
@@ -219,7 +219,7 @@ static func aquarius_stream() -> StarMap:
 ## drains at both sides: a star safe on one launch can be carried out the other way on the next.
 ## The jar's Y (pi, lit, at the top; zeta at its centre; eta and Sadachbia its arms) stands in the
 ## middle, its lip below with the spout pouring down and left. Five to light. Strings are 28-42 px.
-## Its painting isn't drawn yet.
+##
 static func aquarius_jar() -> StarMap:
 	var map := StarMap.new()
 	map.id = "aquarius_jar"
@@ -240,7 +240,7 @@ static func aquarius_jar() -> StarMap:
 ## 159, y 96 to 227), and its flow turns a quarter after every launch (left, down, right, up), so
 ## each side drains in turn: the Jar's tide, now all the way round. The whole Aquarius (the chart's
 ## figure) stands in it; only pi, atop the jar, sits just above the box. The hand and shoulder
-## start lit: twelve to light. Its painting isn't drawn yet.
+## start lit: twelve to light.
 static func aquarius_final() -> StarMap:
 	var map: StarMap = aquarius()
 	map.id = "aquarius_final"
@@ -333,7 +333,7 @@ static func final() -> StarMap:
 ## at the upper left (Sadachbia, zeta, eta, pi: its Y), the body (theta) down to the knee (lambda),
 ## the leg (tau, Skat) to the lower right, and the stream (phi, psi, 98) pouring down the left.
 ## Sizes follow brightness: Sadalsuud, Sadalmelik and Skat big; Sadachbia, zeta, lambda and 98
-## medium; the rest small. The hand starts lit. No painting yet (AQUARIUS_FIGURE is missing).
+## medium; the rest small. The hand starts lit.
 static func aquarius() -> StarMap:
 	var map := StarMap.new()
 	map.id = "aquarius"
