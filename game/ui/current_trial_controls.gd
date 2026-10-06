@@ -28,7 +28,10 @@ func setup(run: RunState, _sequencer: EventSequencer) -> void:
 	_pressed = false
 	_button.pressed = false
 	_button.text = "FLOW ON" if run.current != null else "FLOW OFF"
-	_caption.text = "LAUNCH MOVES STARS" if run.current != null else "STARS STAY STILL"
+	if run.current == null:
+		_caption.text = "STARS STAY STILL"
+	else:
+		_caption.text = "DRAIN TAKES STARS" if run.current.drains else "LAUNCH MOVES STARS"
 
 
 func fit_screen(screen: Rect2i) -> void:

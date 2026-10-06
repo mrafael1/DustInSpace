@@ -182,3 +182,51 @@ func test_shift_event_moves_views_after_burst_and_holds_input() -> void:
 			break
 	assert_false(sequencer.is_busy())
 	assert_eq(Vector2i(view.position), star.position)
+
+
+func _aquarius() -> Main:
+	var main: Main = MainScene.instantiate()
+	main.current_trial = true
+	main.current_layout = "aquarius"
+	main.seed_override = 7
+	add_child_autofree(main)
+	return main
+
+
+func test_aquarius_trial_shows_its_drain_and_trails_a_draining_star_out_in_ember() -> void:
+	var main: Main = _aquarius()
+	assert_eq(main.run.scorpio.map.id, "current_aquarius")
+	assert_true(main.run.current.drains)
+	var doomed: Star = main.run.add_star(Star.Size.SMALL, Vector2i(60, 120))
+	var view: CurrentView = main.get_node("Sky/CurrentLayer")
+	var area: Rect2i = main.run.current.region
+	assert_eq(view.pixels().get(Vector2i(area.position.x, area.position.y)), Palette.S3, "the drain edge")
+	view.aiming = true
+	var aim: Dictionary[Vector2i, Color] = view.pixels()
+	assert_eq(aim.get(doomed.position + Vector2i(-6, 0)), Palette.S4, "a trail starts beside it")
+	assert_eq(aim.get(doomed.position + Vector2i(-24, 0)), Palette.S4, "and runs out to its exit")
+	assert_false(aim.has(doomed.position + Vector2i(-24 + 4, 0)) and aim[doomed.position + Vector2i(-20, 0)] == Palette.M5, "no destination bracket")
+	for colour: Color in aim.values():
+		assert_has([Palette.M3, Palette.M4, Palette.M5, Palette.S3, Palette.S4], colour)
+	main.switch_current()
+	assert_eq(main.run.scorpio.map.id, "current_aquarius_off", "the switch keeps the layout")
+	assert_null(main.run.current)
+
+
+func test_a_drained_star_drifts_out_then_bursts_and_leaves_the_sky() -> void:
+	var main: Main = _aquarius()
+	var doomed: Star = main.run.add_star(Star.Size.SMALL, Vector2i(60, 120))
+	var sky: SkyView = main.get_node("Sky")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	sky.setup(main.run, sequencer)
+	var view: StarView = sky.star_view(doomed.id)
+	assert_true(main.run.launch(Vector2i(150, 230)))
+	for tick: int in 200:
+		sequencer.advance(0.03)
+		for child: Node in sky.get_node("StarLayer").get_children():
+			(child as StarView).advance(0.03)
+		if not sequencer.is_busy():
+			break
+	assert_false(sequencer.is_busy())
+	assert_null(sky.star_view(doomed.id), "the sky forgets it")
+	assert_true(view.is_exploding(), "it bursts like a star Orion breaks")

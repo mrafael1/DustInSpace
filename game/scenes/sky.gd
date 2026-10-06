@@ -206,10 +206,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"pack_burst":
 			_burst(event.args[1], event.args[2])
 		&"stars_shifted":
-			for move: StarCurrent.Move in event.args[0]:
-				if _views.has(move.star_id):
-					_views[move.star_id].drift_to(move.to)
-			_sequencer.hold(StarView.DRIFT_TIME)
+			_shift(event.args[0])
 		&"combo_collected":
 			_link_layer.flash_collected(_positions(event.args[1]))
 			_dissolve(event.args[1])
@@ -534,6 +531,22 @@ func _shoot(star: Star) -> void:
 
 ## Orion's hunting area (#71): his arrow flies to the ring's centre, and the stars inside burst as
 ## it lands; the next events (the new ring) wait for it.
+## The current: every moved star drifts; a drained one bursts as it leaves the field, for nothing.
+func _shift(moves: Array[StarCurrent.Move]) -> void:
+	var hold: float = StarView.DRIFT_TIME
+	for move: StarCurrent.Move in moves:
+		var view: StarView = _views.get(move.star_id)
+		if view == null:
+			continue
+		view.drift_to(move.to)
+		if move.drained:
+			_views.erase(move.star_id)
+			view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
+			view.explode(StarView.DRIFT_TIME)
+			hold = StarView.DRIFT_TIME + StarView.DISSOLVE_TIME * 0.5
+	_sequencer.hold(hold)
+
+
 func _strike_area(stars: Array[Star]) -> void:
 	var landing: float = _orion.strike_area()
 	for star: Star in stars:

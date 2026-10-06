@@ -37,6 +37,8 @@ signal encounter_finished(threat: int)
 ## Debug-only Aquarius experiment, using Tail geometry with every Orion rule disabled.
 @export var current_trial: bool = false
 @export var current_enabled: bool = true
+## Which trial map: "tail" or "aquarius" (StarMap.current_layout).
+@export var current_layout: String = "tail"
 
 var run: RunState
 ## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
@@ -124,7 +126,7 @@ func start_run(balance: Balance) -> bool:
 		_report_balance_errors(balance.errors)
 		return false
 	_balance_errors.visible = false
-	var map: StarMap = StarMap.current_trial(current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
+	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
 	set_process(run.current != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
