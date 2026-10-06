@@ -1,9 +1,11 @@
 class_name ChapterSelect
 extends CanvasLayer
-## Scorpio's chapter chart (#62): the constellation as a pixel-art star chart over deep space
-## (a stepped sky, a milky way, faint nebulae and cool background stars). Its stars are grouped
-## into the chapter's part stages (Stinger, Tail, Body, Heart, Claws), travelled from the tail,
-## and a crown point above the figure is the final stage, the full Scorpio. Tap a star to select
+## A chapter's chart (#62; ChapterDef gives its figure, stages and crown): the constellation as a
+## pixel-art star chart over deep space (a stepped sky, a milky way, faint nebulae and cool
+## background stars). Its stars are grouped into the chapter's part stages (Scorpio's Stinger,
+## Tail, Body, Heart, Claws, travelled from the tail), and a crown point above the figure is the
+## final stage, the full constellation. The text below describes Scorpio's chart; another chapter
+## draws the same way, leaving out paintings it doesn't have yet (has_art). Tap a star to select
 ## the stage it belongs to (a comet travels there); PLAY starts it if it's available or completed.
 ## Locked stages can be selected to see what they are, never played.
 ## A stage's stars are gold once it's won; the stage to play next shows warm, with a breathing
@@ -40,6 +42,8 @@ signal stage_chosen(stage: int)
 ## The player asked to play the guided first run again (the TUTORIAL button).
 signal tutorial_requested
 signal current_trial_requested
+## The player asked for the other chapter's chart (the chapter plaque, top left).
+signal chapter_switch_requested
 
 ## How a string of the path shows: a cool guide, the way to the stage to play next, or travelled.
 enum Leg { GUIDE, NEXT, LIT }
@@ -134,7 +138,6 @@ const UNLOCK_TIME: float = UNLOCK_STAGGER * 4 + UNLOCK_FLIGHT + UNLOCK_CHARGE + 
 const BURST_COLOURS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.C4]
 ## A won part's piece of the Scorpio, dormant until the final is won: each colour a few steps down
 ## the N ramp.
-const PIECE := "res://assets/art/scorpio_piece_%s.png"
 const DORMANT: Dictionary = {
 	Palette.N10: Palette.N7, Palette.N9: Palette.N6, Palette.N8: Palette.N6, Palette.N7: Palette.N5,
 	Palette.N6: Palette.N4, Palette.N5: Palette.N3, Palette.N4: Palette.N3, Palette.N3: Palette.N2,
@@ -144,15 +147,17 @@ const DORMANT: Dictionary = {
 const LIFE_FLASHES: Array[Vector2] = [Vector2(0.0, 0.1), Vector2(0.22, 0.32)]
 const LIFE_TIME: float = 0.5
 
-## Dormant pieces, built once per part.
+## Dormant pieces, built once per piece path.
 static var _dormant: Dictionary = {}
+## The chapter the static helpers draw when none is given: Scorpio, the first.
+static var _scorpio: ChapterDef
 
 ## Where a stage's number sits from its point.
 const NUMBER_OFFSET := Vector2i(10, -16)
 ## The TUTORIAL plaque sits this far in from the screen's top-right corner (like the HUD's MAP).
 const TUTORIAL_INSET: int = 10
 const MapButtonScene := preload("res://game/ui/map_button.tscn")
-## The final stage's crown point, above the figure.
+## Scorpio's crown point (each chapter has its own: ChapterDef.final_at).
 const FINAL_AT := Vector2i(90, 66)
 
 var _chapter: Chapter
@@ -171,6 +176,9 @@ var _pressed_play: bool = false
 var _pressed_tutorial: bool = false
 var _pressed_flow: bool = false
 var _flow: MapButton
+var _pressed_switch: bool = false
+## The plaque naming the other chapter (hidden while there's none to go to).
+var _switch: MapButton
 ## The TUTORIAL plaque (hidden until the guided first run has been finished).
 var _tutorial: MapButton
 ## The final's unlock playing: seconds since it began (-1: none), and whether one waits for the
@@ -215,17 +223,16 @@ func _ready() -> void:
 	_play.label_settings = HudText.primary(Palette.C1)
 	_motes = mote_layout()
 	# The paintings load before any draw call uses them.
-	ConstellationView.figure_rows()
-	for stage: int in Chapter.FINAL:
-		ConstellationView.figure_rows(piece_path(stage))
-		dormant_piece(stage)
-	_title.text = "SCORPIO"
-	_subtitle.text = "CHAPTER 1"
+	_load_paintings(_def())
 	_tutorial = MapButtonScene.instantiate()
 	_tutorial.name = "TutorialButton"
 	_tutorial.text = "TUTORIAL"
 	_tutorial.visible = false
 	add_child(_tutorial)
+	_switch = MapButtonScene.instantiate()
+	_switch.name = "ChapterButton"
+	_switch.visible = false
+	add_child(_switch)
 	if OS.is_debug_build():
 		_flow = MapButtonScene.instantiate()
 		_flow.name = "CurrentTrialButton"
@@ -252,7 +259,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ## Shows `chapter`, the point to play next selected.
 func setup(chapter: Chapter) -> void:
+	var changed: bool = _chapter == null or _chapter.def.id != chapter.def.id
 	_chapter = chapter
+	if changed:
+		_load_paintings(chapter.def)
+		# The background stars keep clear of this chapter's figure.
+		_space = null
+		_twinklers = twinkling_stars(_screen, chapter.def)
 	_travel.clear()
 	_light_point = -1
 	_then_travel_to = -1
@@ -273,8 +286,8 @@ func fit_screen(screen: Rect2i) -> void:
 	offset = Vector2(-screen.position.x, extra - lift)
 	var local := Rect2i(screen.position + Vector2i(0, lift), screen.size)
 	if local != _screen or _space == null:
-		_space = ImageTexture.create_from_image(space_image(local))
-		_twinklers = twinkling_stars(local)
+		_space = ImageTexture.create_from_image(space_image(local, _def()))
+		_twinklers = twinkling_stars(local, _def())
 	_screen = local
 	_place_heading()
 	_place_tutorial()
@@ -300,9 +313,9 @@ static func play_rect(screen: Rect2i = Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 
 ## The background stars of `screen` that twinkle: plain 1 px ones (not glints), one in
 ## SKY_TWINKLE_ODDS.
-static func twinkling_stars(screen: Rect2i) -> Array[Vector2i]:
+static func twinkling_stars(screen: Rect2i, def: ChapterDef = null) -> Array[Vector2i]:
 	var twinklers: Array[Vector2i] = []
-	for p: Vector2i in space_stars(screen):
+	for p: Vector2i in space_stars(screen, def):
 		var h: int = _hash(p) / STAR_ODDS
 		if h % GLINT_ODDS != 0 and (h / GLINT_ODDS) % SKY_TWINKLE_ODDS == 0:
 			twinklers.append(p)
@@ -372,7 +385,7 @@ func meteor_pixels() -> Dictionary[Vector2i, Color]:
 
 ## The space behind the chart for a visible screen `screen` (game coordinates; the image's 0,0 is
 ## screen.position). Opaque, cool palette colours only, the same pixels for the same place.
-static func space_image(screen: Rect2i) -> Image:
+static func space_image(screen: Rect2i, def: ChapterDef = null) -> Image:
 	var image := Image.create_empty(screen.size.x, screen.size.y, false, Image.FORMAT_RGBA8)
 	var a := Vector2(MILKY_WAY[0])
 	var along: Vector2 = (Vector2(MILKY_WAY[1]) - a).normalized()
@@ -380,7 +393,7 @@ static func space_image(screen: Rect2i) -> Image:
 		for x: int in screen.size.x:
 			var p := Vector2i(x, y) + screen.position
 			image.set_pixel(x, y, _space_colour(p, a, along))
-	for p: Vector2i in space_stars(screen):
+	for p: Vector2i in space_stars(screen, def):
 		var h: int = _hash(p) / STAR_ODDS
 		var local: Vector2i = p - screen.position
 		if h % GLINT_ODDS == 0:
@@ -399,9 +412,10 @@ static func label_areas(screen: Rect2i = Rect2i(Vector2i.ZERO, ScreenZones.SCREE
 	return [Rect2i(PANEL.position.x, INFO_Y + label_drop(screen) - 3, PANEL.size.x, 13), play_rect(screen).grow(3)]
 
 
-## Where the background stars are in `screen`: a fixed hash per pixel, clear of the stage points
-## and the stage panel.
-static func space_stars(screen: Rect2i) -> Array[Vector2i]:
+## Where the background stars are in `screen`: a fixed hash per pixel, clear of the chapter's
+## stars and stage points and the stage panel.
+static func space_stars(screen: Rect2i, def: ChapterDef = null) -> Array[Vector2i]:
+	def = _or_scorpio(def)
 	var stars: Array[Vector2i] = []
 	var title := Rect2i(40, TITLE_Y - heading_rise(screen) - 3, 100, SUBTITLE_Y - TITLE_Y + 13)
 	var labels: Array[Rect2i] = label_areas(screen)
@@ -411,12 +425,12 @@ static func space_stars(screen: Rect2i) -> Array[Vector2i]:
 			if _hash(p) % STAR_ODDS != 0 or title.has_point(p) or labels.any(func(r: Rect2i) -> bool: return r.has_point(p)):
 				continue
 			var clear: bool = true
-			for star: Vector2i in Scorpio.LANDMARKS + [FINAL_AT]:
+			for star: Vector2i in def.figure.landmarks + [def.final_at]:
 				if (star - p).length_squared() < STAR_CLEAR * STAR_CLEAR:
 					clear = false
 					break
 			for stage: int in Chapter.stage_count():
-				if Rect2i(stage_position(stage) + NUMBER_OFFSET - Vector2i(2, 2), Vector2i(12, 10)).has_point(p):
+				if Rect2i(stage_position(stage, def) + NUMBER_OFFSET - Vector2i(2, 2), Vector2i(12, 10)).has_point(p):
 					clear = false
 			if clear:
 				stars.append(p)
@@ -489,12 +503,12 @@ func is_unlocking() -> bool:
 
 ## Whether the whole Scorpio shows alive: once the final is won.
 func shows_figure() -> bool:
-	return _chapter != null and _chapter.is_completed(Chapter.FINAL)
+	return _chapter != null and _chapter.is_completed(Chapter.FINAL) and has_art(_def().figure.painting)
 
 
 ## Whether part `stage`'s piece of the Scorpio shows (dormant until the final is won).
 func shows_piece(stage: int) -> bool:
-	return _chapter != null and not Chapter.is_final(stage) and _chapter.is_completed(stage)
+	return _chapter != null and not Chapter.is_final(stage) and _chapter.is_completed(stage) and has_art(piece_path(stage, _def()))
 
 
 func is_figure_rising() -> bool:
@@ -502,23 +516,30 @@ func is_figure_rising() -> bool:
 
 
 ## Part `stage`'s piece of the Scorpio, in full colour (the chart's own coordinates).
-static func piece_path(stage: int) -> String:
-	return PIECE % Chapter.STAGES[stage]["map"]
+static func piece_path(stage: int, def: ChapterDef = null) -> String:
+	return _or_scorpio(def).piece_path(stage)
 
 
 ## Part `stage`'s piece, dormant: each colour stepped down (DORMANT).
-static func dormant_piece(stage: int) -> Texture2D:
-	if not _dormant.has(stage):
+static func dormant_piece(stage: int, def: ChapterDef = null) -> Texture2D:
+	var path: String = piece_path(stage, def)
+	if not _dormant.has(path):
 		# A copy: get_image() can hand back the texture's own cached image.
-		var image: Image = ConstellationView.painting(piece_path(stage)).get_image().duplicate()
+		var image: Image = ConstellationView.painting(path).get_image().duplicate()
 		image.convert(Image.FORMAT_RGBA8)
 		for y: int in image.get_height():
 			for x: int in image.get_width():
 				var c: Color = image.get_pixel(x, y)
 				if c.a > 0.5:
 					image.set_pixel(x, y, DORMANT.get(Color(c.r, c.g, c.b), c))
-		_dormant[stage] = ImageTexture.create_from_image(image)
-	return _dormant[stage]
+		_dormant[path] = ImageTexture.create_from_image(image)
+	return _dormant[path]
+
+
+## Whether a chapter's piece or painting at `path` has been drawn yet (a new chapter's art comes
+## after its stages: until then the chart leaves it out).
+static func has_art(path: String) -> bool:
+	return path != "" and ResourceLoader.exists(path)
 
 
 ## Whether the scorpion coming to life flashes C0 at `t` seconds.
@@ -531,11 +552,12 @@ static func life_flashing(t: float) -> bool:
 
 ## The final's unlock at `t` seconds: where each part's comet is (its head, along its line to the
 ## crown, or -1 before it leaves / after it lands).
-static func unlock_comet_heads(t: float) -> Array[int]:
+static func unlock_comet_heads(t: float, def: ChapterDef = null) -> Array[int]:
+	def = _or_scorpio(def)
 	var heads: Array[int] = []
 	for stage: int in Chapter.FINAL:
 		var k: float = (t - stage * UNLOCK_STAGGER) / UNLOCK_FLIGHT
-		var line: Array[Vector2i] = LinkLayer.line_pixels(stage_position(stage), FINAL_AT)
+		var line: Array[Vector2i] = LinkLayer.line_pixels(stage_position(stage, def), def.final_at)
 		heads.append(roundi(k * (line.size() - 1)) if k >= 0.0 and k < 1.0 else -1)
 	return heads
 
@@ -566,7 +588,7 @@ func is_lighting() -> bool:
 func select(stage: int) -> void:
 	if stage == _selected:
 		return
-	_travel = travel_pixels(_selected, stage)
+	_travel = travel_pixels(_selected, stage, _def())
 	_travel_time = 0.0
 	_travel_to = stage
 	_selected = stage
@@ -581,36 +603,41 @@ func can_play() -> bool:
 
 ## Where stage `stage`'s point is drawn (game coordinates): a part's first star from the tail,
 ## or the crown point for the final.
-static func stage_position(stage: int) -> Vector2i:
+static func stage_position(stage: int, def: ChapterDef = null) -> Vector2i:
+	def = _or_scorpio(def)
 	if Chapter.is_final(stage):
-		return FINAL_AT
-	return Scorpio.LANDMARKS[Chapter.stars(stage)[0]]
+		return def.final_at
+	return def.figure.landmarks[def.stages[stage]["stars"][0]]
 
 
 ## The stage a tap at `at` picks: the part owning the nearest star in reach, or the final on its
 ## crown point, or -1.
-static func stage_at(at: Vector2i) -> int:
+static func stage_at(at: Vector2i, def: ChapterDef = null) -> int:
+	def = _or_scorpio(def)
+	var chapter := Chapter.new(def)
 	var best: int = -1
 	var best_d: int = HIT_RADIUS * HIT_RADIUS + 1
-	for landmark: int in Scorpio.LANDMARKS.size():
-		var d: int = (Scorpio.LANDMARKS[landmark] - at).length_squared()
+	for landmark: int in def.figure.count():
+		var d: int = (def.figure.landmarks[landmark] - at).length_squared()
 		if d < best_d:
 			best_d = d
-			best = Chapter.stage_of(landmark)
-	if (FINAL_AT - at).length_squared() < best_d:
+			best = chapter.stage_of(landmark)
+	if (def.final_at - at).length_squared() < best_d:
 		best = Chapter.FINAL
 	return best
 
 
 ## The pixels a comet follows from one stage's point to another's: along the strings between
 ## parts, straight up to the crown for the final.
-static func travel_pixels(from_stage: int, to_stage: int) -> Array[Vector2i]:
+static func travel_pixels(from_stage: int, to_stage: int, def: ChapterDef = null) -> Array[Vector2i]:
+	def = _or_scorpio(def)
 	if Chapter.is_final(from_stage) or Chapter.is_final(to_stage):
-		return LinkLayer.line_pixels(stage_position(from_stage), stage_position(to_stage))
+		return LinkLayer.line_pixels(stage_position(from_stage, def), stage_position(to_stage, def))
 	var pixels: Array[Vector2i] = []
-	var marks: Array[int] = Scorpio.landmark_path(Chapter.stars(from_stage)[0], Chapter.stars(to_stage)[0])
+	var marks: Array[int] = def.figure.path(def.stages[from_stage]["stars"][0], def.stages[to_stage]["stars"][0])
+	var at: Array[Vector2i] = def.figure.landmarks
 	for k: int in range(1, marks.size()):
-		var line: Array[Vector2i] = LinkLayer.line_pixels(Scorpio.LANDMARKS[marks[k - 1]], Scorpio.LANDMARKS[marks[k]])
+		var line: Array[Vector2i] = LinkLayer.line_pixels(at[marks[k - 1]], at[marks[k]])
 		if not pixels.is_empty():
 			line.pop_front()
 		pixels.append_array(line)
@@ -631,9 +658,27 @@ func tutorial_target() -> Rect2i:
 	return _tutorial.target()
 
 
+## Shows the plaque to the other chapter, named `title` ("" hides it).
+func show_chapter_switch(title: String) -> void:
+	_switch.text = title
+	_switch.visible = title != ""
+
+
+func is_chapter_switch_shown() -> bool:
+	return _switch.visible
+
+
+## The chapter plaque's tap target (chart coordinates).
+func chapter_switch_target() -> Rect2i:
+	return _switch.target()
+
+
 func _place_tutorial() -> void:
+	if _switch != null:
+		_switch.position = Vector2(_screen.position + Vector2i(TUTORIAL_INSET, TUTORIAL_INSET))
 	if _flow != null:
-		_flow.position = Vector2(_screen.position + Vector2i(TUTORIAL_INSET, TUTORIAL_INSET))
+		# Debug only: below the chapter plaque.
+		_flow.position = Vector2(_screen.position + Vector2i(TUTORIAL_INSET, TUTORIAL_INSET + 18))
 	if _tutorial == null:
 		return
 	var width: int = _tutorial.plaque_size().x
@@ -654,9 +699,15 @@ func handle_pointer(event: InputEvent) -> bool:
 		return true
 	if _tutorial.visible and (_pressed_tutorial or (touch.pressed and tutorial_target().has_point(at))):
 		return _press_tutorial(touch, at)
+	if _switch.visible and (_pressed_switch or (touch.pressed and chapter_switch_target().has_point(at))):
+		_pressed_switch = touch.pressed
+		_switch.pressed = touch.pressed
+		if not touch.pressed and not touch.canceled and chapter_switch_target().has_point(at) and not is_unlocking() and not is_travelling():
+			chapter_switch_requested.emit()
+		return true
 	if touch.pressed:
 		_pressed_play = can_play() and play_rect(_screen).has_point(at)
-		_pressed_point = -1 if _pressed_play else stage_at(at)
+		_pressed_point = -1 if _pressed_play else stage_at(at, _def())
 		_chart.queue_redraw()
 		return _pressed_play or _pressed_point >= 0
 	var used: bool = _pressed_play or _pressed_point >= 0
@@ -667,7 +718,7 @@ func handle_pointer(event: InputEvent) -> bool:
 		return used
 	if _pressed_play and play_rect(_screen).has_point(at) and can_play():
 		stage_chosen.emit(_selected)
-	elif _pressed_point >= 0 and stage_at(at) == _pressed_point and not is_travelling() and not is_lighting() and not is_unlocking():
+	elif _pressed_point >= 0 and stage_at(at, _def()) == _pressed_point and not is_travelling() and not is_lighting() and not is_unlocking():
 		select(_pressed_point)
 	_pressed_play = false
 	_pressed_point = -1
@@ -820,9 +871,9 @@ func _refresh() -> void:
 			Chapter.PointState.AVAILABLE:
 				colour = Palette.C2
 		_numbers[stage].label_settings = HudText.secondary(colour)
-		_numbers[stage].position = Vector2(stage_position(stage) + NUMBER_OFFSET)
+		_numbers[stage].position = Vector2(stage_position(stage, _def()) + NUMBER_OFFSET)
 	if _chapter.has_stage(_selected):
-		_info.text = Chapter.stage_name(_selected)
+		_info.text = _chapter.stage_name(_selected)
 		_info.label_settings.font_color = Palette.C1
 	else:
 		_info.text = "COMING SOON"
@@ -851,7 +902,7 @@ func _centre(label: Label, y: int) -> void:
 
 func _draw_chart() -> void:
 	if _space == null:
-		_space = ImageTexture.create_from_image(space_image(_screen))
+		_space = ImageTexture.create_from_image(space_image(_screen, _def()))
 	_chart.draw_texture(_space, Vector2(_screen.position))
 	var motes: Dictionary[Vector2i, Color] = mote_pixels(_motes, _time)
 	for p: Vector2i in motes:
@@ -867,23 +918,23 @@ func _draw_chart() -> void:
 	_draw_figure()
 	var legs: Array[Leg] = string_legs()
 	for leg: Leg in [Leg.GUIDE, Leg.NEXT, Leg.LIT]:
-		for segment: int in Scorpio.segment_count():
+		for segment: int in _def().figure.segment_count():
 			if legs[segment] == leg:
 				_draw_string(segment, leg)
 	if unlock_phase(_unlock_time) == 2 and _unlock_time - (UNLOCK_TIME - UNLOCK_BURST) < UNLOCK_FLASH:
-		for segment: int in Scorpio.segment_count():
-			for p: Vector2i in LinkLayer.line_pixels(Scorpio.LANDMARKS[Scorpio.SEGMENTS[segment].x], Scorpio.LANDMARKS[Scorpio.SEGMENTS[segment].y]):
+		for segment: int in _def().figure.segment_count():
+			for p: Vector2i in LinkLayer.line_pixels(_def().figure.landmarks[_def().figure.segments[segment].x], _def().figure.landmarks[_def().figure.segments[segment].y]):
 				_dot(p, Palette.C0)
-	for landmark: int in Scorpio.LANDMARKS.size():
+	for landmark: int in _def().figure.landmarks.size():
 		_draw_star(landmark)
 	_draw_crown()
-	_draw_selection(stage_position(_selected))
+	_draw_selection(stage_position(_selected, _def()))
 	if _light_point >= 0:
 		var k: float = _light_time / LIGHT_TIME
 		var colour: Color = LIGHT_COLOURS[mini(floori(k * LIGHT_COLOURS.size()), LIGHT_COLOURS.size() - 1)]
 		var radius: int = 4 + roundi(k * LIGHT_GROWTH)
 		for d: Vector2i in ConstellationView.circle_pixels(radius):
-			_dot(stage_position(_light_point) + d, colour)
+			_dot(stage_position(_light_point, _def()) + d, colour)
 	_draw_comet()
 	_draw_unlock()
 	_draw_label_rules()
@@ -909,12 +960,12 @@ func _draw_label_rules() -> void:
 		_dot(Vector2i(end + side * 2, y), Palette.C0 if can_play() else Palette.M6)
 
 
-## How each string shows (Scorpio.SEGMENTS order): LIT between two won stars, NEXT through
+## How each string shows (_def().figure.segments order): LIT between two won stars, NEXT through
 ## and into the part to play next (from the won stars before it), GUIDE elsewhere.
 func string_legs() -> Array[Leg]:
 	var legs: Array[Leg] = []
-	for segment: int in Scorpio.segment_count():
-		var ends: Array[int] = Scorpio.segment_landmarks(segment)
+	for segment: int in _def().figure.segment_count():
+		var ends: Array[int] = _def().figure.segment_landmarks(segment)
 		var a: Chapter.PointState = _star_state(ends[0])
 		var b: Chapter.PointState = _star_state(ends[1])
 		if a == Chapter.PointState.COMPLETED and b == Chapter.PointState.COMPLETED:
@@ -928,18 +979,18 @@ func string_legs() -> Array[Leg]:
 
 ## A chart star shows its part stage's state.
 func _star_state(landmark: int) -> Chapter.PointState:
-	return _chapter.state(Chapter.stage_of(landmark))
+	return _chapter.state(_chapter.stage_of(landmark))
 
 
 ## A solid 1 px string: C1 when travelled, C3 on the way to the next stage, an N6 guide elsewhere.
 func _draw_string(segment: int, leg: Leg) -> void:
-	var ends: Array[int] = Scorpio.segment_landmarks(segment)
+	var ends: Array[int] = _def().figure.segment_landmarks(segment)
 	var colour: Color = Palette.N6
 	if leg == Leg.LIT:
 		colour = Palette.C1
 	elif leg == Leg.NEXT:
 		colour = Palette.C3
-	for p: Vector2i in LinkLayer.line_pixels(Scorpio.LANDMARKS[ends[0]], Scorpio.LANDMARKS[ends[1]]):
+	for p: Vector2i in LinkLayer.line_pixels(_def().figure.landmarks[ends[0]], _def().figure.landmarks[ends[1]]):
 		_dot(p, colour)
 
 
@@ -947,9 +998,9 @@ func _draw_string(segment: int, leg: Leg) -> void:
 ## play; cool and quieter while locked. A part's first star is its main star (main_star_pixels),
 ## wearing the breathing ring while it's the one to play.
 func _draw_star(landmark: int) -> void:
-	var at: Vector2i = Scorpio.LANDMARKS[landmark]
-	var stage: int = Chapter.stage_of(landmark)
-	if landmark == Chapter.stars(stage)[0]:
+	var at: Vector2i = _def().figure.landmarks[landmark]
+	var stage: int = _chapter.stage_of(landmark)
+	if landmark == _chapter.stars(stage)[0]:
 		_draw_main_star(stage)
 		return
 	match _chapter.state(stage):
@@ -971,7 +1022,7 @@ func _draw_star(landmark: int) -> void:
 ## Stage `stage`'s main star, animated: the point to play next flares and wears the ring; the others
 ## twinkle on their own beat.
 func _draw_main_star(stage: int) -> void:
-	var at: Vector2i = stage_position(stage)
+	var at: Vector2i = stage_position(stage, _def())
 	var state: Chapter.PointState = _chapter.state(stage)
 	var step: int = flare_step(_time) if state == Chapter.PointState.AVAILABLE else twinkle_step(stage, _time)
 	var dots: Dictionary[Vector2i, Color] = main_star_pixels(state, step)
@@ -993,9 +1044,9 @@ func _draw_crown() -> void:
 	if state == Chapter.PointState.AVAILABLE:
 		var dots: Dictionary[Vector2i, Color] = main_star_pixels(state, flare_step(_time))
 		for d: Vector2i in dots:
-			_dot(FINAL_AT + d, dots[d])
+			_dot(_def().final_at + d, dots[d])
 		for d: Vector2i in ConstellationView.circle_pixels(RING_RADIUS + 2 + _ring_frame()):
-			_dot(FINAL_AT + d, Palette.S4)
+			_dot(_def().final_at + d, Palette.S4)
 		return
 	var core: Color = Palette.N8
 	var arms: Color = Palette.N6
@@ -1005,11 +1056,11 @@ func _draw_crown() -> void:
 	elif state == Chapter.PointState.AVAILABLE:
 		core = Palette.C1
 		arms = Palette.C2
-		_ring(FINAL_AT)
+		_ring(_def().final_at)
 	for k: int in range(1, 4):
 		for d: Vector2i in [Vector2i(0, -k), Vector2i(0, k), Vector2i(-k, 0), Vector2i(k, 0)]:
-			_dot(FINAL_AT + d, core if k == 1 else arms)
-	_dot(FINAL_AT, Palette.C0 if state != Chapter.PointState.LOCKED else Palette.M6)
+			_dot(_def().final_at + d, core if k == 1 else arms)
+	_dot(_def().final_at, Palette.C0 if state != Chapter.PointState.LOCKED else Palette.M6)
 
 
 ## The final's unlock: the comets flying into the crown, the rings closing in on it, then the burst
@@ -1019,11 +1070,11 @@ func _draw_unlock() -> void:
 	if phase < 0:
 		return
 	if phase == 0:
-		var heads: Array[int] = unlock_comet_heads(_unlock_time)
+		var heads: Array[int] = unlock_comet_heads(_unlock_time, _def())
 		for stage: int in heads.size():
 			if heads[stage] < 0:
 				continue
-			var line: Array[Vector2i] = LinkLayer.line_pixels(stage_position(stage), FINAL_AT)
+			var line: Array[Vector2i] = LinkLayer.line_pixels(stage_position(stage, _def()), _def().final_at)
 			for k: int in range(TRAIL.size() - 1, -1, -1):
 				var i: int = heads[stage] - k
 				if i >= 0:
@@ -1038,20 +1089,20 @@ func _draw_unlock() -> void:
 		for ring: int in 3:
 			var radius: int = roundi((1.0 - fposmod(k * 2.0 + ring / 3.0, 1.0)) * 18.0) + 2
 			for d: Vector2i in ConstellationView.circle_pixels(radius):
-				_dot(FINAL_AT + d, Palette.C2 if ring == 0 else Palette.C3)
+				_dot(_def().final_at + d, Palette.C2 if ring == 0 else Palette.C3)
 		for d: Vector2i in [Vector2i.ZERO, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-			_dot(FINAL_AT + d, Palette.C0)
+			_dot(_def().final_at + d, Palette.C0)
 		return
 	var b: float = (_unlock_time - start - UNLOCK_CHARGE) / UNLOCK_BURST
 	var colour: Color = BURST_COLOURS[mini(floori(b * BURST_COLOURS.size()), BURST_COLOURS.size() - 1)]
 	for d: Vector2i in ConstellationView.circle_pixels(6 + roundi(b * UNLOCK_BURST_GROWTH)):
-		_dot(FINAL_AT + d, colour)
+		_dot(_def().final_at + d, colour)
 	var reach: int = 8 + roundi(b * 26.0)
 	for r: int in UNLOCK_RAYS:
 		var dir: Vector2 = Vector2.from_angle(TAU * r / UNLOCK_RAYS)
 		var tip := Vector2i((dir * reach).round())
 		var tail := Vector2i((dir * maxf(reach - 10.0, 4.0)).round())
-		for p: Vector2i in LinkLayer.line_pixels(FINAL_AT + tail, FINAL_AT + tip):
+		for p: Vector2i in LinkLayer.line_pixels(_def().final_at + tail, _def().final_at + tip):
 			_dot(p, colour)
 
 
@@ -1061,12 +1112,12 @@ func _draw_unlock() -> void:
 func _draw_figure() -> void:
 	if shows_figure():
 		if _figure_stage == Chapter.FINAL and life_flashing(_figure_time):
-			var rows: Dictionary = ConstellationView.figure_rows()
+			var rows: Dictionary = ConstellationView.figure_rows(_def().figure.painting)
 			for y: int in rows:
 				for x: int in rows[y]:
 					_dot(Vector2i(x, y), Palette.C0)
 			return
-		_chart.draw_texture(ConstellationView.painting(), Vector2.ZERO)
+		_chart.draw_texture(ConstellationView.painting(_def().figure.painting), Vector2.ZERO)
 		return
 	for stage: int in Chapter.FINAL:
 		if not shows_piece(stage):
@@ -1074,20 +1125,20 @@ func _draw_figure() -> void:
 		if stage == _figure_stage and _figure_time >= 0.0:
 			_draw_rising_piece(stage)
 		else:
-			_chart.draw_texture(dormant_piece(stage), Vector2.ZERO)
+			_chart.draw_texture(dormant_piece(stage, _def()), Vector2.ZERO)
 
 
 ## Part `stage`'s piece forming after its win, from its stars on the chart: what's inside the edge
 ## dormant, the edge C0 at the front and C1 behind; then one C0 flash.
 func _draw_rising_piece(stage: int) -> void:
-	var path: String = piece_path(stage)
+	var path: String = piece_path(stage, _def())
 	var rows: Dictionary = ConstellationView.figure_rows(path)
 	if _figure_time >= ConstellationView.FIGURE_RISE:
 		for y: int in rows:
 			for x: int in rows[y]:
 				_dot(Vector2i(x, y), Palette.C0)
 		return
-	var forming: Apparition = piece_apparition(stage)
+	var forming: Apparition = piece_apparition(stage, _def())
 	var radius: int = forming.radius_at(_figure_time / ConstellationView.FIGURE_RISE)
 	_chart.draw_texture(forming.formed(radius), Vector2.ZERO)
 	var edge: Dictionary[Vector2i, Color] = forming.edge(radius)
@@ -1096,11 +1147,37 @@ func _draw_rising_piece(stage: int) -> void:
 
 
 ## How part `stage`'s dormant piece forms on the chart: from that part's stars there.
-static func piece_apparition(stage: int) -> Apparition:
+static func piece_apparition(stage: int, def: ChapterDef = null) -> Apparition:
+	def = _or_scorpio(def)
 	var stars: Array[Vector2i] = []
-	for index: int in Chapter.stars(stage):
-		stars.append(Scorpio.LANDMARKS[index])
-	return Apparition.of(piece_path(stage) + "|dormant", dormant_piece(stage), stars)
+	for index: int in def.stages[stage]["stars"]:
+		stars.append(def.figure.landmarks[index])
+	return Apparition.of(piece_path(stage, def) + "|dormant", dormant_piece(stage, def), stars)
+
+
+## The chapter shown (Scorpio before setup).
+func _def() -> ChapterDef:
+	return _chapter.def if _chapter != null else _or_scorpio(null)
+
+
+static func _or_scorpio(def: ChapterDef) -> ChapterDef:
+	if def != null:
+		return def
+	if _scorpio == null:
+		_scorpio = ChapterDef.scorpio()
+	return _scorpio
+
+
+## Reads `def`'s paintings that exist before any draw call uses them, and titles the chart.
+func _load_paintings(def: ChapterDef) -> void:
+	if has_art(def.figure.painting):
+		ConstellationView.figure_rows(def.figure.painting)
+	for stage: int in Chapter.FINAL:
+		if has_art(piece_path(stage, def)):
+			ConstellationView.figure_rows(piece_path(stage, def))
+			dormant_piece(stage, def)
+	_title.text = def.title
+	_subtitle.text = "CHAPTER %d" % def.number
 
 
 func _ring(at: Vector2i) -> void:
