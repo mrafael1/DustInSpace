@@ -98,7 +98,7 @@ func test_a_new_run_drops_the_particles_in_the_air() -> void:
 
 
 func test_a_burst_throws_sparks_that_cool_and_vanish() -> void:
-	assert_true(run.launch(Vector2i(90, 150)))
+	assert_true(Fixtures.launch(run, Vector2i(90, 150)))
 	sequencer.advance(0.0)
 	assert_true(sparks.is_sparking())
 	sparks.advance(BurstSparks.SPARK_TIME)
@@ -107,7 +107,7 @@ func test_a_burst_throws_sparks_that_cool_and_vanish() -> void:
 
 func test_a_big_bang_starts_with_the_same_sparks() -> void:
 	run.force_next_big_bang = true
-	assert_true(run.launch(Vector2i(90, 150)))
+	assert_true(Fixtures.launch(run, Vector2i(90, 150)))
 	sequencer.advance(0.0)
 	assert_true(sparks.is_sparking(), "the surprise: it opens like any pack")
 

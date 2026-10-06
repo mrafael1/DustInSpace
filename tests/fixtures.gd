@@ -51,3 +51,22 @@ static func ids(stars: Array[Star]) -> Array[int]:
 	for star: Star in stars:
 		result.append(star.id)
 	return result
+
+
+## Launches like a player who reloads between launches: if the last launch made through this
+## helper left the slingshot empty, it first loads that kind again (or, if none of it is left, the
+## first owned kind in balance order), as the launcher did by itself before it stayed empty. A run
+## emptied any other way (a test setting loaded_pack = "") stays empty. Returns run.launch's result.
+static func launch(run: RunState, target: Vector2i) -> bool:
+	if run.loaded_pack == "" and run.has_meta(&"fixtures_reload"):
+		var kinds: Array[String] = [run.get_meta(&"fixtures_reload")]
+		kinds.append_array(run.balance.pack_kinds())
+		for kind: String in kinds:
+			if run.owned_packs.get(kind, 0) > 0 and run.load_pack(kind):
+				break
+	run.remove_meta(&"fixtures_reload")
+	var kind: String = run.loaded_pack
+	var launched: bool = run.launch(target)
+	if launched and run.loaded_pack == "":
+		run.set_meta(&"fixtures_reload", kind)
+	return launched

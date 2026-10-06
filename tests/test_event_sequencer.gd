@@ -38,7 +38,7 @@ func test_events_queue_and_play_in_order_on_advance() -> void:
 func test_event_keeps_its_arguments() -> void:
 	var events: Array[EventSequencer.RunEvent] = []
 	sequencer.event_played.connect(func(event: EventSequencer.RunEvent) -> void: events.append(event))
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	sequencer.advance(0.0)
 	var burst: EventSequencer.RunEvent = events.filter(
 		func(e: EventSequencer.RunEvent) -> bool: return e.type == &"pack_burst"
@@ -78,7 +78,7 @@ func test_events_emitted_while_playing_join_the_same_sequence() -> void:
 	sequencer.event_played.connect(func(_e: EventSequencer.RunEvent) -> void: sequencer.hold(0.3))
 	run.buy("red")
 	sequencer.advance(0.0)
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	sequencer.advance(1.0)
 	sequencer.advance(1.0)
 	sequencer.advance(1.0)

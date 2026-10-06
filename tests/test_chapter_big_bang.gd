@@ -22,7 +22,7 @@ func test_a_constellation_stage_never_rolls_one() -> void:
 	var bangs: Array = []
 	run.big_bang_started.connect(func(...args: Array) -> void: bangs.append(args))
 	for i: int in 3:
-		assert_true(run.launch(Vector2i(90, 150)))
+		assert_true(Fixtures.launch(run, Vector2i(90, 150)))
 	assert_eq(bangs.size(), 0, "a certain Big Bang never comes up")
 	assert_eq(run.stars.size(), 2 * 3 + 1 * 4, "every pack opened into stars")
 
@@ -32,7 +32,7 @@ func test_the_debug_trigger_still_forces_one() -> void:
 	var bangs: Array = []
 	run.big_bang_started.connect(func(...args: Array) -> void: bangs.append(args))
 	run.force_next_big_bang = true
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	assert_eq(bangs.size(), 1)
 
 
@@ -42,7 +42,7 @@ func test_the_plain_stage_keeps_them() -> void:
 	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(), Fixtures.SKY)
 	var bangs: Array = []
 	run.big_bang_started.connect(func(...args: Array) -> void: bangs.append(args))
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	assert_eq(bangs.size(), 1, "a certain Big Bang comes up")
 
 
@@ -55,7 +55,7 @@ func test_switching_them_off_keeps_the_packs_whose_roll_fails() -> void:
 		data["scorpio"]["big_bang"] = on
 		var run := RunState.new(Balance.from_dict(data), Fixtures.rng(3), Fixtures.SKY, StarMap.stinger())
 		for i: int in 3:
-			run.launch(Vector2i(90, 150))
+			Fixtures.launch(run, Vector2i(90, 150))
 		var sizes: Array[int] = []
 		for star: Star in run.stars:
 			sizes.append(star.size)

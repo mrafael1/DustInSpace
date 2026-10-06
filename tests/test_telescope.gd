@@ -80,12 +80,15 @@ func test_a_tap_in_the_sky_launches_exactly_one_pack_there() -> void:
 	assert_signal_emit_count(run, "pack_launched", 1, "a second tap doesn't launch again")
 
 
-func test_after_a_launch_the_next_planet_drops_in_and_it_aims_again() -> void:
+func test_after_a_launch_it_stays_empty_until_a_planet_is_picked_then_aims_again() -> void:
 	watch_signals(scope)
 	_tap(Vector2i(40, 120) - ORIGIN)
 	sequencer.advance(0.0)
 	assert_eq(scope.seated_pack(), "", "empty while the pack flies")
 	_play_until_idle()
+	assert_eq(scope.seated_pack(), "", "and after: blues are left, but none is loaded")
+	assert_false(scope.is_aiming(), "so touches go to the stars")
+	_pick("blue")
 	assert_signal_emitted_with_parameters(scope, "planet_seated", ["blue"])
 	assert_eq(scope.seated_pack(), "blue")
 	assert_true(scope.is_aiming(), "aiming again with the next planet")
@@ -170,6 +173,7 @@ func test_every_corner_and_edge_of_the_sky_launches_with_stars_inside() -> void:
 		for star: Star in run.stars:
 			assert_true(inner.has_point(star.position), "%s inside the sky" % star.position)
 		_play_until_idle()
+		_pick("blue")
 
 
 func test_the_barrel_points_at_the_target_in_direction_frames() -> void:
@@ -238,8 +242,9 @@ func test_aiming_takes_every_touch_so_no_star_is_linked() -> void:
 	var sky: SkyView = SkyScene.instantiate()
 	add_child_autofree(sky)
 	sky.setup(run, sequencer)
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	_play_until_idle()
+	_pick("blue")
 	assert_true(scope.is_aiming())
 	var local: Vector2i = run.stars[0].position - ORIGIN
 	# The telescope comes first (a later sibling in Main); what it takes never reaches the sky.
@@ -354,3 +359,10 @@ func _play_until_idle() -> void:
 			return
 		sequencer.advance(STEP)
 		scope.advance(STEP)
+
+
+## The player picks a planet in the HUD: it loads, and the telescope aims once it has seated.
+func _pick(kind: String) -> void:
+	run.load_pack(kind)
+	scope.request_aim()
+	_play_until_idle()

@@ -94,6 +94,7 @@ func test_the_whole_tutorial() -> void:
 	assert_true(run.tutorial.is_done())
 	# Free play: anything goes, packs are drawn as usual.
 	assert_true(run.launch(Vector2i(90, 160)))
+	assert_eq(run.loaded_pack, "", "and a launch leaves the slingshot empty, like any run")
 
 
 func test_a_buy_it_cant_afford_skips_to_free_play() -> void:

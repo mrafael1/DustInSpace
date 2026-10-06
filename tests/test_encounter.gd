@@ -52,7 +52,7 @@ func test_the_mark_guides_after_his_first_mark_until_the_next_link() -> void:
 	var run: RunState = _run(StarMap.tail())
 	assert_true(run.start_encounter())
 	assert_eq(steps, [] as Array[Array], "it waits for the mark")
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	assert_not_null(run.marked_star())
 	assert_eq(steps, [[Encounter.Threat.MARK, Encounter.Step.GUIDING]] as Array[Array])
 	var link: Array[int] = run.encounter_link()
@@ -70,7 +70,7 @@ func test_the_mark_guides_after_his_first_mark_until_the_next_link() -> void:
 func test_saving_the_mark_ends_it_too() -> void:
 	var run: RunState = _run(StarMap.tail())
 	run.start_encounter()
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	var target: Star = run.marked_star()
 	var link: Array[int] = [target.id, run.add_star(target.size, target.position + Vector2i(6, 0)).id, run.add_star(target.size, target.position + Vector2i(0, 6)).id]
 	assert_eq(run.encounter_link().has(target.id), true)
@@ -100,20 +100,20 @@ func test_the_circle_guides_from_the_first_real_circle_until_the_next_launch() -
 	run.play_hunt_intro()
 	assert_true(run.start_encounter())
 	assert_eq(steps, [] as Array[Array], "the intro's circle doesn't count")
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	assert_true(run.hunt.has_area())
 	assert_eq(steps, [[Encounter.Threat.HUNT, Encounter.Step.GUIDING]] as Array[Array], "the first real circle")
 	var spot: Vector2i = run.safe_launch_spot()
 	var clear: int = run.hunt.radius + RunState.ENCOUNTER_CLEARANCE
 	assert_gt((spot - run.hunt.centre).length_squared(), clear * clear, "the spot keeps the burst out of the circle")
 	assert_true(run.sky_rect.has_point(spot))
-	run.launch(spot)
+	Fixtures.launch(run, spot)
 	assert_eq(steps[-1], [Encounter.Threat.HUNT, Encounter.Step.DONE], "the next launch ends it, wherever it lands")
 
 
 func test_the_safe_spot_prefers_an_unlit_star_clear_of_the_circle() -> void:
 	var run: RunState = _run(StarMap.heart())
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	var spot: Vector2i = run.safe_launch_spot()
 	var on_star: bool = false
 	for i: int in run.scorpio.map.count():
@@ -131,7 +131,7 @@ func test_no_encounter_where_there_is_no_threat_to_meet() -> void:
 		var run: RunState = _run(map)
 		assert_false(run.start_encounter())
 		assert_null(run.encounter)
-		run.launch(Vector2i(100, 190))
+		Fixtures.launch(run, Vector2i(100, 190))
 		assert_eq(steps, [] as Array[Array])
 
 
@@ -142,7 +142,7 @@ func test_a_launch_at_the_safe_spot_keeps_every_new_star_out_of_the_circle() -> 
 	for kind: String in ["blue", "red"]:
 		for seed_value: int in range(1, 41):
 			var run := RunState.new(balance, Fixtures.rng(seed_value), Fixtures.SKY, StarMap.heart())
-			run.launch(Vector2i(100, 190))
+			Fixtures.launch(run, Vector2i(100, 190))
 			if run.is_over() or not run.hunt.has_area():
 				continue
 			run.owned_packs[kind] = maxi(run.owned_packs.get(kind, 0), 1)
@@ -160,7 +160,7 @@ func test_a_launch_at_the_safe_spot_keeps_every_new_star_out_of_the_circle() -> 
 			run.area_struck.connect(func(_at: Vector2i, stars: Array[Star]) -> void:
 				for star: Star in stars:
 					struck.append(star.id))
-			assert_true(run.launch(spot))
+			assert_true(Fixtures.launch(run, spot))
 			for id: int in born:
 				assert_false(struck.has(id), "%s, seed %d: star %d born at the safe spot was struck" % [kind, seed_value, id])
 	assert_gt(tried, 60)
@@ -169,7 +169,7 @@ func test_a_launch_at_the_safe_spot_keeps_every_new_star_out_of_the_circle() -> 
 
 func test_a_split_pack_is_safe_only_if_both_its_bursts_are() -> void:
 	var run: RunState = _run(StarMap.heart())
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	run.load_pack("blue")
 	var centre: Vector2i = run.hunt.centre
 	var just_clear: int = run.hunt.radius + StarScatter.RING_MAX + RunState.ENCOUNTER_CLEARANCE + 1
@@ -194,7 +194,7 @@ func test_main_plays_it_only_when_asked_and_the_guide_shows_then_goes() -> void:
 	var guide: TutorialView = (main.get_node("HUD") as Hud).tutorial_guide()
 	var finished: Array[int] = []
 	main.encounter_finished.connect(func(threat: int) -> void: finished.append(threat))
-	main.run.launch(Vector2i(100, 190))
+	Fixtures.launch(main.run, Vector2i(100, 190))
 	_play(main)
 	assert_eq(guide.text(), Hud.ENCOUNTER_LINES[Encounter.Threat.MARK], "the line")
 	assert_true(guide.has_hand(), "the hand on the marked star or acting the link out")
@@ -205,7 +205,7 @@ func test_main_plays_it_only_when_asked_and_the_guide_shows_then_goes() -> void:
 	assert_eq(finished, [Encounter.Threat.MARK] as Array[int])
 	assert_false(main.encounter, "not again this session")
 	var quiet: Main = _main("tail", false)
-	quiet.run.launch(Vector2i(100, 190))
+	Fixtures.launch(quiet.run, Vector2i(100, 190))
 	_play(quiet)
 	assert_eq((quiet.get_node("HUD") as Hud).tutorial_guide().text(), "", "no encounter unless asked")
 
@@ -215,7 +215,7 @@ func test_following_the_mark_guide_links_instead_of_launching() -> void:
 	main.switch_launcher(true)
 	var telescope: Telescope = main.get_node("Telescope")
 	var sky: SkyView = main.get_node("Sky")
-	main.run.launch(Vector2i(100, 190))
+	Fixtures.launch(main.run, Vector2i(100, 190))
 	_play(main)
 	for i: int in 60:
 		telescope.advance(1.0 / 30.0)

@@ -45,6 +45,7 @@ func test_launching_at_corners_and_edges_keeps_every_star_in_the_sky() -> void:
 		assert_gt(run.stars.size(), stars_before, "the pack burst at %s" % target)
 		for star: Star in run.stars:
 			assert_true(inner.has_point(star.position), "%s inside the sky" % star.position)
+		run.load_pack("blue")
 		_play_until_idle()
 
 
@@ -102,7 +103,7 @@ func test_presses_off_the_pack_are_left_for_others() -> void:
 
 
 func test_no_pull_while_a_sequence_plays() -> void:
-	run.launch(Vector2i(90, 160))
+	Fixtures.launch(run, Vector2i(90, 160))
 	assert_true(sequencer.is_busy())
 	assert_false(_press(Vector2i.ZERO))
 
@@ -110,7 +111,7 @@ func test_no_pull_while_a_sequence_plays() -> void:
 func test_a_sequence_starting_cancels_a_pull() -> void:
 	_press(Vector2i.ZERO)
 	_drag(Vector2(0, 20))
-	run.launch(Vector2i(90, 160))  # e.g. the debug key
+	Fixtures.launch(run, Vector2i(90, 160))  # e.g. the debug key
 	assert_false(launcher.is_pulling())
 	_release()
 	assert_eq(run.owned_packs["blue"], 11, "the swallowed release launches nothing more")
@@ -135,7 +136,7 @@ func test_the_pack_flies_trembles_then_bursts() -> void:
 	_step()
 	_step()
 	assert_false(flying.visible, "gone once pack_burst plays")
-	assert_eq(launcher.shown_pack(), "blue", "the next pack is in the fork")
+	assert_eq(launcher.shown_pack(), "", "the fork stays empty until the player loads a pack")
 
 
 func test_a_restart_mid_flight_or_tremble_clears_the_flying_pack() -> void:
@@ -184,7 +185,7 @@ func test_a_big_bang_bursts_the_flying_pack_too() -> void:
 	_pull_and_release(Vector2(0, 12))
 	_play_until_idle()
 	assert_false((launcher.get_node("FlyingPack") as PackView).visible)
-	assert_eq(launcher.shown_pack(), "blue")
+	assert_eq(launcher.shown_pack(), "")
 
 
 func test_pack_pixels_are_whole_and_from_their_own_ramp() -> void:

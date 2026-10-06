@@ -49,7 +49,7 @@ func test_shipped_hunting_radius_matches_the_ring_and_boundary_on_every_hunting_
 		run = main.run
 		_play()
 		assert_eq(run.hunt.radius, balance.hunt_radius, map_id)
-		assert_true(run.launch(Vector2i(100, 190)))
+		assert_true(Fixtures.launch(run, Vector2i(100, 190)))
 		_play()
 		assert_true(orion.has_area(), map_id)
 		assert_eq(orion.get("_area_radius"), balance.hunt_radius, "ring uses shipped tuning: " + map_id)
@@ -60,7 +60,7 @@ func test_shipped_hunting_radius_matches_the_ring_and_boundary_on_every_hunting_
 
 
 func test_the_first_burst_marks_a_ring_with_its_line_of_text() -> void:
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	sequencer.advance(0.0)
 	var waited: float = 0.0
 	while not orion.has_area() and waited < 5.0:
@@ -105,7 +105,7 @@ func test_the_ring_is_a_clean_symmetric_dotted_circle() -> void:
 
 
 func test_the_next_launch_strikes_the_ring_and_marks_a_new_one() -> void:
-	run.launch(Vector2i(100, 190))
+	Fixtures.launch(run, Vector2i(100, 190))
 	_play()
 	var centre: Vector2i = run.hunt.centre
 	var inside: Star = run.add_star(Star.Size.SMALL, centre)
@@ -115,7 +115,7 @@ func test_the_next_launch_strikes_the_ring_and_marks_a_new_one() -> void:
 	assert_not_null(sky.star_view(inside.id))
 	var hit: Array[Star] = []
 	run.area_struck.connect(func(_at: Vector2i, stars: Array[Star]) -> void: hit.append_array(stars))
-	run.launch(Vector2i(150, 230) if centre.x < 110 else Vector2i(40, 230))
+	Fixtures.launch(run, Vector2i(150, 230) if centre.x < 110 else Vector2i(40, 230))
 	assert_true(hit.has(inside))
 	sequencer.advance(0.0)
 	var waited: float = 0.0

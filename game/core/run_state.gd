@@ -8,6 +8,7 @@ extends RefCounted
 ## one star to the next, must be at most scorpio.max_link_distance long.
 
 signal pack_bought(kind: String, dust_after: int)
+## `kind` is now in the slingshot; "" when a launch left it empty.
 signal pack_loaded(kind: String)
 signal pack_launched(kind: String, burst_position: Vector2i)
 signal pack_burst(kind: String, burst_position: Vector2i, stars: Array[Star])
@@ -371,7 +372,7 @@ func launch(target: Vector2i) -> bool:
 			encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null and not orion.has_target():
 		_orion_mark()
-	_auto_load()
+	_empty_slingshot()
 	_check_end()
 	if tutorial != null and tutorial.launched():
 		tutorial_step.emit(tutorial.step)
@@ -909,6 +910,17 @@ func _auto_load() -> void:
 			pack_loaded.emit(kind)
 			return
 	loaded_pack = ""
+
+
+## After a launch the slingshot stays empty until the player loads or buys a planet (playtest: an
+## automatic reload made the next touch launch a planet they didn't pick). The guided run keeps
+## reloading until free play: its scripted launches need their planet.
+func _empty_slingshot() -> void:
+	if tutorial != null and tutorial.step != Tutorial.Step.DONE:
+		_auto_load()
+	elif loaded_pack != "":
+		loaded_pack = ""
+		pack_loaded.emit("")
 
 
 func _check_end() -> void:

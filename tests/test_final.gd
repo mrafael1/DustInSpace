@@ -61,7 +61,7 @@ func test_no_entrance_on_other_stages_or_once_play_began() -> void:
 		assert_false(events.has(&"boss_appeared"), map.id)
 	events.clear()
 	var started: RunState = _final_run()
-	assert_true(started.launch(Vector2i(100, 150)))
+	assert_true(Fixtures.launch(started, Vector2i(100, 150)))
 	_record(started)
 	started.play_boss_intro()
 	assert_false(events.has(&"boss_appeared"), "the sky has stars: play began")
@@ -70,7 +70,7 @@ func test_no_entrance_on_other_stages_or_once_play_began() -> void:
 func test_the_threats_run_as_on_the_claws() -> void:
 	var run: RunState = _final_run()
 	_record(run)
-	assert_true(run.launch(Vector2i(100, 150)))
+	assert_true(Fixtures.launch(run, Vector2i(100, 150)))
 	assert_true(events.has(&"area_marked"), "the first launch marks a circle")
 	assert_true(events.has(&"star_marked"), "and a star")
 

@@ -94,7 +94,7 @@ func test_the_countdown_resets_after_each_volley_and_the_mark_keeps_going() -> v
 		link_index[0] = i + 1
 		_add_loose(run, 2)
 		if not run.orion.has_target():
-			run.launch(Vector2i(120, 200))
+			Fixtures.launch(run, Vector2i(120, 200))
 		run.link(_corner_trio(run))
 	assert_eq(fired, [3, 6] as Array[int])
 	assert_eq(run.volley.links_left(), 3)
@@ -119,7 +119,7 @@ func test_every_star_leaves_once_over_many_seeds() -> void:
 		for launch: int in 8:
 			if run.is_over():
 				break
-			run.launch(Vector2i(40 + 15 * launch, 120 + 12 * launch))
+			Fixtures.launch(run, Vector2i(40 + 15 * launch, 120 + 12 * launch))
 			_link_any(run)
 		for id: int in gone:
 			assert_eq(gone.count(id), 1, "seed %d: star %d destroyed or paid once" % [seed_value, id])
@@ -129,7 +129,7 @@ func test_the_volley_and_the_arrow_never_hit_landmarks() -> void:
 	for seed_value: int in range(1, 11):
 		var run: RunState = _combined_run(6, seed_value)
 		for launch: int in 3:
-			run.launch(Vector2i(60 + 30 * launch, 150))
+			Fixtures.launch(run, Vector2i(60 + 30 * launch, 150))
 		run.volley.counted = 2
 		var lit: Array[bool] = run.scorpio.lit.duplicate()
 		var hit: Array[Star] = []
@@ -162,7 +162,7 @@ func test_a_sun_clear_takes_the_mark_and_the_volley_finds_an_empty_sky() -> void
 	assert_lt(events.find(&"sky_cleared"), events.find(&"volley_fired"))
 	assert_false(events.has(&"star_marked"), "nothing to mark")
 	assert_eq(run.volley.links_left(), 3, "it still counted")
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	assert_true(run.orion.has_target(), "the next burst gets a mark")
 
 
@@ -174,7 +174,7 @@ func test_a_big_bang_takes_the_mark_without_moving_the_countdown() -> void:
 	var shot: Array[Star] = []
 	run.star_shot.connect(func(star: Star) -> void: shot.append(star))
 	run.force_next_big_bang = true
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	assert_true(run.stars.is_empty())
 	assert_false(run.orion.has_target(), "the mark went with the sky")
 	assert_eq(run.volley.links_left(), left)
@@ -200,7 +200,7 @@ func test_a_full_volley_leaves_nothing_to_mark_until_the_next_burst() -> void:
 	assert_false(victims.has(target), "the volley doesn't take it again")
 	assert_true(run.stars.is_empty(), "then the volley takes every other loose star")
 	assert_false(run.orion.has_target())
-	run.launch(Vector2i(90, 150))
+	Fixtures.launch(run, Vector2i(90, 150))
 	assert_true(run.orion.has_target())
 
 
@@ -299,7 +299,7 @@ func test_the_same_seed_repeats_the_marks_and_victims_and_packs_never_shift() ->
 				seen.append("v%d" % star.id))
 		var sky: Array[String] = []
 		for launch: int in 4:
-			run.launch(Vector2i(90, 150))
+			Fixtures.launch(run, Vector2i(90, 150))
 			for star: Star in run.stars:
 				sky.append("%d:%d:%s" % [star.id, star.size, star.position])
 			if with_threats:
@@ -347,7 +347,7 @@ func _stuck_run() -> RunState:
 
 func _launch_until_marked(run: RunState) -> void:
 	while not run.orion.has_target():
-		assert_true(run.launch(Vector2i(90, 150)))
+		assert_true(Fixtures.launch(run, Vector2i(90, 150)))
 
 
 ## `count` loose big stars down the left edge, below Orion's corner and clear of the corner trios.
