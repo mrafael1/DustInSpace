@@ -39,7 +39,8 @@ var volley: String = ""
 ## Orion marks a hunting area (#71) here: each launch, once its pack bursts, his arrow strikes it
 ## and destroys the loose stars inside, then he marks a new one.
 var hunt: bool = false
-## Whether the stage opens by playing its threats' intros (the volley's, the hunting area's). The
+## Whether the stage opens by playing its threats' intros (the volley's, the hunting area's, Leo's
+## heat or cold's). The
 ## Claws (#74) bring threats each earlier stage already introduced, so they open without one.
 var intros: bool = true
 ## The chapter's boss stage (the final): Orion opens it by showing himself and fights for the sky.
@@ -406,7 +407,7 @@ static func leo() -> StarMap:
 	return map
 
 
-## Leo, stage 1: the Tail. It teaches the heat alone, and nothing burns: over the whole stage,
+## Leo, stage 1: the Tail. It teaches the heat alone (its intro shows it), and nothing burns: over the whole stage,
 ## stars grow a size each launch, and a big one stays big. The tail runs from the haunch (lit,
 ## upper right) down to the left and curls up at its tuft (Denebola, big): stars saved by the tuft
 ## ripen into the big ones it needs. Five to light. Strings are 28-33 px.
@@ -419,7 +420,6 @@ static func leo_tail() -> StarMap:
 	map.sizes = [Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG]
 	map.starting_lit = [0]
 	map.painting = LEO_PART % "tail"
-	map.intros = false
 	map.heat_change = 1
 	return map
 
@@ -442,7 +442,7 @@ static func leo_haunch() -> StarMap:
 	return map
 
 
-## Leo, stage 3: the Heart. The cold arrives: each launch every loose star shrinks a size (big to
+## Leo, stage 3: the Heart. The cold arrives (its intro shows it): each launch every loose star shrinks a size (big to
 ## medium to small), and a small one fades, lost for nothing. From the mane (lit, upper right) the
 ## chest runs down to Regulus (big) in the middle, then the fore leg down to the paw (omicron), the
 ## breast branching left. A big for Regulus has one launch before it shrinks; the small paw is fed
@@ -456,7 +456,6 @@ static func leo_heart() -> StarMap:
 	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM]
 	map.starting_lit = [0]
 	map.painting = LEO_PART % "heart"
-	map.intros = false
 	map.heat_change = -1
 	map.heat_burns = true
 	return map

@@ -151,6 +151,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_volley_intro()
 	# So does a hunting stage (#71): the whole cycle once, with a demo launch.
 	run.play_hunt_intro()
+	# And a stage bringing Leo's heat or cold: the effect shown once on a few stars.
+	run.play_heat_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)

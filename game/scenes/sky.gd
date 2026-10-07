@@ -65,6 +65,8 @@ const HIT_RADIUS: int = 11
 
 ## Orion's volley intro (#70): how long its stars show before the volley takes them.
 const INTRO_HOLD: float = 0.9
+## Leo's heat intro: the beat between one change of its stars and the next (or their leaving).
+const HEAT_INTRO_BEAT: float = 0.55
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -275,6 +277,21 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_sequencer.hold(INTRO_HOLD)
 		&"hunt_intro_burst":
 			_burst(event.args[0], event.args[1])
+		&"heat_intro_placed":
+			for star: Star in event.args[0]:
+				_spawn(star)
+			# A beat to see the stars before the heat changes them.
+			_sequencer.hold(INTRO_HOLD)
+		&"heat_intro_paused":
+			_sequencer.hold(HEAT_INTRO_BEAT)
+		&"heat_intro_cleared":
+			# What the heat left fades out once it has been seen: no reward, nothing burst.
+			_sequencer.hold(StarView.DISSOLVE_TIME)
+			for star: Star in event.args[0]:
+				var view: StarView = _views.get(star.id)
+				if view != null:
+					_views.erase(star.id)
+					view.dissolve()
 		&"area_marked":
 			_orion.mark_area(event.args[0], event.args[1])
 			_sequencer.hold(OrionView.MARK_TIME)
