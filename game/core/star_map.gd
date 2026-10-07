@@ -406,7 +406,7 @@ static func leo() -> StarMap:
 	return map
 
 
-## Leo, stage 1: the Tail. It teaches the heat alone, and nothing burns: over the whole stage,
+## Leo, stage 1: the Tail. It introduces the heat (its guided encounter) alone, and nothing burns: over the whole stage,
 ## stars grow a size each launch, and a big one stays big. The tail runs from the haunch (lit,
 ## upper right) down to the left and curls up at its tuft (Denebola, big): stars saved by the tuft
 ## ripen into the big ones it needs. Five to light. Strings are 28-33 px.
@@ -419,7 +419,6 @@ static func leo_tail() -> StarMap:
 	map.sizes = [Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG]
 	map.starting_lit = [0]
 	map.painting = LEO_PART % "tail"
-	map.intros = false
 	map.heat_change = 1
 	return map
 
@@ -442,7 +441,7 @@ static func leo_haunch() -> StarMap:
 	return map
 
 
-## Leo, stage 3: the Heart. The cold arrives: each launch every loose star shrinks a size (big to
+## Leo, stage 3: the Heart. The cold arrives (its guided encounter): each launch every loose star shrinks a size (big to
 ## medium to small), and a small one fades, lost for nothing. From the mane (lit, upper right) the
 ## chest runs down to Regulus (big) in the middle, then the fore leg down to the paw (omicron), the
 ## breast branching left. A big for Regulus has one launch before it shrinks; the small paw is fed
@@ -451,12 +450,11 @@ static func leo_heart() -> StarMap:
 	var map := StarMap.new()
 	map.id = "leo_heart"
 	map.title = "HEART"
-	map.landmarks = [Vector2i(146, 100), Vector2i(124, 124), Vector2i(104, 150), Vector2i(118, 180), Vector2i(142, 204), Vector2i(76, 166)]
+	map.landmarks = [Vector2i(146, 106), Vector2i(124, 130), Vector2i(104, 156), Vector2i(118, 186), Vector2i(142, 210), Vector2i(76, 172)]
 	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5)]
 	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM]
 	map.starting_lit = [0]
 	map.painting = LEO_PART % "heart"
-	map.intros = false
 	map.heat_change = -1
 	map.heat_burns = true
 	return map
