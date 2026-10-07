@@ -881,7 +881,7 @@ func play_volley_intro() -> void:
 
 ## Leo's heat intro, as the stage that brings the heat or the cold opens (the scene calls it once
 ## its views are bound): it shows the effect, not a tutorial. A small, a medium and a big star in
-## the open sky, away from the constellation, then the heat acts on them as a launch would, without one, while it changes any (at
+## the middle of the sky (playtest: easier to see there than off in a corner), then the heat acts on them as a launch would, without one, while it changes any (at
 ## most HEAT_INTRO_PULSES times): the heat grows them, the cold shrinks them and fades the small one,
 ## until none are left. What's left (the heat's bigs, where nothing burns) leaves the sky. It pays
 ## nothing, uses no pack, doesn't turn day and night, and its layout has its own RNG stream, so packs
@@ -892,7 +892,7 @@ func play_heat_intro() -> void:
 		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ HEAT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
-	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), _open_spot(), sky_rect, [], layout, scorpio.landmark_positions())
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), StarScatter.inner_rect(sky_rect).get_center(), sky_rect, [], layout, scorpio.landmark_positions())
 	# As they were placed: the heat changes the stars themselves before the views show them.
 	var shown: Array[Star] = []
 	for i: int in spots.size():
@@ -911,25 +911,6 @@ func play_heat_intro() -> void:
 		var left: Array[Star] = stars.duplicate()
 		stars.clear()
 		heat_intro_cleared.emit(left)
-
-
-## The spot of the inner sky furthest from every landmark (nearest the middle on a tie), so stars
-## shown there don't read as part of the constellation.
-func _open_spot() -> Vector2i:
-	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
-	var best: Vector2i = inner.get_center()
-	var best_clear: int = -1
-	for y: int in range(inner.position.y, inner.end.y, SAFE_SPOT_GRID):
-		for x: int in range(inner.position.x, inner.end.x, SAFE_SPOT_GRID):
-			var spot := Vector2i(x, y)
-			var clear: int = 1 << 30
-			for at: Vector2i in scorpio.landmark_positions():
-				clear = mini(clear, (spot - at).length_squared())
-			var nearer: bool = (spot - inner.get_center()).length_squared() < (best - inner.get_center()).length_squared()
-			if clear > best_clear or (clear == best_clear and nearer):
-				best = spot
-				best_clear = clear
-	return best
 
 
 ## Orion's hunting intro (#71), as the Heart opens (the scene calls it once its views are bound):
