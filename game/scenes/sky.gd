@@ -576,8 +576,9 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 	_sequencer.hold(StarView.DRIFT_TIME)
 
 
-## The heat (or the cold): every changed star flares and shows its new size where it stands; a lost
-## one bursts into embers (a big burning out) or a fall of frost (a small fading), for nothing.
+## The heat (or the cold): every changed star charges and pops to its new size where it stands; a
+## lost one charges the same, then bursts into embers (a big burning out) or a fall of frost (a
+## small fading), for nothing.
 func _resize(changes: Array[StarHeat.Change]) -> void:
 	var hold: float = StarView.RESIZE_TIME
 	for change: StarHeat.Change in changes:
@@ -596,6 +597,7 @@ func _resize(changes: Array[StarHeat.Change]) -> void:
 			else:
 				_heat.flash_burn(Vector2i(v.position))
 				star_burned.emit(Vector2i(v.position)))
+		view.charge(fades)
 		view.explode(StarView.RESIZE_FLARE)
 		hold = maxf(hold, StarView.RESIZE_FLARE + StarView.DISSOLVE_TIME)
 	_sequencer.hold(hold)
