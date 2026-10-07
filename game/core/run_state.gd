@@ -18,6 +18,9 @@ signal pack_split(kind: String, at: Vector2i, points: Array[Vector2i])
 ## The burst(s) settled, then the current shifted loose stars. Positions are event snapshots.
 ## A move flagged drained took its star out of the sky, for nothing.
 signal stars_shifted(moves: Array[StarCurrent.Move])
+## The heat (Leo) changed the size of loose stars once the launch resolved (after any current).
+## A change flagged lost took its star out of the sky, for nothing.
+signal stars_resized(changes: Array[StarHeat.Change])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
@@ -113,6 +116,8 @@ var tutorial: Tutorial
 ## The stage's guided encounter with the threat it introduces (start_encounter), or null.
 var encounter: Encounter
 var current: StarCurrent
+## Leo's heat (chapter 3), over the whole stage, or null when the map has none.
+var heat: StarHeat
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
 var _current_reserved: Dictionary[int, Vector2i] = {}
 ## The guided run's Sun has rekindled once (its own target is spent).
@@ -148,11 +153,10 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			hunt = Hunt.new(balance.hunt_radius, run_seed)
 		var step: int = balance.current_step_for(scorpio.map.id)
 		if scorpio.map.current_region.has_area() and step > 0:
-			var region: Rect2i = scorpio.map.current_region
-			var area := Rect2i(region.position + scorpio.shift, region.size)
-			if region.position.y <= Scorpio.HOME_SKY.position.y and region.end.y >= Scorpio.HOME_SKY.end.y:
-				area = Rect2i(area.position.x, p_sky_rect.position.y, area.size.x, p_sky_rect.size.y)
+			var area: Rect2i = _stage_area(scorpio.map.current_region)
 			current = StarCurrent.new(area, scorpio.map.current_direction * step, scorpio.map.current_drains, scorpio.map.current_turns)
+		if scorpio.map.heat_change != 0:
+			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -303,6 +307,19 @@ func loss_reasons() -> Array[LossReason]:
 	return reasons
 
 
+## Pure preview of what the heat does to the stars now in the sky on the next launch (a star a
+## current drains is gone first). The stars that launch brings don't change.
+func heat_preview() -> Array[StarHeat.Change]:
+	if heat == null:
+		return []
+	var positions: Dictionary[int, Vector2i] = current_preview()
+	var remaining: Array[Star] = []
+	for star: Star in stars:
+		if current == null or not current.leaves(star.position, positions[star.id]):
+			remaining.append(star)
+	return heat.preview(remaining)
+
+
 ## Pure preview: no RNG draws and no changes to stars. New arrivals yield to these destinations.
 func current_preview() -> Dictionary[int, Vector2i]:
 	if current == null:
@@ -372,6 +389,8 @@ func launch(target: Vector2i) -> bool:
 		if not scripted.is_empty():
 			result.big_bang = false
 			result.sizes = scripted
+	# The stars this launch brings have ids from here on: the heat leaves them be until the next.
+	var first_new_id: int = _next_star_id
 	var points: Array[Vector2i] = []
 	if pack.bursts > 1:
 		points = StarScatter.split_points(burst, pack.burst_spread, pack.bursts, sky_rect)
@@ -386,6 +405,8 @@ func launch(target: Vector2i) -> bool:
 		_burst(kind, burst, result.sizes)
 	if current != null and not result.big_bang:
 		_shift_stars()
+	if heat != null and not result.big_bang:
+		_heat_stars(first_new_id)
 	if current != null:
 		current.turn()
 	_current_reserved.clear()
@@ -741,6 +762,31 @@ func _shift_stars() -> void:
 			stars.erase(find_star(move.star_id))
 	if not shifted.is_empty():
 		stars_shifted.emit(shifted)
+
+
+func _heat_stars(first_new_id: int) -> void:
+	var skip: Dictionary[int, bool] = {}
+	for star: Star in stars:
+		if star.id >= first_new_id:
+			skip[star.id] = true
+	var changes: Array[StarHeat.Change] = heat.preview(stars, skip)
+	for change: StarHeat.Change in changes:
+		var star: Star = find_star(change.star_id)
+		if change.lost:
+			stars.erase(star)
+		else:
+			star.size = change.to
+	if not changes.is_empty():
+		stars_resized.emit(changes)
+
+
+## A stage region in home layout, placed in this sky: shifted with the map, and one spanning the
+## home sky's full height spans this sky's.
+func _stage_area(region: Rect2i) -> Rect2i:
+	var area := Rect2i(region.position + scorpio.shift, region.size)
+	if region.position.y <= Scorpio.HOME_SKY.position.y and region.end.y >= Scorpio.HOME_SKY.end.y:
+		area = Rect2i(area.position.x, sky_rect.position.y, area.size.x, sky_rect.size.y)
+	return area
 
 
 ## Scorpio's rekindle or completion: every star left in the sky goes, for `dust_per_star` each.

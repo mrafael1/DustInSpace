@@ -47,6 +47,8 @@ signal link_cancelled
 signal star_exploded(at: Vector2i)
 ## A draining current took a star at `at`, on the field's edge. Feedback only.
 signal star_drained(at: Vector2i)
+## The heat burned a star out at `at` (or the cold faded it). Feedback only.
+signal star_burned(at: Vector2i)
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -86,6 +88,7 @@ var _completion_waiting: bool = false
 @onready var _star_layer: Node2D = $StarLayer
 @onready var _orion: OrionView = $OrionLayer
 @onready var _current: CurrentView = $CurrentLayer
+@onready var _heat: HeatView = $HeatLayer
 
 
 func _ready() -> void:
@@ -210,6 +213,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_burst(event.args[1], event.args[2])
 		&"stars_shifted":
 			_shift(event.args[0])
+		&"stars_resized":
+			_resize(event.args[0])
 		&"combo_collected":
 			_link_layer.flash_collected(_positions(event.args[1]))
 			_dissolve(event.args[1])
@@ -550,6 +555,26 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 			star_drained.emit(Vector2i(v.position)))
 		view.drain_to(_edge_point(move.to))
 	_sequencer.hold(StarView.DRIFT_TIME)
+
+
+## The heat: every changed star flares and shows its new size where it stands; a lost one bursts
+## into embers, for nothing.
+func _resize(changes: Array[StarHeat.Change]) -> void:
+	var hold: float = StarView.RESIZE_TIME
+	for change: StarHeat.Change in changes:
+		var view: StarView = _views.get(change.star_id)
+		if view == null:
+			continue
+		if not change.lost:
+			view.resize_to(change.to)
+			continue
+		_views.erase(change.star_id)
+		view.exploded.connect(func(v: StarView) -> void:
+			_heat.flash_burn(Vector2i(v.position))
+			star_burned.emit(Vector2i(v.position)))
+		view.explode(StarView.RESIZE_FLARE)
+		hold = maxf(hold, StarView.RESIZE_FLARE + StarView.DISSOLVE_TIME)
+	_sequencer.hold(hold)
 
 
 ## Where a drained star's path meets the field's edge: the first pixel outside it.

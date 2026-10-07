@@ -15,6 +15,9 @@ const PART_PAINTING := "res://assets/art/scorpio_part_%s.png"
 const AQUARIUS_FIGURE := "res://assets/art/aquarius_figure.png"
 ## An Aquarius stage's own painting (tools/art/build_aquarius_figure.py).
 const AQUARIUS_PART := "res://assets/art/aquarius_part_%s.png"
+## Chapter 3's Leo and its stages' paintings, once drawn (a missing one is left out).
+const LEO_FIGURE := "res://assets/art/leo_figure.png"
+const LEO_PART := "res://assets/art/leo_part_%s.png"
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -52,6 +55,11 @@ var current_direction: Vector2i = Vector2i.LEFT
 ## A flow that turns after every launch takes these ways in order (the Jar's tide: left, right).
 ## Empty: it always runs current_direction.
 var current_turns: Array[Vector2i] = []
+## Leo's heat (chapter 3), over the whole stage: once each launch resolves, every loose star
+## changes a size (StarHeat). +1: the heat, stars grow; -1: the cold, they shrink; 0: none.
+var heat_change: int = 0
+## A star pushed past the last size is lost: a big burns out in the heat, a small fades in the cold.
+var heat_burns: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -363,6 +371,74 @@ static func aquarius() -> StarMap:
 	return map
 
 
+## The full Leo (chapter 3's chart and, once built, its final): 13 stars of its usual figure,
+## spread out to at least 24 px apart, east to the left: the Sickle (the mane and head: lambda,
+## epsilon, mu, zeta, Algieba, eta down to Regulus) at the right, the fore paw (omicron) below
+## Regulus, the back from Algieba to Zosma, the tail to Denebola at the left, and the hind leg from
+## Chertan (theta) down through iota to sigma. Sizes follow brightness: Regulus, Algieba and
+## Denebola big; Zosma, epsilon and Chertan medium; the rest small. The tail starts lit.
+static func leo() -> StarMap:
+	var map := StarMap.new()
+	map.id = "leo"
+	map.title = "LEO"
+	map.landmarks = [
+		Vector2i(160, 134), Vector2i(154, 110), Vector2i(136, 92), Vector2i(112, 100),
+		Vector2i(102, 124), Vector2i(112, 148), Vector2i(116, 176), Vector2i(144, 194),
+		Vector2i(60, 122), Vector2i(26, 150), Vector2i(64, 156), Vector2i(50, 184),
+		Vector2i(54, 212),
+	]
+	map.segments = [
+		Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5),
+		Vector2i(5, 6), Vector2i(6, 7), Vector2i(4, 8), Vector2i(8, 9), Vector2i(9, 10),
+		Vector2i(10, 11), Vector2i(11, 12),
+	]
+	map.sizes = [
+		Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.SMALL,
+		Star.Size.BIG, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL,
+		Star.Size.MEDIUM, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL,
+		Star.Size.SMALL,
+	]
+	map.starting_lit = [9]
+	map.painting = LEO_FIGURE
+	return map
+
+
+## Leo, stage 1: the Tail. It teaches the heat alone, and nothing burns: over the whole stage,
+## stars grow a size each launch, and a big one stays big. The tail runs from the haunch (lit,
+## upper right) down to the left and curls up at its tuft (Denebola, big): stars saved by the tuft
+## ripen into the big ones it needs. Five to light. Strings are 28-33 px.
+static func leo_tail() -> StarMap:
+	var map := StarMap.new()
+	map.id = "leo_tail"
+	map.title = "TAIL"
+	map.landmarks = [Vector2i(150, 110), Vector2i(126, 126), Vector2i(100, 146), Vector2i(74, 160), Vector2i(48, 172), Vector2i(30, 150)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG]
+	map.starting_lit = [0]
+	map.painting = LEO_PART % "tail"
+	map.intros = false
+	map.heat_change = 1
+	return map
+
+
+## Leo, stage 2: the Haunch. Burning arrives: a big star that grows again burns out. From the back
+## (lit, upper right) the leg runs through Chertan and the thigh (big) down to the knee, the hock
+## and the paw; the belly branches right from Chertan. Six to light. Strings are 30-36 px.
+static func leo_haunch() -> StarMap:
+	var map := StarMap.new()
+	map.id = "leo_haunch"
+	map.title = "HAUNCH"
+	map.landmarks = [Vector2i(146, 104), Vector2i(120, 124), Vector2i(96, 146), Vector2i(80, 174), Vector2i(92, 202), Vector2i(68, 222), Vector2i(144, 150)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5), Vector2i(1, 6)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = LEO_PART % "haunch"
+	map.intros = false
+	map.heat_change = 1
+	map.heat_burns = true
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -392,6 +468,12 @@ static func by_id(p_id: String) -> StarMap:
 			return aquarius_jar()
 		"aquarius_final":
 			return aquarius_final()
+		"leo":
+			return leo()
+		"leo_tail":
+			return leo_tail()
+		"leo_haunch":
+			return leo_haunch()
 	return scorpio()
 
 
