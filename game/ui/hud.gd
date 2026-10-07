@@ -82,6 +82,8 @@ const COLD_MESSAGE: String = "THE COLD SHRINKS STARS\nEACH LAUNCH"
 const FADE_MESSAGE: String = "THE COLD SHRINKS STARS\nSMALL ONES FADE"
 ## Day and night (the Mane): heat and cold take turns, and each takes its own stars.
 const DAY_NIGHT_MESSAGE: String = "HEAT AND COLD SWAP\nBIGS BURN SMALLS FADE"
+## The Head: the constellation stars grow too (a big one comes back small); loose bigs burn.
+const LION_MESSAGE: String = "THE LION GROWS TOO\nBIG STARS BURN OUT"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A final that isn't Orion's arrives with its title card for this long (no threat, no roar).
 const ARRIVAL_TIME: float = 2.2
@@ -271,12 +273,14 @@ func tell_current_rule() -> void:
 	if _current_told or _run == null or (_run.current == null and _run.heat == null):
 		return
 	_current_told = true
-	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat), RULE_MESSAGE_TIME)
+	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks), RULE_MESSAGE_TIME)
 
 
 ## What the heat's message says: it grows or shrinks stars (or both, by turns), and whether it
 ## takes them.
-static func heat_rule(heat: StarHeat) -> String:
+static func heat_rule(heat: StarHeat, landmarks: bool = false) -> String:
+	if landmarks:
+		return LION_MESSAGE
 	if heat.turns:
 		return DAY_NIGHT_MESSAGE
 	if heat.change > 0:

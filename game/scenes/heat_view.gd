@@ -135,12 +135,14 @@ func pixels() -> Dictionary[Vector2i, Color]:
 static func preview_pixels(run: RunState) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	for change: StarHeat.Change in run.heat_preview():
-		var star: Star = run.find_star(change.star_id)
+		# A constellation star (the Head) has a landmark id.
+		var star: Star = run.find_star(change.star_id) if change.star_id >= 0 else run.scorpio.landmark_star(Scorpio.landmark_index(change.star_id))
 		if star == null:
 			continue
-		if change.is_cold():
+		if change.is_cold() or change.rekindled:
 			# Its own outline (the smaller size would hide under the star), dotted in the colour
-			# of the size it shrinks to; dotted frost and a snowflake over a small one that fades.
+			# of the size it shrinks to (or a big constellation star burns back to); dotted frost
+			# and a snowflake over a small one that fades.
 			for offset: Vector2i in StarView.outline_pixels(star.size):
 				if (offset.x + offset.y) % 2 == 0:
 					result[star.position + offset] = FROST if change.lost else NEXT_COLOURS[change.to]

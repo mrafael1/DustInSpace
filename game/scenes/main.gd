@@ -271,6 +271,8 @@ func _wire_sound() -> void:
 		_sparks.explode_at(at)
 		_sfx.play(&"burst", 0.7))
 	# A faded star goes quietly: frost falls, and the burst sounds high and brittle.
+	# A constellation star burning back to small: its embers burst, a fuller burst than a loss.
+	_sky.landmark_rekindled.connect(func(_at: Vector2i) -> void: _sfx.play(&"burst", 1.0))
 	_sky.star_faded.connect(func(_at: Vector2i) -> void: _sfx.play(&"burst", 1.5))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)

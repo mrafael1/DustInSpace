@@ -236,7 +236,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"burst")
 		&"hunt_intro_launched":
 			play(&"launch")
-		&"stars_resized":
+		&"stars_resized", &"landmarks_resized":
 			# The heat changes stars where they stand: a bright chime, a lower one as the cold
 			# shrinks them (a burn or a fade sounds on its own).
 			var changes: Array[StarHeat.Change] = event.args[0]
