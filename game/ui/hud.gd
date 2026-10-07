@@ -102,8 +102,6 @@ const ENCOUNTER_LINES: Dictionary = {
 	Encounter.Threat.MARK: "LINK THE MARKED STAR\nOR HIS ARROW TAKES IT",
 	Encounter.Threat.VOLLEY: "EVERY %d LINKS\nHIS ARROWS FALL",
 	Encounter.Threat.HUNT: "LAUNCH AWAY FROM\nHIS CIRCLE",
-	Encounter.Threat.HEAT: "EACH LAUNCH THE HEAT\nGROWS EVERY STAR",
-	Encounter.Threat.COLD: "LINK SMALL STARS OR\nTHE COLD FADES THEM",
 }
 ## Orion's volley countdown (#70) sits centred this far from his figure's top-left: above his head.
 const VOLLEY_COUNTER_OFFSET := Vector2i(15, -8)
@@ -492,9 +490,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_dust_in_flight += event.args[2]
 			# The tutorial's link is made: its stars are gone, so the hand stops pointing at them.
 			_guide.drop_path()
-			# The heat's or cold's guide moves on to another star if the link took its own.
-			if _run.encounter != null and _run.encounter.is_guiding() and _run.heat != null:
-				_show_encounter(_run.encounter.threat, _run.encounter.step)
 		&"volley_counted":
 			_volley.count(event.args[0])
 			return
@@ -640,10 +635,7 @@ func _show_tutorial_step(step: int) -> void:
 ## An Orion threat's guided encounter (#93): its line at the top of the sky and the hand at what it's
 ## about, while it guides; gone once it's done. The mark: the hand acts out a link that saves the
 ## marked star. The volley: it points at the countdown above him. The hunting circle: it points at a
-## spot outside it to launch at. Leo's heat and cold (no Orion, so the line is centred over the
-## whole sky): it points at a star the next launch grows, or a small one it fades, which shows its
-## preview while aiming; with none left (linked away), the line stays alone. It only guides: nothing
-## is held back.
+## spot outside it to launch at. It only guides: nothing is held back.
 func _show_encounter(threat: int, step: int) -> void:
 	if step != Encounter.Step.GUIDING:
 		_guide.hide_guide()
@@ -663,10 +655,6 @@ func _show_encounter(threat: int, step: int) -> void:
 			_guide.show_line(ENCOUNTER_LINES[threat] % _run.volley.interval, Vector2i(_volley.position), true, TutorialView.Point.DOWN, top, left)
 		Encounter.Threat.HUNT:
 			_guide.show_line(ENCOUNTER_LINES[threat], _run.safe_launch_spot(), true, TutorialView.Point.DOWN, top, left)
-		Encounter.Threat.HEAT, Encounter.Threat.COLD:
-			var star: Star = _run.encounter_heat_star()
-			var at: Vector2i = star.position - Vector2i(0, StarView.half_extent(star.size)) if star != null else Vector2i.ZERO
-			_guide.show_line(ENCOUNTER_LINES[threat], at, star != null, TutorialView.Point.DOWN, top, _run.sky_rect.position.x)
 
 
 ## The link being traced changed: the tutorial's hand moves on to the next star to pick.
