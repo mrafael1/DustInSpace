@@ -406,11 +406,12 @@ static func leo() -> StarMap:
 	return map
 
 
-## Leo, stage 1: the Tail. It teaches the heat alone, and the heat only helps: a region over the
-## sky's full height from the left edge to x 88 where stars grow a size each launch, and a big one
-## stays big. The tail runs from the haunch (lit, upper right) down to the left, into the heat, and
-## curls up at its tuft (Denebola, big): stars saved by the tuft ripen into the big ones it needs.
-## Five to light. Strings are 28-33 px.
+## Leo, stage 1: the Tail. It teaches the heat alone, and nothing burns: a region over the sky's
+## full height from the left edge to x 112 where stars grow a size each launch, and a big one stays
+## big. The tail runs from the haunch (lit, upper right) down to the left, into the heat, and curls
+## up at its tuft (Denebola, big): stars saved by the tuft ripen into the big ones it needs. Five
+## to light. Strings are 28-33 px. Spatial bots (tools/heat/playtest.gd, 1,000 paired seeds) win
+## every run with or without it, in the same number of packs: here the heat is shown, not felt.
 static func leo_tail() -> StarMap:
 	var map := StarMap.new()
 	map.id = "leo_tail"
@@ -421,7 +422,7 @@ static func leo_tail() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = LEO_PART % "tail"
 	map.intros = false
-	map.heat_region = _full_height_between(0, 88)
+	map.heat_region = _full_height_between(0, 112)
 	return map
 
 
@@ -429,6 +430,8 @@ static func leo_tail() -> StarMap:
 ## from x 56 to 124, and a big star in it that grows again burns out. From the back (lit, upper
 ## right) the leg runs through Chertan and the thigh (big) down to the knee, the hock and the paw;
 ## the belly branches right from Chertan, outside the heat. Six to light. Strings are 30-36 px.
+## Spatial bots (1,000 paired seeds): every policy wins (launching every pack first burns 2.8 stars
+## a run and loses one run in 1,000): a gentle introduction to burning, as the Body is to the drain.
 static func leo_haunch() -> StarMap:
 	var map := StarMap.new()
 	map.id = "leo_haunch"

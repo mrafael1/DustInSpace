@@ -55,10 +55,10 @@ func test_the_tail_teaches_a_heat_that_only_helps() -> void:
 	assert_eq(map.starting_lit, [0] as Array[int], "five to light")
 	assert_eq(map.heat_change, 1)
 	assert_false(map.heat_burns, "nothing burns yet")
-	assert_eq(map.heat_region, Rect2i(0, SKY.position.y, 88, SKY.size.y))
-	for index: int in [3, 4, 5]:
-		assert_true(map.heat_region.has_point(map.landmarks[index]), "the tail's end is in the heat")
-	for index: int in [0, 1, 2]:
+	assert_eq(map.heat_region, Rect2i(0, SKY.position.y, 112, SKY.size.y))
+	for index: int in [2, 3, 4, 5]:
+		assert_true(map.heat_region.has_point(map.landmarks[index]), "the tail's middle and end are in the heat")
+	for index: int in [0, 1]:
 		assert_false(map.heat_region.has_point(map.landmarks[index]))
 	assert_eq(map.sizes[5], Star.Size.BIG, "the tuft is big: the heat ripens what it needs")
 	assert_eq(StarMap.by_id("leo_tail").title, "TAIL")
