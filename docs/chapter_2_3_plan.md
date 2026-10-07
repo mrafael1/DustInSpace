@@ -106,9 +106,9 @@ What Aquarius taught carries over: a mechanic that only helps has no stakes (dri
 
 ### Proposed rule (step A, not committed)
 
-- **The heat** is a region of the sky, like the current's field. After each successful launch (both red bursts first, as with the current), every loose star inside it **grows one size**: small to medium, medium to big. A big star that grows again **burns out** and is lost for nothing, like a drained star.
-- Landmarks never change size; stars outside the heat never change. Buying, linking, cancelled gestures and invalid actions don't advance it.
-- **A new star doesn't ripen on the launch that brought it** (design guess: otherwise a big landing in the heat burns at once, before the player could see it). It ripens from the next launch on.
+- **The heat is the whole stage** (playtest, 2026-10-07: not a zone, and no edge lines). After each successful launch (both red bursts first, as with the current), every loose star in the sky **grows one size**: small to medium, medium to big. A big star that grows again **burns out** and is lost for nothing, like a drained star.
+- Landmarks never change size. Buying, linking, cancelled gestures and invalid actions don't advance it.
+- **A new star doesn't ripen on the launch that brought it** (design guess: otherwise a big landing burns at once, before the player could see it). It ripens from the next launch on.
 - Big Bang stays off, as on every constellation stage.
 
 ### Why it should make decisions
@@ -116,14 +116,14 @@ What Aquarius taught carries over: a mechanic that only helps has no stakes (dri
 The shipped combos make ripening pay: a small triple is 3 dust / 5 light, a medium triple 5 / 10, a big triple 6 / 15. Three smalls left in the heat for two launches become a big triple worth three times the light, and burn out on the third.
 
 - **Push your luck:** link a triple now, or let it ripen into a better one and risk losing it. This is the slot-machine pull, delivered by the player's own timing.
-- **Heat favours dust, works against light:** stars that ripen together keep a triple a triple, but a one-of-each breaks (small, medium, big become medium, big, burnt). A set with one star in the heat and two out breaks too.
+- **Heat favours dust, works against light:** stars that ripen together keep a triple a triple, but a one-of-each breaks (small, medium, big become medium, big, burnt).
 - **A waiting pair is a moving target:** two smalls waiting for a third need a medium after the next launch and a big after that, as Aquarius's waiting pair drifts toward the drain. So "link everything first" doesn't avoid the cost.
-- **Aim is the skill, through the packs' own roles:** a blue planet (mostly small stars) aimed into the heat ripens cheap stars into value; a red one (mostly big) aimed into it gets stars that burn after one launch. Aiming outside the heat keeps sizes fixed, but layouts put landmarks in it.
-- **Big landmarks are the tension point:** a big landmark in the heat needs two loose bigs, which in the heat last exactly one launch.
+- **The packs' own roles:** a blue planet (mostly small stars) gives stars with three launches to live; a red one (mostly big) gives stars that burn after the next. Which planet to launch, and when, is part of the timing.
+- **Big landmarks are the tension point:** a big landmark needs two loose bigs, which last exactly one launch.
 
 ### One conflict to show (paper)
 
-A medium landmark in the heat, and beside it, all loose and in reach: two smalls (A, B), a medium (C) and a big (D).
+A medium landmark, and beside it, all loose and in reach: two smalls (A, B), a medium (C) and a big (D).
 
 - **Link now:** A, C, D are a sequence (25 light), but the landmark stays unlit and B waits alone.
 - **Launch first:** A and B become mediums and light the landmark with it (a medium triple); C becomes a big; D burns out. The sequence is gone and a star is lost, for a landmark and whatever the new burst brings.
@@ -134,38 +134,42 @@ Neither is always right: it depends on the Sun's fill, the packs left and how cl
 
 Nothing moves, so the preview should be lighter than the current's. While aiming:
 
-- each loose star in the heat shows the size it will become (proposed: a one-pixel outline of the next silhouette around it, cool, as the current's brackets);
-- a star that would burn out gets the drain's ember mark;
-- the heat itself: a warm-tinted field. Warm colours are reserved for interactive or valuable things, so the tint must stay subtle and below the stars (S/ember ramp at low steps, or a sparse pattern like Aquarius's water streaks, rising heat shimmer instead of flowing water).
+- each loose star shows the size it will become (built: a dotted outline of the next size, in that size's colour);
+- a star that would burn out gets a dotted ember outline crowned with flames;
+- the heat itself: sparse embers rising through the whole sky (S ramp, below the stars). Warm colours are reserved for interactive or valuable things.
 
-Mock up the busiest aim state at 180x320 (about a dozen loose stars, half in the heat, two about to burn, strings, scatter ring) and check it on a phone before building anything.
+Built and captured at 180x320 (`tools/heat/capture.gd`); a phone check is still owed.
 
 ### Possible stage ladder (to revise after the gate)
 
 Mirroring Aquarius: teach the help first, bring the loss, then twist.
 
-1. Heat that ripens but never burns (big stays big): it only helps.
-2. Burning arrives.
-3. The heat crosses the figure, so sets straddle its edge.
-4. A cooling region: stars shrink (big to medium to small, then fade).
-5. Heat and cold side by side.
-6. Final, the whole Leo: the two swap after every launch.
+Each rule covers the whole stage.
+
+1. Heat that ripens but never burns (big stays big). Built: the Tail.
+2. Burning arrives. Built: the Haunch.
+3. The cold: stars shrink (big to medium to small, then fade).
+4. Burning on a figure of big landmarks, where bigs last one launch.
+5. The heat turns: hot, then cold, then hot, after every launch.
+6. Final, the whole Leo: to decide once 3-5 are measured.
+
+Spatial bots on the first two (1,000 paired seeds): every policy wins the Tail in the same packs with or without the heat (stars grow together, so triples stay triples); on the Haunch, launching every pack first burns 4.2 stars a run and loses 1.5% of runs. Ripening alone isn't a reason to wait; the stakes come from burning and the twists.
 
 ### The reversed heat: stars lose a size
 
-The user's addition (2026-10-07): a stage where the rule is reversed, so each launch makes a star in the region **lose one size**: big to medium, medium to small, and a small one fades out (lost). It is stage 4 above, and half of stages 5 and 6. It is not a mirror image in play:
+The user's addition (2026-10-07): a stage where the rule is reversed, so each launch makes a star in the region **lose one size**: big to medium, medium to small, and a small one fades out (lost). It is stage 3 above, and half of stage 5. It is not a mirror image in play:
 
 - **Waiting only loses value:** a big triple (6 dust / 15 light) becomes a medium triple (5 / 10), then a small one (3 / 5), then fades. Ripening was a gamble with an upside; this is a fuse. The risk is that "link everything first" becomes the trivial answer, as it was for the current without a drain. Its decisions have to come from **needing a size**: a big that must become a medium for a medium landmark, a sequence rebuilt from a shrinking big.
-- **The planets swap roles:** red (mostly big) aimed into the cold gives mediums and smalls a launch later; blue (mostly small) fades after one. In the heat it's the reverse. With both on one stage (5), aiming each planet at its region is the skill.
+- **The planets swap roles:** in the cold, red (mostly big) gives stars with three launches to live; blue (mostly small) fades after one. In the heat it's the reverse; when the heat turns each launch (5), launching each planet on the right turn is the skill.
 - **One-of-each breaks the other way:** small, medium, big become faded, small, medium. Triples hold, as in the heat.
-- **Swapping each launch (the final):** a star alternates up and down a size, so most of them hover; only a big in the heat or a small in the cold is at risk on a given launch. Check on paper that this still has stakes before choosing it for the final.
-- **Readability:** the cold needs a cool look distinct from the water's (Aquarius uses the M ramp): frost or still, sparse glints rather than streaks. The next-size outline works the same way; a star that would fade gets the ember mark like one that would burn.
+- **Turning each launch:** a star alternates up and down a size, so most of them hover; only a big in the heat or a small in the cold is at risk on a given launch. Check on paper that this still has stakes before choosing it for the final.
+- **Readability:** the cold needs a cool look distinct from the water's (Aquarius uses the M ramp): frost or still, sparse glints rather than streaks. A star that would fade gets the ember mark like one that would burn; the smaller next size hides under the star, so the cold's preview still needs its own cue.
 
-Leo's figure: the Sickle (the mane and head: epsilon, mu, zeta, Algieba, eta, Regulus), the back (Zosma), the haunch (Chertan) and the tail (Denebola). Parts and chart wait for the gate.
+Leo's figure and parts are built ([design.md](design.md), chapter 3).
 
 ### Payout spike
 
-Leo's rare opening could be **the Leonids**, the meteor shower that radiates from Leo: a rich burst that doesn't clear the sky. This is the plan's non-clearing Big Bang (below) in Leo's colours, and like it needs its own approval, branch and balance report. A cheaper in-chapter idea: a **flare**, a rare launch that ripens the whole heat at once without burning anything.
+Leo's rare opening could be **the Leonids**, the meteor shower that radiates from Leo: a rich burst that doesn't clear the sky. This is the plan's non-clearing Big Bang (below) in Leo's colours, and like it needs its own approval, branch and balance report. A cheaper in-chapter idea: a **flare**, a rare launch that ripens every star at once without burning anything.
 
 ### Steps
 
