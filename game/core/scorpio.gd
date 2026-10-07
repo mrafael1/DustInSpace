@@ -122,6 +122,15 @@ func light(index: int) -> Array[int]:
 	return formed
 
 
+## The landmarks still unlit, as stars (their landmark ids, sizes and places).
+func unlit_stars() -> Array[Star]:
+	var result: Array[Star] = []
+	for i: int in map.count():
+		if not lit[i]:
+			result.append(landmark_star(i))
+	return result
+
+
 ## Sizes of the landmarks still unlit.
 func unlit_sizes() -> Array[int]:
 	var sizes: Array[int] = []
