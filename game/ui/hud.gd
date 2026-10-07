@@ -75,6 +75,11 @@ const FLOW_MESSAGE: String = "EACH LAUNCH, THE FLOW\nMOVES THE STARS"
 const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
 const TIDE_MESSAGE: String = "TIDE TURNS EACH LAUNCH\nBOTH SIDES DRAIN STARS"
 const BOX_MESSAGE: String = "FLOW TURNS EACH LAUNCH\nEVERY SIDE DRAINS"
+## Leo's heat (chapter 3), said the same way: what it does, and what it takes when it burns.
+const HEAT_MESSAGE: String = "THE HEAT GROWS STARS\nEACH LAUNCH"
+const BURN_MESSAGE: String = "THE HEAT GROWS STARS\nBIG ONES BURN OUT"
+const COLD_MESSAGE: String = "THE COLD SHRINKS STARS\nEACH LAUNCH"
+const FADE_MESSAGE: String = "THE COLD SHRINKS STARS\nSMALL ONES FADE"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A final that isn't Orion's arrives with its title card for this long (no threat, no roar).
 const ARRIVAL_TIME: float = 2.2
@@ -261,10 +266,17 @@ func advance(delta: float) -> void:
 
 ## The run's current says its rule, once a run (Main calls it as the player first aims).
 func tell_current_rule() -> void:
-	if _current_told or _run == null or _run.current == null:
+	if _current_told or _run == null or (_run.current == null and _run.heat == null):
 		return
 	_current_told = true
-	show_message(current_rule(_run.current), RULE_MESSAGE_TIME)
+	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat), RULE_MESSAGE_TIME)
+
+
+## What the heat's message says: it grows or shrinks stars, and whether it takes them.
+static func heat_rule(heat: StarHeat) -> String:
+	if heat.change > 0:
+		return BURN_MESSAGE if heat.burns else HEAT_MESSAGE
+	return FADE_MESSAGE if heat.burns else COLD_MESSAGE
 
 
 ## What a current's message says: a box, a tide, a drain or a plain flow.
@@ -494,7 +506,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			if _run.tutorial != null and not _run.tutorial.is_done() and event.args[0] >= 0:
 				_guide.show_step(Tutorial.Step.SUN_FULL, _landmark_top(event.args[0]), true, TutorialView.Point.DOWN, _run.sky_rect.position.y + TutorialView.TOP)
 			return
-		&"stars_shifted":
+		&"stars_shifted", &"stars_resized":
 			# Normally said when the player first aimed; a launch made without aiming says it here.
 			tell_current_rule()
 			return

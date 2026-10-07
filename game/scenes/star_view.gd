@@ -19,6 +19,10 @@ signal drained(view: StarView)
 enum State { SETTLING, IDLE, DISSOLVING, COLLAPSING, DRIFTING }
 
 const DRIFT_TIME: float = 0.3
+## The heat (Leo) changes a star's size in hard steps: it flares at its old size for RESIZE_FLARE,
+## then shows its new size with a glint until RESIZE_TIME.
+const RESIZE_FLARE: float = 0.1
+const RESIZE_TIME: float = 0.26
 
 ## Burst timing from the game-feel skill: stars scatter with an ease-out-back.
 const SETTLE_TIME: float = 0.65
@@ -117,6 +121,9 @@ var _draining: bool = false
 var _explode_wait: float = -1.0
 ## explode() was called: waiting to burst, or bursting.
 var _exploding: bool = false
+## The size resize_to() is changing it to (-1: none), and seconds since it began.
+var _resize_to: int = -1
+var _resize_time: float = -1.0
 
 
 func _process(delta: float) -> void:
@@ -169,6 +176,17 @@ func drain_to(edge: Vector2i) -> void:
 	drift_to(edge)
 	selected = false
 	_draining = true
+
+
+## The heat changes its size where it stands: a flare at its old size, then the new one glinting.
+func resize_to(new_size: Star.Size) -> void:
+	_resize_to = new_size
+	_resize_time = 0.0
+	_refresh()
+
+
+func is_resizing() -> bool:
+	return _resize_time >= 0.0
 
 
 ## Flares, then vanishes and frees itself.
@@ -234,6 +252,7 @@ func advance(delta: float) -> void:
 			delta = overshoot
 	_time += delta
 	_hint_time += delta
+	_advance_resize(delta)
 	match state:
 		State.DRIFTING:
 			var k: float = minf(_time / DRIFT_TIME, 1.0)
@@ -342,6 +361,19 @@ static func _ease_out_back(k: float) -> float:
 	return 1.0 + (EASE_BACK + 1.0) * t * t * t + EASE_BACK * t * t
 
 
+func _advance_resize(delta: float) -> void:
+	if _resize_time < 0.0:
+		return
+	_resize_time += delta
+	if _resize_to >= 0 and _resize_time >= RESIZE_FLARE:
+		size = _resize_to as Star.Size
+		_resize_to = -1
+		_refresh()
+	elif _resize_time >= RESIZE_TIME:
+		_resize_time = -1.0
+		_refresh()
+
+
 func _burst() -> void:
 	dissolve()
 	exploded.emit(self)
@@ -381,7 +413,8 @@ func _current_frame_key() -> int:
 			return _dissolve_frame()
 		State.COLLAPSING:
 			return _redshift()
-	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (shine_stage(_hint_time) + 2 if shows_hint() else 0)
+	var resizing: int = 0 if _resize_time < 0.0 else 1 if _resize_to >= 0 else 2
+	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (shine_stage(_hint_time) + 2 if shows_hint() else 0) + 64 * resizing
 
 
 func _is_spark() -> bool:
@@ -451,7 +484,11 @@ func _draw_settling() -> void:
 
 func _draw_idle() -> void:
 	# A glint lifts every step one notch brighter for a moment; a dimmed star doesn't twinkle.
-	if dimmed:
+	if _resize_to >= 0:
+		_draw_frame(&"flare")
+	elif _resize_time >= 0.0:
+		_draw_frame(&"glint")
+	elif dimmed:
 		_draw_frame(&"dim")
 	else:
 		_draw_frame(&"glint" if _is_glinting() or shine() >= 0 else &"idle")
@@ -484,6 +521,23 @@ func _draw_ring() -> void:
 	var sheet: Texture2D = RING_SHEETS[size]
 	var cell: int = sheet.get_height()
 	draw_texture_rect_region(sheet, Rect2(Vector2(-(cell >> 1), -(cell >> 1)), Vector2(cell, cell)), Rect2(_ring_frame() * cell, 0, cell, cell))
+
+
+## The ring of pixels just outside a star of `star_size` (4-neighbours of its idle sprite), as
+## offsets from its centre: the heat's preview of the size a star will become.
+static func outline_pixels(star_size: Star.Size) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var half: int = half_extent(star_size)
+	for y: int in range(-half - 1, half + 2):
+		for x: int in range(-half - 1, half + 2):
+			var offset := Vector2i(x, y)
+			if _is_star_pixel(star_size, offset):
+				continue
+			for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				if _is_star_pixel(star_size, offset + d):
+					result.append(offset)
+					break
+	return result
 
 
 ## Whether the idle sprite covers `offset` (from the centre): the halo leaves those pixels alone.
