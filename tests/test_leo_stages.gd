@@ -45,7 +45,9 @@ func test_leo_opens_once_aquarius_is_won_and_builds_its_first_stages() -> void:
 	assert_eq(leo.stage_name(0), "TAIL")
 	assert_eq(leo.map_id(0), "leo_tail")
 	assert_eq(leo.map_id(1), "leo_haunch")
-	for stage: int in range(2, Chapter.stage_count()):
+	assert_eq(leo.map_id(2), "leo_heart")
+	assert_eq(leo.map_id(3), "leo_mane")
+	for stage: int in range(4, Chapter.stage_count()):
 		assert_eq(leo.map_id(stage), "", "%s is still to come" % leo.stage_name(stage))
 
 
@@ -68,14 +70,39 @@ func test_the_haunch_brings_burning() -> void:
 	assert_eq(StarMap.by_id("leo_haunch").title, "HAUNCH")
 
 
+func test_the_heart_brings_the_cold() -> void:
+	var map: StarMap = StarMap.leo_heart()
+	_check_pickable(map)
+	assert_eq(map.starting_lit, [0] as Array[int], "five to light")
+	assert_eq(map.heat_change, -1, "the cold")
+	assert_true(map.heat_burns, "a small one fades")
+	assert_false(map.heat_turns)
+	assert_eq(map.sizes[2], Star.Size.BIG, "Regulus is big: its big has one launch before it shrinks")
+	assert_eq(StarMap.by_id("leo_heart").title, "HEART")
+
+
+func test_the_mane_turns_day_and_night() -> void:
+	var map: StarMap = StarMap.leo_mane()
+	_check_pickable(map)
+	assert_eq(map.starting_lit, [0] as Array[int], "six to light")
+	assert_eq(map.heat_change, 1, "day first")
+	assert_true(map.heat_burns)
+	assert_true(map.heat_turns)
+	assert_eq(map.sizes[2], Star.Size.BIG, "Algieba is big")
+	assert_eq(StarMap.by_id("leo_mane").title, "MANE")
+
+
 func test_each_heat_says_its_rule() -> void:
 	assert_eq(Hud.heat_rule(StarHeat.new(1, false)), Hud.HEAT_MESSAGE)
 	assert_eq(Hud.heat_rule(StarHeat.new(1, true)), Hud.BURN_MESSAGE)
 	assert_eq(Hud.heat_rule(StarHeat.new(-1, false)), Hud.COLD_MESSAGE)
 	assert_eq(Hud.heat_rule(StarHeat.new(-1, true)), Hud.FADE_MESSAGE)
-	for message: String in [Hud.HEAT_MESSAGE, Hud.BURN_MESSAGE, Hud.COLD_MESSAGE, Hud.FADE_MESSAGE]:
+	assert_eq(Hud.heat_rule(StarHeat.new(1, true, true)), Hud.DAY_NIGHT_MESSAGE)
+	for message: String in [Hud.HEAT_MESSAGE, Hud.BURN_MESSAGE, Hud.COLD_MESSAGE, Hud.FADE_MESSAGE, Hud.DAY_NIGHT_MESSAGE]:
 		for line: String in message.split("\n"):
 			assert_lte(line.length(), 22, line)
+			for c: String in line:
+				assert_true(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 +-/", "%s: the 5x7 font has '%s'" % [line, c])
 
 
 func _main(map_id: String) -> Main:
@@ -192,3 +219,67 @@ func test_the_next_size_outline_rings_the_star() -> void:
 		# (Where the smaller star it rings reaches past it, that star draws over it.)
 		for offset: Vector2i in ring:
 			assert_false(StarView._is_star_pixel(size as Star.Size, offset), "outside its own sprite")
+
+
+func test_the_cold_previews_each_shrink_and_a_snowflake_on_a_star_that_fades() -> void:
+	var main: Main = _main("leo_heart")
+	var run: RunState = main.run
+	var view: HeatView = main.get_node("Sky/HeatLayer")
+	var small: Star = run.add_star(Star.Size.SMALL, Vector2i(100, 120))
+	var big: Star = run.add_star(Star.Size.BIG, Vector2i(80, 230))
+	view.aiming = true
+	var dots: Dictionary[Vector2i, Color] = view.pixels()
+	var ring: int = 0
+	for offset: Vector2i in StarView.outline_pixels(Star.Size.BIG):
+		ring += int(dots.get(big.position + offset) == HeatView.NEXT_COLOURS[Star.Size.MEDIUM])
+	assert_gt(ring, 3, "the big one is ringed in the medium's colour: it shrinks to one")
+	var frost: int = 0
+	for offset: Vector2i in StarView.outline_pixels(Star.Size.SMALL):
+		frost += int(dots.get(small.position + offset) == HeatView.FROST)
+	assert_gt(frost, 2, "the small one wears frost")
+	var top: Vector2i = small.position + Vector2i(0, -StarView.half_extent(Star.Size.SMALL) - 2)
+	assert_eq(dots.get(top + Vector2i(0, -3)), Palette.M6, "the small one wears a snowflake: it fades")
+	var over_big: Vector2i = big.position + Vector2i(0, -StarView.half_extent(Star.Size.BIG) - 5)
+	assert_ne(dots.get(over_big), Palette.M6, "no snowflake on one that only shrinks")
+
+
+func test_frost_falls_in_the_cold() -> void:
+	var main: Main = _main("leo_heart")
+	var view: HeatView = main.get_node("Sky/HeatLayer")
+	assert_eq(view.shown_change(), -1)
+	for colour: Color in view.pixels().values():
+		assert_true(colour in HeatView.COLD_COLOURS, "frost, not embers")
+
+
+func test_the_sky_turns_to_night_once_the_launch_has_played_out() -> void:
+	var main: Main = _main("leo_mane")
+	var run: RunState = main.run
+	var view: HeatView = main.get_node("Sky/HeatLayer")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	assert_eq(view.shown_change(), 1, "day: embers rise")
+	run.owned_packs["blue"] = 1
+	run.loaded_pack = "blue"
+	assert_true(run.launch(Vector2i(60, 200)))
+	assert_eq(run.heat.change, -1, "the core turned at once")
+	view.advance(0.01)
+	assert_eq(view.shown_change(), 1, "the sky waits while the launch plays")
+	for i: int in 200:
+		sequencer.advance(0.03)
+		if not sequencer.is_busy():
+			break
+	view.advance(0.01)
+	assert_eq(view.shown_change(), -1, "then night falls")
+	for colour: Color in view.pixels().values():
+		assert_true(colour in HeatView.COLD_COLOURS)
+
+
+func test_a_faded_star_falls_as_frost() -> void:
+	var at := Vector2i(90, 160)
+	assert_false(HeatView.fade_pixels(at, 0.0).is_empty())
+	var late: Dictionary[Vector2i, Color] = HeatView.fade_pixels(at, HeatView.BURN_TIME * 0.9)
+	var lowest: int = at.y
+	for point: Vector2i in late:
+		assert_true(late[point] in [Palette.M5, Palette.M6], "frost colours")
+		lowest = maxi(lowest, point.y)
+	assert_gt(lowest, at.y + 8, "the flakes fall")
+	assert_true(HeatView.fade_pixels(at, HeatView.BURN_TIME).is_empty())
