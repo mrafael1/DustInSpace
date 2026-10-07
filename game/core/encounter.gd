@@ -1,8 +1,8 @@
 class_name Encounter
 extends RefCounted
 ## One guided encounter with an Orion threat (#93, playtest: a first-time player understood none of
-## them), or with Leo's heat or cold. The stage that introduces it plays it once, the first time
-## (App saves it): it only guides, nothing is gated. Pure rules; RunState tells it what happened and announces each step
+## them). The stage that introduces a threat plays it once, the first time (App saves it): it only
+## guides, nothing is gated. Pure rules; RunState tells it what happened and announces each step
 ## (encounter_step), and the HUD's guide shows it.
 ## - MARK (the Tail): after Orion's first mark, the guide shows a link that saves the marked star.
 ##   The next successful link ends it, saved or shot (the player sees the arrow take it).
@@ -10,12 +10,8 @@ extends RefCounted
 ##   and the arrows hanging overhead and says what they do. The first real volley ends it.
 ## - HUNT (the Heart): after the intro's demo strike, the guide points at a spot outside the circle to
 ##   launch at. The first launch ends it, inside the circle or out (a launch inside shows the strike).
-## - HEAT (Leo's Tail): once the sky holds a star the next launch grows, the guide points at it
-##   (its preview shows the size it grows to while aiming). The next launch that changes stars ends it.
-## - COLD (Leo's Heart): once the sky holds a small star the next launch fades, the guide points at
-##   it and says to link it. The next launch that changes stars ends it (the player sees it fade).
 
-enum Threat { MARK, VOLLEY, HUNT, HEAT, COLD }
+enum Threat { MARK, VOLLEY, HUNT }
 enum Step { WAITING, GUIDING, DONE }
 
 var threat: Threat
@@ -27,15 +23,10 @@ func _init(p_threat: Threat) -> void:
 
 
 ## The threat a map introduces (its stage's encounter), or -1: the stages that bring a threat with
-## an intro. The Claws and the final bring them all, already met; Leo's Tail brings the heat and its
-## Heart the cold, and the stages after them meet them again without one.
+## an intro. The Claws and the final bring them all, already met.
 static func threat_of(map: StarMap) -> int:
 	if map == null or not map.intros:
 		return -1
-	if map.heat_change > 0:
-		return Threat.HEAT
-	if map.heat_change < 0:
-		return Threat.COLD
 	if map.hunt:
 		return Threat.HUNT
 	if map.volley != "":
@@ -71,17 +62,6 @@ func marked() -> bool:
 ## Orion marked his hunting circle for a real launch (after the intro). Returns whether it moved on.
 func area_marked() -> bool:
 	return _guide_if(threat == Threat.HUNT)
-
-
-## Leo's heat or cold has a star to show on the next launch (`ahead`), once a launch has resolved
-## (`changed`: whether it changed any). A guiding encounter ends on a launch that changed stars;
-## a waiting one starts guiding once there's a star to show. Returns whether it moved on.
-func heat_resolved(changed: bool, ahead: bool) -> bool:
-	if threat != Threat.HEAT and threat != Threat.COLD:
-		return false
-	if changed and _end_if(true):
-		return true
-	return ahead and _guide_if(true)
 
 
 ## A successful link. Returns whether it ended the encounter (the mark's).

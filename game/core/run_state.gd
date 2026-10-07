@@ -405,11 +405,10 @@ func launch(target: Vector2i) -> bool:
 		_burst(kind, burst, result.sizes)
 	if current != null and not result.big_bang:
 		_shift_stars()
-	var heated: bool = heat != null and not result.big_bang and _heat_stars(first_new_id)
+	if heat != null and not result.big_bang:
+		_heat_stars(first_new_id)
 	if heat != null:
 		heat.turn()
-		if encounter != null and encounter.heat_resolved(heated, encounter_heat_star() != null):
-			encounter_step.emit(encounter.threat, encounter.step)
 	if current != null:
 		current.turn()
 	_current_reserved.clear()
@@ -463,26 +462,6 @@ func encounter_link() -> Array[int]:
 		if link.has(target.id):
 			return link
 	return [] as Array[int]
-
-
-## The heat's or cold's encounter: the star its guide points at, or null while there's none. The
-## heat: a star the next launch grows, a small one first (it changes most visibly). The cold: a
-## small star the next launch fades.
-func encounter_heat_star() -> Star:
-	if encounter == null or heat == null:
-		return null
-	var found: Star = null
-	for change: StarHeat.Change in heat_preview():
-		var star: Star = find_star(change.star_id)
-		if encounter.threat == Encounter.Threat.COLD:
-			if change.lost and change.is_cold():
-				return star
-		elif encounter.threat == Encounter.Threat.HEAT and not change.lost and change.to > change.from:
-			if change.from == Star.Size.SMALL:
-				return star
-			if found == null:
-				found = star
-	return found
 
 
 ## The hunt's encounter: a spot to launch the loaded pack at so its stars land clear of the circle
@@ -787,8 +766,7 @@ func _shift_stars() -> void:
 		stars_shifted.emit(shifted)
 
 
-## Whether it changed any star.
-func _heat_stars(first_new_id: int) -> bool:
+func _heat_stars(first_new_id: int) -> void:
 	var skip: Dictionary[int, bool] = {}
 	for star: Star in stars:
 		if star.id >= first_new_id:
@@ -802,7 +780,6 @@ func _heat_stars(first_new_id: int) -> bool:
 			star.size = change.to
 	if not changes.is_empty():
 		stars_resized.emit(changes)
-	return not changes.is_empty()
 
 
 ## A stage region in home layout, placed in this sky: shifted with the map, and one spanning the
