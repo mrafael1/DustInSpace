@@ -48,7 +48,8 @@ func test_leo_opens_once_aquarius_is_won_and_builds_its_first_stages() -> void:
 	assert_eq(leo.map_id(1), "leo_haunch")
 	assert_eq(leo.map_id(2), "leo_heart")
 	assert_eq(leo.map_id(3), "leo_mane")
-	for stage: int in range(4, Chapter.stage_count()):
+	assert_eq(leo.map_id(4), "leo_head")
+	for stage: int in range(5, Chapter.stage_count()):
 		assert_eq(leo.map_id(stage), "", "%s is still to come" % leo.stage_name(stage))
 
 
@@ -99,7 +100,8 @@ func test_each_heat_says_its_rule() -> void:
 	assert_eq(Hud.heat_rule(StarHeat.new(-1, false)), Hud.COLD_MESSAGE)
 	assert_eq(Hud.heat_rule(StarHeat.new(-1, true)), Hud.FADE_MESSAGE)
 	assert_eq(Hud.heat_rule(StarHeat.new(1, true, true)), Hud.DAY_NIGHT_MESSAGE)
-	for message: String in [Hud.HEAT_MESSAGE, Hud.BURN_MESSAGE, Hud.COLD_MESSAGE, Hud.FADE_MESSAGE, Hud.DAY_NIGHT_MESSAGE]:
+	assert_eq(Hud.heat_rule(StarHeat.new(1, true), true), Hud.LION_MESSAGE)
+	for message: String in [Hud.HEAT_MESSAGE, Hud.BURN_MESSAGE, Hud.COLD_MESSAGE, Hud.FADE_MESSAGE, Hud.DAY_NIGHT_MESSAGE, Hud.LION_MESSAGE]:
 		for line: String in message.split("\n"):
 			assert_lte(line.length(), 22, line)
 			for c: String in line:
@@ -439,3 +441,134 @@ func test_a_star_about_to_burn_charges_first() -> void:
 	view.charge(true)
 	assert_true(view.is_resizing())
 	assert_eq(view.size, Star.Size.SMALL)
+
+
+# --- The Head: the lion's own stars grow too ---------------------------------------------------
+
+func _unlit_sizes(run: RunState) -> Dictionary:
+	var sizes: Dictionary = {}
+	for i: int in run.scorpio.map.count():
+		if not run.scorpio.is_lit(i):
+			sizes[i] = run.scorpio.map.sizes[i]
+	return sizes
+
+
+func test_the_head_is_a_heat_stage_whose_constellation_grows_too() -> void:
+	var map: StarMap = StarMap.leo_head()
+	_check_pickable(map)
+	assert_eq(map.starting_lit, [0] as Array[int], "five to light")
+	assert_eq(map.heat_change, 1)
+	assert_true(map.heat_burns, "loose bigs burn, as on the Haunch")
+	assert_true(map.heat_landmarks)
+	assert_true(map.intros, "it opens by showing it")
+	assert_eq(StarMap.by_id("leo_head").title, "HEAD")
+
+
+func test_each_launch_grows_every_star_still_to_light_and_a_big_one_comes_back_small() -> void:
+	var run: RunState = _intro_run(StarMap.leo_head())
+	run.owned_packs["blue"] = 1
+	run.loaded_pack = "blue"
+	var loose_small: Star = run.add_star(Star.Size.SMALL, Vector2i(20, 230))
+	var loose_big: Star = run.add_star(Star.Size.BIG, Vector2i(160, 230))
+	var before: Dictionary = _unlit_sizes(run)
+	var lit_size: int = run.scorpio.map.sizes[0]
+	var preview: Array[StarHeat.Change] = run.heat_preview()
+	watch_signals(run)
+	assert_true(run.launch(Vector2i(90, 200)))
+	for i: int in before:
+		var expected: int = Star.Size.SMALL if before[i] == Star.Size.BIG else before[i] + 1
+		assert_eq(run.scorpio.map.sizes[i], expected, "landmark %d" % i)
+	assert_eq(run.scorpio.map.sizes[0], lit_size, "a lit one stays as it is")
+	assert_eq(loose_small.size, Star.Size.MEDIUM, "loose stars grow too")
+	assert_false(run.stars.has(loose_big), "and a loose big burns out")
+	var changes: Array = get_signal_parameters(run, "landmarks_resized")[0]
+	assert_eq(changes.size(), before.size())
+	var rekindled: int = 0
+	for change: StarHeat.Change in changes:
+		assert_false(change.lost, "a constellation star is never lost")
+		assert_false(change.is_cold(), "it's the heat")
+		rekindled += int(change.rekindled)
+	assert_eq(rekindled, before.values().count(Star.Size.BIG))
+	var previewed: Array[int] = []
+	for change: StarHeat.Change in preview:
+		if change.star_id < 0:
+			previewed.append(Scorpio.landmark_index(change.star_id))
+	assert_eq(previewed.size(), before.size(), "the aim's preview showed every one")
+
+
+func test_a_link_needs_the_landmarks_new_size() -> void:
+	var run: RunState = _intro_run(StarMap.leo_head())
+	run.owned_packs["blue"] = 1
+	run.loaded_pack = "blue"
+	assert_true(run.launch(Vector2i(20, 230)))
+	var index: int = 1
+	var size: int = run.scorpio.map.sizes[index]
+	var at: Vector2i = run.scorpio.landmark_position(index)
+	var a: Star = run.add_star(size as Star.Size, at + Vector2i(20, 14))
+	var b: Star = run.add_star(size as Star.Size, at + Vector2i(-10, 22))
+	var ids: Array[int] = [a.id, b.id, Scorpio.landmark_id(index)]
+	assert_ne(run.combo_for(ids), Combos.INVALID, "a triple of its new size")
+	assert_ne(run.link(ids), Combos.INVALID)
+	assert_true(run.scorpio.is_lit(index))
+
+
+func test_the_heads_intro_turns_the_lion_through_every_size_and_back() -> void:
+	var run: RunState = _intro_run(StarMap.leo_head())
+	var before: Dictionary = _unlit_sizes(run)
+	watch_signals(run)
+	run.play_heat_intro()
+	assert_signal_emit_count(run, "landmarks_resized", 3, "small, medium, big and round again")
+	assert_eq(_unlit_sizes(run), before, "each ends where it started")
+	assert_true(run.stars.is_empty())
+	assert_signal_not_emitted(run, "stars_resized", "no loose stars in it")
+
+
+func test_the_constellation_shows_the_old_size_until_its_resize_plays_then_pops() -> void:
+	var main: Main = _main("leo_head")
+	var run: RunState = main.run
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var view: ConstellationView = main.get_node("Sky/ConstellationLayer")
+	while sequencer.is_busy():
+		sequencer.advance(0.05)
+		view.advance(0.05)
+	var index: int = 2
+	var shown: int = view.shown_size(index)
+	assert_eq(shown, run.scorpio.map.sizes[index])
+	var rekindled: Array[int] = []
+	view.landmark_rekindled.connect(func(i: int) -> void: rekindled.append(i))
+	var bigs: int = _unlit_sizes(run).values().count(Star.Size.BIG)
+	run.owned_packs["blue"] = 1
+	run.loaded_pack = "blue"
+	assert_true(run.launch(Vector2i(20, 230)))
+	assert_eq(view.shown_size(index), shown, "the core changed it; the view waits for the event")
+	var seen_resizing: bool = false
+	for i: int in 200:
+		sequencer.advance(0.02)
+		view.advance(0.02)
+		seen_resizing = seen_resizing or view.is_resizing()
+		if not sequencer.is_busy() and not view.is_resizing():
+			break
+	assert_true(seen_resizing, "it played the charge and pop")
+	assert_eq(view.shown_size(index), run.scorpio.map.sizes[index], "and shows the new size")
+	assert_eq(rekindled.size(), bigs, "each big one burned back to small as it popped")
+
+
+func test_the_aim_previews_each_constellation_stars_next_size() -> void:
+	var main: Main = _main("leo_head")
+	var run: RunState = main.run
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	while sequencer.is_busy():
+		sequencer.advance(0.1)
+	var view: HeatView = main.get_node("Sky/HeatLayer")
+	view.aiming = true
+	var dots: Dictionary[Vector2i, Color] = view.pixels()
+	for i: int in run.scorpio.map.count():
+		if run.scorpio.is_lit(i):
+			continue
+		var size: int = run.scorpio.map.sizes[i]
+		var next: int = Star.Size.SMALL if size == Star.Size.BIG else size + 1
+		var ring: Array[Vector2i] = StarView.outline_pixels((size if size == Star.Size.BIG else next) as Star.Size)
+		var hits: int = 0
+		for offset: Vector2i in ring:
+			hits += int(dots.get(run.scorpio.landmark_position(i) + offset) == HeatView.NEXT_COLOURS[next])
+		assert_gt(hits, 2, "landmark %d shows the %s it becomes" % [i, Star.size_key(next as Star.Size)])

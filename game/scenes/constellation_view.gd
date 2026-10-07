@@ -26,6 +26,8 @@ extends Node2D
 signal sunbeam_landed(at: Vector2i)
 ## Completion: the `order`-th string (0 = the lowest) lit and its note should sound.
 signal string_sung(segment: int, order: int)
+## The Head: landmark `index`, big, burned back to small as it popped. Feedback only.
+signal landmark_rekindled(index: int)
 
 ## The outline stops this far short of each landmark, so the stars stay clear.
 const LANDMARK_CLEAR: int = 5
@@ -95,6 +97,12 @@ var current_aiming: bool = false:
 			queue_redraw()
 ## Which landmarks show lit: the run's as of setup, then each played landmark_lit.
 var _shown_lit: Array[bool] = []
+## The size each landmark shows: the map's as of setup, then each played landmarks_resized (the
+## core changes its sizes the moment a launch resolves).
+var _shown_sizes: Array[int] = []
+## Landmarks the heat is resizing (the Head): index -> [from, to, seconds in, rekindled]. They play
+## a sky star's resize (StarView's charge and pop), switching size at RESIZE_FLARE.
+var _resizing: Dictionary[int, Array] = {}
 var _preview_strings: Array[int] = []
 var _flash_landmark: int = -1
 var _flash_string: int = -1
@@ -136,7 +144,7 @@ func _draw() -> void:
 	for i: int in map.count():
 		_draw_landmark(i)
 	if _ring_time >= 0.0:
-		for p: Vector2i in lit_ring_pixels(map.sizes[_ring_landmark], _ring_time / LIT_RING_TIME):
+		for p: Vector2i in lit_ring_pixels(shown_size(_ring_landmark), _ring_time / LIT_RING_TIME):
 			_dot(map.landmarks[_ring_landmark] + p, LIT_RING_COLOURS[mini(floori(_ring_time / LIT_RING_TIME * 4.0), 3)])
 	if _beam_time >= 0.0:
 		_draw_beam(beam_pixels(_beam_from, _beam_to, _beam_time / BEAM_TIME))
@@ -153,8 +161,11 @@ func setup(run: RunState) -> void:
 		painting(_map().painting)
 		figure_rows(_map().painting)
 	_shown_lit.clear()
+	_shown_sizes.clear()
+	_resizing.clear()
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
+		_shown_sizes.assign(run.scorpio.map.sizes)
 	clear_preview()
 	_flash_left = 0.0
 	_ring_time = -1.0
@@ -422,6 +433,17 @@ func advance(delta: float) -> void:
 	if _flash_left > 0.0:
 		_flash_left = maxf(_flash_left - delta, 0.0)
 		redraw = true
+	for index: int in _resizing.keys():
+		var anim: Array = _resizing[index]
+		var before: float = anim[2]
+		anim[2] = before + delta
+		if before < StarView.RESIZE_FLARE and anim[2] >= StarView.RESIZE_FLARE:
+			_shown_sizes[index] = anim[1]
+			if anim[3]:
+				landmark_rekindled.emit(index)
+		if anim[2] >= StarView.RESIZE_TIME:
+			_resizing.erase(index)
+		redraw = true
 	if _ring_time >= 0.0:
 		_ring_time += delta
 		if _ring_time >= LIT_RING_TIME:
@@ -566,8 +588,11 @@ func ring_frame() -> int:
 
 
 func _draw_landmark(index: int) -> void:
-	var size: int = _map().sizes[index]
+	var size: int = shown_size(index)
 	var at: Vector2i = _map().landmarks[index]
+	if _resizing.has(index) and not shows_lit(index):
+		_draw_resizing(index, size, at)
+		return
 	if shows_cue(index):
 		for d: Vector2i in cue_pixels(size):
 			_dot(at + d, CUE_COLOURS[cue_frame()])
@@ -592,6 +617,40 @@ func _draw_landmark(index: int) -> void:
 		_draw_ring(size, at)
 
 
+## A landmark the heat is resizing: a sky star's charge and pop (StarView.resize_frame, _offset and
+## _pixels) in the landmark's own art; its flare is the art in C0.
+func _draw_resizing(index: int, size: int, at: Vector2i) -> void:
+	var anim: Array = _resizing[index]
+	var t: float = anim[2]
+	var frame: StringName = StarView.resize_frame(t, false)
+	var dots: Dictionary = _art[size][4 if frame == &"glint" else (3 if frame == &"dim" else 0)]
+	var offset: Vector2i = StarView.resize_offset(t, false)
+	for d: Vector2i in dots:
+		_dot(at + offset + d, Palette.C0 if frame == &"flare" else dots[d])
+	var extra: Dictionary[Vector2i, Color] = StarView.resize_pixels(anim[0], anim[1], t, false)
+	for p: Vector2i in extra:
+		_dot(at + p, extra[p])
+
+
+## The size landmark `index` shows now (it may lag the core's while the heat's resize plays).
+func shown_size(index: int) -> int:
+	return _shown_sizes[index] if index < _shown_sizes.size() else _map().sizes[index]
+
+
+## The heat changed these constellation stars (the Head): each charges at its old size, then pops
+## to its new one; a big that burns back to small says so as it pops (landmark_rekindled).
+func resize_landmarks(changes: Array[StarHeat.Change]) -> void:
+	for change: StarHeat.Change in changes:
+		var index: int = Scorpio.landmark_index(change.star_id)
+		if index >= 0 and index < _map().count():
+			_resizing[index] = [change.from, change.to, 0.0, change.rekindled]
+	queue_redraw()
+
+
+func is_resizing() -> bool:
+	return not _resizing.is_empty()
+
+
 ## The dashed C1 selection ring around a picked landmark: the sky star's ring art for its size.
 func _draw_ring(size: int, at: Vector2i) -> void:
 	var sheet: Texture2D = StarView.RING_SHEETS[size]
@@ -607,7 +666,7 @@ func _draw_completion() -> void:
 	for k: int in played:
 		var segment: int = order[k]
 		for index: int in _map().segment_landmarks(segment):
-			var dots: Dictionary = _art[_map().sizes[index]][1]
+			var dots: Dictionary = _art[shown_size(index)][1]
 			for d: Vector2i in dots:
 				_dot(_map().landmarks[index] + d, Palette.C0 if dots[d] != Palette.C3 else Palette.C1)
 

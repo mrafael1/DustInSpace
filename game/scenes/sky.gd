@@ -51,6 +51,8 @@ signal star_drained(at: Vector2i)
 signal star_burned(at: Vector2i)
 ## The cold faded a small star out at `at`. Feedback only.
 signal star_faded(at: Vector2i)
+## The Head: a big constellation star burned back to small at `at`. Feedback only.
+signal landmark_rekindled(at: Vector2i)
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -98,6 +100,10 @@ var _completion_waiting: bool = false
 func _ready() -> void:
 	_decoy_rng.randomize()
 	_constellation.sunbeam_landed.connect(func(at: Vector2i) -> void: sunbeam_landed.emit(at))
+	_constellation.landmark_rekindled.connect(func(index: int) -> void:
+		var at: Vector2i = _run.scorpio.landmark_position(index)
+		_heat.flash_burn(at)
+		landmark_rekindled.emit(at))
 	_halo_layer.draw.connect(_draw_halos)
 	_gesture.selection_changed.connect(_on_selection_changed)
 	_gesture.link_requested.connect(_on_link_requested)
@@ -282,6 +288,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_spawn(star)
 			# A beat to see the stars before the heat changes them.
 			_sequencer.hold(INTRO_HOLD)
+		&"landmarks_resized":
+			_constellation.resize_landmarks(event.args[0])
+			_sequencer.hold(StarView.RESIZE_TIME)
 		&"heat_intro_paused":
 			_sequencer.hold(HEAT_INTRO_BEAT)
 		&"heat_intro_cleared":
