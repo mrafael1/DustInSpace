@@ -19,10 +19,20 @@ signal drained(view: StarView)
 enum State { SETTLING, IDLE, DISSOLVING, COLLAPSING, DRIFTING }
 
 const DRIFT_TIME: float = 0.3
-## The heat (Leo) changes a star's size in hard steps: it flares at its old size for RESIZE_FLARE,
-## then shows its new size with a glint until RESIZE_TIME.
-const RESIZE_FLARE: float = 0.1
-const RESIZE_TIME: float = 0.26
+## The heat (Leo) changes a star's size in hard steps, in two beats. Charging (until RESIZE_FLARE):
+## at its old size it flickers and trembles a pixel side to side; growing, four ember sparks close
+## in on it along the diagonals; shrinking, a frost ring tightens round it. The pop: its new size
+## flares (RESIZE_POP) as it hops a pixel up (grows) or sinks a pixel (shrinks). Then, until
+## RESIZE_TIME, a growing star glints while a dotted ring in its new size's colour bursts out and
+## four sparks fly off its tips; a shrinking one settles dim while frost crumbs fall from where its
+## old edge was.
+const RESIZE_FLARE: float = 0.12
+const RESIZE_POP: float = 0.05
+const RESIZE_TIME: float = 0.42
+## Steps of the tremble and of the rings, in seconds.
+const RESIZE_STEP: float = 0.04
+## The ring a growing star bursts with, in its new size's own tip colour (small, medium, big).
+const RESIZE_RING_COLOURS: Array[Color] = [Palette.C3, Palette.N8, Palette.M5]
 
 ## Burst timing from the game-feel skill: stars scatter with an ease-out-back.
 const SETTLE_TIME: float = 0.65
@@ -124,6 +134,9 @@ var _exploding: bool = false
 ## The size resize_to() is changing it to (-1: none), and seconds since it began.
 var _resize_to: int = -1
 var _resize_time: float = -1.0
+## The size it was before the resize, and whether it shrinks.
+var _resize_from: int = -1
+var _resize_shrinks: bool = false
 
 
 func _process(delta: float) -> void:
@@ -178,9 +191,22 @@ func drain_to(edge: Vector2i) -> void:
 	_draining = true
 
 
-## The heat changes its size where it stands: a flare at its old size, then the new one glinting.
+## The heat changes its size where it stands: it charges at its old size, then pops to the new one
+## (RESIZE_FLARE's timeline).
 func resize_to(new_size: Star.Size) -> void:
+	_resize_from = size
+	_resize_shrinks = new_size < size
 	_resize_to = new_size
+	_resize_time = 0.0
+	_refresh()
+
+
+## A star the heat burns out (or the cold fades) charges as a resizing one does, then explode()
+## takes it at RESIZE_FLARE: embers closing in, or frost (`cold`).
+func charge(cold: bool) -> void:
+	_resize_from = size
+	_resize_shrinks = cold
+	_resize_to = size
 	_resize_time = 0.0
 	_refresh()
 
@@ -413,7 +439,8 @@ func _current_frame_key() -> int:
 			return _dissolve_frame()
 		State.COLLAPSING:
 			return _redshift()
-	var resizing: int = 0 if _resize_time < 0.0 else 1 if _resize_to >= 0 else 2
+	# Every resize step redraws (the tremble, the rings and sparks move in RESIZE_STEPs).
+	var resizing: int = 0 if _resize_time < 0.0 else 1 + floori(_resize_time / RESIZE_STEP * 2.0)
 	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (shine_stage(_hint_time) + 2 if shows_hint() else 0) + 64 * resizing
 
 
@@ -484,10 +511,11 @@ func _draw_settling() -> void:
 
 func _draw_idle() -> void:
 	# A glint lifts every step one notch brighter for a moment; a dimmed star doesn't twinkle.
-	if _resize_to >= 0:
-		_draw_frame(&"flare")
-	elif _resize_time >= 0.0:
-		_draw_frame(&"glint")
+	if _resize_time >= 0.0:
+		_draw_frame(resize_frame(_resize_time, _resize_shrinks), resize_offset(_resize_time, _resize_shrinks))
+		var extra: Dictionary[Vector2i, Color] = resize_pixels(_resize_from as Star.Size, size if _resize_to < 0 else _resize_to as Star.Size, _resize_time, _resize_shrinks)
+		for p: Vector2i in extra:
+			draw_rect(Rect2(Vector2(p), Vector2.ONE), extra[p])
 	elif dimmed:
 		_draw_frame(&"dim")
 	else:
@@ -508,12 +536,81 @@ func _draw_collapse() -> void:
 	_draw_frame(COLLAPSE_SEQUENCE[_redshift()])
 
 
-## One frame of this star's strip, centred on the node.
-func _draw_frame(frame: StringName) -> void:
+## One frame of this star's strip, centred on the node (`offset` whole pixels away).
+func _draw_frame(frame: StringName, offset: Vector2i = Vector2i.ZERO) -> void:
 	var sheet: Texture2D = SHEETS[size]
 	var w: int = sheet.get_height()
 	var i: int = FRAMES.find(frame)
-	draw_texture_rect_region(sheet, Rect2(Vector2(-(w >> 1), -(w >> 1)), Vector2(w, w)), Rect2(i * w, 0, w, w))
+	draw_texture_rect_region(sheet, Rect2(Vector2(offset - Vector2i(w >> 1, w >> 1)), Vector2(w, w)), Rect2(i * w, 0, w, w))
+
+
+## The frame a resizing star shows `t` seconds in: charging it flickers (flare and glint growing,
+## flare and dim shrinking), it pops on a flare, then glints (grown) or settles dim (shrunk).
+static func resize_frame(t: float, shrinks: bool) -> StringName:
+	if t < RESIZE_FLARE:
+		var lit: bool = floori(t / RESIZE_STEP) % 2 == 0
+		return &"flare" if lit else (&"dim" if shrinks else &"glint")
+	if t < RESIZE_FLARE + RESIZE_POP:
+		return &"flare"
+	return &"dim" if shrinks else &"glint"
+
+
+## Where a resizing star is drawn `t` seconds in, from its place: it trembles a pixel side to side
+## while charging, then hops a pixel up as it grows or sinks one as it shrinks, for RESIZE_POP * 2.
+static func resize_offset(t: float, shrinks: bool) -> Vector2i:
+	if t < RESIZE_FLARE:
+		return [Vector2i.RIGHT, Vector2i.ZERO, Vector2i.LEFT, Vector2i.ZERO][floori(t / (RESIZE_STEP * 0.5)) % 4]
+	if t < RESIZE_FLARE + RESIZE_POP * 2.0:
+		return Vector2i.DOWN if shrinks else Vector2i.UP
+	return Vector2i.ZERO
+
+
+## What a star resizing from `from` to `to` (`shrinks`: in the cold) adds round itself `t` seconds in, as offsets from its
+## centre: the charge's converging ember sparks (growing) or tightening frost ring (shrinking), then
+## the burst ring and flying sparks (grown) or falling frost crumbs (shrunk). Hard steps only.
+static func resize_pixels(from: Star.Size, to: Star.Size, t: float, shrinks: bool) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	if t < 0.0 or t >= RESIZE_TIME:
+		return pixels
+	var step: int = floori(t / RESIZE_STEP)
+	if t < RESIZE_FLARE:
+		var steps: int = maxi(1, ceili(RESIZE_FLARE / RESIZE_STEP))
+		if shrinks:
+			# Frost closing in: a dotted ring from 5 px out down to 1.
+			var radius: int = half_extent(from) + 5 - roundi(4.0 * step / steps)
+			for p: Vector2i in ConstellationView.circle_pixels(radius):
+				if (p.x + p.y) % 2 == 0:
+					pixels[p] = Palette.M6
+		else:
+			# Embers drawn in along the diagonals: a hot gold head, ember pixels trailing it.
+			var k: int = half_extent(from) / 2 + 5 - roundi(3.0 * step / steps)
+			for d: Vector2i in [Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]:
+				pixels[d * k] = Palette.C2
+				pixels[d * (k + 1)] = Palette.S4
+				pixels[d * (k + 2)] = Palette.S3
+		return pixels
+	var after: float = t - RESIZE_FLARE
+	var k: float = after / (RESIZE_TIME - RESIZE_FLARE)
+	if shrinks:
+		# Crumbs fall from the old edge, drifting out a little, M6 then M5.
+		var edge: int = half_extent(from)
+		var crumbs: Array[Vector2i] = [Vector2i(-edge, 0), Vector2i(edge, 0), Vector2i(-edge / 2, edge / 2), Vector2i(edge / 2, edge / 2), Vector2i(-edge / 2, -edge / 2), Vector2i(edge / 2, -edge / 2)]
+		for c: Vector2i in crumbs:
+			var fall := Vector2i(signi(c.x) * roundi(2.0 * k), roundi(9.0 * k * k) + 1)
+			pixels[c + fall] = Palette.M6 if k < 0.5 else Palette.M5
+		return pixels
+	# A dotted ring bursts out in three steps from just past the new size, in its colour.
+	var ring_steps: int = floori(after / RESIZE_STEP)
+	if ring_steps < 3:
+		for p: Vector2i in ConstellationView.circle_pixels(half_extent(to) + 2 + ring_steps * 2):
+			if (p.x + p.y) % 2 == 0:
+				pixels[p] = RESIZE_RING_COLOURS[to]
+	# Sparks fly off its four tips, white-gold, then its colour.
+	var reach: int = half_extent(to) + 2 + roundi(7.0 * k)
+	for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		pixels[d * reach] = Palette.C1 if k < 0.5 else RESIZE_RING_COLOURS[to]
+	return pixels
+
 
 
 ## The dashed C1 selection ring; its dashes swap every RING_FRAME_TIME.

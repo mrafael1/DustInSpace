@@ -380,3 +380,62 @@ func test_the_stage_opens_with_the_intro_and_play_starts_on_an_empty_sky() -> vo
 		assert_false(sequencer.is_busy(), id)
 		assert_gte(seen, 3, "%s: its stars were shown" % id)
 		assert_true(main.run.stars.is_empty(), "%s: and are gone" % id)
+
+
+func test_a_growing_star_charges_then_pops_with_a_ring_in_its_new_colour() -> void:
+	var charging: Dictionary[Vector2i, Color] = StarView.resize_pixels(Star.Size.SMALL, Star.Size.MEDIUM, 0.0, false)
+	assert_true(charging.values().has(Palette.C2) and charging.values().has(Palette.S4), "embers close in")
+	assert_ne(StarView.resize_offset(0.0, false), StarView.resize_offset(StarView.RESIZE_STEP * 0.5, false), "it trembles")
+	assert_eq(StarView.resize_frame(StarView.RESIZE_FLARE + 0.01, false), &"flare", "it pops on a flare")
+	assert_eq(StarView.resize_offset(StarView.RESIZE_FLARE + 0.01, false), Vector2i.UP, "and hops")
+	var burst: Dictionary[Vector2i, Color] = StarView.resize_pixels(Star.Size.SMALL, Star.Size.MEDIUM, StarView.RESIZE_FLARE + 0.01, false)
+	assert_true(burst.values().has(StarView.RESIZE_RING_COLOURS[Star.Size.MEDIUM]), "a ring in the medium's colour")
+	assert_eq(StarView.resize_frame(StarView.RESIZE_TIME - 0.01, false), &"glint")
+	assert_true(StarView.resize_pixels(Star.Size.SMALL, Star.Size.MEDIUM, StarView.RESIZE_TIME, false).is_empty(), "done")
+
+
+func test_a_shrinking_star_is_gripped_by_frost_then_sheds_crumbs() -> void:
+	var charging: Dictionary[Vector2i, Color] = StarView.resize_pixels(Star.Size.BIG, Star.Size.MEDIUM, 0.0, true)
+	assert_true(charging.values().has(Palette.M6), "a frost ring")
+	var later: Dictionary[Vector2i, Color] = StarView.resize_pixels(Star.Size.BIG, Star.Size.MEDIUM, StarView.RESIZE_FLARE - 0.01, true)
+	var outer: int = 0
+	var inner: int = 1 << 20
+	for p: Vector2i in charging:
+		outer = maxi(outer, p.length_squared())
+	for p: Vector2i in later:
+		inner = mini(inner, p.length_squared())
+	assert_lt(inner, outer, "it tightens")
+	assert_eq(StarView.resize_offset(StarView.RESIZE_FLARE + 0.01, true), Vector2i.DOWN, "it sinks")
+	assert_eq(StarView.resize_frame(StarView.RESIZE_TIME - 0.01, true), &"dim", "and settles dim")
+	var early: Dictionary[Vector2i, Color] = StarView.resize_pixels(Star.Size.BIG, Star.Size.MEDIUM, StarView.RESIZE_FLARE + StarView.RESIZE_POP, true)
+	var fallen: Dictionary[Vector2i, Color] = StarView.resize_pixels(Star.Size.BIG, Star.Size.MEDIUM, StarView.RESIZE_TIME - 0.01, true)
+	var low_early: int = -99
+	var low_late: int = -99
+	for p: Vector2i in early:
+		low_early = maxi(low_early, p.y)
+	for p: Vector2i in fallen:
+		low_late = maxi(low_late, p.y)
+	assert_gt(low_late, low_early, "the crumbs fall")
+
+
+func test_the_resize_effects_stay_in_the_palette_and_on_the_grid() -> void:
+	var allowed: Array[Color] = [Palette.C2, Palette.S3, Palette.S4, Palette.M5, Palette.M6, Palette.C1, Palette.C3, Palette.N8]
+	for shrinks: bool in [false, true]:
+		var t: float = 0.0
+		while t < StarView.RESIZE_TIME:
+			var from: Star.Size = Star.Size.BIG if shrinks else Star.Size.SMALL
+			var pixels: Dictionary[Vector2i, Color] = StarView.resize_pixels(from, Star.Size.MEDIUM, t, shrinks)
+			for p: Vector2i in pixels:
+				assert_true(pixels[p] in allowed, "palette colour")
+				assert_lte(absi(p.x), 20)
+				assert_lte(absi(p.y), 20)
+			t += 0.01
+
+
+func test_a_star_about_to_burn_charges_first() -> void:
+	var view: StarView = preload("res://game/scenes/star_view.tscn").instantiate()
+	add_child_autofree(view)
+	view.setup(Star.new(1, Star.Size.SMALL, Vector2i(90, 160)), SKY)
+	view.charge(true)
+	assert_true(view.is_resizing())
+	assert_eq(view.size, Star.Size.SMALL)
