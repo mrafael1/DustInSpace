@@ -116,7 +116,7 @@ var tutorial: Tutorial
 ## The stage's guided encounter with the threat it introduces (start_encounter), or null.
 var encounter: Encounter
 var current: StarCurrent
-## Leo's heat (chapter 3), or null when the map has none.
+## Leo's heat (chapter 3), over the whole stage, or null when the map has none.
 var heat: StarHeat
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
 var _current_reserved: Dictionary[int, Vector2i] = {}
@@ -155,8 +155,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.current_region.has_area() and step > 0:
 			var area: Rect2i = _stage_area(scorpio.map.current_region)
 			current = StarCurrent.new(area, scorpio.map.current_direction * step, scorpio.map.current_drains, scorpio.map.current_turns)
-		if scorpio.map.heat_region.has_area():
-			heat = StarHeat.new(_stage_area(scorpio.map.heat_region), scorpio.map.heat_change, scorpio.map.heat_burns)
+		if scorpio.map.heat_change != 0:
+			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -307,8 +307,8 @@ func loss_reasons() -> Array[LossReason]:
 	return reasons
 
 
-## Pure preview of what the heat does to the stars now in the sky on the next launch (after any
-## current carries them; a star it drains is gone first). The stars that launch brings don't change.
+## Pure preview of what the heat does to the stars now in the sky on the next launch (a star a
+## current drains is gone first). The stars that launch brings don't change.
 func heat_preview() -> Array[StarHeat.Change]:
 	if heat == null:
 		return []
@@ -317,7 +317,7 @@ func heat_preview() -> Array[StarHeat.Change]:
 	for star: Star in stars:
 		if current == null or not current.leaves(star.position, positions[star.id]):
 			remaining.append(star)
-	return heat.preview(remaining, {}, positions)
+	return heat.preview(remaining)
 
 
 ## Pure preview: no RNG draws and no changes to stars. New arrivals yield to these destinations.

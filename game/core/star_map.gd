@@ -55,12 +55,9 @@ var current_direction: Vector2i = Vector2i.LEFT
 ## A flow that turns after every launch takes these ways in order (the Jar's tide: left, right).
 ## Empty: it always runs current_direction.
 var current_turns: Array[Vector2i] = []
-## Leo's heat (chapter 3) in home layout: once each launch resolves, every loose star inside it
-## changes a size (StarHeat). A region spanning Scorpio.HOME_SKY's full height spans the whole play
-## sky's height on any screen, as a current's does.
-var heat_region: Rect2i = Rect2i()
-## +1: the heat, stars grow; -1: the cold, they shrink.
-var heat_change: int = 1
+## Leo's heat (chapter 3), over the whole stage: once each launch resolves, every loose star
+## changes a size (StarHeat). +1: the heat, stars grow; -1: the cold, they shrink; 0: none.
+var heat_change: int = 0
 ## A star pushed past the last size is lost: a big burns out in the heat, a small fades in the cold.
 var heat_burns: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
@@ -406,12 +403,10 @@ static func leo() -> StarMap:
 	return map
 
 
-## Leo, stage 1: the Tail. It teaches the heat alone, and nothing burns: a region over the sky's
-## full height from the left edge to x 112 where stars grow a size each launch, and a big one stays
-## big. The tail runs from the haunch (lit, upper right) down to the left, into the heat, and curls
-## up at its tuft (Denebola, big): stars saved by the tuft ripen into the big ones it needs. Five
-## to light. Strings are 28-33 px. Spatial bots (tools/heat/playtest.gd, 1,000 paired seeds) win
-## every run with or without it, in the same number of packs: here the heat is shown, not felt.
+## Leo, stage 1: the Tail. It teaches the heat alone, and nothing burns: over the whole stage,
+## stars grow a size each launch, and a big one stays big. The tail runs from the haunch (lit,
+## upper right) down to the left and curls up at its tuft (Denebola, big): stars saved by the tuft
+## ripen into the big ones it needs. Five to light. Strings are 28-33 px.
 static func leo_tail() -> StarMap:
 	var map := StarMap.new()
 	map.id = "leo_tail"
@@ -422,16 +417,13 @@ static func leo_tail() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = LEO_PART % "tail"
 	map.intros = false
-	map.heat_region = _full_height_between(0, 112)
+	map.heat_change = 1
 	return map
 
 
-## Leo, stage 2: the Haunch. Burning arrives: the heat covers the leg, over the sky's full height
-## from x 56 to 124, and a big star in it that grows again burns out. From the back (lit, upper
-## right) the leg runs through Chertan and the thigh (big) down to the knee, the hock and the paw;
-## the belly branches right from Chertan, outside the heat. Six to light. Strings are 30-36 px.
-## Spatial bots (1,000 paired seeds): every policy wins (launching every pack first burns 2.8 stars
-## a run and loses one run in 1,000): a gentle introduction to burning, as the Body is to the drain.
+## Leo, stage 2: the Haunch. Burning arrives: a big star that grows again burns out. From the back
+## (lit, upper right) the leg runs through Chertan and the thigh (big) down to the knee, the hock
+## and the paw; the belly branches right from Chertan. Six to light. Strings are 30-36 px.
 static func leo_haunch() -> StarMap:
 	var map := StarMap.new()
 	map.id = "leo_haunch"
@@ -442,15 +434,9 @@ static func leo_haunch() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = LEO_PART % "haunch"
 	map.intros = false
-	map.heat_region = _full_height_between(56, 124)
+	map.heat_change = 1
 	map.heat_burns = true
 	return map
-
-
-## A region over the home sky's full height (a taller sky stretches it: RunState) from x `from` to
-## `to`.
-static func _full_height_between(from: int, to: int) -> Rect2i:
-	return Rect2i(from, Scorpio.HOME_SKY.position.y, to - from, Scorpio.HOME_SKY.size.y)
 
 
 ## The map for `id`, the full Scorpio for anything unknown.

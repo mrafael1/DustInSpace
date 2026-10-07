@@ -1,21 +1,15 @@
 extends SceneTree
 ## Paired seeded runs of Leo's heat stages through the spatial core, heat off and on. Bots are
 ## deliberately simple; this is pressure evidence, not a prediction of human difficulty.
-## --map=leo_tail (default) or another heat stage's StarMap id; --runs=N; --region=X0-X1 moves the
-## heat to the sky's full height from x X0 to X1 for a what-if (the stage itself is untouched).
+## --map=leo_tail (default) or another heat stage's StarMap id; --runs=N.
 ## Policies: link-first links every link before launching; launch-first launches every owned pack
-## before linking; ripen holds triples of loose stars in the heat that won't burn next launch (to
-## let them grow) and aims a red planet (mostly big stars) out of the heat, a blue one into it.
+## before linking; ripen holds triples of loose stars that won't burn next launch, to let them grow.
 
 const POLICIES: Array[String] = ["link-first", "launch-first", "ripen"]
-## How far a red planet's aim may move to leave the heat.
-const RED_SHIFT: int = 40
-
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "leo_tail"
 var _rows: Array[Dictionary] = []
-var _region: Vector2i = Vector2i(-1, -1)
 
 
 func _initialize() -> void:
@@ -24,15 +18,12 @@ func _initialize() -> void:
 			_runs = maxi(1, argument.trim_prefix("--runs=").to_int())
 		elif argument.begins_with("--map="):
 			_map = argument.trim_prefix("--map=")
-		elif argument.begins_with("--region="):
-			var ends: PackedStringArray = argument.trim_prefix("--region=").split("-")
-			_region = Vector2i(ends[0].to_int(), ends[1].to_int())
 	_balance = Balance.load_file()
 	_simulate.call_deferred()
 
 
 func _simulate() -> void:
-	print("Paired seeds 1..%d; %s; reach %d; heat %s" % [_runs, _map, _balance.scorpio_max_link_distance, _layout(true).heat_region])
+	print("Paired seeds 1..%d; %s; reach %d" % [_runs, _map, _balance.scorpio_max_link_distance])
 	for policy: String in POLICIES:
 		for enabled: bool in [false, true]:
 			if policy == "ripen" and not enabled:
@@ -54,10 +45,8 @@ func _simulate() -> void:
 
 func _layout(enabled: bool) -> StarMap:
 	var map: StarMap = StarMap.by_id(_map)
-	if _region.x >= 0:
-		map.heat_region = Rect2i(_region.x, Scorpio.HOME_SKY.position.y, _region.y - _region.x, Scorpio.HOME_SKY.size.y)
 	if not enabled:
-		map.heat_region = Rect2i()
+		map.heat_change = 0
 	return map
 
 
@@ -90,7 +79,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 			for kind: String in ["red", "blue"]:
 				if run.load_pack(kind):
 					break
-		if not run.launch(_aim(run, policy == "ripen")):
+		if not run.launch(_aim(run)):
 			break
 		packs += 1
 		row.launches += 1
@@ -107,15 +96,14 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 			row.capped += 1
 
 
-## A link the ripen policy holds: three loose stars of one size, all in the heat, none of which
-## the next launch burns.
+## A link the ripen policy holds: three loose stars of one size that the next launch grows.
 func _ripening(run: RunState, ids: Array) -> bool:
 	if run.heat == null:
 		return false
 	var size: int = -1
 	for id: int in ids:
 		var star: Star = run.find_star(id)
-		if star == null or not run.heat.region.has_point(star.position):
+		if star == null:
 			return false
 		if size >= 0 and star.size != size:
 			return false
@@ -124,20 +112,13 @@ func _ripening(run: RunState, ids: Array) -> bool:
 	return grows or not run.heat.burns
 
 
-## Just up-left of the first unlit landmark. The ripen policy moves a red planet's aim out of the
-## heat, sideways, when it can within RED_SHIFT px.
-func _aim(run: RunState, heat_aware: bool) -> Vector2i:
+## Just up-left of the first unlit landmark.
+func _aim(run: RunState) -> Vector2i:
 	var target := Vector2i(90, 160)
 	for index: int in run.scorpio.map.count():
 		if not run.scorpio.is_lit(index):
 			target = run.scorpio.landmark_position(index) + Vector2i(-12, -18)
 			break
-	if heat_aware and run.heat != null and run.loaded_pack == "red" and run.heat.region.has_point(target):
-		var left: int = run.heat.region.position.x - 8
-		var right: int = run.heat.region.end.x + 8
-		var x: int = left if target.x - left < right - target.x else right
-		if absi(x - target.x) <= RED_SHIFT:
-			target.x = x
 	return target
 
 

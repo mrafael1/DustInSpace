@@ -55,11 +55,6 @@ func test_the_tail_teaches_a_heat_that_only_helps() -> void:
 	assert_eq(map.starting_lit, [0] as Array[int], "five to light")
 	assert_eq(map.heat_change, 1)
 	assert_false(map.heat_burns, "nothing burns yet")
-	assert_eq(map.heat_region, Rect2i(0, SKY.position.y, 112, SKY.size.y))
-	for index: int in [2, 3, 4, 5]:
-		assert_true(map.heat_region.has_point(map.landmarks[index]), "the tail's middle and end are in the heat")
-	for index: int in [0, 1]:
-		assert_false(map.heat_region.has_point(map.landmarks[index]))
 	assert_eq(map.sizes[5], Star.Size.BIG, "the tuft is big: the heat ripens what it needs")
 	assert_eq(StarMap.by_id("leo_tail").title, "TAIL")
 
@@ -68,19 +63,16 @@ func test_the_haunch_brings_burning() -> void:
 	var map: StarMap = StarMap.leo_haunch()
 	_check_pickable(map)
 	assert_eq(map.starting_lit, [0] as Array[int], "six to light")
+	assert_eq(map.heat_change, 1)
 	assert_true(map.heat_burns)
-	for index: int in [1, 2, 3, 4, 5]:
-		assert_true(map.heat_region.has_point(map.landmarks[index]), "the leg is in the heat")
-	for index: int in [0, 6]:
-		assert_false(map.heat_region.has_point(map.landmarks[index]), "the back and belly are out of it")
 	assert_eq(StarMap.by_id("leo_haunch").title, "HAUNCH")
 
 
 func test_each_heat_says_its_rule() -> void:
-	assert_eq(Hud.heat_rule(StarHeat.new(SKY, 1, false)), Hud.HEAT_MESSAGE)
-	assert_eq(Hud.heat_rule(StarHeat.new(SKY, 1, true)), Hud.BURN_MESSAGE)
-	assert_eq(Hud.heat_rule(StarHeat.new(SKY, -1, false)), Hud.COLD_MESSAGE)
-	assert_eq(Hud.heat_rule(StarHeat.new(SKY, -1, true)), Hud.FADE_MESSAGE)
+	assert_eq(Hud.heat_rule(StarHeat.new(1, false)), Hud.HEAT_MESSAGE)
+	assert_eq(Hud.heat_rule(StarHeat.new(1, true)), Hud.BURN_MESSAGE)
+	assert_eq(Hud.heat_rule(StarHeat.new(-1, false)), Hud.COLD_MESSAGE)
+	assert_eq(Hud.heat_rule(StarHeat.new(-1, true)), Hud.FADE_MESSAGE)
 	for message: String in [Hud.HEAT_MESSAGE, Hud.BURN_MESSAGE, Hud.COLD_MESSAGE, Hud.FADE_MESSAGE]:
 		for line: String in message.split("\n"):
 			assert_lte(line.length(), 22, line)
@@ -95,18 +87,21 @@ func _main(map_id: String) -> Main:
 	return main
 
 
-func test_the_field_draws_embers_and_its_edge_in_palette_colours() -> void:
+func test_embers_rise_over_the_whole_sky_with_no_edges() -> void:
 	var main: Main = _main("leo_haunch")
 	var view: HeatView = main.get_node("Sky/HeatLayer")
 	assert_true(view.is_processing())
-	var region: Rect2i = main.run.heat.region
+	var sky: Rect2i = main.run.sky_rect
 	var dots: Dictionary[Vector2i, Color] = view.pixels()
-	assert_false(dots.is_empty())
+	assert_between(dots.size(), 40, 90, "about one ember (two pixels) per 900 px²")
+	var left: bool = false
+	var right: bool = false
 	for point: Vector2i in dots:
-		assert_true(region.has_point(point), "the embers stay in the heat")
+		assert_true(sky.has_point(point), "the embers stay in the sky")
 		assert_true(dots[point] in [Palette.S2, Palette.S3], "embers, never the warm C ramp")
-	assert_true(dots.has(Vector2i(region.position.x, region.position.y)), "its left edge is dotted")
-	assert_true(dots.has(Vector2i(region.end.x - 1, region.position.y)), "and its right edge")
+		left = left or point.x < sky.position.x + sky.size.x / 3
+		right = right or point.x > sky.end.x - sky.size.x / 3
+	assert_true(left and right, "across the whole stage")
 	var before: Dictionary[Vector2i, Color] = view.pixels()
 	view.advance(1.0)
 	assert_ne(view.pixels(), before, "the embers rise")
@@ -125,7 +120,6 @@ func test_the_aim_previews_each_change_round_its_star() -> void:
 	var view: HeatView = main.get_node("Sky/HeatLayer")
 	var small: Star = run.add_star(Star.Size.SMALL, Vector2i(100, 120))
 	var big: Star = run.add_star(Star.Size.BIG, Vector2i(80, 230))
-	var outside: Star = run.add_star(Star.Size.SMALL, Vector2i(160, 230))
 	var idle: Dictionary[Vector2i, Color] = view.pixels()
 	view.aiming = true
 	var dots: Dictionary[Vector2i, Color] = view.pixels()
@@ -140,8 +134,8 @@ func test_the_aim_previews_each_change_round_its_star() -> void:
 	for offset: Vector2i in StarView.outline_pixels(Star.Size.BIG):
 		ember += int(dots.get(big.position + offset) == Palette.S4)
 	assert_gt(ember, 3, "and an ember ring")
-	for offset: Vector2i in StarView.outline_pixels(Star.Size.MEDIUM):
-		assert_eq(dots.get(outside.position + offset), idle.get(outside.position + offset), "nothing round a star out of the heat")
+	view.aiming = false
+	assert_eq(view.pixels().size(), idle.size(), "only while aiming")
 
 
 func test_a_launch_resizes_and_burns_the_star_views() -> void:

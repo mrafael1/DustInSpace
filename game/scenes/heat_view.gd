@@ -1,18 +1,18 @@
 class_name HeatView
 extends Node2D
-## Leo's heat over the sky: embers rising slowly through its region (the cold: frost motes
-## drifting down), and its edges inside the sky dotted, so a set straddling it reads. While aiming,
+## Leo's heat, over the whole stage: embers rising slowly through the sky (the cold: frost motes
+## drifting down). While aiming,
 ## each star the next launch changes shows it: a dotted outline of the size it will grow to, in
 ## that size's own colour, or a dotted ember outline crowned with flames on a star that will burn out. Drawn above the
 ## halos and below the links and stars. The core supplies every change; pack contents stay hidden.
 
-## The motes: one per MOTE_AREA px² of the region, rising MOTE_SPEED px/s (falling in the cold),
+## The motes: one per MOTE_AREA px² of the sky, rising MOTE_SPEED px/s (falling in the cold),
 ## each by a fixed hash so the pattern is stable. A head pixel and a dimmer one behind it.
-const MOTE_AREA: int = 420
+const MOTE_AREA: int = 900
 const MOTE_SPEED := Vector2i(4, 9)
-## The heat's colours: the motes' head and tail, and its dotted edge. Embers, never C0-C3.
-const HEAT_COLOURS: Array[Color] = [Palette.S3, Palette.S2, Palette.S2]
-const COLD_COLOURS: Array[Color] = [Palette.M4, Palette.M3, Palette.M3]
+## The motes' head and tail: embers in the heat (never C0-C3), frost in the cold.
+const HEAT_COLOURS: Array[Color] = [Palette.S3, Palette.S2]
+const COLD_COLOURS: Array[Color] = [Palette.M4, Palette.M3]
 ## The next size's outline, in that size's own tip colour (small, medium, big).
 const NEXT_COLOURS: Array[Color] = [Palette.C3, Palette.N8, Palette.M5]
 ## The crown of flames over a star that will burn out, from just above its ember ring's top.
@@ -85,9 +85,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		return result
 	if not _run.is_over() or not _burns.is_empty():
 		var colours: Array[Color] = HEAT_COLOURS if _run.heat.change > 0 else COLD_COLOURS
-		result.merge(mote_pixels(_run.heat.region, _run.heat.change, _time, colours))
-		for point: Vector2i in edge_pixels(_run.heat.region, _run.sky_rect):
-			result[point] = colours[2]
+		result.merge(mote_pixels(_run.sky_rect, _run.heat.change, _time, colours))
 	for at: Vector2i in _burns:
 		result.merge(burn_pixels(at, _burns[at]), true)
 	if aiming and _sequencer != null and not _sequencer.is_busy():
@@ -138,25 +136,6 @@ static func mote_pixels(area: Rect2i, change: int, time: float, colours: Array[C
 		if area.has_point(behind):
 			pixels[behind] = colours[1]
 	return pixels
-
-
-## The region's edges that lie inside `sky`, one dot in two: where the heat starts.
-static func edge_pixels(area: Rect2i, sky: Rect2i) -> Array[Vector2i]:
-	var points: Array[Vector2i] = []
-	var inner: Rect2i = area.intersection(sky)
-	if not inner.has_area():
-		return points
-	for y: int in range(inner.position.y, inner.end.y, 2):
-		if inner.position.x > sky.position.x:
-			points.append(Vector2i(inner.position.x, y))
-		if inner.end.x < sky.end.x:
-			points.append(Vector2i(inner.end.x - 1, y))
-	for x: int in range(inner.position.x, inner.end.x, 2):
-		if inner.position.y > sky.position.y:
-			points.append(Vector2i(x, inner.position.y))
-		if inner.end.y < sky.end.y:
-			points.append(Vector2i(x, inner.end.y - 1))
-	return points
 
 
 ## A burnt star's embers `t` seconds after it burned at `at`: a flare, then sparks rising and

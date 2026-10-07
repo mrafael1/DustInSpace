@@ -1,15 +1,12 @@
 extends GutTest
-## Leo's heat (chapter 3): once a launch resolves, loose stars in the region change a size; the
-## launch's own stars wait for the next; a star pushed past the last size is lost when it burns.
+## Leo's heat (chapter 3), over the whole stage: once a launch resolves, every loose star changes a
+## size; the launch's own stars wait for the next; a star pushed past the last size is lost when it
+## burns.
 
 const Fixtures := preload("res://tests/fixtures.gd")
 const SKY := Rect2i(0, 78, 180, 172)
-## The right half of the sky, full height.
-const HOT := Rect2i(90, 78, 90, 172)
-
-
 func _heat(change: int = 1, burns: bool = true) -> StarHeat:
-	return StarHeat.new(HOT, change, burns)
+	return StarHeat.new(change, burns)
 
 
 func _sizes(changes: Array[StarHeat.Change]) -> Dictionary:
@@ -19,14 +16,14 @@ func _sizes(changes: Array[StarHeat.Change]) -> Dictionary:
 	return result
 
 
-func test_the_heat_grows_each_star_inside_one_size_and_burns_a_big_one() -> void:
+func test_the_heat_grows_every_star_one_size_and_burns_a_big_one() -> void:
 	var stars: Array[Star] = [
 		Star.new(1, Star.Size.SMALL, Vector2i(120, 160)),
 		Star.new(2, Star.Size.MEDIUM, Vector2i(150, 100)),
 		Star.new(3, Star.Size.BIG, Vector2i(100, 230)),
 		Star.new(4, Star.Size.SMALL, Vector2i(40, 160)),
 	]
-	assert_eq(_sizes(_heat().preview(stars)), {1: "medium", 2: "big", 3: "lost"}, "outside the heat nothing changes")
+	assert_eq(_sizes(_heat().preview(stars)), {1: "medium", 2: "big", 3: "lost", 4: "medium"}, "wherever it is")
 	var changes: Array[StarHeat.Change] = _heat().preview(stars)
 	assert_eq(changes[2].from, Star.Size.BIG)
 	assert_eq(changes[2].to, Star.Size.BIG, "a lost star keeps its size")
@@ -47,17 +44,14 @@ func test_the_cold_shrinks_and_fades_a_small_one() -> void:
 	assert_eq(_sizes(_heat(-1, false).preview(stars)), {1: "medium", 2: "small"}, "without burning a small stays small")
 
 
-func test_skipped_stars_and_given_positions() -> void:
+func test_a_skipped_star_waits() -> void:
 	var stars: Array[Star] = [Star.new(1, Star.Size.SMALL, Vector2i(120, 160)), Star.new(2, Star.Size.SMALL, Vector2i(40, 160))]
-	assert_eq(_sizes(_heat().preview(stars, {1: true})), {}, "a skipped star waits")
-	var positions: Dictionary[int, Vector2i] = {1: Vector2i(60, 160), 2: Vector2i(100, 160)}
-	assert_eq(_sizes(_heat().preview(stars, {}, positions)), {2: "medium"}, "where it will be decides")
+	assert_eq(_sizes(_heat().preview(stars, {1: true})), {2: "medium"})
 
 
 func _map(change: int = 1, burns: bool = true) -> StarMap:
 	var map: StarMap = StarMap.aquarius_hand()
 	map.current_region = Rect2i()
-	map.heat_region = HOT
 	map.heat_change = change
 	map.heat_burns = burns
 	return map
@@ -80,14 +74,13 @@ func test_a_launch_resizes_the_stars_already_in_the_heat_but_not_its_own() -> vo
 		run.loaded_pack = kind
 		var small: Star = run.add_star(Star.Size.SMALL, Vector2i(150, 110))
 		var big: Star = run.add_star(Star.Size.BIG, Vector2i(150, 230))
-		var outside: Star = run.add_star(Star.Size.SMALL, Vector2i(20, 230))
+		var far: Star = run.add_star(Star.Size.SMALL, Vector2i(20, 230))
 		var preview: Array[StarHeat.Change] = run.heat_preview()
 		watch_signals(run)
 		assert_true(run.launch(Vector2i(130, 160)), kind)
 		assert_eq(small.size, Star.Size.MEDIUM, kind)
 		assert_false(run.stars.has(big), "%s: the big one burned out" % kind)
-		assert_true(run.stars.has(outside))
-		assert_eq(outside.size, Star.Size.SMALL)
+		assert_eq(far.size, Star.Size.MEDIUM, "%s: anywhere in the sky" % kind)
 		assert_signal_emitted(run, "stars_resized")
 		var changes: Array = get_signal_parameters(run, "stars_resized")[0]
 		assert_eq(_sizes(changes), _sizes(preview), "%s: the aim's preview is what happens" % kind)
@@ -112,9 +105,7 @@ func test_the_launch_after_ripens_the_stars_the_first_one_brought() -> void:
 	run.loaded_pack = "blue"
 	assert_true(run.launch(Vector2i(20, 230)))
 	for id: int in before:
-		var star: Star = run.find_star(id)
-		if HOT.has_point(star.position):
-			assert_eq(star.size, mini(before[id] + 1, Star.Size.BIG))
+		assert_eq(run.find_star(id).size, mini(before[id] + 1, Star.Size.BIG))
 
 
 func test_the_heat_draws_nothing_from_the_packs_rng() -> void:
@@ -168,14 +159,7 @@ func test_the_loss_check_comes_after_the_burn() -> void:
 	run.dust = 0
 	for at: Vector2i in [Vector2i(150, 110), Vector2i(160, 140), Vector2i(140, 170)]:
 		run.add_star(Star.Size.BIG, at)
-	assert_true(run.has_remaining_combo(), "a big triple waits in the heat")
+	assert_true(run.has_remaining_combo(), "a big triple waits")
 	assert_true(run.launch(Vector2i(30, 230)))
 	assert_eq(run.stars.size(), 3, "the triple burned out; only the last pack's stars remain")
 	assert_eq(run.is_over(), not run.has_remaining_combo(), "lost only if the new stars hold no link")
-
-
-func test_a_tall_sky_stretches_a_full_height_heat() -> void:
-	var tall := Rect2i(0, 78, 180, 230)
-	var run := RunState.new(Balance.load_file(), Fixtures.rng(), tall, _map())
-	assert_eq(run.heat.region.position.y, tall.position.y)
-	assert_eq(run.heat.region.size.y, tall.size.y)
