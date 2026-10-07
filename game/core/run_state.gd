@@ -63,6 +63,13 @@ signal hunt_intro_placed(stars: Array[Star])
 signal hunt_intro_launched(kind: String, burst: Vector2i)
 ## Orion's hunting intro: the demo pack burst at `burst` into `stars` (area_struck takes them next).
 signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
+## Leo's heat intro: the stage that brings the heat (or the cold) opened with `stars` in the sky
+## (one of each size, copies as placed); the heat acts on them next, each time a stars_resized.
+signal heat_intro_placed(stars: Array[Star])
+## Leo's heat intro paused a beat between two of its steps (the heat acting again, or the end).
+signal heat_intro_paused
+## Leo's heat intro is over: `stars`, what the heat left of it, leave the sky. No reward.
+signal heat_intro_cleared(stars: Array[Star])
 ## The boss stage (the final) opened: Orion shows himself before play starts. Presentation only.
 signal boss_appeared
 ## The guided first run moved on to `step` (a Tutorial.Step).
@@ -89,6 +96,11 @@ const ENCOUNTER_CLEARANCE: int = 10
 const SAFE_SPOT_GRID: int = 8
 ## XOR'd into the seed so star layout has its own RNG stream and can't shift pack contents.
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
+## Leo's heat intro: the stars it shows (one of each size), and how many times at most the heat acts
+## on them. Its layout's own RNG stream (XOR'd into the run seed).
+const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
+const HEAT_INTRO_PULSES: int = 3
+const HEAT_INTRO_SEED_SALT: int = 0x4EA7
 
 var balance: Balance
 ## The seed of the RNG the run started with. Anything replayable derives its randomness from it.
@@ -771,7 +783,10 @@ func _heat_stars(first_new_id: int) -> void:
 	for star: Star in stars:
 		if star.id >= first_new_id:
 			skip[star.id] = true
-	var changes: Array[StarHeat.Change] = heat.preview(stars, skip)
+	_apply_heat(heat.preview(stars, skip))
+
+
+func _apply_heat(changes: Array[StarHeat.Change]) -> void:
 	for change: StarHeat.Change in changes:
 		var star: Star = find_star(change.star_id)
 		if change.lost:
@@ -862,6 +877,59 @@ func play_volley_intro() -> void:
 	volley_fired.emit(placed)
 	# Like any volley, the countdown then shows where it stands (untouched: the intro doesn't count).
 	volley_counted.emit(volley.links_left())
+
+
+## Leo's heat intro, as the stage that brings the heat or the cold opens (the scene calls it once
+## its views are bound): it shows the effect, not a tutorial. A small, a medium and a big star in
+## the open sky, away from the constellation, then the heat acts on them as a launch would, without one, while it changes any (at
+## most HEAT_INTRO_PULSES times): the heat grows them, the cold shrinks them and fades the small one,
+## until none are left. What's left (the heat's bigs, where nothing burns) leaves the sky. It pays
+## nothing, uses no pack, doesn't turn day and night, and its layout has its own RNG stream, so packs
+## and layout never shift. Does nothing without heat, on a map without intros, or once the run has
+## begun.
+func play_heat_intro() -> void:
+	if heat == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ HEAT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), _open_spot(), sky_rect, [], layout, scorpio.landmark_positions())
+	# As they were placed: the heat changes the stars themselves before the views show them.
+	var shown: Array[Star] = []
+	for i: int in spots.size():
+		var star: Star = add_star(HEAT_INTRO_SIZES[i], spots[i])
+		shown.append(Star.new(star.id, star.size, star.position))
+	heat_intro_placed.emit(shown)
+	for pulse: int in HEAT_INTRO_PULSES:
+		var changes: Array[StarHeat.Change] = heat.preview(stars)
+		if changes.is_empty():
+			break
+		if pulse > 0:
+			heat_intro_paused.emit()
+		_apply_heat(changes)
+	if not stars.is_empty():
+		heat_intro_paused.emit()
+		var left: Array[Star] = stars.duplicate()
+		stars.clear()
+		heat_intro_cleared.emit(left)
+
+
+## The spot of the inner sky furthest from every landmark (nearest the middle on a tie), so stars
+## shown there don't read as part of the constellation.
+func _open_spot() -> Vector2i:
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var best: Vector2i = inner.get_center()
+	var best_clear: int = -1
+	for y: int in range(inner.position.y, inner.end.y, SAFE_SPOT_GRID):
+		for x: int in range(inner.position.x, inner.end.x, SAFE_SPOT_GRID):
+			var spot := Vector2i(x, y)
+			var clear: int = 1 << 30
+			for at: Vector2i in scorpio.landmark_positions():
+				clear = mini(clear, (spot - at).length_squared())
+			var nearer: bool = (spot - inner.get_center()).length_squared() < (best - inner.get_center()).length_squared()
+			if clear > best_clear or (clear == best_clear and nearer):
+				best = spot
+				best_clear = clear
+	return best
 
 
 ## Orion's hunting intro (#71), as the Heart opens (the scene calls it once its views are bound):

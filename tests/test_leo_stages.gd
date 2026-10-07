@@ -4,6 +4,7 @@ extends GutTest
 
 const MainScene := preload("res://game/scenes/main.tscn")
 const SKY := Rect2i(0, 78, 180, 172)
+const Fixtures := preload("res://tests/fixtures.gd")
 
 
 func _check_pickable(map: StarMap) -> void:
@@ -225,6 +226,9 @@ func test_the_cold_previews_each_shrink_and_a_snowflake_on_a_star_that_fades() -
 	var main: Main = _main("leo_heart")
 	var run: RunState = main.run
 	var view: HeatView = main.get_node("Sky/HeatLayer")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	while sequencer.is_busy():
+		sequencer.advance(0.1)
 	var small: Star = run.add_star(Star.Size.SMALL, Vector2i(100, 120))
 	var big: Star = run.add_star(Star.Size.BIG, Vector2i(80, 230))
 	view.aiming = true
@@ -283,3 +287,96 @@ func test_a_faded_star_falls_as_frost() -> void:
 		lowest = maxi(lowest, point.y)
 	assert_gt(lowest, at.y + 8, "the flakes fall")
 	assert_true(HeatView.fade_pixels(at, HeatView.BURN_TIME).is_empty())
+
+
+# --- The heat's and the cold's intros: the effect shown as the stage opens --------------------
+
+func _intro_run(map: StarMap, seed_value: int = 7) -> RunState:
+	return RunState.new(Balance.load_file(), Fixtures.rng(seed_value), SKY, map)
+
+
+func test_the_tail_opens_by_showing_the_heat_grow_three_stars() -> void:
+	var run: RunState = _intro_run(StarMap.leo_tail())
+	var packs: Dictionary = run.owned_packs.duplicate()
+	watch_signals(run)
+	run.play_heat_intro()
+	var placed: Array = get_signal_parameters(run, "heat_intro_placed")[0]
+	var sizes: Array[int] = []
+	for star: Star in placed:
+		sizes.append(star.size)
+		assert_false(run.scorpio.is_landmark(star.id))
+	assert_eq(sizes, [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG] as Array[int], "one of each size")
+	assert_signal_emit_count(run, "stars_resized", 2, "small to medium to big; medium to big")
+	assert_signal_emit_count(run, "heat_intro_paused", 2, "a beat before the second change and before they go")
+	var left: Array = get_signal_parameters(run, "heat_intro_cleared")[0]
+	assert_eq(left.size(), 3, "three bigs: nothing burns on the Tail")
+	for star: Star in left:
+		assert_eq(star.size, Star.Size.BIG)
+	assert_true(run.stars.is_empty(), "it leaves no star")
+	assert_eq(run.dust, 0, "and pays nothing")
+	assert_eq(run.owned_packs, packs, "and uses no pack")
+	assert_eq(run.heat.change, 1)
+
+
+func test_the_heart_opens_by_showing_the_cold_shrink_and_fade_them_all() -> void:
+	var run: RunState = _intro_run(StarMap.leo_heart())
+	watch_signals(run)
+	run.play_heat_intro()
+	assert_signal_emit_count(run, "stars_resized", 3, "big to medium to small to gone")
+	var faded: int = 0
+	for i: int in 3:
+		for change: StarHeat.Change in get_signal_parameters(run, "stars_resized", i)[0]:
+			assert_true(change.is_cold())
+			faded += int(change.lost)
+	assert_eq(faded, 3, "every one fades in the end")
+	assert_signal_not_emitted(run, "heat_intro_cleared", "the cold empties the sky itself")
+	assert_true(run.stars.is_empty())
+
+
+func test_the_intro_never_shifts_the_packs() -> void:
+	var sizes: Array = [[], []]
+	for k: int in 2:
+		var run: RunState = _intro_run(StarMap.leo_heart(), 11)
+		if k == 1:
+			run.play_heat_intro()
+		watch_signals(run)
+		for i: int in 2:
+			Fixtures.launch(run, Vector2i(40 + 60 * i, 200))
+			for star: Star in get_signal_parameters(run, "pack_burst")[2]:
+				sizes[k].append(star.size)
+	assert_eq(sizes[0], sizes[1], "the same packs open with or without it")
+
+
+func test_only_the_stages_that_bring_the_heat_or_the_cold_show_it_once_as_they_open() -> void:
+	for id: String in ["leo_haunch", "leo_mane", "aquarius_hand"]:
+		var run: RunState = _intro_run(StarMap.by_id(id))
+		watch_signals(run)
+		run.play_heat_intro()
+		assert_signal_not_emitted(run, "heat_intro_placed", id)
+	var started: RunState = _intro_run(StarMap.leo_tail())
+	started.add_star(Star.Size.SMALL, Vector2i(100, 120))
+	watch_signals(started)
+	started.play_heat_intro()
+	assert_signal_not_emitted(started, "heat_intro_placed", "not once the run has begun")
+
+
+func test_the_stage_opens_with_the_intro_and_play_starts_on_an_empty_sky() -> void:
+	for id: String in ["leo_tail", "leo_heart"]:
+		var main: Main = _main(id)
+		var sky: SkyView = main.get_node("Sky")
+		var sequencer: EventSequencer = main.get_node("EventSequencer")
+		assert_true(sequencer.is_busy(), "%s: the intro plays first" % id)
+		var seen: int = 0
+		for i: int in 300:
+			sequencer.advance(0.03)
+			var shown: int = 0
+			for child: Node in sky.get_node("StarLayer").get_children():
+				if is_instance_valid(child) and not child.is_queued_for_deletion():
+					(child as StarView).advance(0.03)
+					shown += 1
+			seen = maxi(seen, shown)
+			if not sequencer.is_busy():
+				break
+		assert_false(sequencer.is_busy(), id)
+		assert_gte(seen, 3, "%s: its stars were shown" % id)
+		assert_true(main.run.stars.is_empty(), "%s: and are gone" % id)
