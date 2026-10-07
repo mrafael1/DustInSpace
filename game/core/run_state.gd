@@ -156,7 +156,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			var area: Rect2i = _stage_area(scorpio.map.current_region)
 			current = StarCurrent.new(area, scorpio.map.current_direction * step, scorpio.map.current_drains, scorpio.map.current_turns)
 		if scorpio.map.heat_change != 0:
-			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns)
+			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns, scorpio.map.heat_turns)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -407,6 +407,8 @@ func launch(target: Vector2i) -> bool:
 		_shift_stars()
 	if heat != null and not result.big_bang:
 		_heat_stars(first_new_id)
+	if heat != null:
+		heat.turn()
 	if current != null:
 		current.turn()
 	_current_reserved.clear()

@@ -163,3 +163,71 @@ func test_the_loss_check_comes_after_the_burn() -> void:
 	assert_true(run.launch(Vector2i(30, 230)))
 	assert_eq(run.stars.size(), 3, "the triple burned out; only the last pack's stars remain")
 	assert_eq(run.is_over(), not run.has_remaining_combo(), "lost only if the new stars hold no link")
+
+
+func test_a_change_knows_whether_the_cold_made_it() -> void:
+	assert_false(StarHeat.Change.new(1, Star.Size.SMALL, Star.Size.MEDIUM).is_cold())
+	assert_false(StarHeat.Change.new(1, Star.Size.BIG, Star.Size.BIG, true).is_cold(), "a big burned in the heat")
+	assert_true(StarHeat.Change.new(1, Star.Size.BIG, Star.Size.MEDIUM).is_cold())
+	assert_true(StarHeat.Change.new(1, Star.Size.SMALL, Star.Size.SMALL, true).is_cold(), "a small faded in the cold")
+
+
+func test_a_heat_that_doesnt_turn_stays_the_heat() -> void:
+	var heat := StarHeat.new(1, true)
+	heat.turn()
+	assert_eq(heat.change, 1)
+	var turning := StarHeat.new(1, true, true)
+	turning.turn()
+	assert_eq(turning.change, -1, "night falls")
+	turning.turn()
+	assert_eq(turning.change, 1, "and day comes back")
+
+
+func test_day_and_night_take_turns_launch_by_launch() -> void:
+	var map: StarMap = _map(1, true)
+	map.heat_turns = true
+	var run: RunState = _run(map)
+	assert_true(run.heat.turns)
+	run.owned_packs["blue"] = 3
+	var small: Star = run.add_star(Star.Size.SMALL, Vector2i(150, 110))
+	var big: Star = run.add_star(Star.Size.BIG, Vector2i(150, 230))
+	run.loaded_pack = "blue"
+	assert_true(run.launch(Vector2i(30, 230)))
+	assert_eq(small.size, Star.Size.MEDIUM, "day: it grew")
+	assert_false(run.stars.has(big), "day: the big one burned")
+	assert_eq(run.heat.change, -1, "night is next")
+	var preview: Array[StarHeat.Change] = run.heat_preview()
+	watch_signals(run)
+	run.loaded_pack = "blue"
+	assert_true(run.launch(Vector2i(30, 120)))
+	assert_eq(small.size, Star.Size.SMALL, "night: it shrank back")
+	var changes: Array = get_signal_parameters(run, "stars_resized")[0]
+	assert_eq(_sizes(changes), _sizes(preview), "the aim's preview shows the night's change")
+	for change: StarHeat.Change in changes:
+		assert_true(change.is_cold())
+	assert_eq(run.heat.change, 1, "day again")
+
+
+func test_buying_linking_and_refused_launches_dont_turn_day_and_night() -> void:
+	var map: StarMap = _map(1, true)
+	map.heat_turns = true
+	var run: RunState = _run(map)
+	var triple: Array[Star] = [run.add_star(Star.Size.MEDIUM, Vector2i(150, 200)), run.add_star(Star.Size.MEDIUM, Vector2i(130, 220)), run.add_star(Star.Size.MEDIUM, Vector2i(160, 230))]
+	assert_ne(run.link(Fixtures.ids(triple)), Combos.INVALID)
+	run.dust = 20
+	assert_true(run.buy("blue"))
+	run.loaded_pack = ""
+	assert_false(run.launch(Vector2i(90, 160)), "a refused launch")
+	assert_eq(run.heat.change, 1)
+
+
+func test_the_cold_fades_a_small_star_on_launch() -> void:
+	var run: RunState = _run(_map(-1, true))
+	run.owned_packs["blue"] = 1
+	run.loaded_pack = "blue"
+	var small: Star = run.add_star(Star.Size.SMALL, Vector2i(150, 110))
+	var big: Star = run.add_star(Star.Size.BIG, Vector2i(150, 230))
+	assert_true(run.launch(Vector2i(30, 230)))
+	assert_false(run.stars.has(small), "it faded, for nothing")
+	assert_eq(big.size, Star.Size.MEDIUM)
+	assert_eq(run.heat.change, -1, "the cold stays the cold")

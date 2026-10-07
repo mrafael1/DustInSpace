@@ -60,6 +60,9 @@ var current_turns: Array[Vector2i] = []
 var heat_change: int = 0
 ## A star pushed past the last size is lost: a big burns out in the heat, a small fades in the cold.
 var heat_burns: bool = false
+## Heat and cold take turns, swapping after every launch (the Mane's day and night), starting with
+## heat_change.
+var heat_turns: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -439,6 +442,47 @@ static func leo_haunch() -> StarMap:
 	return map
 
 
+## Leo, stage 3: the Heart. The cold arrives: each launch every loose star shrinks a size (big to
+## medium to small), and a small one fades, lost for nothing. From the mane (lit, upper right) the
+## chest runs down to Regulus (big) in the middle, then the fore leg down to the paw (omicron), the
+## breast branching left. A big for Regulus has one launch before it shrinks; the small paw is fed
+## by stars the cold wears down. Five to light. Strings are 30-35 px.
+static func leo_heart() -> StarMap:
+	var map := StarMap.new()
+	map.id = "leo_heart"
+	map.title = "HEART"
+	map.landmarks = [Vector2i(146, 100), Vector2i(124, 124), Vector2i(104, 150), Vector2i(118, 180), Vector2i(142, 204), Vector2i(76, 166)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5)]
+	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = LEO_PART % "heart"
+	map.intros = false
+	map.heat_change = -1
+	map.heat_burns = true
+	return map
+
+
+## Leo, stage 4: the Mane. Day and night: heat and cold take turns, swapping after every launch,
+## starting with the heat. By day stars grow and a big one burns out; by night they shrink and a
+## small one fades. The mane curls as the Sickle does: up from the heart (lit, bottom) through
+## Algieba (big) and over to zeta and the brow at the right, a tuft branching left from Algieba.
+## Six to light. Strings are 27-35 px.
+static func leo_mane() -> StarMap:
+	var map := StarMap.new()
+	map.id = "leo_mane"
+	map.title = "MANE"
+	map.landmarks = [Vector2i(110, 224), Vector2i(90, 200), Vector2i(84, 170), Vector2i(100, 142), Vector2i(126, 128), Vector2i(150, 140), Vector2i(56, 150)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5), Vector2i(2, 6)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = LEO_PART % "mane"
+	map.intros = false
+	map.heat_change = 1
+	map.heat_burns = true
+	map.heat_turns = true
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -474,6 +518,10 @@ static func by_id(p_id: String) -> StarMap:
 			return leo_tail()
 		"leo_haunch":
 			return leo_haunch()
+		"leo_heart":
+			return leo_heart()
+		"leo_mane":
+			return leo_mane()
 	return scorpio()
 
 
