@@ -1,16 +1,20 @@
 extends SceneTree
 ## Native-size aim/readability captures of Leo's heat. Run without --headless (the viewport needs a
-## renderer). -- --map=leo_haunch (default) or another heat stage's StarMap id.
+## renderer). -- --map=leo_haunch (default) or another heat stage's StarMap id; --night: a stage
+## whose heat turns (the Mane) is captured at night.
 
 const MainScene := preload("res://game/scenes/main.tscn")
 
 var _map: String = "leo_haunch"
+var _night: bool = false
 
 
 func _initialize() -> void:
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--map="):
 			_map = argument.trim_prefix("--map=")
+		elif argument == "--night":
+			_night = true
 	_capture.call_deferred()
 
 
@@ -32,7 +36,11 @@ func _capture() -> void:
 	]
 	for entry: Array in board:
 		main.run.add_star(entry[0], entry[1] + main.run.scorpio.shift)
-	(main.get_node("Sky") as SkyView).setup(main.run, main.get_node("EventSequencer") as EventSequencer)
+	if _night and main.run.heat.turns:
+		main.run.heat.turn()
+	var sequencer := main.get_node("EventSequencer") as EventSequencer
+	(main.get_node("Sky") as SkyView).setup(main.run, sequencer)
+	(main.get_node("Sky/HeatLayer") as HeatView).setup(main.run, sequencer)
 	(main.get_node("Telescope") as Telescope).request_aim()
 	for i: int in 4:
 		await process_frame
@@ -50,6 +58,6 @@ func _save(state: String) -> void:
 	await RenderingServer.frame_post_draw
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/heat/out"))
 	var frame: Image = root.get_texture().get_image()
-	var destination: String = "res://tools/heat/out/%s-%s-%dx%d.png" % [_map, state, frame.get_width(), frame.get_height()]
+	var destination: String = "res://tools/heat/out/%s%s-%s-%dx%d.png" % [_map, "-night" if _night else "", state, frame.get_width(), frame.get_height()]
 	frame.save_png(destination)
 	print("Captured ", destination)
