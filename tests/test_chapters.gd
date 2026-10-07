@@ -34,8 +34,9 @@ func test_every_chapter_has_five_parts_and_a_final_and_its_own_id() -> void:
 		assert_eq(def.stages[Chapter.FINAL]["stars"], [], "%s's final is the whole figure" % def.id)
 		assert_false(ids.has(def.id))
 		ids.append(def.id)
-	assert_eq(ids, ["scorpio", "aquarius"] as Array[String], "campaign order")
+	assert_eq(ids, ["scorpio", "aquarius", "leo"] as Array[String], "campaign order")
 	assert_eq(ChapterDef.aquarius().unlocked_by, "scorpio")
+	assert_eq(ChapterDef.leo().unlocked_by, "aquarius")
 	assert_eq(ChapterDef.scorpio().unlocked_by, "", "the first is open from the start")
 
 
@@ -90,8 +91,12 @@ func test_the_chapter_plaque_switches_the_chart_and_each_keeps_its_progress() ->
 	var app: App = _app()
 	var chart: ChapterSelect = app.get_node("ChapterSelect")
 	assert_true(chart.is_chapter_switch_shown())
-	assert_eq(chart.get_node("ChapterButton").text, "SCORPIO")
+	# A debug build (the tests') can always go on to the next chapter, Leo, round to Scorpio.
+	assert_eq(chart.get_node("ChapterButton").text, "LEO")
 	assert_false(chart.is_tutorial_button_shown(), "the guided run is Scorpio's")
+	app.switch_chapter()
+	assert_eq(app.chapter.id, "leo")
+	assert_eq(chart.get_node("ChapterButton").text, "SCORPIO")
 	app.switch_chapter()
 	assert_eq(app.chapter.id, "scorpio")
 	assert_eq(chart.get_node("ChapterButton").text, "AQUARIUS")

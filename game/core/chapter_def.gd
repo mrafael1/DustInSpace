@@ -66,9 +66,33 @@ static func aquarius() -> ChapterDef:
 	return def
 
 
+## Chapter 3: Leo, the lion of high summer, whose heat ripens stars (and burns them out). Opens
+## once Aquarius's final is won. Travelled from the tail, as Scorpio is: the tail, the haunch and
+## hind leg, the heart (Regulus and the fore paw), the mane, the head, then the whole Leo. Only the
+## first stages are built; the rest say COMING SOON.
+static func leo() -> ChapterDef:
+	var def := ChapterDef.new()
+	def.id = "leo"
+	def.title = "LEO"
+	def.number = 3
+	def.stages = [
+		{"name": "TAIL", "map": "leo_tail", "piece": "tail", "stars": [9, 8]},
+		{"name": "HAUNCH", "map": "leo_haunch", "piece": "haunch", "stars": [10, 11, 12]},
+		{"name": "HEART", "map": "", "piece": "heart", "stars": [6, 7, 5]},
+		{"name": "MANE", "map": "", "piece": "mane", "stars": [4, 3]},
+		{"name": "HEAD", "map": "", "piece": "head", "stars": [2, 1, 0]},
+		{"name": "LEO", "map": "", "stars": []},
+	]
+	def.figure = StarMap.leo()
+	def.final_at = Vector2i(84, 70)
+	def.piece = "res://assets/art/leo_piece_%s.png"
+	def.unlocked_by = "aquarius"
+	return def
+
+
 ## Every chapter, in campaign order.
 static func all() -> Array[ChapterDef]:
-	return [scorpio(), aquarius()]
+	return [scorpio(), aquarius(), leo()]
 
 
 ## A won part's piece of the painting, or "" while it has no map (and so no piece).
