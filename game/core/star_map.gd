@@ -52,6 +52,14 @@ var current_direction: Vector2i = Vector2i.LEFT
 ## A flow that turns after every launch takes these ways in order (the Jar's tide: left, right).
 ## Empty: it always runs current_direction.
 var current_turns: Array[Vector2i] = []
+## Leo's heat (chapter 3) in home layout: once each launch resolves, every loose star inside it
+## changes a size (StarHeat). A region spanning Scorpio.HOME_SKY's full height spans the whole play
+## sky's height on any screen, as a current's does.
+var heat_region: Rect2i = Rect2i()
+## +1: the heat, stars grow; -1: the cold, they shrink.
+var heat_change: int = 1
+## A star pushed past the last size is lost: a big burns out in the heat, a small fades in the cold.
+var heat_burns: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
