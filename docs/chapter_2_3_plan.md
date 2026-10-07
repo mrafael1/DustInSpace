@@ -151,6 +151,16 @@ Mirroring Aquarius: teach the help first, bring the loss, then twist.
 5. Heat and cold side by side.
 6. Final, the whole Leo: the two swap after every launch.
 
+### The reversed heat: stars lose a size
+
+The user's addition (2026-10-07): a stage where the rule is reversed, so each launch makes a star in the region **lose one size**: big to medium, medium to small, and a small one fades out (lost). It is stage 4 above, and half of stages 5 and 6. It is not a mirror image in play:
+
+- **Waiting only loses value:** a big triple (6 dust / 15 light) becomes a medium triple (5 / 10), then a small one (3 / 5), then fades. Ripening was a gamble with an upside; this is a fuse. The risk is that "link everything first" becomes the trivial answer, as it was for the current without a drain. Its decisions have to come from **needing a size**: a big that must become a medium for a medium landmark, a sequence rebuilt from a shrinking big.
+- **The planets swap roles:** red (mostly big) aimed into the cold gives mediums and smalls a launch later; blue (mostly small) fades after one. In the heat it's the reverse. With both on one stage (5), aiming each planet at its region is the skill.
+- **One-of-each breaks the other way:** small, medium, big become faded, small, medium. Triples hold, as in the heat.
+- **Swapping each launch (the final):** a star alternates up and down a size, so most of them hover; only a big in the heat or a small in the cold is at risk on a given launch. Check on paper that this still has stakes before choosing it for the final.
+- **Readability:** the cold needs a cool look distinct from the water's (Aquarius uses the M ramp): frost or still, sparse glints rather than streaks. The next-size outline works the same way; a star that would fade gets the ember mark like one that would burn.
+
 Leo's figure: the Sickle (the mane and head: epsilon, mu, zeta, Algieba, eta, Regulus), the back (Zosma), the haunch (Chertan) and the tail (Denebola). Parts and chart wait for the gate.
 
 ### Payout spike
