@@ -47,8 +47,10 @@ signal link_cancelled
 signal star_exploded(at: Vector2i)
 ## A draining current took a star at `at`, on the field's edge. Feedback only.
 signal star_drained(at: Vector2i)
-## The heat burned a star out at `at` (or the cold faded it). Feedback only.
+## The heat burned a star out at `at`. Feedback only.
 signal star_burned(at: Vector2i)
+## The cold faded a small star out at `at`. Feedback only.
+signal star_faded(at: Vector2i)
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -63,6 +65,8 @@ const HIT_RADIUS: int = 11
 
 ## Orion's volley intro (#70): how long its stars show before the volley takes them.
 const INTRO_HOLD: float = 0.9
+## Leo's heat intro: the beat between one change of its stars and the next (or their leaving).
+const HEAT_INTRO_BEAT: float = 0.55
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -273,6 +277,21 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_sequencer.hold(INTRO_HOLD)
 		&"hunt_intro_burst":
 			_burst(event.args[0], event.args[1])
+		&"heat_intro_placed":
+			for star: Star in event.args[0]:
+				_spawn(star)
+			# A beat to see the stars before the heat changes them.
+			_sequencer.hold(INTRO_HOLD)
+		&"heat_intro_paused":
+			_sequencer.hold(HEAT_INTRO_BEAT)
+		&"heat_intro_cleared":
+			# What the heat left fades out once it has been seen: no reward, nothing burst.
+			_sequencer.hold(StarView.DISSOLVE_TIME)
+			for star: Star in event.args[0]:
+				var view: StarView = _views.get(star.id)
+				if view != null:
+					_views.erase(star.id)
+					view.dissolve()
 		&"area_marked":
 			_orion.mark_area(event.args[0], event.args[1])
 			_sequencer.hold(OrionView.MARK_TIME)
@@ -557,8 +576,9 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 	_sequencer.hold(StarView.DRIFT_TIME)
 
 
-## The heat: every changed star flares and shows its new size where it stands; a lost one bursts
-## into embers, for nothing.
+## The heat (or the cold): every changed star charges and pops to its new size where it stands; a
+## lost one charges the same, then bursts into embers (a big burning out) or a fall of frost (a
+## small fading), for nothing.
 func _resize(changes: Array[StarHeat.Change]) -> void:
 	var hold: float = StarView.RESIZE_TIME
 	for change: StarHeat.Change in changes:
@@ -569,9 +589,15 @@ func _resize(changes: Array[StarHeat.Change]) -> void:
 			view.resize_to(change.to)
 			continue
 		_views.erase(change.star_id)
+		var fades: bool = change.is_cold()
 		view.exploded.connect(func(v: StarView) -> void:
-			_heat.flash_burn(Vector2i(v.position))
-			star_burned.emit(Vector2i(v.position)))
+			if fades:
+				_heat.flash_fade(Vector2i(v.position))
+				star_faded.emit(Vector2i(v.position))
+			else:
+				_heat.flash_burn(Vector2i(v.position))
+				star_burned.emit(Vector2i(v.position)))
+		view.charge(fades)
 		view.explode(StarView.RESIZE_FLARE)
 		hold = maxf(hold, StarView.RESIZE_FLARE + StarView.DISSOLVE_TIME)
 	_sequencer.hold(hold)

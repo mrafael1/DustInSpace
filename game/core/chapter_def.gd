@@ -68,8 +68,8 @@ static func aquarius() -> ChapterDef:
 
 ## Chapter 3: Leo, the lion of high summer, whose heat ripens stars (and burns them out). Opens
 ## once Aquarius's final is won. Travelled from the tail, as Scorpio is: the tail, the haunch and
-## hind leg, the heart (Regulus and the fore paw), the mane, the head, then the whole Leo. Only the
-## first stages are built; the rest say COMING SOON.
+## hind leg, the heart (Regulus and the fore paw), the mane, the head, then the whole Leo. The head
+## and the final aren't built yet and say COMING SOON.
 static func leo() -> ChapterDef:
 	var def := ChapterDef.new()
 	def.id = "leo"
@@ -78,8 +78,8 @@ static func leo() -> ChapterDef:
 	def.stages = [
 		{"name": "TAIL", "map": "leo_tail", "piece": "tail", "stars": [9, 8]},
 		{"name": "HAUNCH", "map": "leo_haunch", "piece": "haunch", "stars": [10, 11, 12]},
-		{"name": "HEART", "map": "", "piece": "heart", "stars": [6, 7, 5]},
-		{"name": "MANE", "map": "", "piece": "mane", "stars": [4, 3]},
+		{"name": "HEART", "map": "leo_heart", "piece": "heart", "stars": [6, 7, 5]},
+		{"name": "MANE", "map": "leo_mane", "piece": "mane", "stars": [4, 3]},
 		{"name": "HEAD", "map": "", "piece": "head", "stars": [2, 1, 0]},
 		{"name": "LEO", "map": "", "stars": []},
 	]

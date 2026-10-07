@@ -151,6 +151,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_volley_intro()
 	# So does a hunting stage (#71): the whole cycle once, with a demo launch.
 	run.play_hunt_intro()
+	# And a stage bringing Leo's heat or cold: the effect shown once on a few stars.
+	run.play_heat_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
@@ -268,6 +270,8 @@ func _wire_sound() -> void:
 	_sky.star_burned.connect(func(at: Vector2i) -> void:
 		_sparks.explode_at(at)
 		_sfx.play(&"burst", 0.7))
+	# A faded star goes quietly: frost falls, and the burst sounds high and brittle.
+	_sky.star_faded.connect(func(_at: Vector2i) -> void: _sfx.play(&"burst", 1.5))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)

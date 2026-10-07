@@ -4,8 +4,8 @@ extends RefCounted
 ## the sky changes one size. The heat grows them (small to medium to big); the cold (change -1)
 ## shrinks them. A star pushed past the last size is lost for nothing when the heat burns (a big
 ## burns out in the heat, a small fades in the cold); otherwise it stays at the last size. The
-## stars a launch brought don't change on that launch. No randomness, nodes or rewards; landmarks
-## never change.
+## stars a launch brought don't change on that launch. A heat that turns (the Mane's day and night)
+## swaps heat and cold after every launch. No randomness, nodes or rewards; landmarks never change.
 
 class Change:
 	extends RefCounted
@@ -21,15 +21,28 @@ class Change:
 		to = p_to
 		lost = p_lost
 
+	## The cold made it: it shrank, or a small one faded out (a lost big burned in the heat).
+	func is_cold() -> bool:
+		return from == Star.Size.SMALL if lost else to < from
+
 ## +1: the heat, stars grow; -1: the cold, they shrink.
 var change: int
 var burns: bool
+## Heat and cold take turns: `change` flips after every launch.
+var turns: bool
 
 
-func _init(p_change: int = 1, p_burns: bool = false) -> void:
+func _init(p_change: int = 1, p_burns: bool = false, p_turns: bool = false) -> void:
 	assert(absi(p_change) == 1, "a star changes one size a launch")
 	change = p_change
 	burns = p_burns
+	turns = p_turns
+
+
+## A launch has resolved: a turning heat becomes the cold, or the cold the heat.
+func turn() -> void:
+	if turns:
+		change = -change
 
 
 ## What the next launch does to `stars`, one Change per star it touches. `skip`: ids that don't

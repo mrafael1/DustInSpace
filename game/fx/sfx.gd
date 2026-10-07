@@ -237,8 +237,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"hunt_intro_launched":
 			play(&"launch")
 		&"stars_resized":
-			# The heat changes stars where they stand: a bright chime (a burn bursts on its own).
-			play(&"star_select", 1.25)
+			# The heat changes stars where they stand: a bright chime, a lower one as the cold
+			# shrinks them (a burn or a fade sounds on its own).
+			var changes: Array[StarHeat.Change] = event.args[0]
+			play(&"star_select", 0.85 if changes[0].is_cold() else 1.25)
 		&"combo_collected":
 			play(&"link_collect")
 		&"link_rejected":
