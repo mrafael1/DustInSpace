@@ -1,17 +1,18 @@
 # Chapters 2 and 3: ideas to test
 
-**Status: currents kept, with a drain, 2026-10-06.** The user authorized starting chapter 2. The first debug experiment didn't pass the pressure gate; a second, the Aquarius flow layout with a **draining** current, did, and the user decided to **keep** it (step E, below). Both are recorded in [chapter_2_current_trial.md](chapter_2_current_trial.md). It is still a debug trial: no Aquarius stages, chart or saves yet. [design.md](design.md) remains the current rules reference. Aquarius and Gemini are working themes; stage lists and tuning wait for the next decisions.
+**Status: chapter 3 is Leo, the heat, 2026-10-07.** Chapter 2 (Aquarius, the draining current) is built and in the campaign ([design.md](design.md)). For chapter 3 the user chose **Leo: stars that ripen** over Gemini's echoes (below); it is at step A, on paper. The earlier current experiments are recorded in [chapter_2_current_trial.md](chapter_2_current_trial.md). [design.md](design.md) remains the current rules reference.
 
 ## Direction and stakes
 
-Chapter 1 asks the player to protect stars. Chapter 2 should ask when to rearrange them at a cost. Chapter 3 needs a genuine competing use for its echoes before it earns a place in the campaign.
+Chapter 1 asks the player to protect stars (an enemy takes them). Chapter 2 asks when to rearrange them at a cost (the space takes them). Chapter 3 asks when to let a star change: the pressure is on **what a star is**, its size, not where it is.
 
 **Confirmed chapter identity:** Orion is exclusive to chapter 1 and its Scorpio mythology. His mark, volley, and hunting area do not carry into chapters 2 or 3, including their prototypes. Do not reskin those threats to supply later chapters with pressure; each chapter must establish its own mechanic and stakes.
 
 | Concept | Status | Proposed pressure | Decision that must exist |
 |---|---|---|---|
-| 2: Aquarius / currents | First experiment | Launching can move a saved cluster out of reach while helping another; movement itself must create the cost. | Link a useful cluster first, or risk moving it to obtain a new opportunity? |
-| 3: Gemini / echoes | Weaker concept; paper work only for now | A scarce echo can serve its partner or a competing landmark; chapter-specific pressure remains unresolved. | Spend the echo here, or save/use it elsewhere at a real cost? |
+| 2: Aquarius / currents | Built, with a drain | Launching can move a saved cluster out of reach while helping another; movement itself must create the cost. | Link a useful cluster first, or risk moving it to obtain a new opportunity? |
+| 3: Leo / heat | Chosen; step A (paper) | Stars in the heat grow a size each launch; a big one that grows again burns out. | Link it now, or let it ripen into a better combo and risk losing it? |
+| Gemini / echoes | Parked | A scarce echo can serve its partner or a competing landmark; it still has no loss. | Spend the echo here, or save/use it elsewhere at a real cost? |
 
 Finite packs and dust alone are not proof of pressure. A later chapter must retain meaningful losses and understandable consequences. Early stages can teach gently; mastery stages should aim for stakes comparable to late Scorpio, measured with the same spatial core bots and human playtests. No numerical win target is chosen yet, and no new win rates are claimed.
 
@@ -43,6 +44,8 @@ Try a short flow arrow plus destination dots only for affected stars while aimin
 The player should make a quick launch-or-link choice, then enjoy a random burst and its consequences. Do not turn each shot into a long calculation. Spacing, integer movement, safe bounds, and hint/loss updates are implementation necessities to settle when building the small prototype.
 
 ## Gemini must first prove a trade-off
+
+*Parked on 2026-10-07: chapter 3 is Leo (below). Kept for a later chapter if it finds a loss.*
 
 The original equal-size, partner-matching echo is mostly a free star. Do not prototype that version as a chapter, and do not write its Sun/clear/event-order specification yet.
 
@@ -94,6 +97,88 @@ Recorded 2026-10-06. A current that only moves stars did not create stakes: reac
 - **Readable preview:** one ember trail per star that would drain, the cool brackets for the rest, an ember drain line.
 
 Bots only; human touch play is still owed and can revise this. Still open: `currents.step` (24 shipped, 32 the stronger what-if; it also drives the Tail trial), whether draining is the chapter's rule on every stage or a feature of some, and then chapter 2's stages, chart and saves. Wells and the reserve ideas stay out.
+
+## Chapter 3: Leo, the heat
+
+Chosen by the user on 2026-10-07 from three candidates: Leo's ripening stars, Taurus's fusion (reserve: a burst landing on a star fuses them, so aim would shape sizes, which bends "the slingshot controls where, never contents") and Gemini's shared life (twins of opposite size that take turns in the sky; still no loss, so parked with the echoes). Leo is the lion of high summer, when the Sun is in its house: its heat ripens stars.
+
+What Aquarius taught carries over: a mechanic that only helps has no stakes (drift alone failed the gate; the drain passed it), so the heat has a real loss from its first draining stage.
+
+### Proposed rule (step A, not committed)
+
+- **The heat is the whole stage** (playtest, 2026-10-07: not a zone, and no edge lines). After each successful launch (both red bursts first, as with the current), every loose star in the sky **grows one size**: small to medium, medium to big. A big star that grows again **burns out** and is lost for nothing, like a drained star.
+- Landmarks never change size. Buying, linking, cancelled gestures and invalid actions don't advance it.
+- **A new star doesn't ripen on the launch that brought it** (design guess: otherwise a big landing burns at once, before the player could see it). It ripens from the next launch on.
+- Big Bang stays off, as on every constellation stage.
+
+### Why it should make decisions
+
+The shipped combos make ripening pay: a small triple is 3 dust / 5 light, a medium triple 5 / 10, a big triple 6 / 15. Three smalls left in the heat for two launches become a big triple worth three times the light, and burn out on the third.
+
+- **Push your luck:** link a triple now, or let it ripen into a better one and risk losing it. This is the slot-machine pull, delivered by the player's own timing.
+- **Heat favours dust, works against light:** stars that ripen together keep a triple a triple, but a one-of-each breaks (small, medium, big become medium, big, burnt).
+- **A waiting pair is a moving target:** two smalls waiting for a third need a medium after the next launch and a big after that, as Aquarius's waiting pair drifts toward the drain. So "link everything first" doesn't avoid the cost.
+- **The packs' own roles:** a blue planet (mostly small stars) gives stars with three launches to live; a red one (mostly big) gives stars that burn after the next. Which planet to launch, and when, is part of the timing.
+- **Big landmarks are the tension point:** a big landmark needs two loose bigs, which last exactly one launch.
+
+### One conflict to show (paper)
+
+A medium landmark, and beside it, all loose and in reach: two smalls (A, B), a medium (C) and a big (D).
+
+- **Link now:** A, C, D are a sequence (25 light), but the landmark stays unlit and B waits alone.
+- **Launch first:** A and B become mediums and light the landmark with it (a medium triple); C becomes a big; D burns out. The sequence is gone and a star is lost, for a landmark and whatever the new burst brings.
+
+Neither is always right: it depends on the Sun's fill, the packs left and how close the landmark is to finishing the figure. (A triple alone is never broken by the heat; it only grows, until it burns.) To check on the mockup: that this reads in one look while aiming.
+
+### Readability (the step A gate)
+
+Nothing moves, so the preview should be lighter than the current's. While aiming:
+
+- each loose star shows the size it will become (built: a dotted outline of the next size, in that size's colour);
+- a star that would burn out gets a dotted ember outline crowned with flames;
+- the heat itself: sparse embers rising through the whole sky (S ramp, below the stars). Warm colours are reserved for interactive or valuable things.
+
+Built and captured at 180x320 (`tools/heat/capture.gd`); a phone check is still owed.
+
+### Possible stage ladder (to revise after the gate)
+
+Mirroring Aquarius: teach the help first, bring the loss, then twist.
+
+Each rule covers the whole stage.
+
+1. Heat that ripens but never burns (big stays big). Built: the Tail.
+2. Burning arrives. Built: the Haunch.
+3. The cold: stars shrink (big to medium to small, then fade).
+4. Burning on a figure of big landmarks, where bigs last one launch.
+5. The heat turns: hot, then cold, then hot, after every launch.
+6. Final, the whole Leo: to decide once 3-5 are measured.
+
+Spatial bots on the first two (1,000 paired seeds): every policy wins the Tail in the same packs with or without the heat (stars grow together, so triples stay triples); on the Haunch, launching every pack first burns 4.2 stars a run and loses 1.5% of runs. Ripening alone isn't a reason to wait; the stakes come from burning and the twists.
+
+### The reversed heat: stars lose a size
+
+The user's addition (2026-10-07): a stage where the rule is reversed, so each launch makes a star in the region **lose one size**: big to medium, medium to small, and a small one fades out (lost). It is stage 3 above, and half of stage 5. It is not a mirror image in play:
+
+- **Waiting only loses value:** a big triple (6 dust / 15 light) becomes a medium triple (5 / 10), then a small one (3 / 5), then fades. Ripening was a gamble with an upside; this is a fuse. The risk is that "link everything first" becomes the trivial answer, as it was for the current without a drain. Its decisions have to come from **needing a size**: a big that must become a medium for a medium landmark, a sequence rebuilt from a shrinking big.
+- **The planets swap roles:** in the cold, red (mostly big) gives stars with three launches to live; blue (mostly small) fades after one. In the heat it's the reverse; when the heat turns each launch (5), launching each planet on the right turn is the skill.
+- **One-of-each breaks the other way:** small, medium, big become faded, small, medium. Triples hold, as in the heat.
+- **Turning each launch:** a star alternates up and down a size, so most of them hover; only a big in the heat or a small in the cold is at risk on a given launch. Check on paper that this still has stakes before choosing it for the final.
+- **Readability:** the cold needs a cool look distinct from the water's (Aquarius uses the M ramp): frost or still, sparse glints rather than streaks. A star that would fade gets the ember mark like one that would burn; the smaller next size hides under the star, so the cold's preview still needs its own cue.
+
+Leo's figure and parts are built ([design.md](design.md), chapter 3).
+
+### Payout spike
+
+Leo's rare opening could be **the Leonids**, the meteor shower that radiates from Leo: a rich burst that doesn't clear the sky. This is the plan's non-clearing Big Bang (below) in Leo's colours, and like it needs its own approval, branch and balance report. A cheaper in-chapter idea: a **flare**, a rare launch that ripens every star at once without burning anything.
+
+### Steps
+
+| Step | Work | Gate |
+|---|---|---|
+| A | This sketch; a mockup of the busiest aim state at 180x320; one conflict drawn on it. | Ripening and burning read in one look on a phone; the conflict is visible. |
+| B | A debug-only heat trial on a threat-free layout (heat on/off, same seed), pure core rule with tests, minimal cues. | Heat off reproduces the baseline; previews match execution; RNG untouched. |
+| C | Spatial bots: link-first, launch-first, heat-aware (ripen blue in the heat, link before burning); human play. | Stakes (hoarding loses runs), no trivial answer, a heat-aware skill that pays. |
+| D | Keep, revise or drop. | As for currents: no dominant answer, no clutter, real stakes. |
 
 ## Evidence and boundaries
 
