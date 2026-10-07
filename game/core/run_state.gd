@@ -21,6 +21,9 @@ signal stars_shifted(moves: Array[StarCurrent.Move])
 ## The heat (Leo) changed the size of loose stars once the launch resolved (after any current).
 ## A change flagged lost took its star out of the sky, for nothing.
 signal stars_resized(changes: Array[StarHeat.Change])
+## The heat changed the size of the constellation stars still to light (the Head), once the launch
+## resolved; a big one came back small (`rekindled`).
+signal landmarks_resized(changes: Array[StarHeat.Change])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
@@ -320,16 +323,21 @@ func loss_reasons() -> Array[LossReason]:
 
 
 ## Pure preview of what the heat does to the stars now in the sky on the next launch (a star a
-## current drains is gone first). The stars that launch brings don't change.
+## current drains is gone first), and on the Head to the constellation stars still to light too
+## (their landmark ids, first). The stars that launch brings don't change.
 func heat_preview() -> Array[StarHeat.Change]:
 	if heat == null:
 		return []
+	var result: Array[StarHeat.Change] = []
+	if scorpio.map.heat_landmarks:
+		result = heat.preview_landmarks(scorpio.unlit_stars())
 	var positions: Dictionary[int, Vector2i] = current_preview()
 	var remaining: Array[Star] = []
 	for star: Star in stars:
 		if current == null or not current.leaves(star.position, positions[star.id]):
 			remaining.append(star)
-	return heat.preview(remaining)
+	result.append_array(heat.preview(remaining))
+	return result
 
 
 ## Pure preview: no RNG draws and no changes to stars. New arrivals yield to these destinations.
@@ -419,6 +427,8 @@ func launch(target: Vector2i) -> bool:
 		_shift_stars()
 	if heat != null and not result.big_bang:
 		_heat_stars(first_new_id)
+		if scorpio.map.heat_landmarks:
+			_heat_landmarks()
 	if heat != null:
 		heat.turn()
 	if current != null:
@@ -786,6 +796,15 @@ func _heat_stars(first_new_id: int) -> void:
 	_apply_heat(heat.preview(stars, skip))
 
 
+## The Head: the constellation stars still to light change a size; a big one comes back small.
+func _heat_landmarks() -> void:
+	var changes: Array[StarHeat.Change] = heat.preview_landmarks(scorpio.unlit_stars())
+	for change: StarHeat.Change in changes:
+		scorpio.map.sizes[Scorpio.landmark_index(change.star_id)] = change.to
+	if not changes.is_empty():
+		landmarks_resized.emit(changes)
+
+
 func _apply_heat(changes: Array[StarHeat.Change]) -> void:
 	for change: StarHeat.Change in changes:
 		var star: Star = find_star(change.star_id)
@@ -890,6 +909,9 @@ func play_volley_intro() -> void:
 func play_heat_intro() -> void:
 	if heat == null or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
+	if scorpio.map.heat_landmarks:
+		_landmark_heat_intro()
+		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ HEAT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
 	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), StarScatter.inner_rect(sky_rect).get_center(), sky_rect, [], layout, scorpio.landmark_positions())
@@ -911,6 +933,16 @@ func play_heat_intro() -> void:
 		var left: Array[Star] = stars.duplicate()
 		stars.clear()
 		heat_intro_cleared.emit(left)
+
+
+## The Head's intro: the heat changes the constellation stars once a beat for a whole turn of their
+## sizes (small, medium, big, back to small), so each ends at the size it started at.
+func _landmark_heat_intro() -> void:
+	heat_intro_placed.emit([] as Array[Star])
+	for pulse: int in Star.Size.size():
+		if pulse > 0:
+			heat_intro_paused.emit()
+		_heat_landmarks()
 
 
 ## Orion's hunting intro (#71), as the Heart opens (the scene calls it once its views are bound):
