@@ -274,7 +274,7 @@ Both strategies should stay viable: red is faster, blue is safer. Rerun the simu
 
 ## Later, not now
 
-Chapter 2 is built (above: Aquarius). Chapter 3 ideas and the evaluation steps that led to chapter 2 are recorded in [chapter_2_3_plan.md](chapter_2_3_plan.md); its rules remain proposals.
+Chapter 2 is built (above: Aquarius). Chapter 3 is **Leo, the heat** (chosen 2026-10-07): stars in a heated region grow a size each launch and a big one burns out. It is on paper in [chapter_2_3_plan.md](chapter_2_3_plan.md), with the evaluation steps that led to chapter 2; its rules remain proposals.
 
 The current trials (debug builds only, no saved progress; [their measurements](chapter_2_current_trial.md)) stay as comparison tools: the Tail trial (C on the chart) and the Aquarius flow layout, now the Body's layout (FLOW, or A), each with FLOW ON/OFF to replay the same seed without the current.
 
