@@ -190,6 +190,28 @@ func test_a_touch_before_the_delay_means_no_hint() -> void:
 	assert_almost_eq(hint.idle_time(), 0.2, 0.001, "the wait started over")
 
 
+func test_a_real_mouse_moving_means_no_hint() -> void:
+	_start_scene()
+	_small_triple()
+	hint.advance(IDLE - 0.1)
+	var motion := InputEventMouseMotion.new()
+	motion.device = 0
+	hint.observe(motion)
+	hint.advance(0.2)
+	assert_eq(hint.shining_link(), [] as Array[int])
+	assert_almost_eq(hint.idle_time(), 0.2, 0.001, "hovering the aim is not idling")
+
+
+func test_a_finger_s_emulated_mouse_motion_is_not_counted_twice() -> void:
+	_start_scene()
+	_small_triple()
+	hint.advance(IDLE - 0.1)
+	var motion := InputEventMouseMotion.new()
+	motion.device = InputEvent.DEVICE_ID_EMULATION
+	hint.observe(motion)
+	assert_almost_eq(hint.idle_time(), IDLE - 0.1, 0.001)
+
+
 func test_a_touch_stops_a_hint_playing() -> void:
 	_start_scene()
 	_small_triple()
@@ -274,22 +296,78 @@ func test_a_landmark_in_the_link_shines_on_the_constellation() -> void:
 	assert_true(constellation.shows_cue(index), "its brackets stay: nothing is traced")
 
 
-func test_an_aiming_telescope_stops_so_following_the_hand_links() -> void:
+func test_a_hint_while_aiming_keeps_the_aim_and_taps_the_spot() -> void:
 	_start_scene()
-	hint.set_process_input(true)
-	var stars: Array[Star] = _small_triple()
-	var telescope: Telescope = main.get_node("Telescope")
-	telescope.advance(2.0)
-	assert_true(telescope.start_aim(), "a seated planet aims")
+	_small_triple()
+	var telescope: Telescope = _aiming_telescope()
+	telescope.aim_at(Vector2i(60, 150))
+	var spot: Vector2i = telescope.burst_preview()
 	var packs: int = run.total_packs()
 	hint.advance(IDLE)
-	var link: Array[int] = hint.shining_link()
-	assert_eq(link.size(), 3)
-	assert_false(telescope.is_aiming(), "the hint hands the sky back to linking")
-	_tap_screen(sky.link_points(link)[0])
-	assert_eq(sky.selected_ids(), [link[0]] as Array[int], "a tap on the hand's first star picks it")
-	assert_eq(run.total_packs(), packs, "and launches nothing")
-	assert_false(stars.is_empty())
+	assert_true(telescope.is_aiming(), "the hint never stops the aim (#152): its preview stays")
+	assert_true(hint.shows_launch(), "the hand acts out a launch instead")
+	assert_eq(hint.shining_link(), [] as Array[int], "no link shown, no star shines")
+	assert_eq(_hinted(), [] as Array[int])
+	var hand: HandDemo = hint.hand()
+	assert_true(hand.is_playing() and hand.is_tapping())
+	assert_eq(hand.fingertip(), spot - Vector2i(0, TutorialView.GAP), "hovering over the aimed spot")
+	hint.advance(HandDemo.TAP_HOVER + HandDemo.TAP_PRESS + HandDemo.TAP_HOLD / 2.0)
+	assert_eq(hand.fingertip(), spot, "then pressing on it")
+	assert_eq(run.total_packs(), packs, "and firing nothing")
+	assert_true(telescope.is_aiming())
+	hint.advance(IdleHint.launch_play_time())
+	assert_false(hand.is_playing(), "then the hand goes")
+	assert_true(telescope.is_aiming(), "still aiming")
+
+
+func test_the_launch_hint_follows_the_aim() -> void:
+	_start_scene()
+	var telescope: Telescope = _aiming_telescope()
+	telescope.aim_at(Vector2i(60, 150))
+	hint.advance(IDLE)
+	telescope.aim_at(Vector2i(120, 200))
+	hint.advance(HandDemo.TAP_HOVER + HandDemo.TAP_PRESS + HandDemo.TAP_HOLD / 2.0)
+	assert_eq(hint.hand().fingertip(), telescope.burst_preview(), "the hand taps where the reticle is")
+
+
+func test_the_aim_ending_ends_the_launch_hint() -> void:
+	_start_scene()
+	_small_triple()
+	var telescope: Telescope = _aiming_telescope()
+	hint.advance(IDLE)
+	assert_true(hint.shows_launch())
+	telescope.cancel_aim()
+	hint.advance(0.1)
+	assert_false(hint.hand().is_playing(), "nothing to launch at: the hand goes")
+	hint.advance(IDLE)
+	assert_eq(hint.shining_link().size(), 3, "and the next hint shows a link")
+
+
+func test_an_aim_preview_waits_longer() -> void:
+	_start_scene()
+	_small_triple()
+	hint.shows_aim_preview = func() -> bool: return true
+	assert_eq(hint.wait_time(), IDLE, "not aiming: the usual wait")
+	hint.advance(IDLE)
+	assert_eq(hint.shining_link().size(), 3, "and the link hint as before")
+	hint.reset()
+	var telescope: Telescope = _aiming_telescope()
+	assert_eq(hint.wait_time(), IdleHint.AIM_PREVIEW_IDLE_SECONDS, "the player may be reading the marks")
+	hint.advance(IdleHint.AIM_PREVIEW_IDLE_SECONDS - 0.1)
+	assert_false(hint.hand().is_playing(), "not yet")
+	hint.advance(0.1)
+	assert_true(hint.shows_launch())
+	assert_true(telescope.is_aiming())
+
+
+func test_main_says_which_stages_show_an_aim_preview() -> void:
+	_start_scene()
+	assert_false(hint.shows_aim_preview.call(), "Scorpio's sky changes nothing on a launch")
+	var telescope: Telescope = _aiming_telescope()
+	assert_true(hint.is_aiming.call())
+	assert_eq(hint.aim_spot.call(), telescope.burst_preview())
+	telescope.cancel_aim()
+	assert_false(hint.is_aiming.call())
 
 
 func test_a_telescope_starting_to_aim_ends_the_hint() -> void:
@@ -297,8 +375,9 @@ func test_a_telescope_starting_to_aim_ends_the_hint() -> void:
 	_small_triple()
 	var telescope: Telescope = main.get_node("Telescope")
 	telescope.advance(2.0)
+	telescope.cancel_aim()
 	hint.advance(IDLE)
-	assert_true(hint.hand().is_playing())
+	assert_eq(hint.shining_link().size(), 3, "not aiming: a link hint")
 	assert_true(telescope.start_aim())
 	assert_false(hint.hand().is_playing(), "the sky is the telescope's again")
 
@@ -359,6 +438,8 @@ func _start_scene(hints: Dictionary = {"idle_seconds": IDLE}) -> void:
 	hint.set_process_input(false)
 	hint.is_held = func() -> bool: return false
 	_drain()
+	# A run starts aiming; the link hint is for a player not aiming (an aim gets a launch hint).
+	(main.get_node("Telescope") as Telescope).cancel_aim()
 
 
 ## Three small stars in the lower right, out of every landmark's reach: the only link.
@@ -431,6 +512,14 @@ func _push_touch(at: Vector2i, pressed: bool) -> void:
 	get_viewport().push_input(e, true)
 	if gut_layer != null:
 		gut_layer.visible = shown
+
+
+## Main's telescope, seated and aiming.
+func _aiming_telescope() -> Telescope:
+	var telescope: Telescope = main.get_node("Telescope")
+	telescope.advance(2.0)
+	assert_true(telescope.start_aim(), "a seated planet aims")
+	return telescope
 
 
 func _tap_screen(at: Vector2i) -> void:
