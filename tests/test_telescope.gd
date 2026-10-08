@@ -311,6 +311,44 @@ func test_picking_a_planet_in_the_hud_loads_it_and_aims_with_it() -> void:
 	assert_signal_emitted_with_parameters(run, "pack_launched", ["red", Vector2i(90, 120)])
 
 
+func test_a_launch_keeps_a_message_the_telescope_didnt_show() -> void:
+	var hud: Hud = _wired_hud()
+	assert_true(scope.is_aiming())
+	hud.show_message(Hud.BOX_MESSAGE, Hud.RULE_MESSAGE_TIME, true)
+	watch_signals(run)
+	_tap(Vector2i(0, -150))
+	assert_signal_emitted(run, "pack_launched")
+	assert_eq(hud.message(), Hud.BOX_MESSAGE, "the stage's rule stays through the launch (#152)")
+	_pick("blue")
+	assert_true(scope.is_aiming(), "aiming with the next planet")
+	hud.advance(Hud.TEACHING_HOLD + 0.01)
+	hud.show_message("SOMEONE ELSE")
+	_tap(Vector2i(0, -150))
+	assert_eq(hud.message(), "SOMEONE ELSE", "not the telescope's line: not its to clear")
+
+
+func test_the_telescope_still_clears_its_own_message() -> void:
+	_start({"blue": 0, "red": 0})
+	var hud: Hud = _wired_hud()
+	_tap(SCOPE)
+	assert_eq(hud.message(), Telescope.EMPTY_MESSAGE)
+	run.dust = 100
+	assert_true(run.buy("blue"))
+	_play_until_idle()
+	assert_true(scope.start_aim())
+	assert_eq(hud.message(), Telescope.EMPTY_MESSAGE, "still on show as aiming starts")
+	_tap(Vector2i(0, -150))
+	assert_eq(hud.message(), "", "the launch takes its own line back")
+
+
+func test_the_telescope_cannot_cut_a_teaching_line() -> void:
+	_start({"blue": 0, "red": 0})
+	var hud: Hud = _wired_hud()
+	hud.show_message(Hud.BIND_MESSAGE, Hud.RULE_MESSAGE_TIME, true)
+	_tap(SCOPE)
+	assert_eq(hud.message(), Hud.BIND_MESSAGE, "held: the empty telescope's line waits its turn")
+
+
 func test_a_refused_hud_tap_does_not_aim() -> void:
 	_start({"blue": 1, "red": 0})
 	run.dust = 0
@@ -440,6 +478,17 @@ func _finger(point: Vector2i, pressed: bool) -> bool:
 
 func _finger_drag(point: Vector2i) -> bool:
 	return scope.handle_pointer(_drag_event(point, true))
+
+
+## A HUD showing the telescope's messages, as Main wires it.
+func _wired_hud() -> Hud:
+	var hud: Hud = HudScene.instantiate()
+	add_child_autofree(hud)
+	hud.set_process(false)
+	hud.setup(run, sequencer)
+	scope.message_shown.connect(hud.show_message)
+	scope.message_withdrawn.connect(hud.withdraw_message)
+	return hud
 
 
 func _hud_tap(hud: Hud, point: Vector2i) -> void:
