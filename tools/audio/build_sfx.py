@@ -252,12 +252,15 @@ def big_bang_bang():
 
 
 def sun_ignite():
+    # A warm bloom, not a siren: stable chord tones, no pitch sweep or noise hiss.
     swell = envelope(mix(
-        (0, tone(note("C4"), 1.8, "triangle", note("C5")), 0.5),
-        (0, tone(note("G4"), 1.8, "triangle", note("G5")), 0.35),
-        (0, noise(1.8, 500, 7000), 0.15),
-    ), attack=1.2, curve=1.2)
-    return mix((0, swell, 1.0), (1.2, arpeggio(["C6", "E6", "G6", "C7"], 0.06, 0.6), 0.4))
+        (0, tone(note("C4"), 1.65, "sine"), 0.55),
+        (0, tone(note("E4"), 1.65, "sine"), 0.22),
+        (0, tone(note("G4"), 1.65, "sine"), 0.3),
+        (0, tone(note("C5"), 1.65, "triangle"), 0.08),
+    ), attack=0.55, curve=1.7)
+    chime = arpeggio(["C5", "E5", "G5"], 0.08, 0.55)
+    return mix((0, swell, 1.0), (0.85, chime, 0.2))
 
 
 def win():
@@ -305,7 +308,7 @@ CUES = {
     "light_land": (light_land, -18),
     "big_bang_collapse": (big_bang_collapse, -6),
     "big_bang_bang": (big_bang_bang, -1),
-    "sun_ignite": (sun_ignite, -4),
+    "sun_ignite": (sun_ignite, -9),
     "win": (win, -5),
     "loss": (loss, -8),
     "restart": (restart, -12),

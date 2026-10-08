@@ -37,6 +37,9 @@ const ENCOUNTERS_ID: String = "encounters"
 @export var progress_path: String = ProgressStore.DEFAULT_PATH
 ## Where the sound level is kept (the chart's Sfx). Tests point it at a file of their own.
 @export var settings_path: String = Sfx.SETTINGS_PATH
+## Every chapter and stage open at once, for testing: also set by ?all in the web page's address,
+## or --all on the command line. Wins still count and save.
+@export var all_open: bool = false
 ## The game opens on the title. Tests that start on the chart turn it off.
 @export var opens_on_title: bool = true
 
@@ -70,6 +73,7 @@ func _ready() -> void:
 	_store = ProgressStore.new(progress_path)
 	_load_progress()
 	_chart.setup(chapter)
+	_chart.set_chapters(chapters, is_open)
 	_chart.stage_chosen.connect(open_stage)
 	_chart.chapter_step_requested.connect(step_chapter)
 	_chart.chapter_opened.connect(step_chapter.bind(1, true, true))
@@ -153,7 +157,7 @@ func debug_win_final() -> void:
 
 ## Whether `which` can be played: the first chapter, or one whose opening chapter's final is won.
 func is_open(which: Chapter) -> bool:
-	if which.def.unlocked_by == "":
+	if which.def.unlocked_by == "" or all_open:
 		return true
 	for each: Chapter in chapters:
 		if each.id == which.def.unlocked_by:
@@ -261,16 +265,21 @@ func reset_progress() -> void:
 	_store.clear()
 	_load_progress()
 	_chart.setup(chapter)
+	_chart.set_chapters(chapters, is_open)
 	_show_navigation()
 
 
 ## Reads every chapter's progress, the guided first run's and the encounters' from the store; the
 ## chart's chapter is the latest open one.
 func _load_progress() -> void:
+	all_open = all_open or asks_all_open()
+	if all_open:
+		print("Dust In Space: every chapter and stage open (?all)")
 	chapters.clear()
 	for def: ChapterDef in ChapterDef.all():
 		var loaded := Chapter.new(def)
 		loaded.from_save(_store.load_chapter(def.id))
+		loaded.all_open = all_open
 		chapters.append(loaded)
 	chapter = chapters[0]
 	for each: Chapter in chapters:
@@ -278,6 +287,17 @@ func _load_progress() -> void:
 			chapter = each
 	tutorial_done = _store.load_chapter(TUTORIAL_ID).get("done", false) == true
 	encounters_met = _store.load_chapter(ENCOUNTERS_ID)
+
+
+## Whether this launch asks for everything open: ?all in the web page's address, or --all on the
+## command line.
+static func asks_all_open() -> bool:
+	if "--all" in OS.get_cmdline_user_args():
+		return true
+	if OS.has_feature("web"):
+		var found: Variant = JavaScriptBridge.eval("new URLSearchParams(window.location.search).has('all') ? 'all' : ''", true)
+		return str(found) == "all"
+	return false
 
 
 ## The options' gear and menu, over the chart, with the chart's sound.
@@ -391,7 +411,7 @@ func _on_encounter_finished(threat: int) -> void:
 func _on_stage_won() -> void:
 	var first_time: bool = not chapter.is_completed(_stage_point)
 	var next: int = chapters.find(chapter) + 1
-	_opens_chapter = first_time and Chapter.is_final(_stage_point) and next < chapters.size() and chapters[next].def.unlocked_by == chapter.id
+	_opens_chapter = first_time and not all_open and Chapter.is_final(_stage_point) and next < chapters.size() and chapters[next].def.unlocked_by == chapter.id
 	var unlocked: int = chapter.complete(_stage_point)
 	_store.save_chapter(chapter.id, chapter.to_save())
 	_won_point = _stage_point if first_time else -1
