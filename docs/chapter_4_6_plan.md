@@ -1,6 +1,6 @@
 # Chapters 4 to 6: ideas to test
 
-**Status: on paper, 2026-10-08.** The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
+**Status: Virgo is being built with the scythe and bound sheaves (step D: kept, revised), 2026-10-08.** Its first two stages are in [design.md](design.md) (chapter 4). The harvest that paid dust failed its stakes gate; bound sheaves with a tighter economy passed it (step C, below). The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
 
 ## Direction and stakes
 
@@ -84,6 +84,66 @@ Teach the gain first, then the cost, then twists:
 ### Payout spike
 
 The harvest is the chapter's spike, on a clock the player can see coming. A rare **golden harvest** (all reaped stars pay double) is the slot-machine jackpot on top.
+
+### Step C: the harvest fails the stakes gate (2026-10-08)
+
+Built in the core, off by default (`StarHarvest`, the `harvest` block in balance.json, `StarMap.harvest`), and measured with bots (`tools/harvest/playtest.gd`) on Leo's Haunch layout with its heat off: 200-300 paired seeds, a harvest every 3 launches. Policies: link at once; launch every pack first (hoard); link only for the constellation; glean (let the field stand and link for the constellation just before the harvest); sheaf (leave same-size triples standing for the harvest).
+
+| Rule | Link at once | Hoard | Best of the rest |
+|---|---|---|---|
+| Harvest dust on top of link dust, pay 1/2/3 | 100% | 100% | 100% |
+| Links pay light only, the harvest is the dust: pay 1/2/3 | 20% | 87% | 36% |
+| Same, pay 1/1/2 | 11% | 28% | 15% |
+| Same, every 2, pay 1/1/2 | 11% | 14% | 12% |
+| Sheaves x2 (a standing same-size triple in reach pays double its combo's dust, the rest nothing), links keep their dust | 100% | 100% | 100% |
+| Sheaves x2, links pay light only | 3.5% | 70.5% | 20% |
+| Sheaves x3, links pay light only | 3.5% | 90% | 22.5% |
+| Pay 1/2/3 capped at 7 a harvest, links pay light only | 18.5% | 0% | 34% |
+| Same, capped at 4 | 12% | 0% | 16% |
+
+What it shows:
+
+- **While links keep their dust, the harvest only takes stars nobody used**, so linking at once is always safe. That is Leo's structural flaw again: a rule that only removes unused stars punishes hoarding, never linking.
+- **When the harvest is the dust, it's a farm or a tax.** Reaped stars worth more than their pack make launch-and-reap the dominant answer (red packs, mostly bigs, are the engine). Worth less, or capped, and nobody wins. No pay table, clock or cap left room for judgement to beat both extremes, and the bot that played in between (glean) did worse than either.
+- The Sun's rekindle already clears the sky for dust, which undercuts the harvest's role.
+
+The rule changes also showed the gate the next mechanic must pass up front: **it has to act on the links themselves** (their order, place or cost), not only on stars left standing.
+
+### Revisions that act on links (2026-10-08)
+
+Both reap the standing stars for nothing at the harvest (pay 0) and keep links' dust. Bots as above, plus *ripe* (waits for ripe links until the harvest is next) and *bound* / *bound-strict* (light constellation stars next to the lit figure first; strict never lights one that isn't while the harvest is next). 200 paired seeds.
+
+- **Ripe links** (a link whose loose stars have all stood through a launch pays double light): fails. Linking at once still wins every run, in fewer packs than waiting for ripe links (Haunch 4.2 against 5.06, whole Leo 6.62 against 9.38). Hoarding loses (1-2% won) only because the scythe reaps for nothing.
+- **Bound sheaves** (at each harvest, a constellation star lit since the last one goes dark unless lit strings join it to the figure lit before): acts on the order of links and rewards skill, on branching figures. Every policy still wins (links keep paying dust, so slowing down never starves), but careless linking costs packs:
+
+| Layout, clock | No harvest | Link at once | Bound | Bound-strict | Hoard |
+|---|---|---|---|---|---|
+| Leo's Haunch (a chain), 3 | 4.18 | 4.22 (0.09 put out) | 4.22 | | 1% won |
+| Whole Leo, 3 | 6.57 | 10.23 (8.6 put out) | 8.58 (5.3) | 8.67 (5.1) | 2% won |
+| Whole Leo, 2 | 6.57 | 12.47 (14.0) | 8.19 (4.1) | 8.52 (3.1) | |
+| Whole Aquarius, 2 | 6.48 | 7.24 (1.5) | 6.96 (0.7) | 7.03 (0.1) | |
+| Whole Scorpio, 2 | 6.00 | 6.83 (2.4) | 6.41 (1.2) | 6.53 (0.3) | |
+
+Packs per win (constellation stars put out a run). Bound sheaves is the candidate to keep: a figure that branches and a short clock make it bite. Turning its pack cost into lost runs needs a tighter economy on Virgo's stages, still to measure.
+
+### Step C passes with bound sheaves and a tighter economy (2026-10-08)
+
+Links pay a percent of their dust under the harvest (`harvest.link_dust_percent`, rounded down: 90% is one dust less a link). Whole Leo (12 to light, branching), reaping for nothing, 200 paired seeds, won %:
+
+| Clock, link dust | Careless (link at once) | Hoard | Bound (next to the figure first) | Bound-strict |
+|---|---|---|---|---|
+| 2, 90% | 37 | 20 | **80.5** | 62.5 |
+| 2, 80% | 30.5 | 14 | **78** | 55 |
+| 2, 70% | 26 | 6 | **72** | 46 |
+| 2, 60% | 0 | 0 | 1 | 0.5 |
+| 3, 90% | 55 | 0 | **80** | 75.5 |
+| 3, 80% | 51 | 0 | **74** | 70.5 |
+| 3, 70% | 42.5 | 0 | **66.5** | 60.5 |
+| 2, 90%, **no binding** (control) | 85 | 50.5 | 85.5 | |
+
+The binding makes the stakes: without it careless linking wins 85%; with it, 37%. Both extremes lose and reading the figure wins, which is the gate. Below about 60% the economy breaks for everyone.
+
+On part-sized layouts (5-7 to light) at clock 2 and 90%, it barely bites: careless 94-100%, bound 95-100%, 0.5-1.2 constellation stars put out a run (Leo's Head and Mane, Aquarius's Body, Scorpio's Body and Heart). Virgo's part stages have to be drawn to tempt careless linking (far landmarks easy to light before the near ones, several arms from the lit star), and the final carries the full stake, as Leo's did.
 
 ## Chapter 5: Sagittarius, the black hole
 

@@ -94,6 +94,11 @@ const COLD_MESSAGE: String = "THE COLD SHRINKS STARS\nEACH LAUNCH"
 const FADE_MESSAGE: String = "THE COLD SHRINKS STARS\nSMALL ONES FADE"
 ## Day and night (the Mane): heat and cold take turns, and each takes its own stars.
 const DAY_NIGHT_MESSAGE: String = "HEAT AND COLD SWAP\nBIGS BURN SMALLS FADE"
+## Virgo's harvest: the scythe's clock (said with its number of launches), and the bound sheaves.
+const SCYTHE_MESSAGE: String = "EVERY %d LAUNCHES THE\nSCYTHE REAPS THE SKY"
+const BIND_MESSAGE: String = "LIT STARS MUST JOIN\nTHE FIGURE BY HARVEST"
+## Virgo's clock sits this far below the Sun's centre.
+const HARVEST_CLOCK_BELOW: int = 30
 ## Leo's final: the lion breathes, on every link as well as every launch.
 const BREATH_MESSAGE: String = "EVERY LINK AND LAUNCH\nFEEDS THE HEAT"
 ## The Head: the constellation stars grow too (a big one comes back small); loose bigs burn.
@@ -161,7 +166,12 @@ var _map_offered: bool = false
 ## The guided first run's guide: a line and a pointing hand.
 var _guide := TutorialView.new()
 ## Where the Sun is (Main sets it), for the guide's hand.
-var sun_at: Vector2i = Vector2i(90, 39)
+var sun_at: Vector2i = Vector2i(90, 39):
+	set(value):
+		sun_at = value
+		_harvest_clock.position = Vector2(sun_at + Vector2i(0, HARVEST_CLOCK_BELOW))
+## Virgo's harvest clock, under the Sun.
+var _harvest_clock := HarvestClock.new()
 
 @onready var _dust: Label = $Dust
 @onready var _slot_layer: Node2D = $Slots
@@ -193,6 +203,9 @@ func _ready() -> void:
 	add_child(_table_button)
 	_table.name = "Table"
 	add_child(_table)
+	_harvest_clock.name = "HarvestClock"
+	_harvest_clock.position = Vector2(sun_at + Vector2i(0, HARVEST_CLOCK_BELOW))
+	add_child(_harvest_clock)
 	_pause.name = "PauseMenu"
 	_pause.heading = PAUSE_HEADING
 	add_child(_pause)
@@ -252,6 +265,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		else:
 			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.M6, Palette.M4)
 	_guide.hide_guide()
+	_harvest_clock.setup(run.harvest.every if run.harvest != null else 0, run.harvest.launches_left if run.harvest != null else 0)
 	close_table()
 	close_pause()
 	_press([])
@@ -299,10 +313,18 @@ func advance(delta: float) -> void:
 
 ## The run's current says its rule, once a run (Main calls it as the player first aims).
 func tell_current_rule() -> void:
-	if _current_told or _run == null or (_run.current == null and _run.heat == null):
+	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null):
 		return
 	_current_told = true
+	if _run.harvest != null:
+		show_message(harvest_rule(_run.harvest), RULE_MESSAGE_TIME)
+		return
 	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links), RULE_MESSAGE_TIME)
+
+
+## What Virgo's message says: the scythe's clock, or the bound sheaves where it binds.
+static func harvest_rule(harvest: StarHarvest) -> String:
+	return BIND_MESSAGE if harvest.binds else SCYTHE_MESSAGE % harvest.every
 
 
 ## What the heat's message says: it grows or shrinks stars (or both, by turns), and whether it
@@ -350,7 +372,7 @@ func explain_refusal(reason: RunState.PickRefusal) -> void:
 func open_table() -> void:
 	if _run == null or _table.is_open():
 		return
-	_table.open(_run.balance)
+	_table.open(_run.balance, _run.balance.harvest_link_dust_percent_for(_run.scorpio.map.id) if _run.harvest != null else 100)
 	_hold(_table)
 	table_opened.emit()
 
@@ -589,6 +611,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_guide.drop_path()
 		&"volley_counted":
 			_volley.count(event.args[0])
+			return
+		&"harvest_counted":
+			_harvest_clock.count(event.args[0])
 			return
 		&"volley_fired":
 			_volley.fire()

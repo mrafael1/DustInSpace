@@ -35,9 +35,10 @@ func test_every_chapter_has_five_parts_and_a_final_and_its_own_id() -> void:
 		assert_eq(def.stages[Chapter.FINAL]["stars"], [], "%s's final is the whole figure" % def.id)
 		assert_false(ids.has(def.id))
 		ids.append(def.id)
-	assert_eq(ids, ["scorpio", "aquarius", "leo"] as Array[String], "campaign order")
+	assert_eq(ids, ["scorpio", "aquarius", "leo", "virgo"] as Array[String], "campaign order")
 	assert_eq(ChapterDef.aquarius().unlocked_by, "scorpio")
 	assert_eq(ChapterDef.leo().unlocked_by, "aquarius")
+	assert_eq(ChapterDef.virgo().unlocked_by, "leo")
 	assert_eq(ChapterDef.scorpio().unlocked_by, "", "the first is open from the start")
 
 
@@ -90,9 +91,12 @@ func test_aquarius_opens_once_scorpios_final_is_won_and_the_chart_opens_on_it() 
 func test_switching_chapters_keeps_each_ones_progress() -> void:
 	_scorpio_won()
 	var app: App = _app()
-	# A debug build (the tests') can always go on to the next chapter, Leo, round to Scorpio.
+	# A debug build (the tests') can always go on to the next chapter, Leo, then Virgo, round to
+	# Scorpio.
 	app.switch_chapter()
 	assert_eq(app.chapter.id, "leo")
+	app.switch_chapter()
+	assert_eq(app.chapter.id, "virgo")
 	app.switch_chapter()
 	assert_eq(app.chapter.id, "scorpio")
 	assert_true(app.chapter.is_completed(Chapter.FINAL), "Scorpio's progress is its own")

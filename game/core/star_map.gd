@@ -18,6 +18,9 @@ const AQUARIUS_PART := "res://assets/art/aquarius_part_%s.png"
 ## Chapter 3's Leo and its stages' paintings, once drawn (a missing one is left out).
 const LEO_FIGURE := "res://assets/art/leo_figure.png"
 const LEO_PART := "res://assets/art/leo_part_%s.png"
+## Chapter 4's Virgo and its stages' paintings, once drawn (a missing one is left out).
+const VIRGO_FIGURE := "res://assets/art/virgo_figure.png"
+const VIRGO_PART := "res://assets/art/virgo_part_%s.png"
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -70,6 +73,12 @@ var heat_on_links: bool = false
 ## Heat and cold take turns, swapping after every launch (the Mane's day and night), starting with
 ## heat_change.
 var heat_turns: bool = false
+## Virgo's harvest (chapter 4): every few launches (balance.json's harvest block), the scythe reaps
+## the loose stars for nothing (StarHarvest).
+var harvest: bool = false
+## Bound sheaves: at each harvest, a constellation star lit since the last one goes dark again unless
+## lit strings join it to the figure lit before.
+var harvest_binds: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -525,6 +534,73 @@ static func leo_final() -> StarMap:
 	return map
 
 
+## Chapter 4: Virgo, the maiden of the harvest, holding the ear of wheat (Spica). 13 stars at least
+## 24 px apart, east to the left: the head (Zavijava, eta) at the right, Porrima at the waist, the
+## arm up through delta to Vindemiatrix, the hand down through theta to Spica, the robe (zeta, tau,
+## 109) to the left and the feet (iota, mu, kappa) below it. Sizes follow brightness (Vindemiatrix
+## drawn big). The head starts lit.
+static func virgo() -> StarMap:
+	var map := StarMap.new()
+	map.id = "virgo"
+	map.title = "VIRGO"
+	map.landmarks = [
+		Vector2i(162, 136), Vector2i(140, 152), Vector2i(116, 160), Vector2i(106, 132),
+		Vector2i(98, 96), Vector2i(100, 186), Vector2i(86, 216), Vector2i(78, 150),
+		Vector2i(56, 134), Vector2i(24, 126), Vector2i(50, 178), Vector2i(22, 172),
+		Vector2i(48, 206),
+	]
+	map.segments = [
+		Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5),
+		Vector2i(5, 6), Vector2i(3, 7), Vector2i(7, 8), Vector2i(8, 9), Vector2i(7, 10),
+		Vector2i(10, 11), Vector2i(10, 12),
+	]
+	map.sizes = [
+		Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL,
+		Star.Size.BIG, Star.Size.SMALL, Star.Size.BIG, Star.Size.MEDIUM,
+		Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.SMALL,
+		Star.Size.SMALL,
+	]
+	map.starting_lit = [0]
+	map.painting = VIRGO_FIGURE
+	return map
+
+
+## Virgo, stage 1: the Head. The scythe alone (its intro shows it): every few launches the harvest
+## reaps every loose star still standing, for nothing (the stars that launch brought stand). Nothing
+## else changes: link before the scythe comes. From the neck (lit, lower left) the face climbs to the
+## brow, the veil falling right from it. Five to light. Strings are 30-33 px.
+static func virgo_head() -> StarMap:
+	var map := StarMap.new()
+	map.id = "virgo_head"
+	map.title = "HEAD"
+	map.landmarks = [Vector2i(58, 206), Vector2i(84, 188), Vector2i(108, 168), Vector2i(122, 140), Vector2i(116, 108), Vector2i(148, 126)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(3, 5)]
+	map.sizes = [Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG]
+	map.starting_lit = [0]
+	map.painting = VIRGO_PART % "head"
+	map.harvest = true
+	return map
+
+
+## Virgo, stage 2: the Wing. Bound sheaves arrive (its intro shows a far star put out): at each harvest, a constellation star lit since
+## the last one goes dark again unless lit strings join it to the figure lit before. From the
+## shoulder (lit, bottom) the arm reaches up and left to Vindemiatrix (big, the far hand) and the
+## wing sweeps up and right: light out from the shoulder, or lose the far stars to the scythe. Six
+## to light. Strings are 31-33 px.
+static func virgo_wing() -> StarMap:
+	var map := StarMap.new()
+	map.id = "virgo_wing"
+	map.title = "WING"
+	map.landmarks = [Vector2i(96, 206), Vector2i(72, 184), Vector2i(54, 156), Vector2i(46, 124), Vector2i(120, 184), Vector2i(142, 158), Vector2i(150, 126)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(0, 4), Vector2i(4, 5), Vector2i(5, 6)]
+	map.sizes = [Star.Size.SMALL, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = VIRGO_PART % "wing"
+	map.harvest = true
+	map.harvest_binds = true
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -568,6 +644,12 @@ static func by_id(p_id: String) -> StarMap:
 			return leo_head()
 		"leo_final":
 			return leo_final()
+		"virgo":
+			return virgo()
+		"virgo_head":
+			return virgo_head()
+		"virgo_wing":
+			return virgo_wing()
 	return scorpio()
 
 

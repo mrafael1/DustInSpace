@@ -53,6 +53,10 @@ signal star_burned(at: Vector2i)
 signal star_faded(at: Vector2i)
 ## The Head: a big constellation star burned back to small at `at`. Feedback only.
 signal landmark_rekindled(at: Vector2i)
+## Virgo's harvest: the scythe swept the sky. Feedback only (sound).
+signal harvest_swept
+## Virgo's bound sheaves: a constellation star at `at` went dark. Feedback only (sound).
+signal landmark_put_out(at: Vector2i)
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -97,6 +101,7 @@ var _completion_waiting: bool = false
 @onready var _orion: OrionView = $OrionLayer
 @onready var _current: CurrentView = $CurrentLayer
 @onready var _heat: HeatView = $HeatLayer
+@onready var _harvest: HarvestView = $HarvestLayer
 
 
 func _ready() -> void:
@@ -310,6 +315,19 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"area_marked":
 			_orion.mark_area(event.args[0], event.args[1])
 			_sequencer.hold(OrionView.MARK_TIME)
+		&"harvested":
+			_reap(event.args[0])
+		&"landmarks_unbound":
+			_put_out(event.args[0])
+		&"harvest_intro_placed":
+			for star: Star in event.args[0]:
+				_spawn(star)
+			# A beat to see the stars before the scythe takes them.
+			_sequencer.hold(INTRO_HOLD)
+		&"harvest_intro_lit":
+			_constellation.flash_landmark(event.args[0])
+			# A beat to see it lit before the harvest puts it out.
+			_sequencer.hold(INTRO_HOLD)
 	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
 	if _orion.marked() != null and not _views.values().has(_orion.marked()):
 		_orion.clear_mark()
@@ -680,6 +698,32 @@ func _volley(stars: Array[Star]) -> void:
 			view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
 			view.explode(landings[i])
 	_sequencer.hold(last + StarView.DISSOLVE_TIME * 0.5)
+
+
+## Virgo's harvest: the scythe's blade sweeps the sky, cutting each reaped star as it passes.
+func _reap(stars: Array[Star]) -> void:
+	var lasts: float = _harvest.sweep()
+	harvest_swept.emit()
+	for star: Star in stars:
+		var view: StarView = _views.get(star.id)
+		if view == null:
+			continue
+		_views.erase(star.id)
+		var delay: float = _harvest.cut_delay(star.position.x)
+		view.exploded.connect(func(v: StarView) -> void: _harvest.flash_chaff(Vector2i(v.position)))
+		view.explode(delay)
+		lasts = maxf(lasts, delay + StarView.DISSOLVE_TIME)
+	_sequencer.hold(lasts)
+
+
+## Virgo's bound sheaves: the constellation stars the harvest put out go dark, one after another.
+func _put_out(indices: Array[int]) -> void:
+	for index: int in indices:
+		var at: Vector2i = _run.scorpio.landmark_position(index)
+		_constellation.put_out(index)
+		_harvest.flash_put_out(at)
+		landmark_put_out.emit(at)
+	_sequencer.hold(HarvestView.PUT_OUT_TIME)
 
 
 func _dissolve(stars: Array[Star]) -> void:

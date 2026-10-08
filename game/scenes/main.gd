@@ -135,11 +135,12 @@ func start_run(balance: Balance) -> bool:
 	_balance_errors.visible = false
 	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
-	set_process(run.current != null or run.heat != null)
+	set_process(run.current != null or run.heat != null or run.harvest != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
 	($Sky/ConstellationLayer as ConstellationView).repeat = replay
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
 	($Sky/HeatLayer as HeatView).setup(run, _sequencer)
+	($Sky/HarvestLayer as HarvestView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)
 	_playtest_log.guided = tutorial
@@ -158,6 +159,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_hunt_intro()
 	# And a stage bringing Leo's heat or cold: the effect shown once on a few stars.
 	run.play_heat_intro()
+	# And a stage bringing Virgo's scythe or its binding: shown once as it opens.
+	run.play_harvest_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
@@ -175,6 +178,7 @@ func _process(_delta: float) -> void:
 		_telescope.is_aiming() if use_telescope else _launcher.is_pulling())
 	($Sky/CurrentLayer as CurrentView).aiming = aiming and run.current != null
 	($Sky/HeatLayer as HeatView).aiming = aiming and run.heat != null
+	($Sky/HarvestLayer as HarvestView).aiming = aiming and run.harvest != null
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = aiming and (run.current != null or run.heat != null)
 
 
@@ -283,6 +287,9 @@ func _wire_sound() -> void:
 	constellation.blaze_lit.connect(func(order: int) -> void: _sfx.play(&"star_select", 0.8 + 0.06 * order))
 	constellation.roared.connect(_sfx.play.bind(&"big_bang_collapse", 0.8))
 	_sky.star_faded.connect(func(_at: Vector2i) -> void: _sfx.play(&"burst", 1.5))
+	# Virgo's scythe swishes across the sky; a constellation star put out sinks with a low buzz.
+	_sky.harvest_swept.connect(_sfx.play.bind(&"launch", 0.7))
+	_sky.landmark_put_out.connect(func(_at: Vector2i) -> void: _sfx.play(&"link_reject", 0.7))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)
