@@ -90,6 +90,11 @@ var harvest_reaps_new: bool = false
 ## Under the harvest, links still pay their dust (false: they pay light only, and the harvest is
 ## the stage's dust).
 var harvest_links_pay_dust: bool = true
+## Sheaves: a standing triple of one size within reach pays its combo's dust times this at the
+## harvest (0: no sheaves; its stars then pay by size like the rest).
+var harvest_sheaf_scale: int = 0
+## The most dust one harvest pays (0: no cap).
+var harvest_cap: int = 0
 
 var errors: Array[String] = []
 
@@ -238,6 +243,10 @@ func _parse_harvest(raw: Dictionary) -> void:
 	harvest_every = _read_int(raw, "every", "harvest.", 1)
 	var pay: Dictionary = _read_dict(raw, "pay", "harvest.")
 	harvest_pay = [_read_int(pay, "small", "harvest.pay.", 0), _read_int(pay, "medium", "harvest.pay.", 0), _read_int(pay, "big", "harvest.pay.", 0)]
+	if raw.has("sheaf_scale"):
+		harvest_sheaf_scale = _read_int(raw, "sheaf_scale", "harvest.", 0)
+	if raw.has("cap"):
+		harvest_cap = _read_int(raw, "cap", "harvest.", 0)
 	if raw.has("links_pay_dust"):
 		if typeof(raw["links_pay_dust"]) != TYPE_BOOL:
 			errors.append("harvest.links_pay_dust: must be true or false")

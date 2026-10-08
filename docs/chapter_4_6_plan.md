@@ -1,6 +1,6 @@
 # Chapters 4 to 6: ideas to test
 
-**Status: on paper, 2026-10-08.** The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
+**Status: Virgo's harvest failed its stakes gate (step C, below), 2026-10-08.** The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
 
 ## Direction and stakes
 
@@ -84,6 +84,30 @@ Teach the gain first, then the cost, then twists:
 ### Payout spike
 
 The harvest is the chapter's spike, on a clock the player can see coming. A rare **golden harvest** (all reaped stars pay double) is the slot-machine jackpot on top.
+
+### Step C: the harvest fails the stakes gate (2026-10-08)
+
+Built in the core, off by default (`StarHarvest`, the `harvest` block in balance.json, `StarMap.harvest`), and measured with bots (`tools/harvest/playtest.gd`) on Leo's Haunch layout with its heat off: 200-300 paired seeds, a harvest every 3 launches. Policies: link at once; launch every pack first (hoard); link only for the constellation; glean (let the field stand and link for the constellation just before the harvest); sheaf (leave same-size triples standing for the harvest).
+
+| Rule | Link at once | Hoard | Best of the rest |
+|---|---|---|---|
+| Harvest dust on top of link dust, pay 1/2/3 | 100% | 100% | 100% |
+| Links pay light only, the harvest is the dust: pay 1/2/3 | 20% | 87% | 36% |
+| Same, pay 1/1/2 | 11% | 28% | 15% |
+| Same, every 2, pay 1/1/2 | 11% | 14% | 12% |
+| Sheaves x2 (a standing same-size triple in reach pays double its combo's dust, the rest nothing), links keep their dust | 100% | 100% | 100% |
+| Sheaves x2, links pay light only | 3.5% | 70.5% | 20% |
+| Sheaves x3, links pay light only | 3.5% | 90% | 22.5% |
+| Pay 1/2/3 capped at 7 a harvest, links pay light only | 18.5% | 0% | 34% |
+| Same, capped at 4 | 12% | 0% | 16% |
+
+What it shows:
+
+- **While links keep their dust, the harvest only takes stars nobody used**, so linking at once is always safe. That is Leo's structural flaw again: a rule that only removes unused stars punishes hoarding, never linking.
+- **When the harvest is the dust, it's a farm or a tax.** Reaped stars worth more than their pack make launch-and-reap the dominant answer (red packs, mostly bigs, are the engine). Worth less, or capped, and nobody wins. No pay table, clock or cap left room for judgement to beat both extremes, and the bot that played in between (glean) did worse than either.
+- The Sun's rekindle already clears the sky for dust, which undercuts the harvest's role.
+
+The rule changes also showed the gate the next mechanic must pass up front: **it has to act on the links themselves** (their order, place or cost), not only on stars left standing.
 
 ## Chapter 5: Sagittarius, the black hole
 

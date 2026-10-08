@@ -8,9 +8,10 @@ extends SceneTree
 ## next, leaving the rest standing to be reaped; landmarks-only never links a link without a
 ## constellation star; glean lets the field stand (launching, no links) and, on the launch before a
 ## harvest, first links the links that light a constellation star (the stars the harvest would
-## otherwise reap), then launches.
+## otherwise reap), then launches; sheaf links every link but a triple of loose stars of one size
+## while the harvest is next (a sheaf left standing for it).
 
-const POLICIES: Array[String] = ["link-first", "launch-first", "reaper", "landmarks-only", "glean"]
+const POLICIES: Array[String] = ["link-first", "launch-first", "reaper", "landmarks-only", "glean", "sheaf"]
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "leo_haunch"
@@ -34,17 +35,21 @@ func _initialize() -> void:
 			_balance.harvest_pay = pay
 		elif argument == "--reaps-new":
 			_balance.harvest_reaps_new = true
+		elif argument.begins_with("--sheaves="):
+			_balance.harvest_sheaf_scale = argument.trim_prefix("--sheaves=").to_int()
+		elif argument.begins_with("--cap="):
+			_balance.harvest_cap = argument.trim_prefix("--cap=").to_int()
 		elif argument == "--no-link-dust":
 			_balance.harvest_links_pay_dust = false
 	_simulate.call_deferred()
 
 
 func _simulate() -> void:
-	print("Paired seeds 1..%d; %s; every %d; pay %s; reaps new %s; links pay dust %s" % [_runs, _map, _balance.harvest_every, _balance.harvest_pay, _balance.harvest_reaps_new, _balance.harvest_links_pay_dust])
+	print("Paired seeds 1..%d; %s; every %d; pay %s; sheaves x%d; cap %d; reaps new %s; links pay dust %s" % [_runs, _map, _balance.harvest_every, _balance.harvest_pay, _balance.harvest_sheaf_scale, _balance.harvest_cap, _balance.harvest_reaps_new, _balance.harvest_links_pay_dust])
 	var rows: Array[Dictionary] = []
 	for policy: String in POLICIES:
 		for enabled: bool in [false, true]:
-			if policy in ["reaper", "landmarks-only", "glean"] and not enabled:
+			if policy in ["reaper", "landmarks-only", "glean", "sheaf"] and not enabled:
 				continue
 			var row: Dictionary = {"policy": policy, "harvest": enabled, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "reaped": 0, "harvest_dust": 0, "link_dust": 0}
 			for seed_value: int in range(1, _runs + 1):
@@ -136,6 +141,11 @@ func _takes(run: RunState, ids: Array) -> bool:
 			return lights
 		"glean":
 			return lights and run.harvest != null and run.harvest.is_next()
+		"sheaf":
+			if lights or run.harvest == null or not run.harvest.is_next():
+				return true
+			var size: int = run.find_star(ids[0]).size
+			return not (run.find_star(ids[1]).size == size and run.find_star(ids[2]).size == size)
 	return true
 
 

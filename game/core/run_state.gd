@@ -823,13 +823,49 @@ func _count_harvest(first_new_id: int) -> void:
 				skip[star.id] = true
 		var reaped: Array[Star] = harvest.reaped(stars, skip)
 		if not reaped.is_empty():
-			var gain: int = harvest.value(reaped)
+			var gain: int = _harvest_value(reaped)
 			for star: Star in reaped:
 				stars.erase(star)
 			_orion_forget(reaped)
 			dust += gain
 			harvested.emit(reaped, gain)
 	harvest_counted.emit(harvest.launches_left)
+
+
+## What a harvest of `reaped` pays: each sheaf (a standing triple of one size within reach, when
+## balance.json has sheaves) its combo's dust times the sheaf scale, every other star its size's
+## pay; at most the harvest's cap.
+func _harvest_value(reaped: Array[Star]) -> int:
+	var rest: Array[Star] = reaped.duplicate()
+	var gain: int = 0
+	for sheaf: Array[Star] in harvest_sheaves(reaped):
+		gain += balance.combos[Combos.evaluate([sheaf[0].size, sheaf[1].size, sheaf[2].size] as Array[int])].dust * balance.harvest_sheaf_scale
+		for star: Star in sheaf:
+			rest.erase(star)
+	gain += harvest.value(rest)
+	return mini(gain, balance.harvest_cap) if balance.harvest_cap > 0 else gain
+
+
+## The sheaves among `reaped`: disjoint triples of one size whose stars link within reach, the
+## biggest size first. None without sheaves in balance.json.
+func harvest_sheaves(reaped: Array[Star]) -> Array[Array]:
+	var found: Array[Array] = []
+	if balance.harvest_sheaf_scale <= 0:
+		return found
+	var used: Dictionary[int, bool] = {}
+	for size: int in [Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL]:
+		var pool: Array[Star] = reaped.filter(func(s: Star) -> bool: return s.size == size)
+		for a: int in pool.size():
+			for b: int in range(a + 1, pool.size()):
+				for c: int in range(b + 1, pool.size()):
+					var trio: Array[Star] = [pool[a], pool[b], pool[c]]
+					if trio.any(func(s: Star) -> bool: return used.has(s.id)):
+						continue
+					if _can_chain(trio):
+						found.append(trio)
+						for star: Star in trio:
+							used[star.id] = true
+	return found
 
 
 ## Pure preview: what the next launch's harvest reaps of the stars in the sky now (star id to its
