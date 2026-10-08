@@ -4,6 +4,9 @@ extends Node2D
 ## draining flow loses stars, and each star's extinction where it goes (extinction_pixels).
 ## Destination brackets appear only while aiming, and an ember trail from a star that would drain;
 ## random pack contents stay hidden. The core supplies every destination.
+## At-risk marks, always (#149: the aim's trails went unseen, since the player can't link while
+## aiming): while not aiming, each star the next launch drains wears a small ember chevron just past
+## its downstream side, an ember arrow pointing where it goes, nudging a pixel that way every MARK_STEP.
 
 ## The water: streaks gliding downstream in whole pixels, one per STREAK_AREA px² of the field,
 ## each STREAK_LENGTH long at STREAK_SPEED px/s (both by a fixed hash, so the pattern is stable).
@@ -42,6 +45,10 @@ const CHEVRON_CLEAR: int = 10
 ## A box of drains (four ways or more) comes alight as its stage opens: each side flares solid in
 ## the order the flow will take them, ARRIVAL_STEP apart, then settles.
 const ARRIVAL_STEP: float = 0.22
+
+## The at-risk arrow's head sits MARK_GAP px past the star's edge; it nudges on every MARK_STEP.
+const MARK_GAP: int = 9
+const MARK_STEP: float = 0.6
 
 ## Extinctions playing: the edge point each star left by, and the seconds since.
 var _flashes: Dictionary[Vector2i, float] = {}
@@ -146,6 +153,11 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		for at: Vector2i in _flashes:
 			var went: Vector2i = _flash_ways.get(at, Vector2i.ZERO)
 			result.merge(extinction_pixels(at, went if went != Vector2i.ZERO else _shown_flow, _flashes[at], area), true)
+	if not aiming and (_sequencer == null or not _sequencer.is_busy()):
+		var way := Vector2i(signi(_run.current.displacement.x), signi(_run.current.displacement.y))
+		for id: int in _run.launch_drains():
+			var star: Star = _run.find_star(id)
+			result.merge(drain_mark_pixels(star.position, star.size, way, _time), true)
 	if aiming and not _sequencer.is_busy():
 		var destinations: Dictionary[int, Vector2i] = _run.current_preview()
 		for star: Star in _run.stars:
@@ -163,6 +175,24 @@ func pixels() -> Dictionary[Vector2i, Color]:
 				for dy: int in [-1, 0, 1]:
 					result[to + Vector2i(side * radius, dy)] = Palette.M5
 	return result
+
+
+## A star of `size` at `at` that the next launch drains (flowing `way`), `time` seconds in: a short
+## ember arrow pointing `way` from just past the star's edge, two dots (the aim's trail, in brief)
+## and a chevron head MARK_GAP px out, the whole arrow a pixel further on every other MARK_STEP.
+## (A bare chevron read as the flow's own edge chevrons; the dotted shaft ties it to its star.)
+static func drain_mark_pixels(at: Vector2i, size: int, way: Vector2i, time: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	var line := Vector2i(absi(way.y), absi(way.x))
+	var nudge: int = int(time / MARK_STEP) % 2
+	var edge: Vector2i = at + way * (StarView.half_extent(size as Star.Size) + nudge)
+	for dot: int in [3, 5]:
+		pixels[edge + way * dot] = Palette.S4
+	var tip: Vector2i = edge + way * MARK_GAP
+	for d: int in 3:
+		pixels[tip - way * d + line * d] = Palette.S4
+		pixels[tip - way * d - line * d] = Palette.S4
+	return pixels
 
 
 ## One dot in two along the straight line from `from` to `to`, starting `skip` px out.

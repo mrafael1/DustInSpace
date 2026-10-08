@@ -415,6 +415,43 @@ func current_preview() -> Dictionary[int, Vector2i]:
 	return current.preview(stars, sky_rect, scorpio.landmark_positions())
 
 
+## Pure: the stars in the sky now that the next launch's current drains, wherever it's aimed (their
+## destinations are reserved before its burst, so where it lands never changes them). A turning flow
+## answers for the way the next launch goes. None without a draining current, or once the run is over.
+## (A Big Bang, drawn at random, clears the sky instead.)
+func launch_drains() -> Array[int]:
+	var result: Array[int] = []
+	if current == null or not current.drains or is_over():
+		return result
+	var destinations: Dictionary[int, Vector2i] = current_preview()
+	for star: Star in stars:
+		if current.leaves(star.position, destinations[star.id]):
+			result.append(star.id)
+	return result
+
+
+## Pure: the stars in the sky now that the next launch's heat burns out (a big in the heat), wherever
+## it's aimed. A star the current drains first isn't counted; the constellation stars (the Head's)
+## burn back instead of out, so they're never in it.
+func launch_burns() -> Array[int]:
+	return _launch_losses(false)
+
+
+## Pure: the stars in the sky now that the next launch's cold fades (a small one), wherever it's aimed.
+func launch_fades() -> Array[int]:
+	return _launch_losses(true)
+
+
+func _launch_losses(cold: bool) -> Array[int]:
+	var result: Array[int] = []
+	if heat == null or is_over():
+		return result
+	for change: StarHeat.Change in heat_preview():
+		if change.lost and change.star_id >= 0 and change.is_cold() == cold:
+			result.append(change.star_id)
+	return result
+
+
 func find_star(id: int) -> Star:
 	for star: Star in stars:
 		if star.id == id:

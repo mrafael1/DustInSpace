@@ -7,6 +7,10 @@ extends Node2D
 ## will burn out; in the cold, its own outline dotted in the colour of the size it shrinks to, or
 ## dotted frost crowned with a snowflake on a small one that will fade. Drawn above the halos and below the links and stars.
 ## The core supplies every change; pack contents stay hidden.
+## At-risk marks, always (#149: the aim's preview went unseen, since the player can't link while
+## aiming): while not aiming, a star the next launch burns out wears the crown of flames alone, and
+## a small one it fades the snowflake alone; on every other MARK_STEP the flame's tip (the flake's
+## points) drop out, a slow flicker.
 
 ## The motes: one per MOTE_AREA px² of the sky, rising MOTE_SPEED px/s (falling in the cold),
 ## each by a fixed hash so the pattern is stable. A head pixel and a dimmer one behind it.
@@ -36,6 +40,11 @@ const SNOWFLAKE: Dictionary[Vector2i, Color] = {
 	Vector2i(-2, -3): Palette.M6, Vector2i(-1, -3): Palette.M6, Vector2i(1, -3): Palette.M6, Vector2i(2, -3): Palette.M6,
 	Vector2i(-2, -5): Palette.M5, Vector2i(2, -5): Palette.M5, Vector2i(-2, -1): Palette.M5, Vector2i(2, -1): Palette.M5,
 }
+## The at-risk marks' two-step flicker.
+const MARK_STEP: float = 0.6
+## Dropped from the crown and the snowflake on the flicker's second step.
+const FLAME_TIP: Array[Vector2i] = [Vector2i(0, -5)]
+const FLAKE_POINTS: Array[Vector2i] = [Vector2i(-2, -5), Vector2i(2, -5), Vector2i(-2, -1), Vector2i(2, -1)]
 ## A faded star's frost: FADE_FLAKES falling and spreading from where it stood for BURN_TIME, M6
 ## then M5, slower and shorter than a burn's embers.
 const FADE_FLAKES: int = 6
@@ -183,6 +192,28 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		result.merge(preview_pixels(_run, tracing), true)
 	elif aiming and idle:
 		result.merge(preview_pixels(_run), true)
+	elif idle:
+		result.merge(mark_pixels(_run, _time), true)
+	return result
+
+
+## The at-risk marks at `time`: a crown over each star the next launch burns out, a snowflake over
+## each it fades.
+static func mark_pixels(run: RunState, time: float) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var flicker: bool = int(time / MARK_STEP) % 2 == 1
+	for id: int in run.launch_burns():
+		var star: Star = run.find_star(id)
+		var top := Vector2i(0, -StarView.half_extent(star.size) - 2)
+		for offset: Vector2i in FLAMES:
+			if not (flicker and FLAME_TIP.has(offset)):
+				result[star.position + top + offset] = FLAMES[offset]
+	for id: int in run.launch_fades():
+		var star: Star = run.find_star(id)
+		var over := Vector2i(0, -StarView.half_extent(star.size) - 2)
+		for offset: Vector2i in SNOWFLAKE:
+			if not (flicker and FLAKE_POINTS.has(offset)):
+				result[star.position + over + offset] = SNOWFLAKE[offset]
 	return result
 
 

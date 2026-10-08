@@ -274,8 +274,9 @@ func test_the_sky_turns_to_night_once_the_launch_has_played_out() -> void:
 			break
 	view.advance(0.01)
 	assert_eq(view.shown_change(), -1, "then night falls")
+	# Frost motes, and the snowflakes (#149) over the smalls the night will fade: no embers.
 	for colour: Color in view.pixels().values():
-		assert_true(colour in HeatView.COLD_COLOURS)
+		assert_true(colour in HeatView.COLD_COLOURS or colour == HeatView.FROST)
 
 
 func test_a_faded_star_falls_as_frost() -> void:
