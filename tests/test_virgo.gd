@@ -36,13 +36,6 @@ func test_the_clock_counts_launches_and_starts_over_at_the_harvest() -> void:
 	assert_eq(harvest.launches_left, 3, "and the clock starts over")
 
 
-func test_the_scythe_spares_the_stars_its_own_launch_brought() -> void:
-	var stars: Array[Star] = [Star.new(1), Star.new(2), Star.new(3)]
-	var reaped: Array[Star] = StarHarvest.reaped(stars, {3: true} as Dictionary[int, bool])
-	assert_eq(reaped.size(), 2)
-	assert_false(reaped.has(stars[2]))
-
-
 func test_a_lit_star_not_joined_to_the_bound_figure_goes_dark() -> void:
 	# A chain 0-1-2-3, 0 bound: 1 is joined through lit 0; 3 is lit but 2 isn't.
 	var neighbours := func(i: int) -> Array[int]:
@@ -80,6 +73,43 @@ func test_the_head_reaps_the_standing_stars_every_third_launch() -> void:
 	for star: Star in run.stars:
 		assert_gte(star.id, before, "only the last launch's stars stand")
 	assert_eq(counted, [2, 1, 3] as Array[int], "the clock after each launch")
+
+
+func test_a_red_planets_first_burst_is_reaped_by_the_harvest_it_brings() -> void:
+	var run: RunState = _run(StarMap.virgo_head())
+	run.owned_packs["red"] = 5
+	_launch_until_harvest_next(run)
+	run.stars.clear()
+	var bursts: Array = []
+	var order: Array[String] = []
+	run.pack_burst.connect(func(_kind: String, _at: Vector2i, stars: Array[Star]) -> void:
+		order.append("burst")
+		bursts.append(stars.duplicate()))
+	var reaped: Array[Star] = []
+	run.harvested.connect(func(stars: Array[Star]) -> void:
+		order.append("harvest")
+		reaped.assign(stars))
+	run.load_pack("red")
+	assert_true(run.launch(Vector2i(90, 150)))
+	assert_eq(bursts.size(), 2, "a red planet bursts twice")
+	assert_eq(order, ["burst", "harvest", "burst"] as Array[String], "the scythe sweeps between them")
+	for star: Star in bursts[0]:
+		assert_true(reaped.has(star), "its first burst is reaped")
+		assert_false(run.stars.has(star))
+	for star: Star in bursts[1]:
+		assert_false(reaped.has(star), "its last burst stands")
+		assert_true(run.stars.has(star))
+
+
+func test_the_scythe_sweeps_before_a_blue_planet_bursts() -> void:
+	var run: RunState = _run(StarMap.virgo_head())
+	_launch_until_harvest_next(run)
+	var order: Array[String] = []
+	run.harvested.connect(func(_stars: Array[Star]) -> void: order.append("harvest"))
+	run.pack_burst.connect(func(_kind: String, _at: Vector2i, _stars: Array[Star]) -> void: order.append("burst"))
+	run.load_pack("blue")
+	assert_true(run.launch(Vector2i(90, 150)))
+	assert_eq(order, ["harvest", "burst"] as Array[String])
 
 
 func test_the_harvest_comes_over_an_empty_sky_too() -> void:

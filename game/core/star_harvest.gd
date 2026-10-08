@@ -1,10 +1,10 @@
 class_name StarHarvest
 extends RefCounted
-## Virgo's harvest (chapter 4): a clock of `every` launches. When it runs out, once that launch has
-## resolved, the scythe reaps every loose star in the sky for nothing, except the stars that launch
-## brought. Where it `binds` (bound sheaves), a constellation star lit since the last harvest goes
-## dark again unless lit strings join it to the figure bound before. No randomness or nodes; the run
-## applies it.
+## Virgo's harvest (chapter 4): a clock of `every` launches. When it runs out, just before that
+## launch's last burst (before a blue planet bursts, between a red planet's two bursts), the scythe
+## reaps every loose star in the sky for nothing. Where it `binds` (bound sheaves), a constellation
+## star lit since the last harvest goes dark again unless lit strings join it to the figure bound
+## before. No randomness or nodes; the run applies it.
 
 ## Launches between two harvests.
 var every: int
@@ -34,15 +34,6 @@ func count_launch() -> bool:
 ## Whether the next launch brings the harvest.
 func is_next() -> bool:
 	return launches_left == 1
-
-
-## The stars of `stars` the harvest reaps: all but `skip` (the ids its own launch brought).
-static func reaped(stars: Array[Star], skip: Dictionary[int, bool] = {}) -> Array[Star]:
-	var result: Array[Star] = []
-	for star: Star in stars:
-		if not skip.has(star.id):
-			result.append(star)
-	return result
 
 
 ## Bound sheaves: which of the `lit` landmarks go dark, given the ones `bound` before and the

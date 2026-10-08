@@ -24,8 +24,9 @@ signal stars_resized(changes: Array[StarHeat.Change])
 ## The heat changed the size of the constellation stars still to light (the Head), once the launch
 ## resolved; a big one came back small (`rekindled`).
 signal landmarks_resized(changes: Array[StarHeat.Change])
-## Virgo's harvest (chapter 4): the launch that ran the clock out resolved, and the scythe reaped
-## the loose `stars` (maybe none), for nothing. Any landmarks_unbound follows.
+## Virgo's harvest (chapter 4): the launch that ran the clock out reached its last burst, and the
+## scythe reaped the loose `stars` (maybe none), for nothing: before a blue planet's burst, between a
+## red planet's two. Any landmarks_unbound follows, then the burst.
 signal harvested(stars: Array[Star])
 ## The harvest clock moved: `launches_left` until the next harvest (after every launch).
 signal harvest_counted(launches_left: int)
@@ -443,6 +444,9 @@ func launch(target: Vector2i) -> bool:
 			result.sizes = scripted
 	# The stars this launch brings have ids from here on: the heat leaves them be until the next.
 	var first_new_id: int = _next_star_id
+	# Virgo's harvest clock counts the launch just before its last burst: when it brings the harvest,
+	# the scythe sweeps before a blue planet bursts, and between a red planet's two bursts.
+	var harvests: bool = harvest != null and not result.big_bang
 	var points: Array[Vector2i] = []
 	if pack.bursts > 1:
 		points = StarScatter.split_points(burst, pack.burst_spread, pack.bursts, sky_rect)
@@ -452,8 +456,12 @@ func launch(target: Vector2i) -> bool:
 		_big_bang(burst)
 	elif pack.bursts > 1:
 		for i: int in points.size():
+			if harvests and i == points.size() - 1:
+				_count_harvest()
 			_burst(kind, points[i], result.sizes.slice(i * pack.stars, (i + 1) * pack.stars))
 	else:
+		if harvests:
+			_count_harvest()
 		_burst(kind, burst, result.sizes)
 	if current != null and not result.big_bang:
 		_shift_stars()
@@ -465,8 +473,6 @@ func launch(target: Vector2i) -> bool:
 		heat.turn()
 	if current != null:
 		current.turn()
-	if harvest != null and not result.big_bang:
-		_count_harvest(first_new_id)
 	_current_reserved.clear()
 	# The hunting area's strike comes before any single mark, so a mark never lands on a star the
 	# arrow is about to take.
@@ -827,16 +833,13 @@ func _shift_stars() -> void:
 		stars_shifted.emit(shifted)
 
 
-## The harvest clock counts a launch; when it runs out, the scythe reaps the loose stars for
-## nothing (the stars this launch brought stand) and, where it binds, puts out the constellation
-## stars lit since the last harvest that lit strings don't join to the bound figure.
-func _count_harvest(first_new_id: int) -> void:
+## The harvest clock counts a launch, just before its last burst; when it runs out, the scythe reaps
+## every loose star in the sky then, for nothing (a red planet's first burst too; its last burst, or
+## a blue planet's only one, lands after), and, where it binds, puts out the constellation stars lit
+## since the last harvest that lit strings don't join to the bound figure.
+func _count_harvest() -> void:
 	if harvest.count_launch():
-		var skip: Dictionary[int, bool] = {}
-		for star: Star in stars:
-			if star.id >= first_new_id:
-				skip[star.id] = true
-		var reaped: Array[Star] = StarHarvest.reaped(stars, skip)
+		var reaped: Array[Star] = stars.duplicate()
 		for star: Star in reaped:
 			stars.erase(star)
 		_orion_forget(reaped)
@@ -865,8 +868,9 @@ func link_dust(combo: String) -> int:
 	return dust_paid * balance.harvest_link_dust_percent_for(scorpio.map.id) / 100
 
 
-## Pure preview: the loose stars the next launch's harvest reaps (all in the sky now; the stars that
-## launch brings stand), or none when the next launch doesn't bring one.
+## Pure preview: the loose stars the next launch's harvest reaps (all in the sky now; of the stars
+## that launch brings, a red planet's first burst too, unknown yet), or none when the next launch
+## doesn't bring one.
 func harvest_preview() -> Array[int]:
 	var result: Array[int] = []
 	if harvest == null or not harvest.is_next():
