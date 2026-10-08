@@ -17,6 +17,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="Dust In Space"
 run/main_scene="res://game/scenes/app.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+config/quit_on_go_back=false
 
 [display]
 

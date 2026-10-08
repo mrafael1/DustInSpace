@@ -22,6 +22,10 @@ extends Node
 ## Debug builds, on the chart: U previews every part won and plays the final's unlock; F previews
 ## the final won too and plays its painted Scorpio rising. A preview is a copy of the chapter shown
 ## on the chart only: it is never saved and never unlocks a stage; opening a stage drops it.
+## The back button (Android; quit_on_go_back is off) and Escape go back one level (go_back): an open
+## menu closes; in a stage, Main.go_back (the pause menu, the table, the end screen, else PAUSED);
+## on the title or the chart with nothing open, nothing (the app never quits itself). The app going
+## to the background (or losing focus) mid-stage opens PAUSED (Main.pause_for_background).
 
 ## A stage was opened (tests and feedback).
 signal stage_opened(point: int)
@@ -105,6 +109,35 @@ func _ready() -> void:
 			open_current_trial(true, 0, "aquarius")
 		elif "--aquarius-off" in OS.get_cmdline_user_args():
 			open_current_trial(false, 0, "aquarius")
+
+
+func _notification(what: int) -> void:
+	if not is_node_ready():
+		return
+	match what:
+		NOTIFICATION_WM_GO_BACK_REQUEST:
+			go_back()
+		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT:
+			if _stage != null:
+				_stage.pause_for_background()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"ui_cancel", false, true):
+		go_back()
+		get_viewport().set_input_as_handled()
+
+
+## Back one level (the back button or Escape): an open menu closes, a stage goes back its own way
+## (Main.go_back), and the title or the chart with nothing open stays as it is. Returns true if
+## it did something.
+func go_back() -> bool:
+	if _stage != null:
+		return _stage.go_back()
+	if _options.is_open():
+		_options.close()
+		return true
+	return false
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

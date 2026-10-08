@@ -69,6 +69,8 @@ var _extra: int = 0
 
 ## The world's process modes while the table (#94) holds it still.
 var _paused: Dictionary[Node, Node.ProcessMode] = {}
+## The app went to the background mid-sequence: the pause menu opens once the sequence ends.
+var _pause_pending: bool = false
 
 
 func _ready() -> void:
@@ -118,6 +120,7 @@ func _ready() -> void:
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
 	($DebugKeys as DebugKeys).current_switch_requested.connect(switch_current)
 	($CurrentTrialControls as CurrentTrialControls).current_switch_requested.connect(switch_current)
+	_sequencer.sequence_finished.connect(_on_sequence_finished)
 	_wire_playtest_log()
 	switch_launcher(use_telescope)
 	_wire_sound()
@@ -133,6 +136,7 @@ func start_run(balance: Balance) -> bool:
 		_report_balance_errors(balance.errors)
 		return false
 	_balance_errors.visible = false
+	_pause_pending = false
 	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
 	set_process(run.current != null or run.heat != null or run.harvest != null)
@@ -246,6 +250,42 @@ func launcher() -> Launcher:
 	return _telescope if use_telescope else _launcher
 
 
+## The back button (Android) or Escape, one level at a time: the pause menu or the table closes;
+## the end screen goes back to the chart (in a chapter); with nothing open the pause menu opens.
+## Ignored while a sequence plays (like every button) and while the run's end is still on its way.
+## Returns true if it did something.
+func go_back() -> bool:
+	if run == null:
+		return false
+	if _hud.pause_menu().is_open():
+		_hud.close_pause()
+		return true
+	if _hud.table().is_open():
+		_hud.close_table()
+		return true
+	if _end_screen.is_showing():
+		if not in_chapter:
+			return false
+		map_requested.emit()
+		return true
+	if _sequencer.is_busy() or run.is_over():
+		return false
+	_hud.open_pause()
+	return true
+
+
+## The app went to the background (or lost focus): the pause menu opens, unless the stage already
+## holds still (the pause menu or the table) or the run is over. Mid-sequence it waits for the
+## sequence to end.
+func pause_for_background() -> void:
+	if run == null or run.is_over() or _hud.pause_menu().is_open() or _hud.table().is_open():
+		return
+	if _sequencer.is_busy():
+		_pause_pending = true
+		return
+	_hud.open_pause()
+
+
 ## A fresh run on the current run's balance (the end screen's or the pause menu's RESTART).
 func restart() -> bool:
 	return run != null and start_run(run.balance)
@@ -328,6 +368,12 @@ func _wire_playtest_log() -> void:
 	_telescope.launch_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("launch"))
 	_sky.link_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
 	_sky.step_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
+
+
+func _on_sequence_finished() -> void:
+	if _pause_pending:
+		_pause_pending = false
+		pause_for_background()
 
 
 func _on_encounter_step(threat: int, step: int) -> void:
