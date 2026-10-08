@@ -64,6 +64,9 @@ var heat_burns: bool = false
 ## The heat changes the constellation stars still to light as well as the loose ones (the Head):
 ## each launch they grow a size, and a big one burns back to small (StarHeat.preview_landmarks).
 var heat_landmarks: bool = false
+## The lion breathes (Leo's final): the heat acts after every successful link too, on the loose
+## stars and (with heat_landmarks) the constellation stars still to light, from the link outward.
+var heat_on_links: bool = false
 ## Heat and cold take turns, swapping after every launch (the Mane's day and night), starting with
 ## heat_change.
 var heat_turns: bool = false
@@ -505,6 +508,23 @@ static func leo_head() -> StarMap:
 	return map
 
 
+## Leo's final, stage 6: the whole Leo (the chart's figure, the tail tuft lit: twelve to light), and
+## the lion breathes: the heat acts after every launch and after every successful link. Loose stars
+## grow and a big one burns out; the lion's own stars grow and a big one burns back to small. So
+## the order of the links matters: link the stars about to burn first (spatial bots: linking at once
+## 79%, linking the stars about to burn first 100%, launching every pack first 38%). It arrives with
+## its title card: LEO, THE LION OF SUMMER.
+static func leo_final() -> StarMap:
+	var map: StarMap = leo()
+	map.id = "leo_final"
+	map.heat_change = 1
+	map.heat_burns = true
+	map.heat_landmarks = true
+	map.heat_on_links = true
+	map.arrival_epithet = "THE LION OF SUMMER"
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -546,6 +566,8 @@ static func by_id(p_id: String) -> StarMap:
 			return leo_mane()
 		"leo_head":
 			return leo_head()
+		"leo_final":
+			return leo_final()
 	return scorpio()
 
 
