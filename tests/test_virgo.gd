@@ -61,7 +61,7 @@ func test_the_head_reaps_the_standing_stars_every_third_launch() -> void:
 	var reaped: Array = []
 	var counted: Array[int] = []
 	run.harvested.connect(func(stars: Array[Star]) -> void: reaped.append(stars))
-	run.harvest_counted.connect(func(left: int) -> void: counted.append(left))
+	run.harvest_counted.connect(func(left: int, _period: int) -> void: counted.append(left))
 	_launch_until_harvest_next(run)
 	assert_true(run.stars.has(old), "it stands until the harvest")
 	assert_eq(run.harvest_preview().has(old.id), true, "the aim shows it will be reaped")
@@ -271,7 +271,7 @@ func test_virgo_is_chapter_4_after_leo_on_the_sky() -> void:
 	assert_eq(virgo.stage_name(0), "HEAD")
 	assert_eq(virgo.map_id(0), "virgo_head")
 	assert_eq(virgo.map_id(1), "virgo_wing")
-	assert_eq(virgo.map_id(2), "", "the robe isn't built yet")
+	assert_eq(virgo.map_id(2), "virgo_robe")
 	assert_gt(ChapterSelect.sky_x("virgo"), ChapterSelect.sky_x("leo"), "the next sign east")
 
 
@@ -412,3 +412,79 @@ func _settle(main: Main) -> void:
 
 func _next_id(run: RunState) -> int:
 	return run.get("_next_star_id")
+
+
+func test_the_quickening_shortens_the_clock_each_harvest_down_to_one() -> void:
+	var harvest := StarHarvest.new(3, false, false, true)
+	var periods: Array[int] = []
+	for launch: int in 9:
+		if harvest.count_launch():
+			periods.append(harvest.period)
+	assert_eq(periods, [2, 1, 1, 1, 1, 1] as Array[int], "3 launches, then 2, then 1 at a time")
+
+
+func test_the_swath_reaps_one_half_of_the_sky_by_turns() -> void:
+	var harvest := StarHarvest.new(1, false, true)
+	assert_true(harvest.reaps(10, 90), "the left half first")
+	assert_false(harvest.reaps(150, 90))
+	harvest.count_launch()
+	assert_false(harvest.reaps(10, 90), "then the right")
+	assert_true(harvest.reaps(150, 90))
+	assert_true(StarHarvest.new(1).reaps(150, 90), "without the swath, the whole sky")
+
+
+func test_tied_at_once_puts_out_an_unjoined_star_after_any_launch() -> void:
+	var map: StarMap = StarMap.virgo_feet()
+	map.harvest_ties = true
+	var run: RunState = _run(map)
+	run.scorpio.light(3)
+	assert_eq(run.unbound_preview(), [3] as Array[int], "the aim shows it at once, harvest or not")
+	var out: Array[int] = []
+	run.landmarks_unbound.connect(func(indices: Array[int]) -> void: out.append_array(indices))
+	assert_false(run.harvest.is_next())
+	assert_true(Fixtures.launch(run, Vector2i(150, 110)))
+	assert_eq(out, [3] as Array[int], "put out after the first launch")
+
+
+func test_virgos_later_stages_are_pickable_branching_harvest_stages() -> void:
+	for map: StarMap in [StarMap.virgo_robe(), StarMap.virgo_feet(), StarMap.virgo_wheat()]:
+		var inner: Rect2i = StarScatter.inner_rect(SKY)
+		for i: int in map.count():
+			assert_true(inner.has_point(map.landmarks[i]), "%s star %d in the sky" % [map.id, i])
+			for j: int in range(i + 1, map.count()):
+				assert_gt(Vector2(map.landmarks[i]).distance_to(Vector2(map.landmarks[j])), 2.0 * SkyView.HIT_RADIUS, "%s %d-%d" % [map.id, i, j])
+		assert_eq(map.segment_count(), map.count() - 1, "the strings form a tree")
+		assert_true(map.harvest and map.harvest_binds)
+		var forks: int = 0
+		for i: int in map.count():
+			forks += int(map.neighbours(i).size() > 2)
+		assert_gt(forks, 0, "%s branches" % map.id)
+	var final: StarMap = StarMap.virgo_final()
+	assert_eq(final.count(), StarMap.virgo().count(), "the whole Virgo")
+	assert_eq(final.arrival_epithet, "MAIDEN OF THE HARVEST")
+	var virgo := Chapter.new(ChapterDef.virgo())
+	for stage: int in Chapter.stage_count():
+		assert_ne(virgo.map_id(stage), "", "stage %d is built" % stage)
+
+
+func test_a_quickening_clock_loses_an_ear_each_harvest() -> void:
+	var clock := HarvestClock.new()
+	add_child_autofree(clock)
+	clock.setup(3, 3)
+	clock.count(2, 3)
+	clock.count(1, 3)
+	clock.count(2, 2)
+	assert_eq(clock.period(), 2)
+	assert_eq(clock.standing(), 2)
+	var columns: Dictionary[int, bool] = {}
+	for p: Vector2i in clock.pixels():
+		columns[p.x] = true
+	assert_false(columns.has(HarvestClock.SPACING), "the lost ear's place is empty")
+
+
+func test_the_twists_say_their_rules() -> void:
+	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, false, false, true)), Hud.TIE_MESSAGE)
+	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, false, true)), Hud.QUICKEN_MESSAGE)
+	for text: String in [Hud.TIE_MESSAGE, Hud.QUICKEN_MESSAGE]:
+		for line: String in text.split("\n"):
+			assert_lte(line.length(), 22, line)
