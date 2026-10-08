@@ -61,6 +61,9 @@ var current_turns: Array[Vector2i] = []
 var heat_change: int = 0
 ## A star pushed past the last size is lost: a big burns out in the heat, a small fades in the cold.
 var heat_burns: bool = false
+## The heat changes the constellation stars still to light as well as the loose ones (the Head):
+## each launch they grow a size, and a big one burns back to small (StarHeat.preview_landmarks).
+var heat_landmarks: bool = false
 ## Heat and cold take turns, swapping after every launch (the Mane's day and night), starting with
 ## heat_change.
 var heat_turns: bool = false
@@ -482,6 +485,26 @@ static func leo_mane() -> StarMap:
 	return map
 
 
+## Leo, stage 5: the Head. The heat turns on the lion itself: each launch the constellation stars
+## still to light grow a size too, and a big one burns back to small (it can't be lost), while the
+## loose stars grow and burn out as on the Haunch. A pair saved for one may stop matching it. From the mane
+## (lit, left) the brow climbs to the crown (mu), then the face (epsilon) runs down to the mouth
+## (lambda) at the right, the jaw branching below the face. Five to light. Strings are 31-35 px.
+static func leo_head() -> StarMap:
+	var map := StarMap.new()
+	map.id = "leo_head"
+	map.title = "HEAD"
+	map.landmarks = [Vector2i(40, 150), Vector2i(64, 124), Vector2i(94, 108), Vector2i(124, 118), Vector2i(146, 144), Vector2i(112, 148)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(3, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG]
+	map.starting_lit = [0]
+	map.painting = LEO_PART % "head"
+	map.heat_change = 1
+	map.heat_burns = true
+	map.heat_landmarks = true
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -521,6 +544,8 @@ static func by_id(p_id: String) -> StarMap:
 			return leo_heart()
 		"leo_mane":
 			return leo_mane()
+		"leo_head":
+			return leo_head()
 	return scorpio()
 
 
