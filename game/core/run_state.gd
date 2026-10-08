@@ -37,10 +37,15 @@ signal landmarks_unbound(indices: Array[int])
 ## Virgo's scythe intro: the stage opened with `stars` in the sky (one of each size, as placed); the
 ## harvest reaps them next (harvested).
 signal harvest_intro_placed(stars: Array[Star])
-## Virgo's binding intro: the stage opened by showing constellation star `index` lit, away from the
-## figure (presentation only: the run doesn't light it); the harvest puts it out next
-## (landmarks_unbound).
-signal harvest_intro_lit(index: int)
+## Virgo's binding intro: the stage opened by showing constellation star `index` lit (presentation
+## only: the run doesn't light it), next to the lit figure or `alone`, away from it. The scythe sweeps
+## next (harvested, over no stars), then the joined one is kept (harvest_intro_kept) and the alone one
+## goes out (landmarks_unbound), then the kept one goes back to how it was (harvest_intro_cleared).
+signal harvest_intro_lit(index: int, alone: bool)
+## Virgo's binding intro: the star lit next to the figure survived the scythe.
+signal harvest_intro_kept(index: int)
+## Virgo's binding intro is over: the demo's kept stars `indices` show unlit again, as they are.
+signal harvest_intro_cleared(indices: Array[int])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
@@ -313,9 +318,25 @@ func idle_hint_link(rng: RandomNumberGenerator) -> Array[int]:
 	var found: Array[Array] = valid_links()
 	if found.is_empty():
 		return [] as Array[int]
+	# Where the harvest binds, the hint grows the figure: a link that lights a star next to the lit
+	# ones if there is one, else one that lights no star alone.
+	if harvest != null and harvest.binds:
+		var joining: Array[Array] = found.filter(func(ids: Array) -> bool: return _lights(ids) == 1)
+		var safe: Array[Array] = found.filter(func(ids: Array) -> bool: return _lights(ids) >= 0)
+		found = joining if not joining.is_empty() else (safe if not safe.is_empty() else found)
 	var picked: Array[int] = []
 	picked.assign(found[rng.randi_range(0, found.size() - 1)])
 	return picked
+
+
+## Bound sheaves, for the hint: 1 if link `ids` lights a constellation star next to a lit one, 0 if
+## it lights none, -1 if it lights one alone.
+func _lights(ids: Array) -> int:
+	for id: int in ids:
+		if scorpio.is_landmark(id):
+			var index: int = Scorpio.landmark_index(id)
+			return 1 if scorpio.map.neighbours(index).any(func(n: int) -> bool: return scorpio.is_lit(n)) else -1
+	return 0
 
 
 ## Every valid link in the sky (unlit landmarks included, one at most), each as ids in an order that
@@ -882,6 +903,15 @@ func harvest_preview() -> Array[int]:
 	return result
 
 
+## Bound sheaves: the lit constellation stars that are alone now (no path of lit stars joins them to
+## the bound figure): the next harvest, or with the tie the next launch, puts them out unless they're
+## joined first. None where the harvest doesn't bind.
+func loose_landmarks() -> Array[int]:
+	if harvest == null or not harvest.binds:
+		return [] as Array[int]
+	return StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
+
+
 ## Pure preview: the constellation stars the next launch's harvest puts out (bound sheaves), or none
 ## when the next launch doesn't bring one.
 func unbound_preview() -> Array[int]:
@@ -1096,20 +1126,27 @@ func play_heat_intro() -> void:
 
 
 ## Virgo's intro, as a harvest stage opens (the scene calls it once its views are bound). Where the
-## harvest binds (bound sheaves), the constellation star furthest along the figure from the lit ones
-## shows lit, then the harvest puts it out: it isn't joined. Elsewhere, the scythe: a small, a medium
-## and a big star in the middle of the sky, then the harvest reaps them. It pays nothing, changes no
-## progress, doesn't move the clock, and places its stars from its own RNG stream, so packs and
-## layout never shift. Does nothing without a harvest, on a map without intros, or once the run has
-## begun.
+## harvest binds (bound sheaves), the contrast: a constellation star next to the lit figure lights
+## (its string joins it), then the one furthest along the figure lights alone; the scythe sweeps;
+## the joined one is kept and the alone one goes out; then the kept one shows unlit again. Elsewhere,
+## the scythe: a small, a medium and a big star in the middle of the sky, then the harvest reaps
+## them. It pays nothing, changes no progress, doesn't move the clock, and places its stars from its
+## own RNG stream, so packs and layout never shift. Does nothing without a harvest, on a map without
+## intros, or once the run has begun.
 func play_harvest_intro() -> void:
 	if harvest == null or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
 	if harvest.binds:
 		var far: int = _furthest_unlit()
-		if far >= 0:
-			harvest_intro_lit.emit(far)
-			landmarks_unbound.emit([far] as Array[int])
+		var near: int = _joined_unlit(far)
+		if far < 0 or near < 0:
+			return
+		harvest_intro_lit.emit(near, false)
+		harvest_intro_lit.emit(far, true)
+		harvested.emit([] as Array[Star])
+		harvest_intro_kept.emit(near)
+		landmarks_unbound.emit([far] as Array[int])
+		harvest_intro_cleared.emit([near] as Array[int])
 		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ HARVEST_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
@@ -1121,6 +1158,20 @@ func play_harvest_intro() -> void:
 	for star: Star in shown:
 		stars.erase(star)
 	harvested.emit(shown)
+
+
+## An unlit constellation star next to a lit one, the furthest such from landmark `away` (-1: none).
+func _joined_unlit(away: int) -> int:
+	var best: int = -1
+	var best_distance: float = -1.0
+	for i: int in scorpio.map.count():
+		if scorpio.is_lit(i) or i == away or not scorpio.map.neighbours(i).any(func(n: int) -> bool: return scorpio.is_lit(n)):
+			continue
+		var distance: float = Vector2(scorpio.map.landmarks[i]).distance_to(Vector2(scorpio.map.landmarks[maxi(away, 0)]))
+		if distance > best_distance:
+			best = i
+			best_distance = distance
+	return best
 
 
 ## The unlit constellation star the most strings away from every lit one (-1: none).
