@@ -588,7 +588,10 @@ func _draw_sight() -> void:
 ## burst point for a pack that splits (the red pack's twin burst), each with a small C2 core.
 func _draw_burst_preview() -> void:
 	var at: Vector2i = burst_preview() - origin()
-	var points: Array[Vector2i] = burst_points()
+	# Let go (a finger out at the telescope): only cold brackets, no ring, core or sight line.
+	var points: Array[Vector2i] = []
+	if not _letting_go:
+		points = burst_points()
 	for point: Vector2i in points:
 		var centre: Vector2i = point - origin()
 		for i: int in RING_DOTS:
@@ -596,7 +599,6 @@ func _draw_burst_preview() -> void:
 			_dot(centre + Vector2i((Vector2(cos(angle), sin(angle) * StarScatter.RING_SQUASH) * RING_RADIUS).round()), Palette.M5)
 		if points.size() > 1:
 			_dot(centre, Palette.C2)
-	# Let go (a finger out at the telescope): cold brackets, no warm core and no sight line.
 	var bracket: Color = Palette.M5 if _letting_go else Palette.C1
 	for corner: Vector2i in [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]:
 		var c: Vector2i = at + corner * RETICLE
