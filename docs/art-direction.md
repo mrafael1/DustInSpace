@@ -9,7 +9,7 @@ See `docs/concept/gameplay_mockup_4x.png` and `docs/concept/asset_sheet.png`.
 - **Native resolution:** 180 × 320 (portrait, 9:16). Scale by integers only, with nearest-neighbour filtering.
 - **One pixel size everywhere.** Never scale a sprite by a fraction, rotate it by a non-90° angle, or smooth it. Animate by drawing frames.
 - **Screen zones (native px):** Sun y 0–78 · play sky y 78–250 · horizon and land y 230–284 · HUD y 284–320.
-- **Taller screens:** the view fills the phone at a whole-number scale and the 180×320 game sits on the bottom edge. The UI anchors to the real screen's corners (speaker top-left, dust bottom-left, packs bottom-right), the Sun rises to the top of the screen, and the play sky grows up into the space it leaves, with the Scorpio map moved up to stay centred in it. The sky above the background fades into N0 space with cool 1 px stars.
+- **Taller screens:** the view fills the phone at a whole-number scale and the 180×320 game sits on the bottom edge. The UI anchors to the real screen's corners (speaker top-left, pause or options gear top-right, dust bottom-left, packs bottom-right), the Sun rises to the top of the screen, and the play sky grows up into the space it leaves, with the Scorpio map moved up to stay centred in it. The sky above the background fades into N0 space with cool 1 px stars.
 - **Touch targets** are set in code: at least a 44 pt hit circle per star, independent of sprite size.
 
 ## Palette
