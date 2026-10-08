@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Dust In Space — Chapter 1 | AloneLab</title>
-  <meta name="description" content="Play Chapter 1 of Dust In Space. Launch planets, link stars and complete Scorpio.">
+  <title>Dust In Space | AloneLab</title>
+  <meta name="description" content="Play Dust In Space. Launch planets, link stars and light the zodiac: Scorpio, Aquarius, Leo and Virgo.">
   <link rel="icon" href="/icon.png" type="image/png">
   <style>
     :root { color-scheme: dark; font-family: monospace; background: #07091f; color: #fffbea; }
@@ -28,17 +28,17 @@
 </head>
 <body>
   <canvas id="canvas" tabindex="0" aria-label="Dust In Space game">Your browser needs canvas support to play.</canvas>
-  <section id="launch" aria-label="Launch Chapter 1">
+  <section id="launch" aria-label="Launch Dust In Space">
     <div class="panel">
       <h1>DUST IN SPACE</h1>
-      <p>CHAPTER 1 · SCORPIO</p>
-      <p>Launch planets. Link three stars. Complete the constellation.</p>
-      <button id="play" type="button">PLAY CHAPTER 1</button>
+      <p>4 CHAPTERS · SCORPIO TO VIRGO</p>
+      <p>Launch planets. Link three stars. Light the constellations.</p>
+      <button id="play" type="button">PLAY</button>
       <progress id="progress" hidden aria-label="Loading game"></progress>
       <p id="notice" role="status" aria-live="polite">Use your mouse or touch. Sound starts with interaction.</p>
       <p>Your chapter progress saves in this browser. Clearing site data removes it.</p>
       <p><a href="/">BACK TO ALONELAB</a></p>
-      <noscript><p>Enable JavaScript to play Chapter 1.</p></noscript>
+      <noscript><p>Enable JavaScript to play Dust In Space.</p></noscript>
     </div>
   </section>
   <script src="$GODOT_URL"></script>
@@ -58,7 +58,7 @@
     play.addEventListener('click', async () => {
       play.disabled = true;
       progress.hidden = false;
-      notice.textContent = 'Loading Chapter 1…';
+      notice.textContent = 'Loading Dust In Space…';
       try {
         await engine.startGame({
           onProgress(current, total) {
@@ -75,7 +75,7 @@
         document.getElementById('canvas').focus();
       } catch (error) {
         console.error(error);
-        notice.textContent = 'Unable to load Chapter 1. Check your connection and reload this page.\n' + (error.message || String(error));
+        notice.textContent = 'Unable to load Dust In Space. Check your connection and reload this page.\n' + (error.message || String(error));
         progress.hidden = true;
       }
     });

@@ -66,7 +66,7 @@ def main():
         if OUTPUT.exists():
             shutil.rmtree(OUTPUT)
         shutil.copytree(site, OUTPUT)
-        archive = shutil.make_archive(str(ROOT / "build/alonelab-chapter-one"), "zip", site)
+        archive = shutil.make_archive(str(ROOT / "build/alonelab-dust-in-space"), "zip", site)
         print(f"Site: {OUTPUT}\nNetlify upload: {archive}")
 
 

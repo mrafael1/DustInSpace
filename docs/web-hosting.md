@@ -1,8 +1,10 @@
-# Chapter 1 on AloneLab
+# Dust In Space on AloneLab
 
 The current Godot game exports to `https://alonelab.com/dust-in-space/`.
 The URL is the intended production destination; preparing this package does not deploy it.
-Chapter 1 includes the chart, six stages, tutorial, encounters, saved progress and win/loss flow.
+The game has four chapters (Scorpio, Aquarius, Leo, Virgo), each with its chart, six stages and
+its intros, plus the title, options, pause, tutorial, encounters, saved progress and win/loss flow.
+Visitors follow the normal progression: a chapter opens once the one before is won.
 No gameplay or balance values are changed for the website.
 
 ## Build
@@ -23,11 +25,16 @@ It never replaces your local `export_presets.cfg`, including Android/signing set
 It uses `--export-release`: debug keys, preview unlocks, balance overlay and playtest logs
 are disabled by the game's existing debug-build guards.
 
+**Testing everything:** add `?all` to the game's address (`https://alonelab.com/dust-in-space/?all`,
+or `http://127.0.0.1:8765/dust-in-space/?all` locally) to open every chapter and stage at once.
+Wins still count and save, in that browser's storage. Without `?all` the game plays normally.
+Native builds take `--all` on the command line for the same.
+
 Output:
 
 - `build/alonelab/`: complete site folder for Netlify, with `index.html`, `icon.png`,
   `_headers`, and the `dust-in-space/` export and all its runtime files.
-- `build/alonelab-chapter-one.zip`: the same site with files at the ZIP root.
+- `build/alonelab-dust-in-space.zip`: the same site with files at the ZIP root.
 
 Generated binaries are ignored by Git. Rebuild the whole package after updating the game.
 `web/site/index.html` and `web/site/icon.png` are the supplied AloneLab homepage and icon.
@@ -49,7 +56,8 @@ If the live homepage changes, update this source before rebuilding.
 python -m http.server 8765 --bind 127.0.0.1 --directory build/alonelab
 ```
 
-Open `http://127.0.0.1:8765/`, follow PLAY CHAPTER 1, then click the game's launch button.
+Open `http://127.0.0.1:8765/`, follow PLAY, then click the game's launch button (or open
+`http://127.0.0.1:8765/dust-in-space/?all` to test every chapter).
 Opening `index.html` directly as a `file://` URL cannot load the WebAssembly game.
 
 ## Deploy to the existing Netlify site
@@ -106,7 +114,8 @@ and [custom headers](https://docs.netlify.com/manage/routing/headers/).
 - Confirm every runtime file loads with HTTP 200 and the expected MIME type on Netlify.
 - Test loading, tutorial, mouse/touch launching and linking, combo table, purchases and audio.
 - Complete a stage, return to the chart and reload; check completion, unlock and tutorial saves.
-- Test loss/restart, replay, all six stages and final completion.
+- Test loss/restart, replay, every chapter's six stages and finals (`?all` opens them all), and a
+  final's win opening the next chapter without `?all`.
 - Check narrow portrait, wide desktop and orientation changes; ensure the HUD remains reachable.
 - Confirm debug keys and the three-finger debug overlay are unavailable in the release build.
 - Test current desktop browsers and physical iOS Safari/Android Chrome; record actual results.
