@@ -35,6 +35,6 @@ horizontal_alignment = 1
 position = Vector2(10, 10)
 script = ExtResource("3_sound_icon")
 
-[node name="MapButton" parent="." instance=ExtResource("4_map")]
-visible = false
+[node name="PauseButton" parent="." instance=ExtResource("4_map")]
+glyph = 2
 position = Vector2(145, 10)

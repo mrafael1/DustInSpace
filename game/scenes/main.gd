@@ -8,7 +8,8 @@ signal run_started(run: RunState)
 ## In a chapter (#62): the run in play was won. Sent as the core decides it, so the win counts even
 ## if the player leaves before the end screen.
 signal stage_won
-## In a chapter: the player asked to go back to the chart (MAP in the HUD or on the end screen).
+## In a chapter: the player asked to go back to the chart (MAP in the pause menu or on the end
+## screen).
 signal map_requested
 ## The guided first run reached free play (App saves it, so it plays only once).
 signal tutorial_finished
@@ -23,7 +24,8 @@ signal encounter_finished(threat: int)
 ## Issue #52's prototype: launch with the telescope (point and tap) instead of the slingshot.
 ## Debug builds switch with T to compare the two.
 @export var use_telescope: bool = true
-## Played from a chapter's chart (App sets it before adding Main): shows the MAP buttons.
+## Played from a chapter's chart (App sets it before adding Main): offers MAP (pause menu, end
+## screen).
 @export var in_chapter: bool = false
 ## The constellation layout to play when balance.json turns the constellation on (a StarMap id:
 ## a chapter stage's, #62; the full Scorpio by default).
@@ -87,8 +89,11 @@ func _ready() -> void:
 	_end_screen.restart_requested.connect(restart)
 	_end_screen.map_enabled = in_chapter
 	_end_screen.map_requested.connect(map_requested.emit)
-	_hud.show_map_button(in_chapter)
+	_hud.offer_map(in_chapter)
 	_hud.map_requested.connect(map_requested.emit)
+	_hud.restart_requested.connect(restart)
+	_hud.pause_opened.connect(_pause_world.bind(true))
+	_hud.pause_closed.connect(_pause_world.bind(false))
 	_end_screen.watch_payouts(_collect)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
 	_sky.link_traced.connect(_hud.follow_link)
@@ -237,7 +242,7 @@ func launcher() -> Launcher:
 	return _telescope if use_telescope else _launcher
 
 
-## A fresh run on the current run's balance (the end screen's RESTART).
+## A fresh run on the current run's balance (the end screen's or the pause menu's RESTART).
 func restart() -> bool:
 	return run != null and start_run(run.balance)
 
@@ -290,6 +295,8 @@ func _wire_sound() -> void:
 	_hud.tap_refused.connect(func(_kind: String, _part: StringName) -> void: _sfx.play(&"tap_refused"))
 	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
 	_sound_toggle.toggled.connect(_sfx.cycle_level)
+	_hud.sound_cycle_requested.connect(_sfx.cycle_level)
+	_hud.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
 	_sfx.level_changed.connect(_hud.show_sound_level)
 	_hud.show_sound_level(_sfx.level)
 	_big_bang.collapse_started.connect(_sfx.play.bind(&"big_bang_collapse", 1.0))
@@ -352,7 +359,7 @@ func _report_balance_errors(errors: Array[String]) -> void:
 		_balance_errors.visible = true
 
 
-## The table holds the world still (`on`): everything but the HUD, the speaker and the debug
+## The table or the pause menu holds the world still (`on`): everything but the HUD, the speaker and the debug
 ## tools stops processing and taking input, and starts again as it was.
 func _pause_world(on: bool) -> void:
 	if on:
