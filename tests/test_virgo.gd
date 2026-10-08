@@ -204,11 +204,36 @@ func test_the_head_opens_by_showing_the_scythe_reap_three_stars() -> void:
 	var packs: Dictionary = run.owned_packs.duplicate()
 	var placed: Array = []
 	var reaped: Array = []
-	run.harvest_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append_array(stars))
-	run.harvested.connect(func(stars: Array[Star]) -> void: reaped.append_array(stars))
+	var order: Array[String] = []
+	var clock: Array[int] = []
+	var landed: Array = []
+	var ended: Array = []
+	run.harvest_intro_placed.connect(func(stars: Array[Star]) -> void:
+		order.append("placed")
+		placed.append_array(stars))
+	run.harvest_intro_clock.connect(func(left: int) -> void:
+		order.append("clock")
+		clock.append(left))
+	run.hunt_intro_launched.connect(func(kind: String, _at: Vector2i) -> void:
+		order.append("launched")
+		assert_eq(kind, "blue", "a blue planet"))
+	run.harvested.connect(func(stars: Array[Star]) -> void:
+		order.append("scythe")
+		reaped.append_array(stars))
+	run.hunt_intro_burst.connect(func(_at: Vector2i, stars: Array[Star]) -> void:
+		order.append("burst")
+		landed.append_array(stars))
+	run.harvest_intro_ended.connect(func(stars: Array[Star]) -> void:
+		order.append("ended")
+		ended.append_array(stars))
 	run.play_harvest_intro()
+	assert_eq(order, ["placed", "clock", "launched", "scythe", "burst", "clock", "ended"] as Array[String], "the last ear, a planet launched, the scythe clears the sky, then the planet bursts")
+	assert_eq(clock, [1, run.harvest.every] as Array[int], "on its last ear, then grown back")
 	assert_eq(placed.size(), 3, "one of each size")
 	assert_eq(reaped.size(), 3, "the scythe takes them all")
+	for star: Star in landed:
+		assert_false(reaped.has(star), "the planet's stars land after the scythe")
+	assert_eq(ended, landed, "and leave once seen")
 	assert_true(run.stars.is_empty())
 	assert_eq(run.harvest.launches_left, run.harvest.every, "the clock doesn't move")
 	assert_eq(run.owned_packs, packs)

@@ -325,6 +325,14 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_reap(event.args[0])
 		&"landmarks_unbound":
 			_put_out(event.args[0])
+		&"harvest_intro_ended":
+			# The demo planet's stars leave once they've been seen: no reward.
+			_sequencer.hold(StarView.DISSOLVE_TIME + INTRO_HOLD)
+			for star: Star in event.args[0]:
+				var view: StarView = _views.get(star.id)
+				if view != null:
+					_views.erase(star.id)
+					view.dissolve()
 		&"harvest_intro_placed":
 			for star: Star in event.args[0]:
 				_spawn(star)
