@@ -50,6 +50,14 @@ extends CanvasLayer
 ## title lifts off and leads, the camera eases down the sky at the voyage's pace (speeding up,
 ## cruising, slowing down over DESCENT_TIME; the stars drift up behind at STAR_PARALLAX of its
 ## speed) and the star lands on the stage to play (star_landed), where the chart takes over.
+## Wide screens (playtest: constellations popped in as a voyage began or swapped charts): every
+## chapter is drawn at its place on the sky all the time (set_chapters), not only the one shown: an
+## open one as its chart is (its stars, strings, paintings and crown, with its heading), a locked one
+## (or the one a reveal is about to open) faint like the constellations between, named under it; the
+## constellations between show whenever they're on screen. The stage label, PLAY and the numbers
+## hide for a whole voyage and come back as the star lands. The ground (assets/art/chart_horizon.png,
+## playtest: the empty blue bottom looked odd) runs along the chart's bottom edge, tiled across the
+## screen; it stays put while the sky turns, and rises with the chart on the way down from the title.
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
 
 ## The player asked to play stage `stage`.
@@ -259,6 +267,8 @@ const REVEAL_CARD_Y: int = 200
 ## The background stars above STAR_ROWS (the sky over the chart, seen from the title): rows
 ## STAR_ROWS_ABOVE, from a seed of their own so the chart's own stars stay as they were.
 const STAR_ROWS_ABOVE := Vector2i(-560, -160)
+## The ground along the chart's bottom edge, a tile every SKY_SPAN px.
+const HORIZON: Texture2D = preload("res://assets/art/chart_horizon.png")
 const STAR_SEED_ABOVE: int = 0x7A11
 ## The way down from the title takes DESCENT_TIME, eased like a voyage (cruise).
 const DESCENT_TIME: float = 1.6
@@ -313,6 +323,13 @@ var _stars: Array[Vector3i] = []
 var _stars_key := Vector4i(-1, -1, -1, -1)
 ## The passing constellations' names.
 var _passing_names: Dictionary[String, Label] = {}
+## Every chapter (set_chapters), whether each is open (a Callable on a Chapter), and the labels each
+## shows at its place when it isn't the chart shown: its heading [title, subtitle] if open, its name
+## under it, faint, if not.
+var _chapters: Array[Chapter] = []
+var _is_open: Callable = func(_c: Chapter) -> bool: return true
+var _chapter_headings: Dictionary[String, Array] = {}
+var _chapter_names: Dictionary[String, Label] = {}
 static var _sections: Dictionary[int, Array] = {}
 static var _sections_above: Dictionary[int, Array] = {}
 ## The title: shown (waiting for a tap), and the way down: seconds in (-1: none). How far above
@@ -426,6 +443,7 @@ func setup(chapter: Chapter) -> void:
 		_card.hide_card()
 	_selected = chapter.current()
 	_restore_heading()
+	_place_passing()
 	_refresh()
 
 
@@ -444,6 +462,7 @@ func fit_screen(screen: Rect2i) -> void:
 		_camera_y = _screen.size.y
 	_place_title()
 	_place_heading()
+	_place_passing()
 	_refresh()
 	_chart.queue_redraw()
 
@@ -749,6 +768,92 @@ func step(side: int) -> void:
 			_say(REFUSE_TEXT, Palette.N8)
 			nav_refused.emit()
 			_chart.queue_redraw()
+
+
+## Every chapter, drawn at its place on the sky beside the one shown; `is_open` says whether a
+## chapter is open (a locked one is drawn faint, like the constellations between).
+func set_chapters(chapters: Array[Chapter], is_open: Callable) -> void:
+	_chapters = chapters
+	_is_open = is_open
+	for each: Chapter in chapters:
+		if _chapter_headings.has(each.id):
+			continue
+		var title := Label.new()
+		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		title.label_settings = HudText.primary(Palette.C1)
+		title.text = each.def.title
+		var subtitle := Label.new()
+		subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		subtitle.label_settings = HudText.primary(Palette.N8)
+		subtitle.text = "CHAPTER %d" % each.def.number
+		var name_label := Label.new()
+		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_label.label_settings = HudText.secondary(Palette.N8)
+		name_label.text = each.def.title
+		for label: Label in [title, subtitle, name_label]:
+			label.visible = false
+			add_child(label)
+		_chapter_headings[each.id] = [title, subtitle]
+		_chapter_names[each.id] = name_label
+	_place_passing()
+	_chart.queue_redraw()
+
+
+## Whether chapter `other` (not the one shown) is drawn as its chart: open, and not the one a reveal
+## is about to open (that one arrives empty).
+func _shows_as_chart(other: Chapter) -> bool:
+	if _voyage_reveal and (is_voyaging() or _reveal_pending) and _voyage_chapter == other:
+		return false
+	return _is_open.call(other)
+
+
+## How far across the screen chapter `id`'s place on the sky is now.
+func _place_x(id: String) -> int:
+	return roundi(sky_x(id) - _camera)
+
+
+## Whether a sign's screen at `x` is on the visible screen.
+func _on_screen(x: int) -> bool:
+	return x + SKY_SPAN > _screen.position.x and x < _screen.end.x
+
+
+## The labels at the other chapters' places and the passing constellations' names follow the camera.
+func _place_passing() -> void:
+	for sign: String in PASSING:
+		var shift: int = _place_x(sign)
+		var label: Label = _passing_names[sign]
+		label.visible = _on_screen(shift)
+		if label.visible:
+			_place_under(label, PASSING[sign]["stars"], shift)
+	var rise: int = heading_rise(_screen)
+	for each: Chapter in _chapters:
+		var x: int = _place_x(each.id)
+		var other: bool = _chapter == null or each.id != _chapter.id
+		var heading: Array = _chapter_headings[each.id]
+		var charted: bool = other and _on_screen(x) and _shows_as_chart(each)
+		var faint: bool = other and _on_screen(x) and not _shows_as_chart(each)
+		for k: int in 2:
+			var label: Label = heading[k]
+			label.visible = charted
+			if charted:
+				label.size = label.get_minimum_size()
+				label.position = Vector2(x + ScreenZones.SCREEN.x / 2 - floori(label.size.x / 2.0), (TITLE_Y if k == 0 else SUBTITLE_Y) - rise)
+		var name_label: Label = _chapter_names[each.id]
+		name_label.visible = faint
+		if faint:
+			var stars: Array = each.def.figure.landmarks
+			_place_under(name_label, stars, x)
+
+
+## Centres `label` under the lowest of `stars` (home layout), `shift` px across.
+func _place_under(label: Label, stars: Array, shift: int) -> void:
+	var lowest: int = 0
+	var span := Vector2i(SKY_SPAN, 0)
+	for star: Vector2i in stars:
+		lowest = maxi(lowest, star.y)
+		span = Vector2i(mini(span.x, star.x), maxi(span.y, star.x))
+	label.size = label.get_minimum_size()
+	label.position = Vector2(shift + (span.x + span.y) / 2 - floori(label.size.x / 2.0), lowest + PASSING_NAME_GAP)
 
 
 ## Voyages along the sky to `chapter`'s constellation; with `reveal`, its stars then pop in (the new
@@ -1332,18 +1437,7 @@ func _advance_chapters(delta: float) -> bool:
 func _place_slid() -> void:
 	_place_heading()
 	_refresh()
-	for sign: String in PASSING:
-		var shift: int = roundi(sky_x(sign) - _camera)
-		var label: Label = _passing_names[sign]
-		label.visible = is_voyaging() and shift > -SKY_SPAN and shift < _screen.end.x
-		if label.visible:
-			var lowest: int = 0
-			var span := Vector2i(SKY_SPAN, 0)
-			for star: Vector2i in PASSING[sign]["stars"]:
-				lowest = maxi(lowest, star.y)
-				span = Vector2i(mini(span.x, star.x), maxi(span.y, star.x))
-			label.size = label.get_minimum_size()
-			label.position = Vector2(shift + (span.x + span.y) / 2 - floori(label.size.x / 2.0), lowest + PASSING_NAME_GAP)
+	_place_passing()
 
 
 ## The shooting star flies on and ends; the next one waits its turn.
@@ -1438,7 +1532,7 @@ func _refresh() -> void:
 				colour = Palette.C2
 		_numbers[stage].label_settings = HudText.secondary(colour)
 		_numbers[stage].position = Vector2(stage_position(stage, _def()) + NUMBER_OFFSET + Vector2i(chart_x(), 0))
-		_numbers[stage].visible = not is_revealing()
+		_numbers[stage].visible = not is_revealing() and not is_voyaging()
 	if _chapter.has_stage(_selected):
 		_info.text = _chapter.stage_name(_selected)
 		_info.label_settings.font_color = Palette.C1
@@ -1452,7 +1546,9 @@ func _refresh() -> void:
 	_play.size = _play.get_minimum_size()
 	var play: Rect2i = play_rect(_screen)
 	_play.position = Vector2(play.position.x + floori((play.size.x - _play.size.x) / 2.0) + chart_x(), play.position.y + 7)
-	_play.visible = can_play() and not is_revealing()
+	_play.visible = can_play() and not is_revealing() and not is_voyaging()
+	# The stage label waits for the star to land after a voyage.
+	_info.visible = not is_voyaging()
 	_chart.queue_redraw()
 
 
@@ -1490,6 +1586,8 @@ func _draw_chart() -> void:
 		return
 	_draw_sparkles()
 	_draw_lead_comet()
+	_draw_open_neighbours()
+	_draw_horizon()
 	# The chart is drawn at its place on the sky against the camera's.
 	_chart.draw_set_transform(Vector2(chart_x(), 0))
 	_draw_figure()
@@ -1519,8 +1617,9 @@ func _draw_chart() -> void:
 			_dot(stage_position(_light_point, _def()) + d, colour)
 	_draw_comet()
 	_draw_unlock()
-	_draw_label_rules()
-	if can_play() and not is_revealing():
+	if not is_voyaging():
+		_draw_label_rules()
+	if can_play() and not is_revealing() and not is_voyaging():
 		_draw_plaque(play_rect(_screen), Palette.M3 if _pressed_play else Palette.N0, Palette.C2)
 	_chart.draw_set_transform(Vector2.ZERO)
 	_draw_navigation()
@@ -1562,25 +1661,84 @@ func _draw_sky_stars() -> void:
 
 ## The constellations between the chapters, passing on a voyage: faint stars, dotted strings.
 func _draw_passing() -> void:
-	if not is_voyaging():
-		return
 	for sign: String in PASSING:
-		var shift := Vector2i(roundi(sky_x(sign) - _camera), 0)
-		if shift.x <= -SKY_SPAN or shift.x >= _screen.end.x:
+		var shift := Vector2i(_place_x(sign), 0)
+		if _on_screen(shift.x):
+			_draw_faint(PASSING[sign]["stars"], PASSING[sign]["lines"], PASSING[sign]["bright"], shift)
+	# A locked chapter (or the one a reveal is about to open) looks the same, its big stars bright.
+	for each: Chapter in _chapters:
+		if _chapter != null and each.id == _chapter.id:
 			continue
-		var stars: Array = PASSING[sign]["stars"]
-		for line: Vector2i in PASSING[sign]["lines"]:
-			var pixels: Array[Vector2i] = LinkLayer.line_pixels(stars[line.x] + shift, stars[line.y] + shift)
-			for k: int in range(3, pixels.size() - 3):
-				_dot(pixels[k], Palette.N5)
-		for i: int in stars.size():
-			var at: Vector2i = stars[i] + shift
-			var bright: bool = PASSING[sign]["bright"].has(i)
-			for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-				_dot(at + n, Palette.M5 if bright else Palette.N8)
-				if bright:
-					_dot(at + n * 2, Palette.N7)
-			_dot(at, Palette.M6 if bright else Palette.M5)
+		var shift := Vector2i(_place_x(each.id), 0)
+		if not _on_screen(shift.x) or _shows_as_chart(each):
+			continue
+		var bright: Array[int] = []
+		for i: int in each.def.figure.count():
+			if each.def.figure.sizes[i] == Star.Size.BIG:
+				bright.append(i)
+		_draw_faint(each.def.figure.landmarks, each.def.figure.segments, bright, shift)
+
+
+## A constellation drawn plainly, as on a star map: its `stars` (an N8 cross with an M5 heart, the
+## `bright` ones an M6 glint with M5 arms), its `lines` (solid N5, stopping short of each star),
+## `shift` px across.
+func _draw_faint(stars: Array, lines: Array, bright: Array, shift: Vector2i) -> void:
+	for line: Vector2i in lines:
+		var pixels: Array[Vector2i] = LinkLayer.line_pixels(stars[line.x] + shift, stars[line.y] + shift)
+		for k: int in range(3, pixels.size() - 3):
+			_dot(pixels[k], Palette.N5)
+	for i: int in stars.size():
+		var at: Vector2i = stars[i] + shift
+		var shines: bool = bright.has(i)
+		for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			_dot(at + n, Palette.M5 if shines else Palette.N8)
+			if shines:
+				_dot(at + n * 2, Palette.N7)
+		_dot(at, Palette.M6 if shines else Palette.M5)
+
+
+## The open chapters beside the one shown, as their charts are, at their places on the sky: their
+## paintings, strings, stars and crown (no labels, rings for the selection or animations of their
+## own). Drawn through the shown chart's own drawing, with `_chapter` swapped for each.
+func _draw_open_neighbours() -> void:
+	var shown: Chapter = _chapter
+	var held: Array = [_figure_stage, _figure_time, _unlock_time, _unlock_next]
+	_figure_stage = -1
+	_figure_time = -1.0
+	_unlock_time = -1.0
+	_unlock_next = false
+	for each: Chapter in _chapters:
+		if shown != null and each.id == shown.id:
+			continue
+		var x: int = _place_x(each.id)
+		if not _on_screen(x) or not _shows_as_chart(each):
+			continue
+		_chapter = each
+		_chart.draw_set_transform(Vector2(x, 0))
+		_draw_figure()
+		var legs: Array[Leg] = string_legs()
+		for leg: Leg in [Leg.GUIDE, Leg.NEXT, Leg.LIT]:
+			for segment: int in _def().figure.segment_count():
+				if legs[segment] == leg:
+					_draw_string(segment, leg)
+		for landmark: int in _def().figure.landmarks.size():
+			_draw_star(landmark)
+		_draw_crown()
+	_chapter = shown
+	_figure_stage = held[0]
+	_figure_time = held[1]
+	_unlock_time = held[2]
+	_unlock_next = held[3]
+	_chart.draw_set_transform(Vector2.ZERO)
+
+
+## The ground along the chart's bottom edge, tiled across the screen (it doesn't turn with the sky).
+func _draw_horizon() -> void:
+	var top: int = _screen.end.y - HORIZON.get_height()
+	var x: int = floori(float(_screen.position.x) / SKY_SPAN) * SKY_SPAN
+	while x < _screen.end.x:
+		_chart.draw_texture(HORIZON, Vector2(x, top))
+		x += SKY_SPAN
 
 
 ## The selection star leading a voyage (lead_star) or the way down from the title (descent_star).
