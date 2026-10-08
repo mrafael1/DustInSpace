@@ -783,10 +783,15 @@ func _collect_intro_link(link: Array[int], points: Array[Vector2i], index: int, 
 func _put_out(indices: Array[int]) -> void:
 	for index: int in indices:
 		var at: Vector2i = _run.scorpio.landmark_position(index)
-		_constellation.put_out(index)
-		_harvest.flash_put_out(at)
+		# The lit strings that joined it snap with it.
+		var ends: Array[Vector2i] = []
+		for n: int in _run.scorpio.map.neighbours(index):
+			if _constellation.shows_lit(n):
+				ends.append(_run.scorpio.landmark_position(n))
+		_constellation.crop(index, HarvestView.CROP_TIME)
+		_harvest.flash_crop(at, _constellation.shown_size(index), ends)
 		landmark_put_out.emit(at)
-	_sequencer.hold(HarvestView.PUT_OUT_TIME)
+	_sequencer.hold(HarvestView.CROP_TIME)
 
 
 func _dissolve(stars: Array[Star]) -> void:

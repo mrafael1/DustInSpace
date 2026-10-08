@@ -565,3 +565,43 @@ func test_the_twists_say_their_rules() -> void:
 	for text: String in [Hud.TIE_MESSAGE, Hud.QUICKEN_MESSAGE, Hud.LONE_MESSAGE, Hud.BIND_MESSAGE]:
 		for line: String in text.split("\n"):
 			assert_lte(line.length(), 22, line)
+
+
+func test_a_cropped_star_is_caught_slashed_and_split_and_its_strings_snap() -> void:
+	var at := Vector2i(90, 150)
+	var end := Vector2i(90, 190)
+	var caught: Dictionary[Vector2i, Color] = HarvestView.crop_pixels(at, Star.Size.MEDIUM, [end], 0.02)
+	assert_true(caught.values().has(Palette.C0), "the blade catches it: a white flicker")
+	var slash_t: float = HarvestView.CROP_CHARGE + 0.02
+	var slashed: Dictionary[Vector2i, Color] = HarvestView.crop_pixels(at, Star.Size.MEDIUM, [end], slash_t)
+	var reach: int = StarView.half_extent(Star.Size.MEDIUM) + 5
+	assert_eq(slashed.get(at + Vector2i(reach, reach)), Palette.C0, "a white slash across it")
+	var late: Dictionary[Vector2i, Color] = HarvestView.crop_pixels(at, Star.Size.MEDIUM, [end], HarvestView.CROP_TIME * 0.8)
+	var below: int = 0
+	var above: int = 0
+	for p: Vector2i in late:
+		if p.y > at.y + 6:
+			below += 1
+		if p.y < at.y - 3:
+			above += 1
+	assert_gt(below, 0, "the lower half falls away")
+	assert_gt(above, 0, "the upper half slides off")
+	var snapping: int = 0
+	for p: Vector2i in LinkLayer.line_pixels(at, end):
+		snapping += int(slashed.get(p) == Palette.S4)
+	assert_gt(snapping, 5, "the string to the lit star flares ember")
+	assert_true(HarvestView.crop_pixels(at, Star.Size.MEDIUM, [end], HarvestView.CROP_TIME).is_empty(), "then it's over")
+	for t: float in [0.0, 0.1, 0.2, 0.35, 0.5]:
+		for colour: Color in HarvestView.crop_pixels(at, Star.Size.BIG, [end], t).values():
+			assert_true(colour in [Palette.C0, Palette.C1, Palette.C2, Palette.C3, Palette.S4, Palette.S3, Palette.M6, Palette.M5] or ConstellationView.star_pixels(Star.Size.BIG, &"lit").values().has(colour), "palette")
+
+
+func test_the_constellation_hides_a_cropped_star_then_shows_it_dark() -> void:
+	var main: Main = _main("virgo_wing")
+	var constellation: ConstellationView = main.get_node("Sky/ConstellationLayer")
+	constellation.flash_landmark(3)
+	constellation.crop(3, HarvestView.CROP_TIME)
+	assert_false(constellation.shows_lit(3), "dark")
+	assert_true(constellation.is_cropping(3), "hidden while its halves fly")
+	constellation.advance(HarvestView.CROP_TIME + 0.01)
+	assert_false(constellation.is_cropping(3), "then shown, unlit")

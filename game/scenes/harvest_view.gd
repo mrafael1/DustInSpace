@@ -5,8 +5,13 @@ extends Node2D
 ## star the harvest will put out (bound sheaves) the lone ring. The harvest itself: a scythe's
 ## blade sweeps the sky left to right over SWEEP_TIME, a crescent bowed toward where it's going
 ## (C0 edge, then C1, C2, and a dotted C3 wake), cutting each star as it passes; chaff falls from
-## where a cut star stood (C2, then C3, then S4). A constellation star put out flares ember and
-## drops its sparks. Drawn above the stars. The core supplies every reap and put-out.
+## where a cut star stood (C2, then C3, then S4). A constellation star put out is cropped (playtest:
+## make it juicy, feel cut): the blade catches it (it trembles and flickers white), a white slash
+## cuts across it, it splits along the slash, the top half
+## sliding off up and right and the bottom half dropping away down and left as both cool from gold
+## to ember in hard steps; ember sparks spray along the cut, and the strings that joined it snap,
+## flaring ember and pulling back toward their other ends. Drawn above the stars. The core supplies
+## every reap and put-out.
 ## Bound sheaves, always (playtest: the rule wasn't understood): a lit constellation star that is
 ## alone (not joined to the lit figure) wears an ember ring whose pixels crawl round it, from the
 ## moment it's lit until it's joined or put out, so the risk shows at once. The binding intro's
@@ -26,6 +31,19 @@ const CHAFF_COLOURS: Array[Color] = [Palette.C2, Palette.C3, Palette.S4]
 ## A constellation star put out: an ember cross and a ring cooling outward for PUT_OUT_TIME.
 const PUT_OUT_TIME: float = 0.45
 const PUT_OUT_COLOURS: Array[Color] = [Palette.S4, Palette.S3, Palette.S2]
+## A cropped constellation star: CROP_TIME in all; the slash shows for CROP_SLASH, the halves part
+## CROP_PART px each, the lower one falling CROP_FALL px more; CROP_SPARKS sparks along the cut.
+const CROP_TIME: float = 0.6
+## First the blade catches it: the whole star trembles a pixel and flickers C0 for CROP_CHARGE.
+const CROP_CHARGE: float = 0.12
+const CROP_SLASH: float = 0.1
+const CROP_PART: int = 4
+const CROP_FALL: int = 7
+const CROP_SPARKS: int = 8
+## The halves cool through these, in hard steps (their own art first).
+const CROP_COOL: Array[Color] = [Palette.C2, Palette.S4, Palette.S3]
+## A snapped string keeps clear of the stars at its ends by this many px, as strings do.
+const STRING_CLEAR: int = 4
 ## A lone lit star's ring crawls a dot every CRAWL_STEP.
 const CRAWL_STEP: float = 0.25
 ## The lone ring sits LONE_GAP px clear of its star, at least LONE_MIN px out.
@@ -46,6 +64,8 @@ var _sweep_time: float = -1.0
 var _chaff: Dictionary[Vector2i, float] = {}
 var _put_outs: Dictionary[Vector2i, float] = {}
 var _kept: Dictionary[Vector2i, float] = {}
+## Stars being cropped, by place: [seconds since, size, the far ends of the strings that snapped].
+var _crops: Dictionary[Vector2i, Array] = {}
 ## The binding intro's star lit alone (presentation only: the run never lit it), by place, with the
 ## size it's drawn at.
 var _alone_shown: Dictionary[Vector2i, int] = {}
@@ -64,6 +84,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_chaff.clear()
 	_put_outs.clear()
 	_kept.clear()
+	_crops.clear()
 	_alone_shown.clear()
 	set_process(run.harvest != null)
 	queue_redraw()
@@ -104,6 +125,18 @@ func flash_put_out(at: Vector2i) -> void:
 	queue_redraw()
 
 
+## A constellation star of `size` at `at` is cropped by the scythe; `ends`: the far ends of the lit
+## strings that joined it, which snap.
+func flash_crop(at: Vector2i, size: int, ends: Array[Vector2i]) -> void:
+	_crops[at] = [0.0, size, ends.duplicate()]
+	_alone_shown.erase(at)
+	queue_redraw()
+
+
+func is_cropping() -> bool:
+	return not _crops.is_empty()
+
+
 ## The binding intro: a star of `size` shown lit alone at `at` wears the lone ring until put out.
 func show_alone(at: Vector2i, size: int) -> void:
 	_alone_shown[at] = size
@@ -123,6 +156,10 @@ func advance(delta: float) -> void:
 		_sweep_time += delta
 		if _sweep_time >= SWEEP_TIME:
 			_sweep_time = -1.0
+	for at: Vector2i in _crops.keys():
+		_crops[at][0] += delta
+		if _crops[at][0] >= CROP_TIME:
+			_crops.erase(at)
 	for flashes: Dictionary[Vector2i, float] in [_chaff, _put_outs, _kept]:
 		var lasts: float = CHAFF_TIME if flashes == _chaff else (KEPT_TIME if flashes == _kept else PUT_OUT_TIME)
 		for at: Vector2i in flashes.keys():
@@ -151,6 +188,8 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		result.merge(preview_pixels(_run), true)
 	for at: Vector2i in _kept:
 		result.merge(kept_pixels(at, _kept[at]), true)
+	for at: Vector2i in _crops:
+		result.merge(crop_pixels(at, _crops[at][1], _crops[at][2], _crops[at][0]), true)
 	for at: Vector2i in _chaff:
 		result.merge(chaff_pixels(at, _chaff[at]), true)
 	for at: Vector2i in _put_outs:
@@ -173,6 +212,55 @@ static func preview_pixels(run: RunState) -> Dictionary[Vector2i, Color]:
 	for index: int in run.unbound_preview():
 		result.merge(lone_ring_pixels(run.scorpio.landmark_position(index), run.scorpio.map.sizes[index], 0.0), true)
 	return result
+
+
+## A constellation star of `size` at `at` cropped `t` seconds ago, its strings to `ends` snapping:
+## the slash, the two halves of its lit art parting and cooling, the sparks, the snapped strings.
+static func crop_pixels(at: Vector2i, size: int, ends: Array[Vector2i], t: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	if t < 0.0 or t >= CROP_TIME:
+		return pixels
+	var art: Dictionary[Vector2i, Color] = ConstellationView.star_pixels(size, &"lit")
+	if t < CROP_CHARGE:
+		var shake := Vector2i([1, -1, 1, 0][int(t / 0.03) % 4], 0)
+		for d: Vector2i in art:
+			pixels[at + d + shake] = Palette.C0 if int(t / 0.04) % 2 == 0 else art[d]
+		return pixels
+	t -= CROP_CHARGE
+	var k: float = t / (CROP_TIME - CROP_CHARGE)
+	var reach: int = StarView.half_extent(size as Star.Size) + 5
+	# The strings snap first, under the rest: each flares ember and pulls back toward its far end.
+	for end: Vector2i in ends:
+		var line: Array[Vector2i] = LinkLayer.line_pixels(at, end)
+		var from: int = STRING_CLEAR + roundi(k * (line.size() - 2 * STRING_CLEAR))
+		for i: int in range(from, line.size() - STRING_CLEAR):
+			if k < 0.5 or i % 2 == 0:
+				pixels[line[i]] = Palette.S4 if k < 0.5 else Palette.S3
+	# The halves: the art either side of the slash (top left to bottom right), parting and cooling;
+	# the pixels on the cut are gone.
+	var cool: int = floori(k * (CROP_COOL.size() + 1)) - 1
+	var part: int = roundi(minf(k * 3.0, 1.0) * CROP_PART)
+	var fall: int = roundi(k * k * CROP_FALL)
+	for d: Vector2i in art:
+		if d.x == d.y:
+			continue
+		var colour: Color = art[d] if cool < 0 else CROP_COOL[mini(cool, CROP_COOL.size() - 1)]
+		if t < CROP_SLASH * 0.5:
+			colour = Palette.C0
+		var shift: Vector2i = Vector2i(part, -part) if d.x > d.y else Vector2i(-part, part + fall)
+		pixels[at + d + shift] = colour
+	# Sparks spray out from the cut, either side, and fall.
+	for i: int in CROP_SPARKS:
+		var along: float = (float(i) / (CROP_SPARKS - 1) - 0.5) * 2.0
+		var side: int = 1 if i % 2 == 0 else -1
+		var spread: float = 10.0 + 8.0 * float((i * 3) % CROP_SPARKS) / CROP_SPARKS
+		var p := Vector2(along * reach, along * reach) + Vector2(side, -side) * spread * k + Vector2(0, 14.0 * k * k)
+		pixels[at + Vector2i(p.round())] = Palette.C2 if k < 0.4 else Palette.S4
+	# The slash, over all: a white stroke across the star, thinning to C1.
+	if t < CROP_SLASH:
+		for i: int in range(-reach, reach + 1):
+			pixels[at + Vector2i(i, i)] = Palette.C0 if t < CROP_SLASH * 0.5 or absi(i) < reach / 2 else Palette.C1
+	return pixels
 
 
 ## A lone lit star's ring at `at` (a star of `size`) at `time`: a whole ring LONE_GAP px clear of the
