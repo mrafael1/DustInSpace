@@ -154,7 +154,7 @@ func is_open(which: Chapter) -> bool:
 	return false
 
 
-## The chart slides to the chapter `step` away (-1 before, +1 after) if there is one and it's open
+## The chart voyages to the chapter `step` away (-1 before, +1 after) if there is one and it's open
 ## (`force`: open or not, for debug); `reveal` pops its stars in, as when it has just opened.
 func step_chapter(step: int, reveal: bool = false, force: bool = false) -> void:
 	if _stage != null:
@@ -164,7 +164,7 @@ func step_chapter(step: int, reveal: bool = false, force: bool = false) -> void:
 		return
 	_end_preview()
 	chapter = chapters[at]
-	_chart.slide_to(chapter, step, reveal)
+	_chart.voyage_to(chapter, reveal)
 	_show_navigation()
 
 

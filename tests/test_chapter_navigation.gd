@@ -66,7 +66,7 @@ func test_the_arrows_lead_to_open_chapters_and_padlocks_to_locked_ones() -> void
 	assert_eq(chart.navigation(1), ChapterSelect.Nav.LOCKED, "Leo still locked")
 
 
-func test_an_arrow_slides_the_chart_to_the_open_chapter() -> void:
+func test_an_arrow_voyages_along_the_sky_to_the_open_chapter() -> void:
 	_save("scorpio", Chapter.stage_count())
 	var app: App = _app()
 	var chart: ChapterSelect = app.get_node("ChapterSelect")
@@ -74,17 +74,29 @@ func test_an_arrow_slides_the_chart_to_the_open_chapter() -> void:
 	chart.slid.connect(func() -> void: slid.append(1))
 	_tap(chart, chart.nav_centre(-1))
 	assert_eq(app.chapter.id, "scorpio", "the app is on Scorpio at once")
-	assert_true(chart.is_sliding())
-	assert_true(chart.is_busy(), "taps wait for the slide")
+	assert_true(chart.is_voyaging())
+	assert_true(chart.is_busy(), "taps wait for the voyage")
 	assert_eq(slid.size(), 1)
-	chart.advance(ChapterSelect.SLIDE_OUT * 0.5)
-	assert_gt(chart.slide_x(), 0, "going back, Aquarius leaves to the right")
-	chart.advance(ChapterSelect.SLIDE_OUT * 0.6)
-	assert_eq(chart.get_node("Title").text, "SCORPIO", "the new chart once the old one is out")
-	assert_lt(chart.slide_x(), 0, "and Scorpio comes in from the left")
-	_play(chart, ChapterSelect.SLIDE_IN)
-	assert_false(chart.is_sliding())
-	assert_eq(chart.slide_x(), 0)
+	var length: float = ChapterSelect.voyage_time(3)
+	assert_almost_eq(length, ChapterSelect.VOYAGE_BASE + 3 * ChapterSelect.VOYAGE_PER_SIGN, 0.001, "three signs back")
+	var start: float = chart.camera()
+	assert_eq(start, float(ChapterSelect.sky_x("aquarius")))
+	chart.advance(length * 0.2)
+	assert_lt(chart.camera(), start, "the camera heads back along the sky")
+	assert_gt(chart.chart_x(), 0, "Aquarius drifts off to the right")
+	assert_eq(chart.get_node("Title").text, "AQUARIUS", "until halfway")
+	chart.advance(length * 0.35)
+	assert_eq(chart.get_node("Title").text, "SCORPIO", "then Scorpio's chart takes over")
+	assert_lt(chart.chart_x(), 0, "coming in from the left")
+	var names: Array[String] = []
+	for label: Node in chart.get_children():
+		if label is Label and (label as Label).visible and (label as Label).text in ["SAGITTARIUS", "CAPRICORNUS"]:
+			names.append((label as Label).text)
+	assert_false(names.is_empty(), "the constellations between pass by, named")
+	_play(chart, length)
+	assert_false(chart.is_voyaging())
+	assert_eq(chart.chart_x(), 0)
+	assert_eq(chart.camera(), 0.0)
 	assert_eq(chart.navigation(1), ChapterSelect.Nav.OPEN, "and the way back to Aquarius")
 
 
@@ -105,7 +117,7 @@ func test_a_padlock_shakes_and_says_why() -> void:
 	chart.nav_refused.connect(func() -> void: refused.append(1))
 	_tap(chart, chart.nav_centre(1))
 	assert_eq(app.chapter.id, "scorpio", "a locked chapter doesn't open")
-	assert_false(chart.is_sliding())
+	assert_false(chart.is_voyaging())
 	assert_eq(refused.size(), 1)
 	assert_eq(chart.get_node("Subtitle").text, ChapterSelect.REFUSE_TEXT)
 	_tap(chart, Vector2i(140, 200), Vector2i(80, 200))
@@ -133,7 +145,7 @@ func test_winning_a_final_opens_the_next_chapter_on_the_chart() -> void:
 	_play(chart, ChapterSelect.LIFE_TIME + ChapterSelect.LIGHT_TIME + ChapterSelect.OPEN_TIME)
 	assert_eq(heard.slice(0, 2), ["shake", "break"] as Array[String])
 	assert_eq(app.chapter.id, "aquarius", "the comet left: the chart slides on")
-	_play(chart, ChapterSelect.SLIDE_OUT + ChapterSelect.SLIDE_IN + 0.04)
+	_play(chart, ChapterSelect.voyage_time(3) + 0.04)
 	assert_true(chart.is_revealing())
 	var card: BossBanner = chart.get_node("RevealCard")
 	card.advance(0.05)
@@ -178,3 +190,19 @@ func test_the_arrows_and_padlocks_are_palette_and_grid() -> void:
 	var lock: Dictionary[Vector2i, Color] = ChapterSelect.padlock_pixels(Palette.N7)
 	assert_true(lock.values().has(Palette.N3), "a keyhole")
 	assert_eq(ChapterSelect.shard_pixels(0.0).size(), ChapterSelect.OPEN_SHARDS)
+
+
+func test_the_sky_is_the_same_every_time_and_its_stars_drift_slower_than_the_charts() -> void:
+	var screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
+	assert_eq(ChapterSelect.sky_section(4), ChapterSelect.sky_section(4))
+	var here: Array[Vector3i] = ChapterSelect.sky_stars(screen, ChapterDef.leo(), 300, 0)
+	var moved: Array[Vector3i] = ChapterSelect.sky_stars(screen, ChapterDef.leo(), 310, 0)
+	var shifted: int = 0
+	for star: Vector3i in moved:
+		if here.has(Vector3i(star.x + 10, star.y, star.z)):
+			shifted += 1
+	assert_gt(shifted, moved.size() / 2, "the same stars, 10 px further on")
+	assert_lt(ChapterSelect.STAR_PARALLAX, 1.0, "behind the charts")
+	assert_eq(ChapterSelect.sky_x("leo") - ChapterSelect.sky_x("aquarius"), 6 * ChapterSelect.SKY_SPAN, "six signs on")
+	for sign: String in ChapterSelect.PASSING:
+		assert_true(ChapterSelect.ZODIAC.has(sign), sign)
