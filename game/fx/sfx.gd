@@ -173,6 +173,12 @@ func set_level(value: Level) -> void:
 	level_changed.emit(level)
 
 
+## Reads the saved level again (another Sfx, the stage's, may have changed it).
+func reload_level() -> void:
+	_load_level()
+	level_changed.emit(level)
+
+
 ## Moves the clock, the duck and the voices on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	_clock += delta
