@@ -113,6 +113,9 @@ func observe(event: InputEvent) -> void:
 		if event is InputEventScreenDrag:
 			dragged.emit()
 		reset()
+	elif event is InputEventMouseMotion and event.device != InputEvent.DEVICE_ID_EMULATION:
+		# A real mouse aims by hovering: moving it is reading the sky, not idling.
+		reset()
 
 
 ## Seconds of idling counted so far.

@@ -190,6 +190,28 @@ func test_a_touch_before_the_delay_means_no_hint() -> void:
 	assert_almost_eq(hint.idle_time(), 0.2, 0.001, "the wait started over")
 
 
+func test_a_real_mouse_moving_means_no_hint() -> void:
+	_start_scene()
+	_small_triple()
+	hint.advance(IDLE - 0.1)
+	var motion := InputEventMouseMotion.new()
+	motion.device = 0
+	hint.observe(motion)
+	hint.advance(0.2)
+	assert_eq(hint.shining_link(), [] as Array[int])
+	assert_almost_eq(hint.idle_time(), 0.2, 0.001, "hovering the aim is not idling")
+
+
+func test_a_finger_s_emulated_mouse_motion_is_not_counted_twice() -> void:
+	_start_scene()
+	_small_triple()
+	hint.advance(IDLE - 0.1)
+	var motion := InputEventMouseMotion.new()
+	motion.device = InputEvent.DEVICE_ID_EMULATION
+	hint.observe(motion)
+	assert_almost_eq(hint.idle_time(), IDLE - 0.1, 0.001)
+
+
 func test_a_touch_stops_a_hint_playing() -> void:
 	_start_scene()
 	_small_triple()
