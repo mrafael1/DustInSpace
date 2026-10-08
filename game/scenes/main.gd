@@ -247,7 +247,7 @@ func switch_launcher(telescope: bool) -> void:
 			_paused[launcher] = mode
 		else:
 			launcher.process_mode = mode
-	_hud.show_message("")
+	_hud.clear_message()
 	if telescope:
 		_telescope.request_aim()
 
