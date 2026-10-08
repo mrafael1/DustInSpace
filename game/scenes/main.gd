@@ -290,6 +290,7 @@ func _wire_sound() -> void:
 	# Virgo's scythe swishes across the sky; a constellation star put out sinks with a low buzz.
 	_sky.harvest_swept.connect(_sfx.play.bind(&"launch", 0.7))
 	_sky.landmark_put_out.connect(func(_at: Vector2i) -> void: _sfx.play(&"link_reject", 0.7))
+	_sky.landmark_kept.connect(func(_at: Vector2i) -> void: _sfx.play(&"star_select", 1.5))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)

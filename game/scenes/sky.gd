@@ -57,6 +57,8 @@ signal landmark_rekindled(at: Vector2i)
 signal harvest_swept
 ## Virgo's bound sheaves: a constellation star at `at` went dark. Feedback only (sound).
 signal landmark_put_out(at: Vector2i)
+## Virgo's binding intro: the star joined to the figure was kept. Feedback only (sound).
+signal landmark_kept(at: Vector2i)
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -325,9 +327,22 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			# A beat to see the stars before the scythe takes them.
 			_sequencer.hold(INTRO_HOLD)
 		&"harvest_intro_lit":
-			_constellation.flash_landmark(event.args[0])
-			# A beat to see it lit before the harvest puts it out.
+			var lit: int = event.args[0]
+			_constellation.flash_landmark(lit)
+			if event.args[1]:
+				_harvest.show_alone(_run.scorpio.landmark_position(lit), _run.scorpio.map.sizes[lit])
+			# A beat to see it lit, joined or alone, before the next.
 			_sequencer.hold(INTRO_HOLD)
+		&"harvest_intro_kept":
+			var at: Vector2i = _run.scorpio.landmark_position(event.args[0])
+			_harvest.flash_kept(at)
+			landmark_kept.emit(at)
+			_sequencer.hold(HarvestView.KEPT_TIME)
+		&"harvest_intro_cleared":
+			# A beat to see what the scythe kept, then the demo's star shows as it really is.
+			_sequencer.hold(INTRO_HOLD)
+			for index: int in event.args[0]:
+				_constellation.put_out(index)
 	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
 	if _orion.marked() != null and not _views.values().has(_orion.marked()):
 		_orion.clear_mark()

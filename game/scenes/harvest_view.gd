@@ -2,11 +2,15 @@ class_name HarvestView
 extends Node2D
 ## Virgo's harvest, over the sky. While the player aims the launch that brings the harvest, each
 ## loose star the scythe will reap wears its own outline dotted in ember (S4), and each constellation
-## star the harvest will put out (bound sheaves) a dotted ember ring. The harvest itself: a scythe's
+## star the harvest will put out (bound sheaves) the lone ring. The harvest itself: a scythe's
 ## blade sweeps the sky left to right over SWEEP_TIME, a crescent bowed toward where it's going
 ## (C0 edge, then C1, C2, and a dotted C3 wake), cutting each star as it passes; chaff falls from
 ## where a cut star stood (C2, then C3, then S4). A constellation star put out flares ember and
 ## drops its sparks. Drawn above the stars. The core supplies every reap and put-out.
+## Bound sheaves, always (playtest: the rule wasn't understood): a lit constellation star that is
+## alone (not joined to the lit figure) wears an ember ring whose pixels crawl round it, from the
+## moment it's lit until it's joined or put out, so the risk shows at once. The binding intro's
+## kept star glints gold: a ring of C0, then C1, then C2 spreading out.
 
 ## The blade crosses the sky in SWEEP_TIME, bowed BOW px at the middle of its height.
 const SWEEP_TIME: float = 0.6
@@ -22,6 +26,14 @@ const CHAFF_COLOURS: Array[Color] = [Palette.C2, Palette.C3, Palette.S4]
 ## A constellation star put out: an ember cross and a ring cooling outward for PUT_OUT_TIME.
 const PUT_OUT_TIME: float = 0.45
 const PUT_OUT_COLOURS: Array[Color] = [Palette.S4, Palette.S3, Palette.S2]
+## A lone lit star's ring crawls a dot every CRAWL_STEP.
+const CRAWL_STEP: float = 0.25
+## The lone ring sits LONE_GAP px clear of its star, at least LONE_MIN px out.
+const LONE_GAP: int = 4
+const LONE_MIN: int = 7
+## The intro's kept star: a gold ring spreading for KEPT_TIME.
+const KEPT_TIME: float = 0.45
+const KEPT_COLOURS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2]
 
 var aiming: bool = false:
 	set(value):
@@ -33,6 +45,11 @@ var _sequencer: EventSequencer
 var _sweep_time: float = -1.0
 var _chaff: Dictionary[Vector2i, float] = {}
 var _put_outs: Dictionary[Vector2i, float] = {}
+var _kept: Dictionary[Vector2i, float] = {}
+## The binding intro's star lit alone (presentation only: the run never lit it), by place, with the
+## size it's drawn at.
+var _alone_shown: Dictionary[Vector2i, int] = {}
+var _time: float = 0.0
 
 
 func _ready() -> void:
@@ -46,6 +63,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_sweep_time = -1.0
 	_chaff.clear()
 	_put_outs.clear()
+	_kept.clear()
+	_alone_shown.clear()
 	set_process(run.harvest != null)
 	queue_redraw()
 
@@ -78,20 +97,34 @@ func flash_chaff(at: Vector2i) -> void:
 	queue_redraw()
 
 
-## A constellation star put out at `at`.
+## A constellation star put out at `at` (its lone ring goes with it).
 func flash_put_out(at: Vector2i) -> void:
 	_put_outs[at] = 0.0
+	_alone_shown.erase(at)
+	queue_redraw()
+
+
+## The binding intro: a star of `size` shown lit alone at `at` wears the lone ring until put out.
+func show_alone(at: Vector2i, size: int) -> void:
+	_alone_shown[at] = size
+	queue_redraw()
+
+
+## The binding intro: the star at `at`, joined to the figure, was kept.
+func flash_kept(at: Vector2i) -> void:
+	_kept[at] = 0.0
 	queue_redraw()
 
 
 ## Moves the blade, the chaff and the put-outs on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
+	_time += delta
 	if _sweep_time >= 0.0:
 		_sweep_time += delta
 		if _sweep_time >= SWEEP_TIME:
 			_sweep_time = -1.0
-	for flashes: Dictionary[Vector2i, float] in [_chaff, _put_outs]:
-		var lasts: float = CHAFF_TIME if flashes == _chaff else PUT_OUT_TIME
+	for flashes: Dictionary[Vector2i, float] in [_chaff, _put_outs, _kept]:
+		var lasts: float = CHAFF_TIME if flashes == _chaff else (KEPT_TIME if flashes == _kept else PUT_OUT_TIME)
 		for at: Vector2i in flashes.keys():
 			flashes[at] += delta
 			if flashes[at] >= lasts:
@@ -108,8 +141,16 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	if _run == null or _run.harvest == null:
 		return result
-	if aiming and (_sequencer == null or not _sequencer.is_busy()):
-		result.merge(preview_pixels(_run))
+	var idle: bool = _sequencer == null or not _sequencer.is_busy()
+	if idle:
+		for index: int in _run.loose_landmarks():
+			result.merge(lone_ring_pixels(_run.scorpio.landmark_position(index), _run.scorpio.map.sizes[index], _time), true)
+	for at: Vector2i in _alone_shown:
+		result.merge(lone_ring_pixels(at, _alone_shown[at], _time), true)
+	if aiming and idle:
+		result.merge(preview_pixels(_run), true)
+	for at: Vector2i in _kept:
+		result.merge(kept_pixels(at, _kept[at]), true)
 	for at: Vector2i in _chaff:
 		result.merge(chaff_pixels(at, _chaff[at]), true)
 	for at: Vector2i in _put_outs:
@@ -130,12 +171,34 @@ static func preview_pixels(run: RunState) -> Dictionary[Vector2i, Color]:
 			if (offset.x + offset.y) % 2 == 0:
 				result[star.position + offset] = Palette.S4
 	for index: int in run.unbound_preview():
-		var at: Vector2i = run.scorpio.landmark_position(index)
-		var radius: int = StarView.half_extent(run.scorpio.map.sizes[index] as Star.Size) + 3
-		for offset: Vector2i in ConstellationView.circle_pixels(radius):
-			if (offset.x + offset.y) % 2 == 0:
-				result[at + offset] = Palette.S4
+		result.merge(lone_ring_pixels(run.scorpio.landmark_position(index), run.scorpio.map.sizes[index], 0.0), true)
 	return result
+
+
+## A lone lit star's ring at `at` (a star of `size`) at `time`: a whole ring LONE_GAP px clear of the
+## star (at least LONE_MIN px out), ember, its pixels S4 and S3 by turns round it, swapping every
+## CRAWL_STEP so it crawls.
+static func lone_ring_pixels(at: Vector2i, size: int, time: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	var phase: int = int(time / CRAWL_STEP) % 2
+	var ring: Array[Vector2i] = ConstellationView.circle_pixels(maxi(StarView.half_extent(size as Star.Size) + LONE_GAP, LONE_MIN))
+	ring.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return Vector2(a).angle() < Vector2(b).angle())
+	for i: int in ring.size():
+		pixels[at + ring[i]] = Palette.S4 if (i / 2 + phase) % 2 == 0 else Palette.S3
+	return pixels
+
+
+## The binding intro's kept star `t` seconds after the scythe passed: a gold ring spreading as it
+## cools, in hard steps.
+static func kept_pixels(at: Vector2i, t: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	if t < 0.0 or t >= KEPT_TIME:
+		return pixels
+	var k: float = t / KEPT_TIME
+	var colour: Color = KEPT_COLOURS[mini(floori(k * KEPT_COLOURS.size()), KEPT_COLOURS.size() - 1)]
+	for offset: Vector2i in ConstellationView.circle_pixels(6 + roundi(k * 7.0)):
+		pixels[at + offset] = colour
+	return pixels
 
 
 ## The blade `k` (0-1) of the way across `sky`: a crescent over the sky's height, bowed toward
