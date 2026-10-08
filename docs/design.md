@@ -309,6 +309,8 @@ Both strategies should stay viable: red is faster, blue is safer. Rerun the simu
 
 Chapter 2 is built (above: Aquarius). Chapter 3 is **Leo, the heat** (chosen 2026-10-07): stars in a heated region grow a size each launch and a big one burns out. It is on paper in [chapter_2_3_plan.md](chapter_2_3_plan.md), with the evaluation steps that led to chapter 2; its rules remain proposals.
 
+Chapters 4 to 6 are on paper in [chapter_4_6_plan.md](chapter_4_6_plan.md) (chosen 2026-10-08): **Virgo, the harvest** (every few launches the standing stars pay dust and are reaped), **Sagittarius, the black hole** (stars fall in and are swallowed) and **Pisces, the cord** (links leave cords that new links can't cross), on a zodiac that closes into a ring. Virgo is first; its rules remain proposals.
+
 The current trials (debug builds only, no saved progress; [their measurements](chapter_2_current_trial.md)) stay as comparison tools: the Tail trial (C on the chart) and the Aquarius flow layout, now the Body's layout (A on the chart), each with FLOW ON/OFF to replay the same seed without the current.
 
 - Run buffs, revealed with the exploding-star opening (hold to compress, release to explode, dust forms the buffs), plus a Big Bang reveal for legendaries.
