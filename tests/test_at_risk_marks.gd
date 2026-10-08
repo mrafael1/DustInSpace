@@ -147,3 +147,103 @@ func test_a_run_that_is_over_marks_nothing() -> void:
 	run.add_star(Star.Size.BIG, Vector2i(150, 230))
 	run.outcome = RunState.Outcome.LOST
 	assert_eq(run.launch_burns(), [] as Array[int])
+
+
+# The views: the marks show while the player isn't aiming, and give way to the aim's full preview.
+
+const MainScene := preload("res://game/scenes/main.tscn")
+
+
+func _main(map_id: String) -> Main:
+	var main: Main = MainScene.instantiate()
+	main.star_map = map_id
+	main.in_chapter = true
+	main.seed_override = 3
+	add_child_autofree(main)
+	return main
+
+
+func _idle(main: Main) -> void:
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	for i: int in 400:
+		if not sequencer.is_busy():
+			return
+		sequencer.advance(0.03)
+
+
+func test_a_star_the_drain_takes_wears_an_ember_arrow_while_not_aiming() -> void:
+	var main: Main = _main("aquarius_body")
+	_idle(main)
+	var view: CurrentView = main.get_node("Sky/CurrentLayer")
+	var star: Star = main.run.add_star(Star.Size.SMALL, Vector2i(60, 230))
+	var mark: Dictionary[Vector2i, Color] = CurrentView.drain_mark_pixels(star.position, star.size, Vector2i.LEFT, 0.0)
+	var dots: Dictionary[Vector2i, Color] = view.pixels()
+	for point: Vector2i in mark:
+		assert_eq(dots.get(point), mark[point], "the arrow shows")
+		assert_lt(point.x, star.position.x - StarView.half_extent(star.size), "beside the star, on the side it goes")
+	view.aiming = true
+	dots = view.pixels()
+	var arm: Vector2i = star.position + Vector2i(-StarView.half_extent(star.size) - CurrentView.MARK_GAP + 1, 1)
+	assert_true(mark.has(arm))
+	assert_false(dots.has(arm), "the aim's trail takes over")
+
+
+func test_the_drain_arrow_nudges_on_a_slow_two_step() -> void:
+	var at := Vector2i(90, 160)
+	var a: Dictionary[Vector2i, Color] = CurrentView.drain_mark_pixels(at, Star.Size.SMALL, Vector2i.DOWN, 0.0)
+	var b: Dictionary[Vector2i, Color] = CurrentView.drain_mark_pixels(at, Star.Size.SMALL, Vector2i.DOWN, CurrentView.MARK_STEP)
+	assert_eq(a, CurrentView.drain_mark_pixels(at, Star.Size.SMALL, Vector2i.DOWN, CurrentView.MARK_STEP * 2.0), "two steps")
+	assert_eq(a.size(), b.size())
+	for point: Vector2i in a:
+		assert_eq(b.get(point + Vector2i.DOWN), a[point], "a pixel further down the flow")
+		assert_eq(a[point], Palette.S4, "ember")
+
+
+func test_a_star_the_heat_burns_wears_its_crown_while_not_aiming() -> void:
+	var main: Main = _main("leo_haunch")
+	_idle(main)
+	var view: HeatView = main.get_node("Sky/HeatLayer")
+	var big: Star = main.run.add_star(Star.Size.BIG, Vector2i(30, 236))
+	var top: Vector2i = big.position + Vector2i(0, -StarView.half_extent(big.size) - 2)
+	var dots: Dictionary[Vector2i, Color] = view.pixels()
+	for offset: Vector2i in HeatView.FLAMES:
+		if offset != Vector2i(0, -5):
+			assert_eq(dots.get(top + offset), HeatView.FLAMES[offset], "the crown shows")
+	var ring: Array[Vector2i] = []
+	for offset: Vector2i in StarView.outline_pixels(big.size):
+		if (offset.x + offset.y) % 2 == 0:
+			ring.append(big.position + offset)
+	assert_false(ring.any(func(p: Vector2i) -> bool: return dots.get(p) == Palette.S4), "quiet: no dotted ring until the aim")
+	view.aiming = true
+	dots = view.pixels()
+	assert_true(ring.all(func(p: Vector2i) -> bool: return dots.get(p) == Palette.S4), "the aim's full preview rings it")
+	assert_eq(dots.get(top + Vector2i(0, -3)), HeatView.FLAMES[Vector2i(0, -3)], "and keeps the crown")
+
+
+func test_the_marks_flicker_a_point_on_a_slow_two_step() -> void:
+	var run: RunState = _run(_heat_map(-1))
+	var small: Star = run.add_star(Star.Size.SMALL, Vector2i(30, 230))
+	var a: Dictionary[Vector2i, Color] = HeatView.mark_pixels(run, 0.0)
+	var b: Dictionary[Vector2i, Color] = HeatView.mark_pixels(run, HeatView.MARK_STEP)
+	assert_eq(a.size(), HeatView.SNOWFLAKE.size(), "the snowflake")
+	assert_eq(b.size(), HeatView.SNOWFLAKE.size() - HeatView.FLAKE_POINTS.size(), "its points drop out")
+	assert_eq(HeatView.mark_pixels(run, HeatView.MARK_STEP * 2.0), a)
+	var over := Vector2i(0, -StarView.half_extent(small.size) - 2)
+	for point: Vector2i in a:
+		assert_lt(point.y, small.position.y - StarView.half_extent(small.size), "above the star, never over it")
+	assert_true(a.has(small.position + over + Vector2i(0, -1)))
+
+
+func test_no_marks_while_a_launch_plays_out() -> void:
+	var main: Main = _main("leo_haunch")
+	_idle(main)
+	var view: HeatView = main.get_node("Sky/HeatLayer")
+	main.run.owned_packs["blue"] = 1
+	main.run.loaded_pack = "blue"
+	assert_true(main.run.launch(Vector2i(150, 120)))
+	var big: Star = main.run.add_star(Star.Size.BIG, Vector2i(30, 236))
+	var flame: Vector2i = big.position + Vector2i(0, -StarView.half_extent(big.size) - 5)
+	assert_true(main.get_node("EventSequencer").is_busy())
+	assert_false(view.pixels().has(flame), "the stars' views haven't caught up: no marks yet")
+	_idle(main)
+	assert_eq(view.pixels().get(flame), HeatView.FLAMES[Vector2i(0, -3)], "then the crown")
