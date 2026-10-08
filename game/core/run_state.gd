@@ -37,8 +37,8 @@ signal landmarks_unbound(indices: Array[int])
 ## Virgo's scythe intro: the stage opened with `stars` in the sky (one of each size, as placed); the
 ## harvest reaps them next (harvested).
 signal harvest_intro_placed(stars: Array[Star])
-## Virgo's scythe intro: the wheat clock shows `launches_left` (presentation only: the run's own
-## clock doesn't move): its last ear, then grown back after the harvest.
+## Virgo's scythe intro: the wheat clock jumps to `launches_left` (presentation only: the run's own
+## clock doesn't move): to its last ear as the stage opens, then back to full after the harvest.
 signal harvest_intro_clock(launches_left: int)
 ## Virgo's scythe intro is over: the demo planet's `stars` leave the sky. No reward.
 signal harvest_intro_ended(stars: Array[Star])
@@ -1188,8 +1188,9 @@ func play_harvest_intro() -> void:
 	var shown: Array[Star] = []
 	for i: int in spots.size():
 		shown.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
-	harvest_intro_placed.emit(shown.duplicate())
+	# The stage opens on the clock's last ear (playtest), the stars standing.
 	harvest_intro_clock.emit(1)
+	harvest_intro_placed.emit(shown.duplicate())
 	var burst: Vector2i = StarScatter.clamp_to_sky(middle + HARVEST_INTRO_BURST, sky_rect)
 	hunt_intro_launched.emit("blue", burst)
 	for star: Star in shown:

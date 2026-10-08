@@ -227,7 +227,7 @@ func test_the_head_opens_by_showing_the_scythe_reap_three_stars() -> void:
 		order.append("ended")
 		ended.append_array(stars))
 	run.play_harvest_intro()
-	assert_eq(order, ["placed", "clock", "launched", "scythe", "burst", "clock", "ended"] as Array[String], "the last ear, a planet launched, the scythe clears the sky, then the planet bursts")
+	assert_eq(order, ["clock", "placed", "launched", "scythe", "burst", "clock", "ended"] as Array[String], "it opens on the last ear, a planet is launched, the scythe clears the sky, then the planet bursts")
 	assert_eq(clock, [1, run.harvest.every] as Array[int], "on its last ear, then grown back")
 	assert_eq(placed.size(), 3, "one of each size")
 	assert_eq(reaped.size(), 3, "the scythe takes them all")
@@ -630,3 +630,17 @@ func test_the_constellation_hides_a_cropped_star_then_shows_it_dark() -> void:
 	assert_true(constellation.is_cropping(3), "hidden while its halves fly")
 	constellation.advance(HarvestView.CROP_TIME + 0.01)
 	assert_false(constellation.is_cropping(3), "then shown, unlit")
+
+
+func test_the_head_opens_with_the_clock_on_its_last_ear() -> void:
+	var main: Main = _main("virgo_head")
+	var clock: HarvestClock = main.get_node("HUD/HarvestClock")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	sequencer.advance(0.01)
+	assert_eq(clock.standing(), 1, "the demo opens on the last ear")
+	var cut: bool = false
+	for colour: Color in clock.pixels().values():
+		cut = cut or colour == Palette.C0
+	assert_false(cut, "a jump, not a cut")
+	_settle(main)
+	assert_eq(clock.standing(), main.run.harvest.every, "back to full for play")

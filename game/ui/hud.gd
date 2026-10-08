@@ -643,7 +643,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_harvest_clock.count(event.args[0], event.args[1])
 			return
 		&"harvest_intro_clock":
-			_harvest_clock.count(event.args[0])
+			_harvest_clock.jump(event.args[0])
 			return
 		&"volley_fired":
 			_volley.fire()

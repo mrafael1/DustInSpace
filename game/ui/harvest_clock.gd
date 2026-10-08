@@ -54,6 +54,14 @@ func count(left: int, period: int = -1) -> void:
 	queue_redraw()
 
 
+## Jumps to `left` ears standing at once, with no cut (the scythe intro's demo clock).
+func jump(left: int) -> void:
+	_left = left
+	_cut = -1
+	_cut_time = -1.0
+	queue_redraw()
+
+
 ## Ears the clock grows back now.
 func period() -> int:
 	return _period
