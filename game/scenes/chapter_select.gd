@@ -57,6 +57,8 @@ signal current_trial_requested
 signal chapter_step_requested(step: int)
 ## The next chapter's opening has played (its padlock broke, the comet left): App voyages on to it.
 signal chapter_opened
+## The selection star landed on the new chapter's stage at the end of a voyage. Feedback only (sound).
+signal star_landed
 ## Feedback only (sound): a voyage to another chapter began; a padlock refused a tap; the opening
 ## padlock started shaking, then broke; the reveal popped its `order`-th star, then ended.
 signal slid
@@ -215,6 +217,12 @@ const PASSING: Dictionary = {
 	"gemini": {"name": "GEMINI", "stars": [Vector2i(60, 110), Vector2i(64, 140), Vector2i(70, 170), Vector2i(76, 200), Vector2i(92, 112), Vector2i(96, 142), Vector2i(102, 170), Vector2i(110, 198)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(4, 5), Vector2i(5, 6), Vector2i(6, 7), Vector2i(0, 4)], "bright": [0, 4]},
 	"cancer": {"name": "CANCER", "stars": [Vector2i(92, 160), Vector2i(88, 130), Vector2i(70, 190), Vector2i(118, 186), Vector2i(94, 146)], "lines": [Vector2i(0, 4), Vector2i(4, 1), Vector2i(0, 2), Vector2i(0, 3)], "bright": []},
 }
+## The selection star leads every voyage: over the camera's speed-up it lifts off the stage that
+## was selected and flies to LEAD_AHEAD px ahead of the screen's middle (towards where it's going),
+## leads the cruise there, and over the slow-down lands on the new chapter's stage to play (the
+## crown, when the voyage reveals a new chapter). Its trail follows the way it actually went, the
+## last TRAIL.size() places it was drawn at; the selection brackets show again once it has landed.
+const LEAD_AHEAD: int = 46
 ## A passing constellation's name sits this far under its lowest star.
 const PASSING_NAME_GAP: int = 8
 ## The background stars: about one per STAR_ODDS px of sky, placed per SKY_SPAN-wide section from
@@ -293,6 +301,11 @@ var _voyage_to: float = 0.0
 var _voyage_chapter: Chapter
 var _voyage_swapped: bool = false
 var _voyage_reveal: bool = false
+## The selection star on a voyage: where it lifts off and lands on the shared sky (world x), and the
+## places it was last drawn at (its trail, newest first).
+var _lead_from := Vector2i.ZERO
+var _lead_to := Vector2i.ZERO
+var _lead_trail: Array[Vector2i] = []
 ## The background stars on screen (screen x, y, their hash), worked out again whenever the camera
 ## or the chart moves; the key they were worked out for.
 var _stars: Array[Vector3i] = []
@@ -727,8 +740,30 @@ func voyage_to(chapter: Chapter, reveal: bool = false) -> void:
 	_voyage_length = voyage_time(absi(roundi(_voyage_to - _voyage_from)) / SKY_SPAN)
 	_voyage_swapped = false
 	_voyage_time = 0.0
+	# The opening's comet left off the screen's right edge by the arrow; otherwise the star lifts off
+	# the stage that was selected.
+	var lift: Vector2i = Vector2i(_screen.end.x + 12, nav_centre(1).y) if reveal else stage_position(_selected, _def())
+	_lead_from = lift + Vector2i(roundi(_camera), 0)
+	var land: Vector2i = stage_position(Chapter.FINAL if reveal else chapter.current(), chapter.def)
+	_lead_to = land + Vector2i(sky_x(chapter.def.id), 0)
+	_lead_trail.clear()
 	_travel.clear()
 	slid.emit()
+
+
+## Where the selection star is on screen now, on a voyage: lifting off, leading, landing.
+func lead_star() -> Vector2i:
+	var k: float = clampf(_voyage_time / _voyage_length, 0.0, 1.0) if _voyage_time >= 0.0 else 1.0
+	var forward: int = signi(roundi(_voyage_to - _voyage_from))
+	var from: Vector2i = _lead_from - Vector2i(roundi(_camera), 0)
+	var to: Vector2i = _lead_to - Vector2i(roundi(_camera), 0)
+	var ahead := Vector2i(ScreenZones.SCREEN.x / 2 + forward * LEAD_AHEAD, (from.y + to.y) / 2)
+	var a: float = VOYAGE_EASE
+	if k < a:
+		return Vector2i(Vector2(from).lerp(Vector2(ahead), smoothstep(0.0, 1.0, k / a)).round())
+	if k > 1.0 - a:
+		return Vector2i(Vector2(ahead).lerp(Vector2(to), smoothstep(0.0, 1.0, (k - 1.0 + a) / a)).round())
+	return ahead
 
 
 ## How long a voyage across `signs` signs of the zodiac takes.
@@ -1161,8 +1196,14 @@ func _advance_chapters(delta: float) -> bool:
 		if _voyage_time >= _voyage_length:
 			_voyage_time = -1.0
 			_camera = _voyage_to
+			_lead_trail.clear()
+			star_landed.emit()
 			if _reveal_pending:
 				_start_reveal()
+		else:
+			_lead_trail.push_front(lead_star())
+			if _lead_trail.size() > TRAIL.size():
+				_lead_trail.pop_back()
 		_place_slid()
 	if _reveal_time >= 0.0:
 		var before: float = _reveal_time
@@ -1366,7 +1407,7 @@ func _draw_chart() -> void:
 	_draw_pops()
 	if not is_revealing() or _reveal_time >= _reveal_order.size() * REVEAL_STEP:
 		_draw_crown()
-	if not is_revealing():
+	if not is_revealing() and not is_voyaging():
 		_draw_selection(stage_position(_selected, _def()))
 	if _light_point >= 0:
 		var k: float = _light_time / LIGHT_TIME
@@ -1434,15 +1475,27 @@ func _draw_passing() -> void:
 			_dot(at, Palette.M6 if bright else Palette.M5)
 
 
-## The opening's comet leads the voyage to the new chapter: ahead of the camera, its trail as long
-## as the speed.
+## The selection star leading a voyage (lead_star), its trail along the way it went.
 func _draw_lead_comet() -> void:
-	if not is_voyaging() or not _voyage_reveal:
+	if not is_voyaging():
 		return
-	var head := Vector2i(_screen.end.x - 40, nav_centre(1).y + 10)
-	var length: int = clampi(roundi(absf(voyage_speed()) / 30.0), 3, TRAIL.size() * 2)
-	for k: int in range(length, 0, -1):
-		_dot(head - Vector2i(k, 0), TRAIL[mini(k * TRAIL.size() / length, TRAIL.size() - 1)])
+	var head: Vector2i = lead_star()
+	# The trail joins the places it was drawn at, cooling along the way.
+	var points: Array[Vector2i] = [head]
+	points.append_array(_lead_trail)
+	var trail: Array[Vector2i] = []
+	for k: int in range(1, points.size()):
+		var leg: Array[Vector2i] = LinkLayer.line_pixels(points[k - 1], points[k])
+		trail.append_array(leg.slice(1))
+	# Leading the cruise it holds still on screen while the sky streams past: a speed trail streams
+	# out behind it, as long as the camera is fast.
+	var speed: float = voyage_speed()
+	var streak: int = clampi(roundi(absf(speed) / 22.0), 0, TRAIL.size() * 3)
+	for k: int in range(streak, 0, -1):
+		_dot(head - Vector2i(signi(roundi(speed)) * k, 0), TRAIL[mini(k * TRAIL.size() / maxi(streak, 1), TRAIL.size() - 1)])
+	var length: int = mini(trail.size(), TRAIL.size() * 3)
+	for k: int in range(length - 1, -1, -1):
+		_dot(trail[k], TRAIL[mini(k * TRAIL.size() / maxi(length, 1), TRAIL.size() - 1)])
 	for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 		_dot(head + n, Palette.C1)
 	_dot(head, Palette.C0)

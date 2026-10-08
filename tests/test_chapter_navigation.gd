@@ -206,3 +206,24 @@ func test_the_sky_is_the_same_every_time_and_its_stars_drift_slower_than_the_cha
 	assert_eq(ChapterSelect.sky_x("leo") - ChapterSelect.sky_x("aquarius"), 6 * ChapterSelect.SKY_SPAN, "six signs on")
 	for sign: String in ChapterSelect.PASSING:
 		assert_true(ChapterSelect.ZODIAC.has(sign), sign)
+
+
+func test_the_selection_star_leads_every_voyage_and_lands_on_the_stage_to_play() -> void:
+	_save("scorpio", Chapter.stage_count())
+	var app: App = _app()
+	var chart: ChapterSelect = app.get_node("ChapterSelect")
+	var from: Vector2i = ChapterSelect.stage_position(chart.selected(), app.chapter.def)
+	var landed: Array[int] = []
+	chart.star_landed.connect(func() -> void: landed.append(1))
+	_tap(chart, chart.nav_centre(-1))
+	assert_eq(chart.lead_star(), from, "it lifts off the stage that was selected")
+	var length: float = ChapterSelect.voyage_time(3)
+	chart.advance(length * 0.5)
+	var lead: Vector2i = chart.lead_star()
+	assert_eq(lead.x, ScreenZones.SCREEN.x / 2 - ChapterSelect.LEAD_AHEAD, "it leads, ahead of the camera going back")
+	_play(chart, length * 0.49)
+	var target: Vector2i = ChapterSelect.stage_position(app.chapter.current(), app.chapter.def)
+	assert_lt((chart.lead_star() - target).length(), 12.0, "it comes in to land on the stage to play")
+	_play(chart, length)
+	assert_eq(landed.size(), 1, "and lands, even on a chapter that's all won")
+	assert_eq(chart.selected(), app.chapter.current())

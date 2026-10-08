@@ -78,6 +78,7 @@ func _ready() -> void:
 	_sfx.name = "ChartSfx"
 	add_child(_sfx)
 	_chart.slid.connect(_sfx.play.bind(&"launch", 1.6))
+	_chart.star_landed.connect(_sfx.play.bind(&"star_select", 1.3))
 	_chart.nav_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_chart.padlock_shaken.connect(_sfx.play.bind(&"tremble", 1.3))
 	_chart.padlock_broke.connect(func() -> void:
