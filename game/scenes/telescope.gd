@@ -28,6 +28,8 @@ signal planet_seated(kind: String)
 signal empty_tapped
 ## Text for the HUD's message line, "" to clear it.
 signal message_shown(text: String)
+## The telescope takes back a message it showed (`text`); the HUD clears it only if still on show.
+signal message_withdrawn(text: String)
 ## The run refused a launch at the aim (the guided first run's near launch, too far): still aiming.
 signal launch_refused
 ## A finger slid back down to the telescope and lifted there: no launch, still aiming (feedback: sound).
@@ -105,6 +107,8 @@ var _encounter_hold: bool = false
 ## -1 when none is loading.
 var _seated_kind: String = ""
 var _load_time: float = -1.0
+## The message the telescope showed itself (the HUD may since show another), "" for none.
+var _said: String = ""
 
 
 func _ready() -> void:
@@ -135,7 +139,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_load_time = -1.0
 	super.setup(run, sequencer)
 	_seat(shown_pack(), false)
-	message_shown.emit("")
+	_withdraw_message()
 	if can_process() and shown_pack() != "":
 		start_aim()
 
@@ -223,6 +227,7 @@ func start_aim() -> bool:
 		return false
 	if shown_pack() == "":
 		empty_tapped.emit()
+		_said = EMPTY_MESSAGE
 		message_shown.emit(EMPTY_MESSAGE)
 		return false
 	if _aiming:
@@ -466,8 +471,17 @@ func _stop_aim() -> void:
 	_aiming = false
 	_scope_pressed = false
 	_release_sky()
-	message_shown.emit("")
+	_withdraw_message()
 	_pose()
+
+
+## Takes back the message the telescope showed, if any: never someone else's (a stage's rule
+## said as aiming starts stays through the launch, #152).
+func _withdraw_message() -> void:
+	if _said == "":
+		return
+	message_withdrawn.emit(_said)
+	_said = ""
 
 
 func _sky_centre() -> Vector2i:

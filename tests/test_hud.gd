@@ -607,6 +607,41 @@ func test_a_refused_buy_picks_nothing() -> void:
 	assert_signal_not_emitted(hud, "planet_chosen")
 
 
+
+func test_a_teaching_line_is_held_against_other_messages_and_clears() -> void:
+	assert_true(hud.show_message(Hud.FLOW_MESSAGE, Hud.RULE_MESSAGE_TIME, true))
+	assert_false(hud.show_message("LOAD A PLANET FIRST"), "an ordinary message waits (#152)")
+	assert_false(hud.show_message(""), "a clear doesn't cut it")
+	hud.withdraw_message(Hud.FLOW_MESSAGE)
+	assert_eq(hud.message(), Hud.FLOW_MESSAGE, "held against a withdrawal too")
+	hud.advance(Hud.TEACHING_HOLD - 0.1)
+	assert_eq(hud.message(), Hud.FLOW_MESSAGE, "still there just before the hold ends")
+	hud.advance(0.11)
+	assert_true(hud.show_message("LOAD A PLANET FIRST"), "after the hold, anything may replace it")
+	assert_eq(hud.message(), "LOAD A PLANET FIRST")
+
+
+func test_a_teaching_line_can_replace_a_held_one() -> void:
+	hud.show_message(Hud.FLOW_MESSAGE, Hud.RULE_MESSAGE_TIME, true)
+	assert_true(hud.show_message(Hud.ORION_MESSAGE, Hud.ORION_MESSAGE_TIME, true))
+	assert_eq(hud.message(), Hud.ORION_MESSAGE)
+
+
+func test_a_withdrawal_only_clears_its_own_line() -> void:
+	hud.show_message("LOAD A PLANET FIRST")
+	hud.withdraw_message("SOMETHING ELSE")
+	assert_eq(hud.message(), "LOAD A PLANET FIRST")
+	hud.withdraw_message("LOAD A PLANET FIRST")
+	assert_eq(hud.message(), "")
+
+
+func test_a_new_run_clears_a_held_line() -> void:
+	hud.show_message(Hud.FLOW_MESSAGE, Hud.RULE_MESSAGE_TIME, true)
+	hud.setup(Fixtures.run(), sequencer)
+	assert_eq(hud.message(), "")
+	assert_true(hud.show_message("LOAD A PLANET FIRST"), "nothing held any more")
+
+
 func _link_small_triple() -> void:
 	var ids: Array[int] = []
 	for x: int in [70, 90, 110]:

@@ -121,6 +121,7 @@ func _ready() -> void:
 	_hud.launch_finger_lift = func() -> int:
 		return _telescope.finger_lift() if use_telescope else 0
 	_telescope.message_shown.connect(_hud.show_message)
+	_telescope.message_withdrawn.connect(_hud.withdraw_message)
 	_hud.table_opened.connect(_pause_world.bind(true))
 	_hud.table_closed.connect(_pause_world.bind(false))
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
@@ -246,7 +247,7 @@ func switch_launcher(telescope: bool) -> void:
 			_paused[launcher] = mode
 		else:
 			launcher.process_mode = mode
-	_hud.show_message("")
+	_hud.clear_message()
 	if telescope:
 		_telescope.request_aim()
 

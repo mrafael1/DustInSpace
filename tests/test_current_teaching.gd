@@ -34,11 +34,11 @@ func test_the_rule_is_said_as_the_player_first_aims_before_any_launch() -> void:
 	assert_true(telescope.is_aiming())
 	assert_eq(main.run.total_packs(), 3, "nothing launched yet")
 	assert_eq(hud.message(), Hud.DRAIN_MESSAGE, "said before the first launch is committed")
-	hud.show_message("")
+	hud.clear_message()
 	telescope.cancel_aim()
 	assert_true(telescope.start_aim())
 	assert_eq(hud.message(), "", "once a run: aiming again says nothing new")
-	hud.show_message("")
+	hud.clear_message()
 	assert_true(main.restart())
 	if not telescope.is_aiming():
 		_settle_until_aiming(main)
@@ -46,6 +46,31 @@ func test_the_rule_is_said_as_the_player_first_aims_before_any_launch() -> void:
 			assert_true(telescope.start_aim())
 	assert_eq(hud.message(), Hud.DRAIN_MESSAGE, "a retry hears it again, before its first launch")
 	assert_eq(main.run.total_packs(), 3)
+
+
+func test_a_quick_launch_keeps_the_rule_on_show() -> void:
+	var main: Main = _main("aquarius_body")
+	var hud: Hud = main.get_node("HUD")
+	var telescope: Telescope = main.get_node("Telescope")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	_settle_until_aiming(main)
+	assert_eq(hud.message(), Hud.DRAIN_MESSAGE)
+	telescope.handle_pointer(_touch(Vector2i(0, -150), true))
+	telescope.handle_pointer(_touch(Vector2i(0, -150), false))
+	assert_eq(main.run.total_packs(), 2, "launched at once")
+	assert_eq(hud.message(), Hud.DRAIN_MESSAGE, "the launch doesn't wipe the rule (#152)")
+	for tick: int in int((Hud.TEACHING_HOLD - 0.1) / 0.05):
+		sequencer.advance(0.05)
+		telescope.advance(0.05)
+		hud.advance(0.05)
+	assert_eq(hud.message(), Hud.DRAIN_MESSAGE, "nor the burst and reload after it")
+
+
+func _touch(point: Vector2i, pressed: bool) -> InputEventScreenTouch:
+	var touch := InputEventScreenTouch.new()
+	touch.position = Vector2(point)
+	touch.pressed = pressed
+	return touch
 
 
 func test_every_draining_stage_names_the_loss_and_every_line_fits() -> void:
