@@ -6,29 +6,58 @@ extends RefCounted
 ## star lit since the last harvest goes dark again unless lit strings join it to the figure bound
 ## before. No randomness or nodes; the run applies it.
 
-## Launches between two harvests.
+## Launches between two harvests (the clock as it starts; a quickening one shortens).
 var every: int
 ## Bound sheaves: the harvest puts out constellation stars not joined to the bound figure.
 var binds: bool
+## The swath: each harvest reaps only half the sky, the left half first, then the right, by turns.
+var swath: bool
+## The quickening: after each harvest the clock is a launch shorter, down to one.
+var quickens: bool
+## Tied at once: the binding acts after every launch, not only at the harvest.
+var ties: bool
 ## Launches left until the next harvest (1: the next launch brings it).
 var launches_left: int
+## Launches between harvests now.
+var period: int
+## Harvests so far.
+var harvests: int = 0
 
 
-func _init(p_every: int = 3, p_binds: bool = false) -> void:
+func _init(p_every: int = 3, p_binds: bool = false, p_swath: bool = false, p_quickens: bool = false, p_ties: bool = false) -> void:
 	assert(p_every >= 1, "a harvest needs at least one launch between")
 	every = p_every
 	binds = p_binds
+	swath = p_swath
+	quickens = p_quickens
+	ties = p_ties
+	period = every
 	launches_left = every
 
 
-## A launch has resolved: the clock counts it. True when this launch brings the harvest (the clock
-## then starts over).
+## A launch is about to burst its last: the clock counts it. True when this launch brings the harvest
+## (the clock then starts over, a launch shorter if it quickens).
 func count_launch() -> bool:
 	launches_left -= 1
 	if launches_left > 0:
 		return false
-	launches_left = every
+	harvests += 1
+	if quickens:
+		period = maxi(1, period - 1)
+	launches_left = period
 	return true
+
+
+## With the swath: whether the next harvest reaps the left half of the sky (else the right).
+func reaps_left() -> bool:
+	return harvests % 2 == 0
+
+
+## Whether the next harvest reaps a star at column `x` of a sky whose middle column is `middle`.
+func reaps(x: int, middle: int) -> bool:
+	if not swath:
+		return true
+	return x < middle if reaps_left() else x >= middle
 
 
 ## Whether the next launch brings the harvest.

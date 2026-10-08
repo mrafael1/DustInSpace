@@ -28,8 +28,9 @@ signal landmarks_resized(changes: Array[StarHeat.Change])
 ## scythe reaped the loose `stars` (maybe none), for nothing: before a blue planet's burst, between a
 ## red planet's two. Any landmarks_unbound follows, then the burst.
 signal harvested(stars: Array[Star])
-## The harvest clock moved: `launches_left` until the next harvest (after every launch).
-signal harvest_counted(launches_left: int)
+## The harvest clock moved: `launches_left` until the next harvest, of `period` launches between two
+## (a quickening clock shortens), after every launch.
+signal harvest_counted(launches_left: int, period: int)
 ## Virgo's bound sheaves: the harvest put out the constellation stars `indices`, lit since the last
 ## harvest but not joined to the figure lit before it.
 signal landmarks_unbound(indices: Array[int])
@@ -203,7 +204,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.heat_change != 0:
 			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns, scorpio.map.heat_turns)
 		if scorpio.map.harvest and balance.harvest_every_for(scorpio.map.id) > 0:
-			harvest = StarHarvest.new(balance.harvest_every_for(scorpio.map.id), scorpio.map.harvest_binds)
+			harvest = StarHarvest.new(balance.harvest_every_for(scorpio.map.id), scorpio.map.harvest_binds, scorpio.map.harvest_swath, scorpio.map.harvest_quickens, scorpio.map.harvest_ties)
 			_bound.assign(scorpio.lit)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
@@ -838,15 +839,21 @@ func _shift_stars() -> void:
 ## a blue planet's only one, lands after), and, where it binds, puts out the constellation stars lit
 ## since the last harvest that lit strings don't join to the bound figure.
 func _count_harvest() -> void:
-	if harvest.count_launch():
-		var reaped: Array[Star] = stars.duplicate()
+	var middle: int = sky_rect.get_center().x
+	var reaps: Callable = harvest.reaps.bind(middle)
+	var due: bool = harvest.launches_left == 1
+	if due:
+		var reaped: Array[Star] = stars.filter(func(star: Star) -> bool: return reaps.call(star.position.x))
+		harvest.count_launch()
 		for star: Star in reaped:
 			stars.erase(star)
 		_orion_forget(reaped)
 		harvested.emit(reaped)
-		if harvest.binds:
-			_bind_sheaves()
-	harvest_counted.emit(harvest.launches_left)
+	else:
+		harvest.count_launch()
+	if harvest.binds and (due or harvest.ties):
+		_bind_sheaves()
+	harvest_counted.emit(harvest.launches_left, harvest.period)
 
 
 ## Bound sheaves: the constellation stars that go dark at the harvest go dark; every star still lit
@@ -876,14 +883,15 @@ func harvest_preview() -> Array[int]:
 	if harvest == null or not harvest.is_next():
 		return result
 	for star: Star in stars:
-		result.append(star.id)
+		if harvest.reaps(star.position.x, sky_rect.get_center().x):
+			result.append(star.id)
 	return result
 
 
 ## Pure preview: the constellation stars the next launch's harvest puts out (bound sheaves), or none
 ## when the next launch doesn't bring one.
 func unbound_preview() -> Array[int]:
-	if harvest == null or not harvest.binds or not harvest.is_next():
+	if harvest == null or not harvest.binds or not (harvest.is_next() or harvest.ties):
 		return [] as Array[int]
 	return StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
 
