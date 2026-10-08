@@ -111,6 +111,9 @@ const BREATH_MESSAGE: String = "EVERY LINK AND LAUNCH\nFEEDS THE HEAT"
 ## The Head: the constellation stars grow too (a big one comes back small); loose bigs burn.
 const LION_MESSAGE: String = "THE LION GROWS TOO\nBIG STARS BURN OUT"
 const RULE_MESSAGE_TIME: float = 3.5
+## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
+## no launch, other message or clear cuts it before it can be read; only another teaching line can.
+const TEACHING_HOLD: float = 2.5
 ## A final that isn't Orion's arrives with its title card for this long (no threat, no roar).
 const ARRIVAL_TIME: float = 2.2
 ## A refused pick's reason, said on the message line (#91): two lines, so it fits the 180 px screen.
@@ -152,6 +155,8 @@ var _dust_debt: int = 0
 var _hops: Dictionary[Label, float] = {}
 var _rest: Dictionary[Label, Vector2] = {}
 var _message_left: float = 0.0
+## Seconds the teaching line on show is still held (TEACHING_HOLD).
+var _message_held: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
 var _current_told: bool = false
@@ -265,6 +270,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_orion_told = false
 	_current_told = false
 	_lone_quiet = 0.0
+	clear_message()
 	_volley.visible = run.volley != null
 	if run.volley != null:
 		_volley.position = Vector2(run.sky_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
@@ -319,6 +325,7 @@ func advance(delta: float) -> void:
 	for label: Label in _hops:
 		_hops[label] = maxf(_hops[label] - delta, 0.0)
 		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
+	_message_held = maxf(_message_held - delta, 0.0)
 	if _message_left > 0.0:
 		_message_left -= delta
 		_message.visible = _message_left > 0.0
@@ -334,9 +341,9 @@ func tell_current_rule() -> void:
 		return
 	_current_told = true
 	if _run.harvest != null:
-		show_message(harvest_rule(_run.harvest), RULE_MESSAGE_TIME)
+		show_message(harvest_rule(_run.harvest), RULE_MESSAGE_TIME, true)
 		return
-	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links), RULE_MESSAGE_TIME)
+	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links), RULE_MESSAGE_TIME, true)
 
 
 ## Bound sheaves: a constellation star just lit alone says the scythe will cut it (once a while).
@@ -344,7 +351,7 @@ func _tell_lone(index: int) -> void:
 	if _run == null or not _run.loose_landmarks().has(index) or _lone_quiet > 0.0:
 		return
 	_lone_quiet = LONE_QUIET
-	show_message(LONE_MESSAGE, RULE_MESSAGE_TIME)
+	show_message(LONE_MESSAGE, RULE_MESSAGE_TIME, true)
 
 
 ## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,
@@ -380,13 +387,31 @@ static func current_rule(current: StarCurrent) -> String:
 	return DRAIN_MESSAGE if current.drains else FLOW_MESSAGE
 
 
-## Shows a short message above the launcher for `seconds` ("" clears it).
-func show_message(text: String, seconds: float = MESSAGE_TIME) -> void:
+## Shows a short message above the launcher for `seconds` ("" clears it). A `teaching` line is held
+## TEACHING_HOLD: until then any other message or clear is dropped (#152). Returns true if shown.
+func show_message(text: String, seconds: float = MESSAGE_TIME, teaching: bool = false) -> bool:
+	if _message_held > 0.0 and not teaching:
+		return false
+	_message_held = TEACHING_HOLD if teaching and text != "" else 0.0
 	_message.text = text
 	# Its last line stays on the message line; any line before it goes above.
 	_message.position = Vector2(_message.position.x, MESSAGE_Y - text.count("\n") * MESSAGE_LINE_STEP)
 	_message_left = seconds if text != "" else 0.0
 	_message.visible = text != ""
+	return true
+
+
+## Takes `text` off the message line if it's the one on show (a launcher's own line, #152), so
+## nobody clears a line someone else said.
+func withdraw_message(text: String) -> void:
+	if text != "" and message() == text:
+		show_message("")
+
+
+## Clears the message line, held or not (a new run).
+func clear_message() -> void:
+	_message_held = 0.0
+	show_message("")
 
 
 ## Says why a pick was refused (`reason`, a RunState.PickRefusal) on the message line, unless the
@@ -394,8 +419,8 @@ func show_message(text: String, seconds: float = MESSAGE_TIME) -> void:
 func explain_refusal(reason: RunState.PickRefusal) -> void:
 	if not REFUSAL_MESSAGES.has(reason) or _refusal_quiet.has(reason):
 		return
-	_refusal_quiet[reason] = RULE_QUIET
-	show_message(REFUSAL_MESSAGES[reason], RULE_TIME)
+	if show_message(REFUSAL_MESSAGES[reason], RULE_TIME):
+		_refusal_quiet[reason] = RULE_QUIET
 
 
 ## Opens the table (#94) with the run's links and rewards; the game holds still until a tap.
@@ -680,12 +705,12 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"star_marked":
 			if not _orion_told:
 				_orion_told = true
-				show_message(ORION_MESSAGE, ORION_MESSAGE_TIME)
+				show_message(ORION_MESSAGE, ORION_MESSAGE_TIME, true)
 			return
 		&"area_marked":
 			if not _orion_told:
 				_orion_told = true
-				show_message(HUNT_MESSAGE, ORION_MESSAGE_TIME)
+				show_message(HUNT_MESSAGE, ORION_MESSAGE_TIME, true)
 			return
 		_:
 			return
