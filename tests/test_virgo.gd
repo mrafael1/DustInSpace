@@ -222,9 +222,15 @@ func test_the_wing_opens_by_showing_a_joined_star_kept_and_a_lone_one_put_out() 
 	var kept: Array[int] = []
 	var out: Array[int] = []
 	var cleared: Array[int] = []
-	run.harvest_intro_lit.connect(func(index: int, alone: bool) -> void:
+	var links: Array = []
+	var placed: Array = []
+	run.harvest_intro_placed.connect(func(stars: Array[Star]) -> void:
+		order.append("placed")
+		placed.append(stars))
+	run.harvest_intro_lit.connect(func(index: int, alone: bool, link: Array[int]) -> void:
 		order.append("lit")
-		lit.append([index, alone]))
+		lit.append([index, alone])
+		links.append(link))
 	run.harvested.connect(func(stars: Array[Star]) -> void:
 		order.append("sweep")
 		assert_true(stars.is_empty(), "the demo has no loose stars"))
@@ -238,7 +244,18 @@ func test_the_wing_opens_by_showing_a_joined_star_kept_and_a_lone_one_put_out() 
 		order.append("cleared")
 		cleared.append_array(indices))
 	run.play_harvest_intro()
-	assert_eq(order, ["lit", "lit", "sweep", "kept", "out", "cleared"] as Array[String])
+	assert_eq(order, ["placed", "lit", "placed", "lit", "sweep", "kept", "out", "cleared"] as Array[String])
+	for k: int in 2:
+		var pair: Array = placed[k]
+		assert_eq(pair.size(), 2, "two demo stars for each combo")
+		var size: int = StarMap.virgo_wing().sizes[lit[k][0]]
+		for star: Star in pair:
+			assert_eq(star.size, size, "a triple with the star it lights")
+		var link: Array[int] = links[k]
+		assert_eq(link.size(), 3)
+		assert_true(link.has(Scorpio.landmark_id(lit[k][0])), "the combo lights it")
+		assert_true(run.link_in_reach(link), "a link a player could trace")
+	assert_true(run.stars.is_empty(), "the demo stars are gone")
 	var near: int = lit[0][0]
 	var far: int = lit[1][0]
 	assert_false(lit[0][1], "the first is joined")
