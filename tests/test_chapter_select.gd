@@ -31,7 +31,7 @@ func test_it_opens_on_the_stinger_ready_to_play() -> void:
 
 func test_tapping_any_star_picks_the_part_it_belongs_to() -> void:
 	for landmark: int in Scorpio.LANDMARKS.size():
-		assert_eq(ChapterSelect.stage_at(Scorpio.LANDMARKS[landmark] + Vector2i(3, -3)), Chapter.stage_of(landmark))
+		assert_eq(ChapterSelect.stage_at(Scorpio.LANDMARKS[landmark] + Vector2i(3, -3)), Chapter.new().stage_of(landmark))
 	assert_eq(ChapterSelect.stage_at(ChapterSelect.FINAL_AT), Chapter.FINAL, "the crown is the final")
 	assert_eq(ChapterSelect.stage_at(Vector2i(90, 30)), -1, "the title isn't a stage")
 
@@ -343,7 +343,7 @@ func test_app_opens_on_the_chart_then_stage_1_then_back() -> void:
 	assert_true(stage.in_chapter)
 	assert_eq(stage.run.scorpio.map.id, "stinger", "playing its own map")
 	assert_false(app_chart.visible)
-	assert_true((stage.get_node("HUD") as Hud).is_map_button_shown(), "with a way back")
+	assert_true((stage.get_node("HUD") as Hud).is_map_offered(), "with a way back")
 	stage.map_requested.emit()
 	assert_null(app.stage())
 	assert_true(app_chart.visible, "back on the chart")
@@ -424,29 +424,36 @@ func test_a_loss_changes_nothing() -> void:
 	assert_false((app.get_node("ChapterSelect") as ChapterSelect).is_lighting())
 
 
-func test_the_hud_map_button_asks_for_the_chart() -> void:
+func test_the_pause_menus_map_asks_for_the_chart() -> void:
 	var app: App = _app()
 	app.open_stage(0)
 	var hud: Hud = app.stage().get_node("HUD")
 	var backed: Array[bool] = []
 	app.stage().map_requested.connect(func() -> void: backed.append(true))
-	var at: Vector2i = hud.map_target().get_center()
+	_tap_hud(hud, hud.pause_target().get_center())
+	assert_true(hud.pause_menu().is_open())
+	_tap_hud(hud, hud.pause_menu().item_rect(&"map").get_center())
+	assert_eq(backed, [true])
+
+
+func test_the_pause_menu_offers_the_map_only_in_a_chapter_and_its_button_clears_the_speaker() -> void:
+	var main: Main = preload("res://game/scenes/main.tscn").instantiate()
+	add_child_autofree(main)
+	var hud: Hud = main.get_node("HUD")
+	assert_false(hud.is_map_offered(), "a stage played on its own has no MAP")
+	assert_false(hud.pause_menu().ids().has(&"map"))
+	hud.offer_map(true)
+	assert_true(hud.pause_menu().ids().has(&"map"))
+	assert_false(hud.pause_target().intersects(hud.sound_target()))
+	assert_true(Rect2i(Vector2i.ZERO, ScreenZones.SCREEN).encloses(hud.pause_target()), "on screen")
+
+
+func _tap_hud(hud: Hud, at: Vector2i) -> void:
 	for pressed: bool in [true, false]:
 		var touch := InputEventScreenTouch.new()
 		touch.position = Vector2(at)
 		touch.pressed = pressed
 		hud.handle_pointer(touch)
-	assert_eq(backed, [true])
-
-
-func test_the_map_button_only_shows_in_a_chapter_and_clears_the_speaker() -> void:
-	var main: Main = preload("res://game/scenes/main.tscn").instantiate()
-	add_child_autofree(main)
-	var hud: Hud = main.get_node("HUD")
-	assert_false(hud.is_map_button_shown(), "a stage played on its own has no MAP")
-	hud.show_map_button(true)
-	assert_false(hud.map_target().intersects(hud.sound_target()))
-	assert_true(Rect2i(Vector2i.ZERO, ScreenZones.SCREEN).encloses(hud.map_target()), "on screen")
 
 
 func test_the_end_screen_offers_the_map_in_a_chapter() -> void:
@@ -479,6 +486,7 @@ func _segment(a: int, b: int) -> int:
 
 func _app() -> App:
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = store_path
 	add_child_autofree(app)
 	return app

@@ -264,8 +264,9 @@ func test_the_app_plays_each_encounter_once_and_saves_it() -> void:
 	var chapter := Chapter.new()
 	for stage: int in 3:
 		chapter.complete(stage)
-	ProgressStore.new(store_path).save_chapter(Chapter.ID, chapter.to_save())
+	ProgressStore.new(store_path).save_chapter(ChapterDef.scorpio().id, chapter.to_save())
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = store_path
 	add_child_autofree(app)
 	app.open_stage(1)
@@ -280,6 +281,7 @@ func test_the_app_plays_each_encounter_once_and_saves_it() -> void:
 	assert_true(app.stage().encounter, "the Body's volley is still to meet")
 	app.back_to_chart()
 	var again: App = AppScene.instantiate()
+	again.opens_on_title = false
 	again.progress_path = store_path
 	add_child_autofree(again)
 	assert_true(again.encounters_met.get("mark", false), "saved")

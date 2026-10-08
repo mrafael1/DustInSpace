@@ -77,8 +77,33 @@ var hunt_intro_stars: int = 0
 ## The idle hint (#90): seconds without interaction (animations aside) before a valid link shines.
 ## Optional: without a "hints" block there is none (0).
 var hint_idle_seconds: float = 0.0
+## Native pixels a current moves stars per launch; absent means no current. A stage can have its
+## own (current_steps, by StarMap id: chapter 2's stages ramp up), else it uses this one.
+var current_step: int = 0
+var current_steps: Dictionary[String, int] = {}
+## Virgo's harvest (chapter 4): launches between two harvests (0: no harvest), and the percent of
+## their dust links pay under it (rounded down). A stage can have its own (harvest_stages, by
+## StarMap id: {"every", "link_dust_percent"}, each optional), else it uses these.
+var harvest_every: int = 0
+var harvest_link_dust_percent: int = 100
+var harvest_stages: Dictionary[String, Dictionary] = {}
 
 var errors: Array[String] = []
+
+
+## How far the current moves stars per launch on the stage playing map `map_id` (0: no current).
+func current_step_for(map_id: String) -> int:
+	return current_steps.get(map_id, current_step)
+
+
+## Launches between two harvests on the stage playing `map_id` (0: no harvest).
+func harvest_every_for(map_id: String) -> int:
+	return harvest_stages.get(map_id, {}).get("every", harvest_every)
+
+
+## The percent of their dust links pay under the harvest on the stage playing `map_id`.
+func harvest_link_dust_percent_for(map_id: String) -> int:
+	return harvest_stages.get(map_id, {}).get("link_dust_percent", harvest_link_dust_percent)
 
 
 static func load_file(path: String = DEFAULT_PATH) -> Balance:
@@ -147,6 +172,15 @@ func _parse(data: Dictionary) -> void:
 			hunt_intro_stars = _read_int(hunt, "intro_stars", "hunt.", 0)
 	if data.has("hints"):
 		hint_idle_seconds = _read_seconds(_read_dict(data, "hints", ""), "idle_seconds", "hints.")
+	if data.has("currents"):
+		var currents: Dictionary = _read_dict(data, "currents", "")
+		current_step = _read_int(currents, "step", "currents.", 1)
+		if currents.has("stages"):
+			var stages: Dictionary = _read_dict(currents, "stages", "currents.")
+			for map_id: Variant in stages:
+				current_steps[str(map_id)] = _read_int(stages, map_id, "currents.stages.", 1)
+	if data.has("harvest"):
+		_parse_harvest(_read_dict(data, "harvest", ""))
 	for block: String in VOLLEY_BLOCKS:
 		if data.has(block):
 			volleys[block] = _parse_volley(_read_dict(data, block, ""), block + ".")
@@ -205,6 +239,23 @@ func _parse_volley(raw: Dictionary, ctx: String) -> VolleyDef:
 	if raw.has("intro_stars"):
 		def.intro_stars = _read_int(raw, "intro_stars", ctx, 0)
 	return def
+
+
+func _parse_harvest(raw: Dictionary) -> void:
+	harvest_every = _read_int(raw, "every", "harvest.", 1)
+	if raw.has("link_dust_percent"):
+		harvest_link_dust_percent = _read_int(raw, "link_dust_percent", "harvest.", 0)
+	if raw.has("stages"):
+		var stages: Dictionary = _read_dict(raw, "stages", "harvest.")
+		for map_id: Variant in stages:
+			var ctx: String = "harvest.stages.%s." % map_id
+			var entry: Dictionary = _read_dict(stages, map_id, "harvest.stages.")
+			var stage: Dictionary = {}
+			if entry.has("every"):
+				stage["every"] = _read_int(entry, "every", ctx, 1)
+			if entry.has("link_dust_percent"):
+				stage["link_dust_percent"] = _read_int(entry, "link_dust_percent", ctx, 0)
+			harvest_stages[str(map_id)] = stage
 
 
 func _parse_scorpio(raw: Dictionary) -> void:

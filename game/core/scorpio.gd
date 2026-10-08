@@ -122,6 +122,27 @@ func light(index: int) -> Array[int]:
 	return formed
 
 
+## Puts a lit landmark out again (Virgo's bound sheaves). Returns the strings it breaks.
+func unlight(index: int) -> Array[int]:
+	var broken: Array[int] = []
+	if not lit[index]:
+		return broken
+	for segment: int in map.segments_of(index):
+		if is_built(segment):
+			broken.append(segment)
+	lit[index] = false
+	return broken
+
+
+## The landmarks still unlit, as stars (their landmark ids, sizes and places).
+func unlit_stars() -> Array[Star]:
+	var result: Array[Star] = []
+	for i: int in map.count():
+		if not lit[i]:
+			result.append(landmark_star(i))
+	return result
+
+
 ## Sizes of the landmarks still unlit.
 func unlit_sizes() -> Array[int]:
 	var sizes: Array[int] = []

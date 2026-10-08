@@ -26,7 +26,22 @@ extends Node2D
 signal sunbeam_landed(at: Vector2i)
 ## Completion: the `order`-th string (0 = the lowest) lit and its note should sound.
 signal string_sung(segment: int, order: int)
+## The Head: landmark `index`, big, burned back to small as it popped. Feedback only.
+signal landmark_rekindled(index: int)
+## Leo's final arriving: its `order`-th star caught fire. Feedback only (sound).
+signal blaze_lit(order: int)
+## Leo's final arriving: the whole lion is alight and roars. Feedback only (sound).
+signal roared
 
+## Leo's final arrives (play_blaze): its stars, dark at first (their dim art), catch fire one every
+## BLAZE_STEP along the figure from the lit tail tuft: C0 for BLAZE_FLASH, ember (S4) until
+## BLAZE_EMBER, then themselves. Then the lion roars for ROAR_TIME: the whole figure flashes C0 on
+## two ROAR_FLASH beats and shakes a pixel side to side.
+const BLAZE_STEP: float = 0.12
+const BLAZE_FLASH: float = 0.08
+const BLAZE_EMBER: float = 0.24
+const ROAR_TIME: float = 0.4
+const ROAR_FLASH: float = 0.08
 ## The outline stops this far short of each landmark, so the stars stay clear.
 const LANDMARK_CLEAR: int = 5
 ## A string still to form: one pixel in OUTLINE_STEP.
@@ -68,6 +83,9 @@ const FIGURE_RISE: float = 1.8
 const FIGURE_FLASH: float = 0.1
 ## The finished figure holds the screen this long before the end screen.
 const FIGURE_CODA: float = 1.6
+## A stage won before (a replay) keeps its whole reveal but holds the painting only this long
+## (#128: the first reveal is the reward; seen again, the hold just delays the end screen).
+const REPEAT_CODA: float = 0.5
 ## A sung string vibrates: a standing wave of VIBRATE_AMPLITUDE px, VIBRATE_CYCLES swings, dying
 ## out over VIBRATE_TIME. Whole pixels, across the string.
 const VIBRATE_TIME: float = 0.5
@@ -83,8 +101,26 @@ var _selected: Array[int] = []
 var _hinted: Array[int] = []
 var _hint_time: float = 0.0
 var _tracing: bool = false
+## This stage was won before (Main sets it): its completion holds the painting for REPEAT_CODA.
+var repeat: bool = false
+var current_aiming: bool = false:
+	set(value):
+		if current_aiming != value:
+			current_aiming = value
+			queue_redraw()
 ## Which landmarks show lit: the run's as of setup, then each played landmark_lit.
 var _shown_lit: Array[bool] = []
+## The size each landmark shows: the map's as of setup, then each played landmarks_resized (the
+## core changes its sizes the moment a launch resolves).
+var _shown_sizes: Array[int] = []
+## Landmarks the heat is resizing (the Head): index -> [from, to, seconds in, rekindled]. They play
+## a sky star's resize (StarView's charge and pop), switching size at RESIZE_FLARE.
+var _resizing: Dictionary[int, Array] = {}
+## Landmarks being cropped by Virgo's scythe, and the seconds until they show again (unlit).
+var _cropping: Dictionary[int, float] = {}
+## Leo's final arriving: seconds into the blaze (-1: none), and the order its stars catch fire in.
+var _blaze_time: float = -1.0
+var _blaze_order: Array[int] = []
 var _preview_strings: Array[int] = []
 var _flash_landmark: int = -1
 var _flash_string: int = -1
@@ -126,7 +162,7 @@ func _draw() -> void:
 	for i: int in map.count():
 		_draw_landmark(i)
 	if _ring_time >= 0.0:
-		for p: Vector2i in lit_ring_pixels(map.sizes[_ring_landmark], _ring_time / LIT_RING_TIME):
+		for p: Vector2i in lit_ring_pixels(shown_size(_ring_landmark), _ring_time / LIT_RING_TIME):
 			_dot(map.landmarks[_ring_landmark] + p, LIT_RING_COLOURS[mini(floori(_ring_time / LIT_RING_TIME * 4.0), 3)])
 	if _beam_time >= 0.0:
 		_draw_beam(beam_pixels(_beam_from, _beam_to, _beam_time / BEAM_TIME))
@@ -139,11 +175,17 @@ func setup(run: RunState) -> void:
 	# The map sits where the run's sky puts it (a taller sky moves it up); everything here is drawn
 	# in its home layout, so the whole view moves with it.
 	position = Vector2(run.scorpio.shift) if run.scorpio != null else Vector2.ZERO
-	painting(_map().painting)
-	figure_rows(_map().painting)
+	if has_painting(_map()):
+		painting(_map().painting)
+		figure_rows(_map().painting)
 	_shown_lit.clear()
+	_shown_sizes.clear()
+	_resizing.clear()
+	_cropping.clear()
+	_blaze_time = -1.0
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
+		_shown_sizes.assign(run.scorpio.map.sizes)
 	clear_preview()
 	_flash_left = 0.0
 	_ring_time = -1.0
@@ -157,9 +199,19 @@ func _map() -> StarMap:
 	return _run.scorpio.map if _run != null and _run.scorpio != null else StarMap.scorpio()
 
 
-## How long the completion plays: the tune, the painting forming and flashing, the hold.
-static func completion_time() -> float:
-	return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + FIGURE_CODA
+## How long the completion plays: the tune, the painting forming and flashing, the hold (shorter
+## on a `replay`). A map without its painting yet (`map`; the full Scorpio's has one) ends once
+## the last string has rung, instead of holding an empty sky for the painting.
+static func completion_time(map: StarMap = null, replay: bool = false) -> float:
+	if map != null and not has_painting(map):
+		return TUNE_TIME + VIBRATE_TIME
+	return TUNE_TIME + FIGURE_RISE + FIGURE_FLASH + (REPEAT_CODA if replay else FIGURE_CODA)
+
+
+## Whether `map`'s painting has been drawn (a new chapter's stages come before their art: they
+## complete with their song and no painting).
+static func has_painting(map: StarMap) -> bool:
+	return map.painting != "" and ResourceLoader.exists(map.painting)
 
 
 ## The painting at `path` (a StarMap.painting), loaded once. Views load theirs before they draw
@@ -240,7 +292,7 @@ func hinted() -> Array[int]:
 
 ## Whether string `segment` shows thinned: a link is traced and it wouldn't form the string.
 func shows_thin(segment: int) -> bool:
-	return _tracing and not _preview_strings.has(segment)
+	return (_tracing or current_aiming) and not _preview_strings.has(segment)
 
 
 ## Whether unlit landmark `index` shows dimmed: a link is traced and it can't come next.
@@ -258,6 +310,24 @@ func flash_landmark(index: int) -> void:
 	_flash_string = -1
 	_flash_left = LIT_FLASH
 	queue_redraw()
+
+
+## Virgo's bound sheaves: landmark `index` shows dark again (unlit), its strings with it.
+func put_out(index: int) -> void:
+	if index < _shown_lit.size():
+		_shown_lit[index] = false
+	queue_redraw()
+
+
+## Virgo's scythe crops landmark `index`: it goes dark and isn't drawn for `seconds` (its cut halves
+## are drawn over it), then shows unlit.
+func crop(index: int, seconds: float) -> void:
+	put_out(index)
+	_cropping[index] = seconds
+
+
+func is_cropping(index: int) -> bool:
+	return _cropping.has(index)
 
 
 ## The Sun's ignition is over: a sunbeam flies from its rim (the Sun sits at `sun`) to landmark
@@ -385,6 +455,11 @@ func glow_step() -> int:
 
 ## Moves the glow, flashes and completion on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
+	for index: int in _cropping.keys():
+		_cropping[index] -= delta
+		if _cropping[index] <= 0.0:
+			_cropping.erase(index)
+			queue_redraw()
 	var step: int = glow_step()
 	var cue: int = cue_frame()
 	var twinkling: Array[bool] = _twinkling()
@@ -400,6 +475,28 @@ func advance(delta: float) -> void:
 		or (ring_frame() != ring and not _selected.is_empty()))
 	if _flash_left > 0.0:
 		_flash_left = maxf(_flash_left - delta, 0.0)
+		redraw = true
+	if _blaze_time >= 0.0:
+		var before: float = _blaze_time
+		_blaze_time += delta
+		for k: int in _blaze_order.size():
+			if before < k * BLAZE_STEP and _blaze_time >= k * BLAZE_STEP:
+				blaze_lit.emit(k)
+		if before < roar_at(_map()) and _blaze_time >= roar_at(_map()):
+			roared.emit()
+		if _blaze_time >= blaze_time(_map()):
+			_blaze_time = -1.0
+		redraw = true
+	for index: int in _resizing.keys():
+		var anim: Array = _resizing[index]
+		var before: float = anim[2]
+		anim[2] = before + delta
+		if before < StarView.RESIZE_FLARE and anim[2] >= StarView.RESIZE_FLARE:
+			_shown_sizes[index] = anim[1]
+			if anim[3]:
+				landmark_rekindled.emit(index)
+		if anim[2] >= StarView.RESIZE_TIME:
+			_resizing.erase(index)
 		redraw = true
 	if _ring_time >= 0.0:
 		_ring_time += delta
@@ -420,7 +517,7 @@ func advance(delta: float) -> void:
 		var order: Array[int] = song_order(_map())
 		for k: int in range(before + 1, mini(now, order.size() - 1) + 1):
 			string_sung.emit(order[k], k)
-		if _completion_time >= completion_time():
+		if _completion_time >= completion_time(_map(), repeat):
 			_completion_time = -1.0
 			_revealed = true
 		redraw = true
@@ -545,8 +642,22 @@ func ring_frame() -> int:
 
 
 func _draw_landmark(index: int) -> void:
-	var size: int = _map().sizes[index]
+	if _cropping.has(index):
+		return
+	var size: int = shown_size(index)
 	var at: Vector2i = _map().landmarks[index]
+	if _blaze_time >= 0.0:
+		at += blaze_shake(_blaze_time, _map())
+		var blaze: int = blaze_stage(index)
+		if blaze >= 0:
+			# Dark before it catches fire, then C0, then ember.
+			var art: Dictionary = _art[size][3 if blaze == 0 else 0]
+			for d: Vector2i in art:
+				_dot(at + d, art[d] if blaze == 0 else (Palette.C0 if blaze == 1 else Palette.S4))
+			return
+	if _resizing.has(index) and _resizing[index][2] >= 0.0 and not shows_lit(index):
+		_draw_resizing(index, size, at)
+		return
 	if shows_cue(index):
 		for d: Vector2i in cue_pixels(size):
 			_dot(at + d, CUE_COLOURS[cue_frame()])
@@ -571,6 +682,97 @@ func _draw_landmark(index: int) -> void:
 		_draw_ring(size, at)
 
 
+## A landmark the heat is resizing: a sky star's charge and pop (StarView.resize_frame, _offset and
+## _pixels) in the landmark's own art; its flare is the art in C0.
+func _draw_resizing(index: int, size: int, at: Vector2i) -> void:
+	var anim: Array = _resizing[index]
+	var t: float = anim[2]
+	var frame: StringName = StarView.resize_frame(t, false)
+	var dots: Dictionary = _art[size][4 if frame == &"glint" else (3 if frame == &"dim" else 0)]
+	var offset: Vector2i = StarView.resize_offset(t, false)
+	for d: Vector2i in dots:
+		_dot(at + offset + d, Palette.C0 if frame == &"flare" else dots[d])
+	var extra: Dictionary[Vector2i, Color] = StarView.resize_pixels(anim[0], anim[1], t, false)
+	for p: Vector2i in extra:
+		_dot(at + p, extra[p])
+
+
+## Leo's final arrives: the lion catches fire star by star, then roars. Returns how long it plays.
+func play_blaze() -> float:
+	_blaze_order = blaze_order(_map())
+	_blaze_time = 0.0
+	queue_redraw()
+	return blaze_time(_map())
+
+
+func is_blazing() -> bool:
+	return _blaze_time >= 0.0
+
+
+## The order `map`'s stars catch fire in: from its first lit star outward along the strings.
+static func blaze_order(map: StarMap) -> Array[int]:
+	var order: Array[int] = [map.starting_lit[0] if not map.starting_lit.is_empty() else 0]
+	var k: int = 0
+	while k < order.size():
+		for next: int in map.neighbours(order[k]):
+			if not order.has(next):
+				order.append(next)
+		k += 1
+	return order
+
+
+## When the lion has caught fire and roars, and when the blaze is over.
+static func roar_at(map: StarMap) -> float:
+	return map.count() * BLAZE_STEP
+
+
+static func blaze_time(map: StarMap) -> float:
+	return roar_at(map) + ROAR_TIME
+
+
+## The roar shakes the figure a pixel side to side, `t` seconds into the blaze.
+static func blaze_shake(t: float, map: StarMap) -> Vector2i:
+	var roar: float = t - roar_at(map)
+	if roar < 0.0 or roar >= ROAR_TIME:
+		return Vector2i.ZERO
+	return Vector2i.RIGHT if floori(roar / (ROAR_FLASH * 0.5)) % 2 == 0 else Vector2i.LEFT
+
+
+## How landmark `index` shows in the blaze: 0 still dark, 1 catching (C0), 2 ember, 3 roaring (C0),
+## -1 itself.
+func blaze_stage(index: int) -> int:
+	var roar: float = _blaze_time - roar_at(_map())
+	if roar >= 0.0:
+		var beat: int = floori(roar / ROAR_FLASH)
+		return 1 if roar < ROAR_TIME and beat % 2 == 0 and beat < 4 else -1
+	var age: float = _blaze_time - _blaze_order.find(index) * BLAZE_STEP
+	if age < 0.0:
+		return 0
+	if age < BLAZE_FLASH:
+		return 1
+	return 2 if age < BLAZE_EMBER else -1
+
+
+## The size landmark `index` shows now (it may lag the core's while the heat's resize plays).
+func shown_size(index: int) -> int:
+	return _shown_sizes[index] if index < _shown_sizes.size() else _map().sizes[index]
+
+
+## The heat changed these constellation stars (the Head): each charges at its old size, then pops
+## to its new one; a big that burns back to small says so as it pops (landmark_rekindled). `delays`:
+## seconds before a landmark's starts, by landmark index (the lion's heatwave on its way).
+func resize_landmarks(changes: Array[StarHeat.Change], delays: Dictionary = {}) -> void:
+	for change: StarHeat.Change in changes:
+		var index: int = Scorpio.landmark_index(change.star_id)
+		if index >= 0 and index < _map().count():
+			_resizing[index] = [change.from, change.to, -float(delays.get(index, 0.0)), change.rekindled]
+	queue_redraw()
+
+
+func is_resizing() -> bool:
+	return not _resizing.is_empty()
+
+
 ## The dashed C1 selection ring around a picked landmark: the sky star's ring art for its size.
 func _draw_ring(size: int, at: Vector2i) -> void:
 	var sheet: Texture2D = StarView.RING_SHEETS[size]
@@ -586,7 +788,7 @@ func _draw_completion() -> void:
 	for k: int in played:
 		var segment: int = order[k]
 		for index: int in _map().segment_landmarks(segment):
-			var dots: Dictionary = _art[_map().sizes[index]][1]
+			var dots: Dictionary = _art[shown_size(index)][1]
 			for d: Vector2i in dots:
 				_dot(_map().landmarks[index] + d, Palette.C0 if dots[d] != Palette.C3 else Palette.C1)
 
@@ -613,7 +815,7 @@ func _draw_vibrating(segment: int, pixels: Array[Vector2i], age: float) -> void:
 ## painting itself.
 func _draw_figure() -> void:
 	var stage: float = figure_stage()
-	if stage < 0.0:
+	if stage < 0.0 or not has_painting(_map()):
 		return
 	var path: String = _map().painting
 	var rows: Dictionary = figure_rows(path)

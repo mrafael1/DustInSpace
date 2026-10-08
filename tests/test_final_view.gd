@@ -280,7 +280,7 @@ func test_debug_previews_never_reach_the_save() -> void:
 	assert_not_null(app.stage())
 	app.stage().stage_won.emit()
 	var again := Chapter.new()
-	again.from_save(ProgressStore.new(path).load_chapter(Chapter.ID))
+	again.from_save(ProgressStore.new(path).load_chapter(ChapterDef.scorpio().id))
 	assert_eq(again.completed_count(), 1, "only the stage really won")
 	assert_true(again.is_completed(0))
 	if FileAccess.file_exists(path):

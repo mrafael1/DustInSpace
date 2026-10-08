@@ -8,7 +8,8 @@ signal run_started(run: RunState)
 ## In a chapter (#62): the run in play was won. Sent as the core decides it, so the win counts even
 ## if the player leaves before the end screen.
 signal stage_won
-## In a chapter: the player asked to go back to the chart (MAP in the HUD or on the end screen).
+## In a chapter: the player asked to go back to the chart (MAP in the pause menu or on the end
+## screen).
 signal map_requested
 ## The guided first run reached free play (App saves it, so it plays only once).
 signal tutorial_finished
@@ -23,17 +24,25 @@ signal encounter_finished(threat: int)
 ## Issue #52's prototype: launch with the telescope (point and tap) instead of the slingshot.
 ## Debug builds switch with T to compare the two.
 @export var use_telescope: bool = true
-## Played from a chapter's chart (App sets it before adding Main): shows the MAP buttons.
+## Played from a chapter's chart (App sets it before adding Main): offers MAP (pause menu, end
+## screen).
 @export var in_chapter: bool = false
 ## The constellation layout to play when balance.json turns the constellation on (a StarMap id:
 ## a chapter stage's, #62; the full Scorpio by default).
 @export var star_map: String = "scorpio"
+## This stage was won before (App sets it): its completion holds its painting more briefly.
+@export var replay: bool = false
 ## The guided first run (App sets it for the Stinger's first play): each run starts the tutorial
 ## until it's finished once.
 @export var tutorial: bool = false
 ## The stage's Orion threat hasn't been met yet (App sets it): each run plays its guided encounter
 ## (#93) until it's done once.
 @export var encounter: bool = false
+## Debug-only Aquarius experiment, using Tail geometry with every Orion rule disabled.
+@export var current_trial: bool = false
+@export var current_enabled: bool = true
+## Which trial map: "tail" or "aquarius" (StarMap.current_layout).
+@export var current_layout: String = "tail"
 
 var run: RunState
 ## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
@@ -63,6 +72,7 @@ var _paused: Dictionary[Node, Node.ProcessMode] = {}
 
 
 func _ready() -> void:
+	set_process(false)
 	# _input runs from the last child up: the idle hint watches every touch first (it takes none),
 	# then the speaker, then the sequencer's input lock.
 	assert(_idle_hint.get_index() == get_child_count() - 1, "IdleHint must be Main's last child")
@@ -79,8 +89,11 @@ func _ready() -> void:
 	_end_screen.restart_requested.connect(restart)
 	_end_screen.map_enabled = in_chapter
 	_end_screen.map_requested.connect(map_requested.emit)
-	_hud.show_map_button(in_chapter)
+	_hud.offer_map(in_chapter)
 	_hud.map_requested.connect(map_requested.emit)
+	_hud.restart_requested.connect(restart)
+	_hud.pause_opened.connect(_pause_world.bind(true))
+	_hud.pause_closed.connect(_pause_world.bind(false))
 	_end_screen.watch_payouts(_collect)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
 	_sky.link_traced.connect(_hud.follow_link)
@@ -103,6 +116,8 @@ func _ready() -> void:
 	_hud.table_opened.connect(_pause_world.bind(true))
 	_hud.table_closed.connect(_pause_world.bind(false))
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
+	($DebugKeys as DebugKeys).current_switch_requested.connect(switch_current)
+	($CurrentTrialControls as CurrentTrialControls).current_switch_requested.connect(switch_current)
 	_wire_playtest_log()
 	switch_launcher(use_telescope)
 	_wire_sound()
@@ -118,7 +133,14 @@ func start_run(balance: Balance) -> bool:
 		_report_balance_errors(balance.errors)
 		return false
 	_balance_errors.visible = false
-	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), StarMap.by_id(star_map))
+	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
+	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
+	set_process(run.current != null or run.heat != null or run.harvest != null)
+	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
+	($Sky/ConstellationLayer as ConstellationView).repeat = replay
+	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
+	($Sky/HeatLayer as HeatView).setup(run, _sequencer)
+	($Sky/HarvestLayer as HarvestView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)
 	_playtest_log.guided = tutorial
@@ -135,12 +157,38 @@ func start_run(balance: Balance) -> bool:
 	run.play_volley_intro()
 	# So does a hunting stage (#71): the whole cycle once, with a demo launch.
 	run.play_hunt_intro()
+	# And a stage bringing Leo's heat or cold: the effect shown once on a few stars.
+	run.play_heat_intro()
+	# And a stage bringing Virgo's scythe or its binding: shown once as it opens.
+	run.play_harvest_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
 		run.start_encounter()
+	# A current's rule is said as the player first aims; a launcher already aiming (it can start
+	# before the HUD is bound, and keeps aiming through a restart) says it now.
+	if _telescope.is_aiming() if use_telescope else _launcher.is_pulling():
+		_hud.tell_current_rule()
 	run_started.emit(run)
 	return true
+
+
+func _process(_delta: float) -> void:
+	var aiming: bool = run != null and not _sequencer.is_busy() and (
+		_telescope.is_aiming() if use_telescope else _launcher.is_pulling())
+	($Sky/CurrentLayer as CurrentView).aiming = aiming and run.current != null
+	($Sky/HeatLayer as HeatView).aiming = aiming and run.heat != null
+	($Sky/HarvestLayer as HarvestView).aiming = aiming and run.harvest != null
+	($Sky/ConstellationLayer as ConstellationView).current_aiming = aiming and (run.current != null or run.heat != null)
+
+
+## C restarts the trial with the same seed and the other setting.
+func switch_current() -> void:
+	if not OS.is_debug_build() or not current_trial or _sequencer.is_busy() or not _paused.is_empty():
+		return
+	seed_override = run.run_seed
+	current_enabled = not current_enabled
+	restart()
 
 
 ## Fills the window and places the game's 180x320 screen in it (a phone that isn't 9:16 shows
@@ -154,12 +202,13 @@ func fit_screen() -> void:
 	var visible: Vector2 = get_viewport().get_visible_rect().size
 	var offset: Vector2i = ScreenZones.game_offset(visible)
 	($BigBang/Shake as Camera2D).position = Vector2(-offset)
-	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front] as Array[CanvasLayer]:
+	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front, $CurrentTrialControls] as Array[CanvasLayer]:
 		layer.offset = Vector2(offset)
 	_sound_toggle.screen_offset = offset
 	_backdrop.fit(offset, Vector2i(visible))
 	# The UI anchors to the real screen's edges, not the game's 180x320 (the Sun's counter aside).
 	var screen := Rect2i(-offset, Vector2i(visible))
+	($CurrentTrialControls as CurrentTrialControls).fit_screen(screen)
 	_hud.fit_screen(screen)
 	_payouts.fit_screen(screen)
 	_sound_toggle.target = _hud.sound_target()
@@ -197,7 +246,7 @@ func launcher() -> Launcher:
 	return _telescope if use_telescope else _launcher
 
 
-## A fresh run on the current run's balance (the end screen's RESTART).
+## A fresh run on the current run's balance (the end screen's or the pause menu's RESTART).
 func restart() -> bool:
 	return run != null and start_run(run.balance)
 
@@ -213,6 +262,9 @@ func _wire_sound() -> void:
 	_launcher.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
 	_telescope.tremble_started.connect(_sfx.play.bind(&"tremble", 1.0))
 	_telescope.aim_started.connect(_sfx.play.bind(&"pull_start", 1.0))
+	# A current's rule is said as the player first aims, before the first launch is committed.
+	_telescope.aim_started.connect(_hud.tell_current_rule)
+	_launcher.pull_started.connect(_hud.tell_current_rule)
 	_telescope.aim_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_telescope.empty_tapped.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_telescope.launch_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
@@ -221,6 +273,25 @@ func _wire_sound() -> void:
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.link_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_sky.star_exploded.connect(_on_star_exploded)
+	# A drained star is the player's loss: sucked down the drain, a thump and a falling gulp.
+	_sky.star_drained.connect(func(_at: Vector2i) -> void: _sfx.play(&"drain"))
+	# A burnt star is lost too: it bursts low.
+	_sky.star_burned.connect(func(at: Vector2i) -> void:
+		_sparks.explode_at(at)
+		_sfx.play(&"burst", 0.7))
+	# A faded star goes quietly: frost falls, and the burst sounds high and brittle.
+	# A constellation star burning back to small: its embers burst, a fuller burst than a loss.
+	_sky.landmark_rekindled.connect(func(_at: Vector2i) -> void: _sfx.play(&"burst", 1.0))
+	# Leo's final arriving: each star catching fire chimes a step higher, then the lion roars low.
+	var constellation := _sky.get_node("ConstellationLayer") as ConstellationView
+	constellation.blaze_lit.connect(func(order: int) -> void: _sfx.play(&"star_select", 0.8 + 0.06 * order))
+	constellation.roared.connect(_sfx.play.bind(&"big_bang_collapse", 0.8))
+	_sky.star_faded.connect(func(_at: Vector2i) -> void: _sfx.play(&"burst", 1.5))
+	# Virgo's scythe swishes across the sky; a constellation star it crops rings out with its own cut.
+	_sky.harvest_swept.connect(_sfx.play.bind(&"launch", 0.7))
+	_sky.landmark_put_out.connect(func(_at: Vector2i) -> void: _sfx.play(&"crop", 1.0))
+	_sky.landmark_kept.connect(func(_at: Vector2i) -> void: _sfx.play(&"star_select", 1.5))
+	_sky.intro_link_collected.connect(_sfx.play.bind(&"link_collect", 1.0))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)
@@ -233,6 +304,8 @@ func _wire_sound() -> void:
 	_hud.tap_refused.connect(func(_kind: String, _part: StringName) -> void: _sfx.play(&"tap_refused"))
 	_hud.pack_ready.connect(func(_kind: String) -> void: _sfx.play(&"pack_ready"))
 	_sound_toggle.toggled.connect(_sfx.cycle_level)
+	_hud.sound_cycle_requested.connect(_sfx.cycle_level)
+	_hud.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))
 	_sfx.level_changed.connect(_hud.show_sound_level)
 	_hud.show_sound_level(_sfx.level)
 	_big_bang.collapse_started.connect(_sfx.play.bind(&"big_bang_collapse", 1.0))
@@ -295,7 +368,7 @@ func _report_balance_errors(errors: Array[String]) -> void:
 		_balance_errors.visible = true
 
 
-## The table holds the world still (`on`): everything but the HUD, the speaker and the debug
+## The table or the pause menu holds the world still (`on`): everything but the HUD, the speaker and the debug
 ## tools stops processing and taking input, and starts again as it was.
 func _pause_world(on: bool) -> void:
 	if on:

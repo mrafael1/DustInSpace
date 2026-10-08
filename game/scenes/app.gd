@@ -1,13 +1,24 @@
 class_name App
 extends Node
-## The game's entry (#62): Scorpio's chapter chart first; PLAY opens the selected stage (Main,
+## The game's entry (#62): the title first (ChapterSelect.show_title; a tap leads down to the
+## chart), then the chapter's chart; PLAY opens the selected stage (Main,
 ## in_chapter, playing that stage's StarMap) and MAP brings the chart back. A stage won counts at
 ## once (Main.stage_won): the chapter records it and saves it (ProgressStore), and back on the
 ## chart its stars light and a comet travels to the stage it opened. Owns no rules: Chapter keeps the progress.
 ## Fills the window like Main (a whole-number scale, the game's screen on the bottom edge).
 ## The Stinger's first play is the guided first run (Main.tutorial) until it's finished once; that
-## is saved with the progress ("tutorial": {"done": true}). After that the chart's TUTORIAL button
-## plays it again (replay_tutorial): the Stinger, guided, its win counting as usual.
+## is saved with the progress ("tutorial": {"done": true}). After that the options' TUTORIAL plays
+## it again (replay_tutorial): the Stinger, guided, its win counting as usual.
+## The options (OptionsMenu: the gear in the top-right corner of the title and the chart) set the
+## sound level (saved with the HUD speaker's), replay the tutorial, and reset every chapter's
+## progress, the tutorial and the encounters (reset_progress) when held.
+## Chapters (ChapterDef.all): each keeps its own progress. One opens once the chapter before it is
+## won (Aquarius after Scorpio's final). The chart's arrows (or a swipe) slide to the chapter before
+## or after, if it's open; a locked one shows a padlock. Winning the final that opens the next
+## chapter plays its opening back on the chart (the padlock bursts), then slides on to it and
+## reveals it. The chart opens on the latest open chapter. The chart has its own sound (Sfx).
+## Debug builds, on the chart: [ and ] go to the chapter before or after, open or not; O plays the
+## next chapter's opening.
 ## Debug builds, on the chart: U previews every part won and plays the final's unlock; F previews
 ## the final won too and plays its painted Scorpio rising. A preview is a copy of the chapter shown
 ## on the chart only: it is never saved and never unlocks a stage; opening a stage drops it.
@@ -24,8 +35,15 @@ const ENCOUNTERS_ID: String = "encounters"
 
 ## Where progress is kept. Tests point it at a file of their own.
 @export var progress_path: String = ProgressStore.DEFAULT_PATH
+## Where the sound level is kept (the chart's Sfx). Tests point it at a file of their own.
+@export var settings_path: String = Sfx.SETTINGS_PATH
+## The game opens on the title. Tests that start on the chart turn it off.
+@export var opens_on_title: bool = true
 
+## The chapter the chart shows (and stages open from).
 var chapter: Chapter
+## Every chapter, in campaign order, with its progress.
+var chapters: Array[Chapter] = []
 ## The guided first run was finished once.
 var tutorial_done: bool = false
 var encounters_met: Dictionary = {}
@@ -33,39 +51,83 @@ var _store: ProgressStore
 ## The stage in play, or null on the chart.
 var _stage: Main
 var _stage_point: int = -1
+## Back from a win: whether it opened the next chapter (its final, won the first time).
+var _opens_chapter: bool = false
+## The chart's sound.
+var _sfx: Sfx
 ## Back from a win: the point it completed and the one it unlocked (-1 for none).
 var _won_point: int = -1
 var _unlocked: int = -1
 ## Debug: the chapter copy the chart previews, or null.
 var _preview: Chapter
+## The options: a gear over the title and the chart, and its menu.
+var _options: OptionsMenu
 
 @onready var _chart: ChapterSelect = $ChapterSelect
 
 
 func _ready() -> void:
 	_store = ProgressStore.new(progress_path)
-	chapter = Chapter.new()
-	chapter.from_save(_store.load_chapter(Chapter.ID))
-	tutorial_done = _store.load_chapter(TUTORIAL_ID).get("done", false) == true
-	encounters_met = _store.load_chapter(ENCOUNTERS_ID)
+	_load_progress()
 	_chart.setup(chapter)
 	_chart.stage_chosen.connect(open_stage)
-	_chart.tutorial_requested.connect(replay_tutorial)
-	_chart.show_tutorial_button(tutorial_done)
+	_chart.chapter_step_requested.connect(step_chapter)
+	_chart.chapter_opened.connect(step_chapter.bind(1, true, true))
+	_sfx = Sfx.new()
+	_sfx.name = "ChartSfx"
+	_sfx.settings_path = settings_path
+	add_child(_sfx)
+	_chart.slid.connect(_sfx.play.bind(&"launch", 1.6))
+	_chart.star_landed.connect(_sfx.play.bind(&"star_select", 1.3))
+	_chart.nav_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
+	_chart.padlock_shaken.connect(_sfx.play.bind(&"tremble", 1.3))
+	_chart.padlock_broke.connect(func() -> void:
+		_sfx.play(&"burst", 1.2)
+		_sfx.play(&"pack_ready", 1.0))
+	_chart.star_revealed.connect(func(order: int) -> void: _sfx.on_string_sung(-1, order))
+	_chart.chapter_revealed.connect(_sfx.play.bind(&"sun_ignite", 1.0))
+	_chart.title_left.connect(func() -> void:
+		_sfx.play(&"pack_ready", 1.0)
+		_sfx.play(&"launch", 1.2))
+	_add_options()
+	_show_navigation()
 	get_window().size_changed.connect(fit_screen)
 	fit_screen()
+	if opens_on_title:
+		_chart.show_title()
 	set_process_unhandled_key_input(OS.is_debug_build())
+	if OS.is_debug_build():
+		if "--currents" in OS.get_cmdline_user_args():
+			open_current_trial()
+		elif "--currents-off" in OS.get_cmdline_user_args():
+			open_current_trial(false)
+		elif "--aquarius" in OS.get_cmdline_user_args():
+			open_current_trial(true, 0, "aquarius")
+		elif "--aquarius-off" in OS.get_cmdline_user_args():
+			open_current_trial(false, 0, "aquarius")
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo or _stage != null:
 		return
-	if key.keycode == KEY_U:
+	if key.keycode == KEY_C:
+		open_current_trial(not key.shift_pressed)
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_A:
+		open_current_trial(not key.shift_pressed, 0, "aquarius")
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_U:
 		debug_win_parts()
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_F:
 		debug_win_final()
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_BRACKETLEFT or key.keycode == KEY_BRACKETRIGHT:
+		step_chapter(-1 if key.keycode == KEY_BRACKETLEFT else 1, false, true)
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_O:
+		debug_open_next()
 		get_viewport().set_input_as_handled()
 
 
@@ -75,10 +137,80 @@ func debug_win_parts() -> void:
 	_chart.show_progress(Chapter.FINAL - 1, Chapter.FINAL)
 
 
+## Debug: the chart plays the next chapter's opening (as after its final's win), then slides on to
+## it, open or not. Nothing is saved.
+func debug_open_next() -> void:
+	if chapters.find(chapter) + 1 < chapters.size():
+		_chart.show_progress(-1, -1, false)
+		_chart.play_opening()
+
+
 ## Debug: previews every stage won, then the chart plays the final's win.
 func debug_win_final() -> void:
 	_show_preview(Chapter.stage_count())
 	_chart.show_progress(Chapter.FINAL, -1)
+
+
+## Whether `which` can be played: the first chapter, or one whose opening chapter's final is won.
+func is_open(which: Chapter) -> bool:
+	if which.def.unlocked_by == "":
+		return true
+	for each: Chapter in chapters:
+		if each.id == which.def.unlocked_by:
+			return each.is_completed(Chapter.FINAL)
+	return false
+
+
+## The chart voyages to the chapter `step` away (-1 before, +1 after) if there is one and it's open
+## (`force`: open or not, for debug); `reveal` pops its stars in, as when it has just opened.
+func step_chapter(step: int, reveal: bool = false, force: bool = false) -> void:
+	if _stage != null:
+		return
+	var at: int = chapters.find(chapter) + step
+	if at < 0 or at >= chapters.size() or not (force or is_open(chapters[at])):
+		return
+	_end_preview()
+	chapter = chapters[at]
+	_chart.voyage_to(chapter, reveal)
+	_show_navigation()
+
+
+## Tests and debug: the chart goes at once to the next chapter (round to the first), if it's open or
+## this is a debug build.
+func switch_chapter() -> void:
+	if _stage != null:
+		return
+	var other: Chapter = _other_chapter()
+	if other == null:
+		return
+	_end_preview()
+	chapter = other
+	_chart.setup(chapter)
+	_show_navigation()
+
+
+## The chapter the plaque goes to, or null.
+func _other_chapter() -> Chapter:
+	var at: int = chapters.find(chapter)
+	for step: int in range(1, chapters.size()):
+		var candidate: Chapter = chapters[(at + step) % chapters.size()]
+		if is_open(candidate) or OS.is_debug_build():
+			return candidate
+	return null
+
+
+## The options' TUTORIAL (once it's been finished) and where the chart's arrows lead.
+func _show_navigation() -> void:
+	_options.show_tutorial(tutorial_done)
+	var at: int = chapters.find(chapter)
+	_chart.show_navigation(_nav_to(at - 1), _nav_to(at + 1))
+
+
+## Where an arrow to chapter `index` leads: nowhere past the ends, else open or locked.
+func _nav_to(index: int) -> ChapterSelect.Nav:
+	if index < 0 or index >= chapters.size():
+		return ChapterSelect.Nav.NONE
+	return ChapterSelect.Nav.OPEN if is_open(chapters[index]) else ChapterSelect.Nav.LOCKED
 
 
 func is_previewing() -> bool:
@@ -88,7 +220,7 @@ func is_previewing() -> bool:
 ## The chart shows a copy of the chapter with the first `stages` stages won; the chapter itself
 ## (what's saved and what opens) is untouched.
 func _show_preview(stages: int) -> void:
-	_preview = Chapter.new()
+	_preview = Chapter.new(chapter.def)
 	_preview.from_save(chapter.to_save())
 	for stage: int in stages:
 		_preview.complete(stage)
@@ -107,9 +239,87 @@ func stage() -> Main:
 	return _stage
 
 
-## Plays the guided first run again: the Stinger, guided.
+## Plays the guided first run again: Scorpio's Stinger, guided, from whichever chapter the chart
+## shows (back from it, the chart shows Scorpio).
 func replay_tutorial() -> void:
+	if _stage != null or _chart.is_unlocking():
+		return
+	_end_preview()
+	if chapter != chapters[0]:
+		chapter = chapters[0]
+		_chart.setup(chapter)
+		_show_navigation()
 	open_stage(0, true)
+
+
+## Forgets every chapter's progress, the guided first run and the encounters met (the options'
+## RESET PROGRESS): the chart goes back to Scorpio, its Stinger to play, guided again.
+func reset_progress() -> void:
+	if _stage != null:
+		return
+	_end_preview()
+	_store.clear()
+	_load_progress()
+	_chart.setup(chapter)
+	_show_navigation()
+
+
+## Reads every chapter's progress, the guided first run's and the encounters' from the store; the
+## chart's chapter is the latest open one.
+func _load_progress() -> void:
+	chapters.clear()
+	for def: ChapterDef in ChapterDef.all():
+		var loaded := Chapter.new(def)
+		loaded.from_save(_store.load_chapter(def.id))
+		chapters.append(loaded)
+	chapter = chapters[0]
+	for each: Chapter in chapters:
+		if is_open(each):
+			chapter = each
+	tutorial_done = _store.load_chapter(TUTORIAL_ID).get("done", false) == true
+	encounters_met = _store.load_chapter(ENCOUNTERS_ID)
+
+
+## The options' gear and menu, over the chart, with the chart's sound.
+func _add_options() -> void:
+	_options = OptionsMenu.new()
+	_options.name = "Options"
+	add_child(_options)
+	_options.show_sound_level(_sfx.level)
+	_sfx.level_changed.connect(_options.show_sound_level)
+	_options.sound_cycle_requested.connect(_sfx.cycle_level)
+	_options.tutorial_requested.connect(replay_tutorial)
+	_options.reset_requested.connect(reset_progress)
+	_options.reset_requested.connect(_sfx.play.bind(&"burst", 0.8))
+	_options.opened.connect(_sfx.play.bind(&"pack_load", 1.5))
+	_options.closed.connect(_sfx.play.bind(&"pull_cancel", 1.0))
+	_options.tapped.connect(_sfx.play.bind(&"star_select", 1.3))
+	_options.hold_started.connect(_sfx.play.bind(&"tremble", 1.3))
+
+
+func options() -> OptionsMenu:
+	return _options
+
+
+## No progress callbacks: experimental wins never count toward Scorpio. `layout`: "tail" or
+## "aquarius" (StarMap.current_layout).
+func open_current_trial(enabled: bool = true, seed_value: int = 0, layout: String = "tail") -> void:
+	if not OS.is_debug_build() or _stage != null:
+		return
+	_end_preview()
+	_chart.leave_title()
+	_stage_point = -1
+	_won_point = -1
+	_unlocked = -1
+	_stage = MainScene.instantiate()
+	_stage.in_chapter = true
+	_stage.current_trial = true
+	_stage.current_enabled = enabled
+	_stage.current_layout = layout
+	_stage.seed_override = seed_value
+	_stage.map_requested.connect(back_to_chart)
+	_show_chart(false)
+	add_child(_stage)
 
 
 ## Opens stage `point` (only one that can be played); `guided` plays the guided first run on it (the
@@ -118,13 +328,16 @@ func open_stage(point: int, guided: bool = false) -> void:
 	_end_preview()
 	if _stage != null or chapter.state(point) == Chapter.PointState.LOCKED:
 		return
+	_chart.leave_title()
 	_stage_point = point
 	_won_point = -1
 	_unlocked = -1
 	_stage = MainScene.instantiate()
 	_stage.in_chapter = true
 	_stage.star_map = chapter.map_id(point)
-	_stage.tutorial = point == 0 and (guided or not tutorial_done)
+	# The guided first run is Scorpio's Stinger: the first chapter's first stage.
+	_stage.tutorial = chapter == chapters[0] and point == 0 and (guided or not tutorial_done)
+	_stage.replay = chapter.is_completed(point)
 	_stage.tutorial_finished.connect(_on_tutorial_finished)
 	var threat: int = Encounter.threat_of(StarMap.by_id(_stage.star_map))
 	_stage.encounter = threat >= 0 and encounters_met.get(Encounter.threat_name(threat), false) != true
@@ -143,11 +356,15 @@ func back_to_chart() -> void:
 	remove_child(_stage)
 	_stage.queue_free()
 	_stage = null
+	# The stage's speaker may have changed the sound level.
+	_sfx.reload_level()
 	_show_chart(true)
 	fit_screen()
-	_chart.show_progress(_won_point, _unlocked)
+	_chart.show_progress(_won_point, _unlocked, _opens_chapter)
 	_won_point = -1
 	_unlocked = -1
+	_opens_chapter = false
+	_show_navigation()
 
 
 func fit_screen() -> void:
@@ -157,12 +374,13 @@ func fit_screen() -> void:
 	var visible: Vector2 = get_viewport().get_visible_rect().size
 	var offset: Vector2i = ScreenZones.game_offset(visible)
 	_chart.fit_screen(Rect2i(-offset, Vector2i(visible)))
+	_options.fit_screen(Rect2i(-offset, Vector2i(visible)))
 
 
 func _on_tutorial_finished() -> void:
 	tutorial_done = true
 	_store.save_chapter(TUTORIAL_ID, {"done": true})
-	_chart.show_tutorial_button(true)
+	_options.show_tutorial(true)
 
 
 func _on_encounter_finished(threat: int) -> void:
@@ -172,8 +390,10 @@ func _on_encounter_finished(threat: int) -> void:
 
 func _on_stage_won() -> void:
 	var first_time: bool = not chapter.is_completed(_stage_point)
+	var next: int = chapters.find(chapter) + 1
+	_opens_chapter = first_time and Chapter.is_final(_stage_point) and next < chapters.size() and chapters[next].def.unlocked_by == chapter.id
 	var unlocked: int = chapter.complete(_stage_point)
-	_store.save_chapter(Chapter.ID, chapter.to_save())
+	_store.save_chapter(chapter.id, chapter.to_save())
 	_won_point = _stage_point if first_time else -1
 	_unlocked = unlocked
 
@@ -181,3 +401,6 @@ func _on_stage_won() -> void:
 func _show_chart(on: bool) -> void:
 	_chart.visible = on
 	_chart.process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+	_options.close()
+	_options.visible = on
+	_options.process_mode = _chart.process_mode

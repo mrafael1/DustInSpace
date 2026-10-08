@@ -1,53 +1,52 @@
 class_name Chapter
 extends RefCounted
-## A chapter (#62): Scorpio split into stages, travelled from the tail. Each part stage (Stinger,
-## Tail, Body, Heart, Claws) is its own small "false constellation" shaped like that part
-## (StarMap); winning it lights its group of stars on the chapter chart. The final stage is the
-## full Scorpio, a boss stage (StarMap.final). Only stages whose map is built can be played (no
-## empty stages to fill the chart); completing a part unlocks the next one, and winning the fifth
-## part unlocks the final (complete() returns FINAL, so the chart plays its unlock). Completed
-## stages can be replayed.
+## A chapter (#62): a constellation split into stages (its ChapterDef: Scorpio, Aquarius...).
+## Each part stage is its own small "false constellation" shaped like that part (StarMap); winning
+## it lights its group of stars on the chapter chart. The final stage is the full constellation
+## (for Scorpio, Orion's boss stage, StarMap.final). Only stages whose map is built can be played
+## (no empty stages to fill the chart); completing a part unlocks the next one, and winning the
+## fifth part unlocks the final (complete() returns FINAL, so the chart plays its unlock).
+## Completed stages can be replayed. Every chapter has five parts and a final.
 ## Pure state, separate from the constellation built inside a stage. Saved as a Dictionary
-## (to_save / from_save) by ProgressStore.
+## (to_save / from_save) by ProgressStore, under the chapter's id.
 
 enum PointState { LOCKED, AVAILABLE, COMPLETED }
 
-const ID: String = "scorpio"
-## The stages, from the tail. `stars`: the chart stars (Scorpio landmark indices) the stage owns,
-## the first one its point on the chart; `map`: its StarMap id, or "" while it isn't built.
-const STAGES: Array[Dictionary] = [
-	{"name": "STINGER", "map": "stinger", "stars": [13, 12, 11]},
-	{"name": "TAIL", "map": "tail", "stars": [10, 9, 8]},
-	{"name": "BODY", "map": "body", "stars": [7, 6, 5]},
-	{"name": "HEART", "map": "heart", "stars": [4, 3]},
-	{"name": "CLAWS", "map": "claws", "stars": [1, 0, 2]},
-	{"name": "SCORPIO", "map": "final", "stars": []},
-]
-## The final stage: the full Scorpio, Orion's boss stage.
+## The final stage, after the five parts: the full constellation.
 const FINAL: int = 5
 
+## The chapter's stages, figure and chart (ChapterDef).
+var def: ChapterDef
+## Its saved progress's key (ProgressStore).
+var id: String:
+	get:
+		return def.id
 var _completed: Array[bool] = []
 ## Which stages have a map (tests may build more).
 var _built: Array[bool] = []
 
 
-func _init() -> void:
-	for stage: Dictionary in STAGES:
+## `p_def`: the chapter (Scorpio unless given).
+func _init(p_def: ChapterDef = null) -> void:
+	def = p_def if p_def != null else ChapterDef.scorpio()
+	assert(def.stages.size() == FINAL + 1, "every chapter has five parts and a final")
+	for stage: Dictionary in def.stages:
 		_completed.append(false)
 		_built.append(stage["map"] != "")
 
 
+## The same for every chapter: five parts and a final.
 static func stage_count() -> int:
-	return STAGES.size()
+	return FINAL + 1
 
 
-static func stage_name(stage: int) -> String:
-	return STAGES[stage]["name"]
+func stage_name(stage: int) -> String:
+	return def.stages[stage]["name"]
 
 
 ## The StarMap id stage `stage` plays, or "" while it isn't built.
 func map_id(stage: int) -> String:
-	return STAGES[stage]["map"] if _built[stage] else ""
+	return def.stages[stage]["map"] if _built[stage] else ""
 
 
 static func is_final(stage: int) -> bool:
@@ -55,16 +54,16 @@ static func is_final(stage: int) -> bool:
 
 
 ## The chart stars stage `stage` owns (empty for the final: it's the whole figure).
-static func stars(stage: int) -> Array[int]:
+func stars(stage: int) -> Array[int]:
 	var found: Array[int] = []
-	found.assign(STAGES[stage]["stars"])
+	found.assign(def.stages[stage]["stars"])
 	return found
 
 
 ## The part stage that owns chart star `landmark`, or -1.
-static func stage_of(landmark: int) -> int:
-	for stage: int in STAGES.size():
-		if (STAGES[stage]["stars"] as Array).has(landmark):
+func stage_of(landmark: int) -> int:
+	for stage: int in def.stages.size():
+		if (def.stages[stage]["stars"] as Array).has(landmark):
 			return stage
 	return -1
 
@@ -75,7 +74,7 @@ func set_built(stage: int, built: bool) -> void:
 
 
 func has_stage(stage: int) -> bool:
-	return stage >= 0 and stage < STAGES.size() and _built[stage]
+	return stage >= 0 and stage < stage_count() and _built[stage]
 
 
 func is_completed(stage: int) -> bool:
@@ -107,10 +106,10 @@ func completed_count() -> int:
 ## The stage to play next: the first part available and not yet won, else the final if it is,
 ## else the last won, else 0.
 func current() -> int:
-	for stage: int in STAGES.size():
+	for stage: int in stage_count():
 		if is_available(stage) and not _completed[stage]:
 			return stage
-	for stage: int in range(STAGES.size() - 1, -1, -1):
+	for stage: int in range(stage_count() - 1, -1, -1):
 		if _completed[stage]:
 			return stage
 	return 0
@@ -133,7 +132,7 @@ func complete(stage: int) -> int:
 
 func to_save() -> Dictionary:
 	var done: Array[int] = []
-	for stage: int in STAGES.size():
+	for stage: int in stage_count():
 		if _completed[stage]:
 			done.append(stage)
 	return {"completed": done}
@@ -142,7 +141,7 @@ func to_save() -> Dictionary:
 ## Reads a save. Anything unreadable, out of range or out of order is dropped: a part counts as
 ## won only if every part before it is, and only stages that can be played count.
 func from_save(data: Dictionary) -> void:
-	for stage: int in STAGES.size():
+	for stage: int in stage_count():
 		_completed[stage] = false
 	var saved: Variant = data.get("completed", [])
 	if not saved is Array:

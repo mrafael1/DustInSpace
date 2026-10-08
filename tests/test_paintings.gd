@@ -48,8 +48,8 @@ func test_the_pieces_make_up_the_whole_scorpio_exactly() -> void:
 func test_each_piece_carries_its_parts_stars() -> void:
 	for stage: int in Chapter.FINAL:
 		var piece: Image = ConstellationView.painting(ChapterSelect.piece_path(stage)).get_image()
-		for star: int in Chapter.stars(stage):
-			assert_eq(piece.get_pixelv(Scorpio.LANDMARKS[star]).a8, 255, "%s holds landmark %d" % [Chapter.stage_name(stage), star])
+		for star: int in Chapter.new().stars(stage):
+			assert_eq(piece.get_pixelv(Scorpio.LANDMARKS[star]).a8, 255, "%s holds landmark %d" % [Chapter.new().stage_name(stage), star])
 
 
 func test_the_chart_assembles_dormant_pieces_then_the_final_brings_them_to_life() -> void:
@@ -153,10 +153,10 @@ func test_a_chart_piece_forms_from_its_parts_stars() -> void:
 	for stage: int in Chapter.FINAL:
 		var forming: Apparition = ChapterSelect.piece_apparition(stage)
 		var stars: Array[Vector2i] = []
-		for index: int in Chapter.stars(stage):
+		for index: int in Chapter.new().stars(stage):
 			stars.append(Scorpio.LANDMARKS[index])
 		var start: Dictionary[Vector2i, Color] = forming.edge(0)
-		assert_false(start.is_empty(), "%s starts at its stars" % Chapter.stage_name(stage))
+		assert_false(start.is_empty(), "%s starts at its stars" % Chapter.new().stage_name(stage))
 		for p: Vector2i in start:
 			assert_true(stars.has(p))
 		forming.formed(forming.radius_at(1.0))

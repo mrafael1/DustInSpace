@@ -24,7 +24,7 @@ const CUES: Array[StringName] = [
 	&"pack_load", &"pack_buy", &"tap_refused", &"pull_start", &"pull_step", &"pull_cancel",
 	&"launch", &"tremble", &"burst", &"star_select", &"link_collect", &"link_reject",
 	&"dust_land", &"light_land", &"big_bang_collapse", &"big_bang_bang", &"sun_ignite",
-	&"win", &"loss", &"restart", &"pack_ready",
+	&"win", &"loss", &"restart", &"pack_ready", &"drain", &"crop",
 ]
 const VOICES: int = 12
 ## Per cue: x = most voices at once, y = least seconds between two starts.
@@ -176,6 +176,12 @@ func set_level(value: Level) -> void:
 	level_changed.emit(level)
 
 
+## Reads the saved level again (another Sfx, the stage's, may have changed it).
+func reload_level() -> void:
+	_load_level()
+	level_changed.emit(level)
+
+
 ## Moves the clock, the duck and the voices on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	_clock += delta
@@ -239,6 +245,15 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"burst")
 		&"hunt_intro_launched":
 			play(&"launch")
+		&"heat_breathed":
+			# The lion breathes: a low whoosh as the heatwave rolls out, and the heat's chime.
+			play(&"launch", 0.6)
+			play(&"star_select", 1.25)
+		&"stars_resized", &"landmarks_resized":
+			# The heat changes stars where they stand: a bright chime, a lower one as the cold
+			# shrinks them (a burn or a fade sounds on its own).
+			var changes: Array[StarHeat.Change] = event.args[0]
+			play(&"star_select", 0.85 if changes[0].is_cold() else 1.25)
 		&"combo_collected":
 			play(&"link_collect")
 		&"link_rejected":

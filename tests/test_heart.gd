@@ -388,7 +388,7 @@ func test_the_heart_map() -> void:
 func test_the_heart_unlocks_after_the_body() -> void:
 	var chapter := Chapter.new()
 	assert_eq(chapter.map_id(3), "heart")
-	assert_eq(Chapter.stage_name(3), "HEART")
+	assert_eq(Chapter.new().stage_name(3), "HEART")
 	assert_eq(chapter.state(3), Chapter.PointState.LOCKED)
 	for stage: int in 2:
 		chapter.complete(stage)

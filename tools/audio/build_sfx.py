@@ -198,6 +198,29 @@ def link_reject():
     ), attack=0.006, curve=1.6)
 
 
+def drain():
+    # A star sucked out of the sky by Aquarius's drain (0.4 s): a hard thump, a gulp of filtered
+    # water noise sinking fast, and a short whistle falling away down the plughole.
+    return mix(
+        (0, envelope(tone(140, 0.16, "sine", 45), attack=0.001, curve=2.2), 1.0),
+        (0, envelope(tone(note("C3"), 0.08, "square", note("C2"), duty=0.35), attack=0.001, curve=2), 0.45),
+        (0.01, envelope(noise(0.22, 3200, 220), attack=0.002, curve=1.8), 0.7),
+        (0.03, envelope(tone(note("A5"), 0.3, "triangle", note("A3"), vibrato=0.015, vib_rate=18), attack=0.004, curve=1.5), 0.35),
+    )
+
+
+def crop():
+    # A constellation star cut by Virgo's scythe (0.4 s): a bright metallic shing as the blade
+    # passes, a sharp snap as the star splits, a low thud, and an ember fizz as the halves cool.
+    return mix(
+        (0, envelope(tone(note("E6"), 0.14, "square", note("B6"), duty=0.18), attack=0.002, curve=1.8), 0.4),
+        (0, envelope(tone(note("B6"), 0.12, "sine", note("E7")), attack=0.002, curve=1.6), 0.35),
+        (0.05, envelope(noise(0.025, 9000), attack=0.0005, curve=1.2), 1.0),
+        (0.05, envelope(tone(170, 0.14, "sine", 55), attack=0.001, curve=2.2), 0.9),
+        (0.07, envelope(noise(0.3, 2600, 280), attack=0.01, curve=1.5), 0.35),
+    )
+
+
 def dust_land():
     # A tiny coin tick; the game climbs its pitch across a payout.
     return mix(
@@ -279,6 +302,8 @@ CUES = {
     "star_select": (star_select, -14),
     "link_collect": (link_collect, -8),
     "link_reject": (link_reject, -12),
+    "drain": (drain, -7),
+    "crop": (crop, -8),
     "dust_land": (dust_land, -18),
     "light_land": (light_land, -18),
     "big_bang_collapse": (big_bang_collapse, -6),

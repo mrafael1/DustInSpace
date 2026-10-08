@@ -13,8 +13,26 @@ signal dissolved(view: StarView)
 signal exploded(view: StarView)
 ## The halo appeared, changed or disappeared; whoever paints halos should redraw.
 signal halo_changed(view: StarView)
+## A draining current carried it to the field's edge (drain_to): it's gone, and frees itself.
+signal drained(view: StarView)
 
-enum State { SETTLING, IDLE, DISSOLVING, COLLAPSING }
+enum State { SETTLING, IDLE, DISSOLVING, COLLAPSING, DRIFTING }
+
+const DRIFT_TIME: float = 0.3
+## The heat (Leo) changes a star's size in hard steps, in two beats. Charging (until RESIZE_FLARE):
+## at its old size it flickers and trembles a pixel side to side; growing, four ember sparks close
+## in on it along the diagonals; shrinking, a frost ring tightens round it. The pop: its new size
+## flares (RESIZE_POP) as it hops a pixel up (grows) or sinks a pixel (shrinks). Then, until
+## RESIZE_TIME, a growing star glints while a dotted ring in its new size's colour bursts out and
+## four sparks fly off its tips; a shrinking one settles dim while frost crumbs fall from where its
+## old edge was.
+const RESIZE_FLARE: float = 0.12
+const RESIZE_POP: float = 0.05
+const RESIZE_TIME: float = 0.42
+## Steps of the tremble and of the rings, in seconds.
+const RESIZE_STEP: float = 0.04
+## The ring a growing star bursts with, in its new size's own tip colour (small, medium, big).
+const RESIZE_RING_COLOURS: Array[Color] = [Palette.C3, Palette.N8, Palette.M5]
 
 ## Burst timing from the game-feel skill: stars scatter with an ease-out-back.
 const SETTLE_TIME: float = 0.65
@@ -108,9 +126,19 @@ static var _masks: Dictionary = {}
 var _collapse_swirl: float = 0.0
 var _collapse_hover: int = 0
 ## Seconds left before explode() bursts the star, or -1 when it isn't waiting to.
+## drain_to: the drift ends the star.
+var _draining: bool = false
 var _explode_wait: float = -1.0
 ## explode() was called: waiting to burst, or bursting.
 var _exploding: bool = false
+## The size resize_to() is changing it to (-1: none), and seconds since it began.
+var _resize_to: int = -1
+var _resize_time: float = -1.0
+## The size it was before the resize, and whether it shrinks.
+var _resize_from: int = -1
+var _resize_shrinks: bool = false
+## Seconds before a delayed resize starts (the lion's heatwave reaching it), or 0.
+var _resize_wait: float = 0.0
 
 
 func _process(delta: float) -> void:
@@ -121,7 +149,7 @@ func _draw() -> void:
 	match state:
 		State.SETTLING:
 			_draw_settling()
-		State.IDLE:
+		State.IDLE, State.DRIFTING:
 			_draw_idle()
 		State.DISSOLVING:
 			_draw_dissolve()
@@ -147,6 +175,50 @@ func fly_from(start: Vector2i, delay: float = 0.0) -> void:
 	_time = -delay
 	position = Vector2(flight_point(_from, _to, 0.0, _bounds))
 	visible = delay <= 0.0
+
+
+## A current moves the intact star, in whole-pixel steps, without another burst.
+func drift_to(destination: Vector2i) -> void:
+	_from = Vector2i(position)
+	_to = destination
+	_draining = false
+	_enter(State.DRIFTING)
+
+
+## A draining current: drifts like drift_to to `edge`, where the field ends, then cuts out at once
+## (a hard cut, no flare: it's lost, not collected).
+func drain_to(edge: Vector2i) -> void:
+	drift_to(edge)
+	selected = false
+	_draining = true
+
+
+## The heat changes its size where it stands: it charges at its old size, then pops to the new one
+## (RESIZE_FLARE's timeline), after `delay` seconds (a heatwave on its way).
+func resize_to(new_size: Star.Size, delay: float = 0.0) -> void:
+	_resize_from = size
+	_resize_shrinks = new_size < size
+	_resize_to = new_size
+	_start_resize(delay)
+
+
+## A star the heat burns out (or the cold fades) charges as a resizing one does, then explode()
+## takes it at RESIZE_FLARE: embers closing in, or frost (`cold`).
+func charge(cold: bool, delay: float = 0.0) -> void:
+	_resize_from = size
+	_resize_shrinks = cold
+	_resize_to = size
+	_start_resize(delay)
+
+
+func is_resizing() -> bool:
+	return _resize_time >= 0.0 or _resize_wait > 0.0
+
+
+func _start_resize(delay: float) -> void:
+	_resize_wait = maxf(delay, 0.0)
+	_resize_time = -1.0 if _resize_wait > 0.0 else 0.0
+	_refresh()
 
 
 ## Flares, then vanishes and frees itself.
@@ -212,7 +284,19 @@ func advance(delta: float) -> void:
 			delta = overshoot
 	_time += delta
 	_hint_time += delta
+	_advance_resize(delta)
 	match state:
+		State.DRIFTING:
+			var k: float = minf(_time / DRIFT_TIME, 1.0)
+			position = Vector2(Vector2i(Vector2(_from).lerp(Vector2(_to), k * k * (3.0 - 2.0 * k)).round()))
+			_refresh()
+			if k >= 1.0 and _draining:
+				visible = false
+				drained.emit(self)
+				queue_free()
+			elif k >= 1.0:
+				_enter(State.IDLE)
+				settled.emit(self)
 		State.SETTLING:
 			_advance_flight()
 		State.DISSOLVING:
@@ -235,7 +319,7 @@ func advance(delta: float) -> void:
 ## 20% further out (HALO_COLOURS).
 func halo_dots() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
-	var shows_halo: bool = state == State.IDLE or (state == State.DISSOLVING and _dissolve_frame() == 0)
+	var shows_halo: bool = state == State.IDLE or state == State.DRIFTING or (state == State.DISSOLVING and _dissolve_frame() == 0)
 	if not shows_halo or (dimmed and state == State.IDLE):
 		return dots
 	var center := Vector2i(position)
@@ -309,6 +393,27 @@ static func _ease_out_back(k: float) -> float:
 	return 1.0 + (EASE_BACK + 1.0) * t * t * t + EASE_BACK * t * t
 
 
+func _advance_resize(delta: float) -> void:
+	if _resize_wait > 0.0:
+		_resize_wait -= delta
+		if _resize_wait > 0.0:
+			return
+		# The part of this tick past the wait already counts toward the resize.
+		delta = -_resize_wait
+		_resize_wait = 0.0
+		_resize_time = 0.0
+	if _resize_time < 0.0:
+		return
+	_resize_time += delta
+	if _resize_to >= 0 and _resize_time >= RESIZE_FLARE:
+		size = _resize_to as Star.Size
+		_resize_to = -1
+		_refresh()
+	elif _resize_time >= RESIZE_TIME:
+		_resize_time = -1.0
+		_refresh()
+
+
 func _burst() -> void:
 	dissolve()
 	exploded.emit(self)
@@ -348,7 +453,9 @@ func _current_frame_key() -> int:
 			return _dissolve_frame()
 		State.COLLAPSING:
 			return _redshift()
-	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (shine_stage(_hint_time) + 2 if shows_hint() else 0)
+	# Every resize step redraws (the tremble, the rings and sparks move in RESIZE_STEPs).
+	var resizing: int = 0 if _resize_time < 0.0 else 1 + floori(_resize_time / RESIZE_STEP * 2.0)
+	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (shine_stage(_hint_time) + 2 if shows_hint() else 0) + 64 * resizing
 
 
 func _is_spark() -> bool:
@@ -418,7 +525,12 @@ func _draw_settling() -> void:
 
 func _draw_idle() -> void:
 	# A glint lifts every step one notch brighter for a moment; a dimmed star doesn't twinkle.
-	if dimmed:
+	if _resize_time >= 0.0:
+		_draw_frame(resize_frame(_resize_time, _resize_shrinks), resize_offset(_resize_time, _resize_shrinks))
+		var extra: Dictionary[Vector2i, Color] = resize_pixels(_resize_from as Star.Size, size if _resize_to < 0 else _resize_to as Star.Size, _resize_time, _resize_shrinks)
+		for p: Vector2i in extra:
+			draw_rect(Rect2(Vector2(p), Vector2.ONE), extra[p])
+	elif dimmed:
 		_draw_frame(&"dim")
 	else:
 		_draw_frame(&"glint" if _is_glinting() or shine() >= 0 else &"idle")
@@ -438,12 +550,81 @@ func _draw_collapse() -> void:
 	_draw_frame(COLLAPSE_SEQUENCE[_redshift()])
 
 
-## One frame of this star's strip, centred on the node.
-func _draw_frame(frame: StringName) -> void:
+## One frame of this star's strip, centred on the node (`offset` whole pixels away).
+func _draw_frame(frame: StringName, offset: Vector2i = Vector2i.ZERO) -> void:
 	var sheet: Texture2D = SHEETS[size]
 	var w: int = sheet.get_height()
 	var i: int = FRAMES.find(frame)
-	draw_texture_rect_region(sheet, Rect2(Vector2(-(w >> 1), -(w >> 1)), Vector2(w, w)), Rect2(i * w, 0, w, w))
+	draw_texture_rect_region(sheet, Rect2(Vector2(offset - Vector2i(w >> 1, w >> 1)), Vector2(w, w)), Rect2(i * w, 0, w, w))
+
+
+## The frame a resizing star shows `t` seconds in: charging it flickers (flare and glint growing,
+## flare and dim shrinking), it pops on a flare, then glints (grown) or settles dim (shrunk).
+static func resize_frame(t: float, shrinks: bool) -> StringName:
+	if t < RESIZE_FLARE:
+		var lit: bool = floori(t / RESIZE_STEP) % 2 == 0
+		return &"flare" if lit else (&"dim" if shrinks else &"glint")
+	if t < RESIZE_FLARE + RESIZE_POP:
+		return &"flare"
+	return &"dim" if shrinks else &"glint"
+
+
+## Where a resizing star is drawn `t` seconds in, from its place: it trembles a pixel side to side
+## while charging, then hops a pixel up as it grows or sinks one as it shrinks, for RESIZE_POP * 2.
+static func resize_offset(t: float, shrinks: bool) -> Vector2i:
+	if t < RESIZE_FLARE:
+		return [Vector2i.RIGHT, Vector2i.ZERO, Vector2i.LEFT, Vector2i.ZERO][floori(t / (RESIZE_STEP * 0.5)) % 4]
+	if t < RESIZE_FLARE + RESIZE_POP * 2.0:
+		return Vector2i.DOWN if shrinks else Vector2i.UP
+	return Vector2i.ZERO
+
+
+## What a star resizing from `from` to `to` (`shrinks`: in the cold) adds round itself `t` seconds in, as offsets from its
+## centre: the charge's converging ember sparks (growing) or tightening frost ring (shrinking), then
+## the burst ring and flying sparks (grown) or falling frost crumbs (shrunk). Hard steps only.
+static func resize_pixels(from: Star.Size, to: Star.Size, t: float, shrinks: bool) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	if t < 0.0 or t >= RESIZE_TIME:
+		return pixels
+	var step: int = floori(t / RESIZE_STEP)
+	if t < RESIZE_FLARE:
+		var steps: int = maxi(1, ceili(RESIZE_FLARE / RESIZE_STEP))
+		if shrinks:
+			# Frost closing in: a dotted ring from 5 px out down to 1.
+			var radius: int = half_extent(from) + 5 - roundi(4.0 * step / steps)
+			for p: Vector2i in ConstellationView.circle_pixels(radius):
+				if (p.x + p.y) % 2 == 0:
+					pixels[p] = Palette.M6
+		else:
+			# Embers drawn in along the diagonals: a hot gold head, ember pixels trailing it.
+			var k: int = half_extent(from) / 2 + 5 - roundi(3.0 * step / steps)
+			for d: Vector2i in [Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]:
+				pixels[d * k] = Palette.C2
+				pixels[d * (k + 1)] = Palette.S4
+				pixels[d * (k + 2)] = Palette.S3
+		return pixels
+	var after: float = t - RESIZE_FLARE
+	var k: float = after / (RESIZE_TIME - RESIZE_FLARE)
+	if shrinks:
+		# Crumbs fall from the old edge, drifting out a little, M6 then M5.
+		var edge: int = half_extent(from)
+		var crumbs: Array[Vector2i] = [Vector2i(-edge, 0), Vector2i(edge, 0), Vector2i(-edge / 2, edge / 2), Vector2i(edge / 2, edge / 2), Vector2i(-edge / 2, -edge / 2), Vector2i(edge / 2, -edge / 2)]
+		for c: Vector2i in crumbs:
+			var fall := Vector2i(signi(c.x) * roundi(2.0 * k), roundi(9.0 * k * k) + 1)
+			pixels[c + fall] = Palette.M6 if k < 0.5 else Palette.M5
+		return pixels
+	# A dotted ring bursts out in three steps from just past the new size, in its colour.
+	var ring_steps: int = floori(after / RESIZE_STEP)
+	if ring_steps < 3:
+		for p: Vector2i in ConstellationView.circle_pixels(half_extent(to) + 2 + ring_steps * 2):
+			if (p.x + p.y) % 2 == 0:
+				pixels[p] = RESIZE_RING_COLOURS[to]
+	# Sparks fly off its four tips, white-gold, then its colour.
+	var reach: int = half_extent(to) + 2 + roundi(7.0 * k)
+	for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		pixels[d * reach] = Palette.C1 if k < 0.5 else RESIZE_RING_COLOURS[to]
+	return pixels
+
 
 
 ## The dashed C1 selection ring; its dashes swap every RING_FRAME_TIME.
@@ -451,6 +632,23 @@ func _draw_ring() -> void:
 	var sheet: Texture2D = RING_SHEETS[size]
 	var cell: int = sheet.get_height()
 	draw_texture_rect_region(sheet, Rect2(Vector2(-(cell >> 1), -(cell >> 1)), Vector2(cell, cell)), Rect2(_ring_frame() * cell, 0, cell, cell))
+
+
+## The ring of pixels just outside a star of `star_size` (4-neighbours of its idle sprite), as
+## offsets from its centre: the heat's preview of the size a star will become.
+static func outline_pixels(star_size: Star.Size) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var half: int = half_extent(star_size)
+	for y: int in range(-half - 1, half + 2):
+		for x: int in range(-half - 1, half + 2):
+			var offset := Vector2i(x, y)
+			if _is_star_pixel(star_size, offset):
+				continue
+			for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				if _is_star_pixel(star_size, offset + d):
+					result.append(offset)
+					break
+	return result
 
 
 ## Whether the idle sprite covers `offset` (from the centre): the halo leaves those pixels alone.
