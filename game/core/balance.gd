@@ -95,6 +95,12 @@ var harvest_links_pay_dust: bool = true
 var harvest_sheaf_scale: int = 0
 ## The most dust one harvest pays (0: no cap).
 var harvest_cap: int = 0
+## Ripe links: a link whose loose stars have all stood through a launch pays its light times this
+## (0: none).
+var harvest_ripe_scale: int = 0
+## Bound sheaves: at each harvest, a constellation star lit since the last one goes dark again unless
+## lit strings join it to the figure lit before.
+var harvest_binds: bool = false
 
 var errors: Array[String] = []
 
@@ -247,6 +253,13 @@ func _parse_harvest(raw: Dictionary) -> void:
 		harvest_sheaf_scale = _read_int(raw, "sheaf_scale", "harvest.", 0)
 	if raw.has("cap"):
 		harvest_cap = _read_int(raw, "cap", "harvest.", 0)
+	if raw.has("ripe_scale"):
+		harvest_ripe_scale = _read_int(raw, "ripe_scale", "harvest.", 0)
+	if raw.has("binds"):
+		if typeof(raw["binds"]) != TYPE_BOOL:
+			errors.append("harvest.binds: must be true or false")
+		else:
+			harvest_binds = raw["binds"]
 	if raw.has("links_pay_dust"):
 		if typeof(raw["links_pay_dust"]) != TYPE_BOOL:
 			errors.append("harvest.links_pay_dust: must be true or false")

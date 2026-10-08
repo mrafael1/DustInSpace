@@ -109,6 +109,23 @@ What it shows:
 
 The rule changes also showed the gate the next mechanic must pass up front: **it has to act on the links themselves** (their order, place or cost), not only on stars left standing.
 
+### Revisions that act on links (2026-10-08)
+
+Both reap the standing stars for nothing at the harvest (pay 0) and keep links' dust. Bots as above, plus *ripe* (waits for ripe links until the harvest is next) and *bound* / *bound-strict* (light constellation stars next to the lit figure first; strict never lights one that isn't while the harvest is next). 200 paired seeds.
+
+- **Ripe links** (a link whose loose stars have all stood through a launch pays double light): fails. Linking at once still wins every run, in fewer packs than waiting for ripe links (Haunch 4.2 against 5.06, whole Leo 6.62 against 9.38). Hoarding loses (1-2% won) only because the scythe reaps for nothing.
+- **Bound sheaves** (at each harvest, a constellation star lit since the last one goes dark unless lit strings join it to the figure lit before): acts on the order of links and rewards skill, on branching figures. Every policy still wins (links keep paying dust, so slowing down never starves), but careless linking costs packs:
+
+| Layout, clock | No harvest | Link at once | Bound | Bound-strict | Hoard |
+|---|---|---|---|---|---|
+| Leo's Haunch (a chain), 3 | 4.18 | 4.22 (0.09 put out) | 4.22 | | 1% won |
+| Whole Leo, 3 | 6.57 | 10.23 (8.6 put out) | 8.58 (5.3) | 8.67 (5.1) | 2% won |
+| Whole Leo, 2 | 6.57 | 12.47 (14.0) | 8.19 (4.1) | 8.52 (3.1) | |
+| Whole Aquarius, 2 | 6.48 | 7.24 (1.5) | 6.96 (0.7) | 7.03 (0.1) | |
+| Whole Scorpio, 2 | 6.00 | 6.83 (2.4) | 6.41 (1.2) | 6.53 (0.3) | |
+
+Packs per win (constellation stars put out a run). Bound sheaves is the candidate to keep: a figure that branches and a short clock make it bite. Turning its pack cost into lost runs needs a tighter economy on Virgo's stages, still to measure.
+
 ## Chapter 5: Sagittarius, the black hole
 
 Sagittarius, the archer, aims at the heart of the galaxy, where a black hole sits. Its chapter is gravity: the pull you liked in the Big Bang's collapse (stars slowing and reddening near the hole, a lensed arc), made into a rule.

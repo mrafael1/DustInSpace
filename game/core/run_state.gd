@@ -30,6 +30,9 @@ signal harvested(stars: Array[Star], dust: int)
 ## The harvest clock moved: `launches_left` until the next harvest (after every launch, and once as
 ## the run starts).
 signal harvest_counted(launches_left: int)
+## Virgo's bound sheaves: the harvest put out the constellation stars `indices`, lit since the last
+## harvest but not joined to the figure lit before it.
+signal landmarks_unbound(indices: Array[int])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
@@ -149,6 +152,11 @@ var current: StarCurrent
 var heat: StarHeat
 ## Virgo's harvest (chapter 4), or null when the map has none (or balance.json no harvest block).
 var harvest: StarHarvest
+## Ripe links: the first id of the stars the latest launch brought (stars before it have stood
+## through a launch). Bound sheaves: the landmarks bound to the figure (lit at the start, or lit and
+## joined at a harvest).
+var _ripe_below: int = 0
+var _bound: Array[bool] = []
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
 var _current_reserved: Dictionary[int, Vector2i] = {}
 ## The guided run's Sun has rekindled once (its own target is spent).
@@ -190,6 +198,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns, scorpio.map.heat_turns)
 		if scorpio.map.harvest and balance.harvest_every > 0:
 			harvest = StarHarvest.new(balance.harvest_every, balance.harvest_pay.duplicate(), balance.harvest_reaps_new)
+			for i: int in scorpio.map.count():
+				_bound.append(scorpio.is_lit(i))
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -592,8 +602,9 @@ func link(star_ids: Array[int]) -> String:
 	var reward: Balance.ComboReward = balance.combos[combo]
 	var link_dust: int = reward.dust if harvest == null or balance.harvest_links_pay_dust else 0
 	dust += link_dust
-	light += reward.light
-	combo_collected.emit(combo, linked, link_dust, reward.light)
+	var link_light: int = reward.light * (balance.harvest_ripe_scale if is_ripe(linked) else 1)
+	light += link_light
+	combo_collected.emit(combo, linked, link_dust, link_light)
 	if scorpio != null:
 		for star: Star in linked:
 			if scorpio.is_landmark(star.id):
@@ -816,7 +827,10 @@ func _shift_stars() -> void:
 ## The harvest clock counts a launch; when it runs out, the loose stars pay and are reaped (the
 ## stars this launch brought stand, unless the harvest reaps new ones too).
 func _count_harvest(first_new_id: int) -> void:
+	_ripe_below = first_new_id
 	if harvest.count_launch():
+		if balance.harvest_binds:
+			_bind_sheaves()
 		var skip: Dictionary[int, bool] = {}
 		for star: Star in stars:
 			if star.id >= first_new_id:
@@ -830,6 +844,45 @@ func _count_harvest(first_new_id: int) -> void:
 			dust += gain
 			harvested.emit(reaped, gain)
 	harvest_counted.emit(harvest.launches_left)
+
+
+## Ripe links (Virgo): whether every loose star of `linked` has stood through a launch (a link of
+## constellation stars alone isn't). Always false without ripe links.
+func is_ripe(linked: Array[Star]) -> bool:
+	if harvest == null or balance.harvest_ripe_scale <= 1:
+		return false
+	var loose: int = 0
+	for star: Star in linked:
+		if scorpio != null and scorpio.is_landmark(star.id):
+			continue
+		if star.id >= _ripe_below:
+			return false
+		loose += 1
+	return loose > 0
+
+
+## Bound sheaves: the constellation stars lit since the last harvest that lit strings don't join to
+## the bound figure go dark; the rest are bound from now on.
+func _bind_sheaves() -> void:
+	var reached: Array[bool] = _bound.duplicate()
+	var frontier: Array[int] = []
+	for i: int in reached.size():
+		if reached[i]:
+			frontier.append(i)
+	while not frontier.is_empty():
+		var at: int = frontier.pop_back()
+		for n: int in scorpio.map.neighbours(at):
+			if scorpio.is_lit(n) and not reached[n]:
+				reached[n] = true
+				frontier.append(n)
+	var unbound: Array[int] = []
+	for i: int in reached.size():
+		if scorpio.is_lit(i) and not reached[i]:
+			scorpio.unlight(i)
+			unbound.append(i)
+		_bound[i] = scorpio.is_lit(i)
+	if not unbound.is_empty():
+		landmarks_unbound.emit(unbound)
 
 
 ## What a harvest of `reaped` pays: each sheaf (a standing triple of one size within reach, when

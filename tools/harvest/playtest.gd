@@ -9,9 +9,14 @@ extends SceneTree
 ## constellation star; glean lets the field stand (launching, no links) and, on the launch before a
 ## harvest, first links the links that light a constellation star (the stars the harvest would
 ## otherwise reap), then launches; sheaf links every link but a triple of loose stars of one size
-## while the harvest is next (a sheaf left standing for it).
+## while the harvest is next (a sheaf left standing for it); ripe waits for links whose loose stars
+## have all ripened, unless the harvest is next (then it links everything before the scythe);
+## bound links like link-first but lights the constellation stars next to the lit figure first;
+## bound-strict never lights one that isn't next to the lit figure while the harvest is next.
+## --policies=a,b picks some; --ripe=N, --binds.
 
-const POLICIES: Array[String] = ["link-first", "launch-first", "reaper", "landmarks-only", "glean", "sheaf"]
+const POLICIES: Array[String] = ["link-first", "launch-first", "reaper", "landmarks-only", "glean", "sheaf", "ripe", "bound", "bound-strict"]
+var _policies: Array[String] = POLICIES
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "leo_haunch"
@@ -39,6 +44,12 @@ func _initialize() -> void:
 			_balance.harvest_sheaf_scale = argument.trim_prefix("--sheaves=").to_int()
 		elif argument.begins_with("--cap="):
 			_balance.harvest_cap = argument.trim_prefix("--cap=").to_int()
+		elif argument.begins_with("--ripe="):
+			_balance.harvest_ripe_scale = argument.trim_prefix("--ripe=").to_int()
+		elif argument == "--binds":
+			_balance.harvest_binds = true
+		elif argument.begins_with("--policies="):
+			_policies.assign(argument.trim_prefix("--policies=").split(","))
 		elif argument == "--no-link-dust":
 			_balance.harvest_links_pay_dust = false
 	_simulate.call_deferred()
@@ -47,11 +58,11 @@ func _initialize() -> void:
 func _simulate() -> void:
 	print("Paired seeds 1..%d; %s; every %d; pay %s; sheaves x%d; cap %d; reaps new %s; links pay dust %s" % [_runs, _map, _balance.harvest_every, _balance.harvest_pay, _balance.harvest_sheaf_scale, _balance.harvest_cap, _balance.harvest_reaps_new, _balance.harvest_links_pay_dust])
 	var rows: Array[Dictionary] = []
-	for policy: String in POLICIES:
+	for policy: String in _policies:
 		for enabled: bool in [false, true]:
-			if policy in ["reaper", "landmarks-only", "glean", "sheaf"] and not enabled:
+			if policy not in ["link-first", "launch-first"] and not enabled:
 				continue
-			var row: Dictionary = {"policy": policy, "harvest": enabled, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "reaped": 0, "harvest_dust": 0, "link_dust": 0}
+			var row: Dictionary = {"policy": policy, "harvest": enabled, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "reaped": 0, "harvest_dust": 0, "link_dust": 0, "unbound": 0, "ripe": 0}
 			for seed_value: int in range(1, _runs + 1):
 				_play(seed_value, enabled, policy, row)
 				if seed_value % 20 == 0:
@@ -61,7 +72,9 @@ func _simulate() -> void:
 			row["reaped_per_run"] = snappedf(float(row.reaped) / _runs, 0.01)
 			row["harvest_dust_per_run"] = snappedf(float(row.harvest_dust) / _runs, 0.01)
 			row["link_dust_per_run"] = snappedf(float(row.link_dust) / _runs, 0.01)
-			for key: String in ["reaped", "harvest_dust", "link_dust", "packs_in_wins", "launches"]:
+			row["unbound_per_run"] = snappedf(float(row.unbound) / _runs, 0.01)
+			row["ripe_links_per_run"] = snappedf(float(row.ripe) / _runs, 0.01)
+			for key: String in ["reaped", "harvest_dust", "link_dust", "packs_in_wins", "launches", "unbound", "ripe"]:
 				row.erase(key)
 			rows.append(row)
 			print(JSON.stringify(row))
@@ -94,7 +107,10 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	run.harvested.connect(func(stars: Array[Star], dust: int) -> void:
 		row.reaped += stars.size()
 		row.harvest_dust += dust)
-	run.combo_collected.connect(func(_combo: String, _stars: Array[Star], dust: int, _light: int) -> void: row.link_dust += dust)
+	run.combo_collected.connect(func(_combo: String, linked: Array[Star], dust: int, _light: int) -> void:
+		row.link_dust += dust
+		row.ripe += int(run.is_ripe(linked)))
+	run.landmarks_unbound.connect(func(indices: Array[int]) -> void: row.unbound += indices.size())
 	for action: int in 400:
 		if run.is_over():
 			break
@@ -141,12 +157,36 @@ func _takes(run: RunState, ids: Array) -> bool:
 			return lights
 		"glean":
 			return lights and run.harvest != null and run.harvest.is_next()
+		"bound-strict":
+			if run.harvest == null or not run.harvest.is_next():
+				return true
+			for id: int in ids:
+				if run.scorpio.is_landmark(id) and not _joined(run, Scorpio.landmark_index(id)):
+					return false
+			return true
+		"ripe":
+			return run.harvest == null or run.harvest.is_next() or run.is_ripe(_stars_of(run, ids))
 		"sheaf":
 			if lights or run.harvest == null or not run.harvest.is_next():
 				return true
 			var size: int = run.find_star(ids[0]).size
 			return not (run.find_star(ids[1]).size == size and run.find_star(ids[2]).size == size)
 	return true
+
+
+## Whether landmark `index` is next to a lit one.
+func _joined(run: RunState, index: int) -> bool:
+	for n: int in run.scorpio.map.neighbours(index):
+		if run.scorpio.is_lit(n):
+			return true
+	return false
+
+
+func _stars_of(run: RunState, ids: Array) -> Array[Star]:
+	var found: Array[Star] = []
+	for id: int in ids:
+		found.append(run.scorpio.landmark_star(Scorpio.landmark_index(id)) if run.scorpio.is_landmark(id) else run.find_star(id))
+	return found
 
 
 ## Just up-left of the first unlit landmark.
@@ -170,6 +210,8 @@ func _best_link(run: RunState, links: Array[Array]) -> Array[int]:
 		for id: int in ids:
 			if run.scorpio.is_landmark(id):
 				score += 100
+				if _policy in ["bound", "bound-strict"] and not _joined(run, Scorpio.landmark_index(id)):
+					score -= 80
 		if score > best_score:
 			best = ids
 			best_score = score
