@@ -81,26 +81,12 @@ var hint_idle_seconds: float = 0.0
 ## own (current_steps, by StarMap id: chapter 2's stages ramp up), else it uses this one.
 var current_step: int = 0
 var current_steps: Dictionary[String, int] = {}
-## Virgo's harvest (chapter 4): launches between two harvests (0: no harvest), the dust a reaped
-## star pays by size (small, medium, big), and whether a harvest reaps the stars its own launch
-## brought.
+## Virgo's harvest (chapter 4): launches between two harvests (0: no harvest), and the percent of
+## their dust links pay under it (rounded down). A stage can have its own (harvest_stages, by
+## StarMap id: {"every", "link_dust_percent"}, each optional), else it uses these.
 var harvest_every: int = 0
-var harvest_pay: Array[int] = [0, 0, 0]
-var harvest_reaps_new: bool = false
-## Under the harvest, links pay this percent of their dust (rounded down; 0: light only, the
-## harvest is the stage's dust).
 var harvest_link_dust_percent: int = 100
-## Sheaves: a standing triple of one size within reach pays its combo's dust times this at the
-## harvest (0: no sheaves; its stars then pay by size like the rest).
-var harvest_sheaf_scale: int = 0
-## The most dust one harvest pays (0: no cap).
-var harvest_cap: int = 0
-## Ripe links: a link whose loose stars have all stood through a launch pays its light times this
-## (0: none).
-var harvest_ripe_scale: int = 0
-## Bound sheaves: at each harvest, a constellation star lit since the last one goes dark again unless
-## lit strings join it to the figure lit before.
-var harvest_binds: bool = false
+var harvest_stages: Dictionary[String, Dictionary] = {}
 
 var errors: Array[String] = []
 
@@ -108,6 +94,16 @@ var errors: Array[String] = []
 ## How far the current moves stars per launch on the stage playing map `map_id` (0: no current).
 func current_step_for(map_id: String) -> int:
 	return current_steps.get(map_id, current_step)
+
+
+## Launches between two harvests on the stage playing `map_id` (0: no harvest).
+func harvest_every_for(map_id: String) -> int:
+	return harvest_stages.get(map_id, {}).get("every", harvest_every)
+
+
+## The percent of their dust links pay under the harvest on the stage playing `map_id`.
+func harvest_link_dust_percent_for(map_id: String) -> int:
+	return harvest_stages.get(map_id, {}).get("link_dust_percent", harvest_link_dust_percent)
 
 
 static func load_file(path: String = DEFAULT_PATH) -> Balance:
@@ -247,26 +243,19 @@ func _parse_volley(raw: Dictionary, ctx: String) -> VolleyDef:
 
 func _parse_harvest(raw: Dictionary) -> void:
 	harvest_every = _read_int(raw, "every", "harvest.", 1)
-	var pay: Dictionary = _read_dict(raw, "pay", "harvest.")
-	harvest_pay = [_read_int(pay, "small", "harvest.pay.", 0), _read_int(pay, "medium", "harvest.pay.", 0), _read_int(pay, "big", "harvest.pay.", 0)]
-	if raw.has("sheaf_scale"):
-		harvest_sheaf_scale = _read_int(raw, "sheaf_scale", "harvest.", 0)
-	if raw.has("cap"):
-		harvest_cap = _read_int(raw, "cap", "harvest.", 0)
-	if raw.has("ripe_scale"):
-		harvest_ripe_scale = _read_int(raw, "ripe_scale", "harvest.", 0)
-	if raw.has("binds"):
-		if typeof(raw["binds"]) != TYPE_BOOL:
-			errors.append("harvest.binds: must be true or false")
-		else:
-			harvest_binds = raw["binds"]
 	if raw.has("link_dust_percent"):
 		harvest_link_dust_percent = _read_int(raw, "link_dust_percent", "harvest.", 0)
-	if raw.has("reaps_new"):
-		if typeof(raw["reaps_new"]) != TYPE_BOOL:
-			errors.append("harvest.reaps_new: must be true or false")
-		else:
-			harvest_reaps_new = raw["reaps_new"]
+	if raw.has("stages"):
+		var stages: Dictionary = _read_dict(raw, "stages", "harvest.")
+		for map_id: Variant in stages:
+			var ctx: String = "harvest.stages.%s." % map_id
+			var entry: Dictionary = _read_dict(stages, map_id, "harvest.stages.")
+			var stage: Dictionary = {}
+			if entry.has("every"):
+				stage["every"] = _read_int(entry, "every", ctx, 1)
+			if entry.has("link_dust_percent"):
+				stage["link_dust_percent"] = _read_int(entry, "link_dust_percent", ctx, 0)
+			harvest_stages[str(map_id)] = stage
 
 
 func _parse_scorpio(raw: Dictionary) -> void:

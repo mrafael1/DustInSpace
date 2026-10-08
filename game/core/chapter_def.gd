@@ -90,9 +90,32 @@ static func leo() -> ChapterDef:
 	return def
 
 
+## Chapter 4: Virgo, the maiden of the harvest, whose scythe reaps the sky. Opens once Leo's final
+## is won. Travelled from the head: the head, the wing (the arm up to Vindemiatrix), the robe, the
+## feet, the ear of wheat in her hand (Spica), then the whole Virgo.
+static func virgo() -> ChapterDef:
+	var def := ChapterDef.new()
+	def.id = "virgo"
+	def.title = "VIRGO"
+	def.number = 4
+	def.stages = [
+		{"name": "HEAD", "map": "virgo_head", "piece": "head", "stars": [0, 1]},
+		{"name": "WING", "map": "virgo_wing", "piece": "wing", "stars": [3, 4]},
+		{"name": "ROBE", "map": "", "piece": "robe", "stars": [7, 8, 9]},
+		{"name": "FEET", "map": "", "piece": "feet", "stars": [10, 11, 12]},
+		{"name": "WHEAT", "map": "", "piece": "wheat", "stars": [6, 5, 2]},
+		{"name": "VIRGO", "map": "", "stars": []},
+	]
+	def.figure = StarMap.virgo()
+	def.final_at = Vector2i(134, 82)
+	def.piece = "res://assets/art/virgo_piece_%s.png"
+	def.unlocked_by = "leo"
+	return def
+
+
 ## Every chapter, in campaign order.
 static func all() -> Array[ChapterDef]:
-	return [scorpio(), aquarius(), leo()]
+	return [scorpio(), aquarius(), leo(), virgo()]
 
 
 ## A won part's piece of the painting, or "" while it has no map (and so no piece).

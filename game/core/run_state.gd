@@ -24,15 +24,21 @@ signal stars_resized(changes: Array[StarHeat.Change])
 ## The heat changed the size of the constellation stars still to light (the Head), once the launch
 ## resolved; a big one came back small (`rekindled`).
 signal landmarks_resized(changes: Array[StarHeat.Change])
-## Virgo's harvest (chapter 4): the launch that ran the clock out resolved, and the loose `stars`
-## were reaped, paying `dust` (no light). Only when there were stars to reap.
-signal harvested(stars: Array[Star], dust: int)
-## The harvest clock moved: `launches_left` until the next harvest (after every launch, and once as
-## the run starts).
+## Virgo's harvest (chapter 4): the launch that ran the clock out resolved, and the scythe reaped
+## the loose `stars` (maybe none), for nothing. Any landmarks_unbound follows.
+signal harvested(stars: Array[Star])
+## The harvest clock moved: `launches_left` until the next harvest (after every launch).
 signal harvest_counted(launches_left: int)
 ## Virgo's bound sheaves: the harvest put out the constellation stars `indices`, lit since the last
 ## harvest but not joined to the figure lit before it.
 signal landmarks_unbound(indices: Array[int])
+## Virgo's scythe intro: the stage opened with `stars` in the sky (one of each size, as placed); the
+## harvest reaps them next (harvested).
+signal harvest_intro_placed(stars: Array[Star])
+## Virgo's binding intro: the stage opened by showing constellation star `index` lit, away from the
+## figure (presentation only: the run doesn't light it); the harvest puts it out next
+## (landmarks_unbound).
+signal harvest_intro_lit(index: int)
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
@@ -121,6 +127,8 @@ const LAYOUT_SEED_SALT: int = 0x5CA77E4
 const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
 const HEAT_INTRO_PULSES: int = 3
 const HEAT_INTRO_SEED_SALT: int = 0x4EA7
+## Virgo's scythe intro: its layout's own RNG stream (XOR'd into the run seed).
+const HARVEST_INTRO_SEED_SALT: int = 0x5C7E
 
 var balance: Balance
 ## The seed of the RNG the run started with. Anything replayable derives its randomness from it.
@@ -152,10 +160,7 @@ var current: StarCurrent
 var heat: StarHeat
 ## Virgo's harvest (chapter 4), or null when the map has none (or balance.json no harvest block).
 var harvest: StarHarvest
-## Ripe links: the first id of the stars the latest launch brought (stars before it have stood
-## through a launch). Bound sheaves: the landmarks bound to the figure (lit at the start, or lit and
-## joined at a harvest).
-var _ripe_below: int = 0
+## Bound sheaves: the landmarks bound to the figure (lit at the start, or still lit at a harvest).
 var _bound: Array[bool] = []
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
 var _current_reserved: Dictionary[int, Vector2i] = {}
@@ -196,10 +201,9 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			current = StarCurrent.new(area, scorpio.map.current_direction * step, scorpio.map.current_drains, scorpio.map.current_turns)
 		if scorpio.map.heat_change != 0:
 			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns, scorpio.map.heat_turns)
-		if scorpio.map.harvest and balance.harvest_every > 0:
-			harvest = StarHarvest.new(balance.harvest_every, balance.harvest_pay.duplicate(), balance.harvest_reaps_new)
-			for i: int in scorpio.map.count():
-				_bound.append(scorpio.is_lit(i))
+		if scorpio.map.harvest and balance.harvest_every_for(scorpio.map.id) > 0:
+			harvest = StarHarvest.new(balance.harvest_every_for(scorpio.map.id), scorpio.map.harvest_binds)
+			_bound.assign(scorpio.lit)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -600,11 +604,10 @@ func link(star_ids: Array[int]) -> String:
 		stars.erase(star)
 	_orion_forget(linked)
 	var reward: Balance.ComboReward = balance.combos[combo]
-	var link_dust: int = reward.dust if harvest == null else reward.dust * balance.harvest_link_dust_percent / 100
-	dust += link_dust
-	var link_light: int = reward.light * (balance.harvest_ripe_scale if is_ripe(linked) else 1)
-	light += link_light
-	combo_collected.emit(combo, linked, link_dust, link_light)
+	var paid: int = link_dust(combo)
+	dust += paid
+	light += reward.light
+	combo_collected.emit(combo, linked, paid, reward.light)
 	if scorpio != null:
 		for star: Star in linked:
 			if scorpio.is_landmark(star.id):
@@ -824,112 +827,61 @@ func _shift_stars() -> void:
 		stars_shifted.emit(shifted)
 
 
-## The harvest clock counts a launch; when it runs out, the loose stars pay and are reaped (the
-## stars this launch brought stand, unless the harvest reaps new ones too).
+## The harvest clock counts a launch; when it runs out, the scythe reaps the loose stars for
+## nothing (the stars this launch brought stand) and, where it binds, puts out the constellation
+## stars lit since the last harvest that lit strings don't join to the bound figure.
 func _count_harvest(first_new_id: int) -> void:
-	_ripe_below = first_new_id
 	if harvest.count_launch():
-		if balance.harvest_binds:
-			_bind_sheaves()
 		var skip: Dictionary[int, bool] = {}
 		for star: Star in stars:
 			if star.id >= first_new_id:
 				skip[star.id] = true
-		var reaped: Array[Star] = harvest.reaped(stars, skip)
-		if not reaped.is_empty():
-			var gain: int = _harvest_value(reaped)
-			for star: Star in reaped:
-				stars.erase(star)
-			_orion_forget(reaped)
-			dust += gain
-			harvested.emit(reaped, gain)
+		var reaped: Array[Star] = StarHarvest.reaped(stars, skip)
+		for star: Star in reaped:
+			stars.erase(star)
+		_orion_forget(reaped)
+		harvested.emit(reaped)
+		if harvest.binds:
+			_bind_sheaves()
 	harvest_counted.emit(harvest.launches_left)
 
 
-## Ripe links (Virgo): whether every loose star of `linked` has stood through a launch (a link of
-## constellation stars alone isn't). Always false without ripe links.
-func is_ripe(linked: Array[Star]) -> bool:
-	if harvest == null or balance.harvest_ripe_scale <= 1:
-		return false
-	var loose: int = 0
-	for star: Star in linked:
-		if scorpio != null and scorpio.is_landmark(star.id):
-			continue
-		if star.id >= _ripe_below:
-			return false
-		loose += 1
-	return loose > 0
-
-
-## Bound sheaves: the constellation stars lit since the last harvest that lit strings don't join to
-## the bound figure go dark; the rest are bound from now on.
+## Bound sheaves: the constellation stars that go dark at the harvest go dark; every star still lit
+## is bound from now on.
 func _bind_sheaves() -> void:
-	var reached: Array[bool] = _bound.duplicate()
-	var frontier: Array[int] = []
-	for i: int in reached.size():
-		if reached[i]:
-			frontier.append(i)
-	while not frontier.is_empty():
-		var at: int = frontier.pop_back()
-		for n: int in scorpio.map.neighbours(at):
-			if scorpio.is_lit(n) and not reached[n]:
-				reached[n] = true
-				frontier.append(n)
-	var unbound: Array[int] = []
-	for i: int in reached.size():
-		if scorpio.is_lit(i) and not reached[i]:
-			scorpio.unlight(i)
-			unbound.append(i)
-		_bound[i] = scorpio.is_lit(i)
+	var unbound: Array[int] = StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
+	for index: int in unbound:
+		scorpio.unlight(index)
+	_bound.assign(scorpio.lit)
 	if not unbound.is_empty():
 		landmarks_unbound.emit(unbound)
 
 
-## What a harvest of `reaped` pays: each sheaf (a standing triple of one size within reach, when
-## balance.json has sheaves) its combo's dust times the sheaf scale, every other star its size's
-## pay; at most the harvest's cap.
-func _harvest_value(reaped: Array[Star]) -> int:
-	var rest: Array[Star] = reaped.duplicate()
-	var gain: int = 0
-	for sheaf: Array[Star] in harvest_sheaves(reaped):
-		gain += balance.combos[Combos.evaluate([sheaf[0].size, sheaf[1].size, sheaf[2].size] as Array[int])].dust * balance.harvest_sheaf_scale
-		for star: Star in sheaf:
-			rest.erase(star)
-	gain += harvest.value(rest)
-	return mini(gain, balance.harvest_cap) if balance.harvest_cap > 0 else gain
+## The dust a link of `combo` pays on this stage (Virgo's links pay a share of it).
+func link_dust(combo: String) -> int:
+	var dust_paid: int = balance.combos[combo].dust
+	if harvest == null:
+		return dust_paid
+	return dust_paid * balance.harvest_link_dust_percent_for(scorpio.map.id) / 100
 
 
-## The sheaves among `reaped`: disjoint triples of one size whose stars link within reach, the
-## biggest size first. None without sheaves in balance.json.
-func harvest_sheaves(reaped: Array[Star]) -> Array[Array]:
-	var found: Array[Array] = []
-	if balance.harvest_sheaf_scale <= 0:
-		return found
-	var used: Dictionary[int, bool] = {}
-	for size: int in [Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL]:
-		var pool: Array[Star] = reaped.filter(func(s: Star) -> bool: return s.size == size)
-		for a: int in pool.size():
-			for b: int in range(a + 1, pool.size()):
-				for c: int in range(b + 1, pool.size()):
-					var trio: Array[Star] = [pool[a], pool[b], pool[c]]
-					if trio.any(func(s: Star) -> bool: return used.has(s.id)):
-						continue
-					if _can_chain(trio):
-						found.append(trio)
-						for star: Star in trio:
-							used[star.id] = true
-	return found
-
-
-## Pure preview: what the next launch's harvest reaps of the stars in the sky now (star id to its
-## pay), or {} when the next launch doesn't bring one. The stars that launch brings aren't known.
-func harvest_preview() -> Dictionary[int, int]:
-	var result: Dictionary[int, int] = {}
+## Pure preview: the loose stars the next launch's harvest reaps (all in the sky now; the stars that
+## launch brings stand), or none when the next launch doesn't bring one.
+func harvest_preview() -> Array[int]:
+	var result: Array[int] = []
 	if harvest == null or not harvest.is_next():
 		return result
 	for star: Star in stars:
-		result[star.id] = harvest.pay_for(star)
+		result.append(star.id)
 	return result
+
+
+## Pure preview: the constellation stars the next launch's harvest puts out (bound sheaves), or none
+## when the next launch doesn't bring one.
+func unbound_preview() -> Array[int]:
+	if harvest == null or not harvest.binds or not harvest.is_next():
+		return [] as Array[int]
+	return StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
 
 
 func _heat_stars(first_new_id: int) -> void:
@@ -1135,6 +1087,54 @@ func play_heat_intro() -> void:
 		var left: Array[Star] = stars.duplicate()
 		stars.clear()
 		heat_intro_cleared.emit(left)
+
+
+## Virgo's intro, as a harvest stage opens (the scene calls it once its views are bound). Where the
+## harvest binds (bound sheaves), the constellation star furthest along the figure from the lit ones
+## shows lit, then the harvest puts it out: it isn't joined. Elsewhere, the scythe: a small, a medium
+## and a big star in the middle of the sky, then the harvest reaps them. It pays nothing, changes no
+## progress, doesn't move the clock, and places its stars from its own RNG stream, so packs and
+## layout never shift. Does nothing without a harvest, on a map without intros, or once the run has
+## begun.
+func play_harvest_intro() -> void:
+	if harvest == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	if harvest.binds:
+		var far: int = _furthest_unlit()
+		if far >= 0:
+			harvest_intro_lit.emit(far)
+			landmarks_unbound.emit([far] as Array[int])
+		return
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ HARVEST_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), StarScatter.inner_rect(sky_rect).get_center(), sky_rect, [], layout, scorpio.landmark_positions())
+	var shown: Array[Star] = []
+	for i: int in spots.size():
+		shown.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
+	harvest_intro_placed.emit(shown.duplicate())
+	for star: Star in shown:
+		stars.erase(star)
+	harvested.emit(shown)
+
+
+## The unlit constellation star the most strings away from every lit one (-1: none).
+func _furthest_unlit() -> int:
+	var depth: Dictionary[int, int] = {}
+	var frontier: Array[int] = []
+	for i: int in scorpio.map.count():
+		if scorpio.is_lit(i):
+			depth[i] = 0
+			frontier.append(i)
+	var furthest: int = -1
+	while not frontier.is_empty():
+		var at: int = frontier.pop_front()
+		for n: int in scorpio.map.neighbours(at):
+			if not depth.has(n):
+				depth[n] = depth[at] + 1
+				frontier.append(n)
+				if furthest < 0 or depth[n] > depth[furthest]:
+					furthest = n
+	return furthest
 
 
 ## The Head's intro: the heat changes the constellation stars once a beat for a whole turn of their
