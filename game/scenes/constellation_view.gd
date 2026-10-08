@@ -116,6 +116,8 @@ var _shown_sizes: Array[int] = []
 ## Landmarks the heat is resizing (the Head): index -> [from, to, seconds in, rekindled]. They play
 ## a sky star's resize (StarView's charge and pop), switching size at RESIZE_FLARE.
 var _resizing: Dictionary[int, Array] = {}
+## Landmarks being cropped by Virgo's scythe, and the seconds until they show again (unlit).
+var _cropping: Dictionary[int, float] = {}
 ## Leo's final arriving: seconds into the blaze (-1: none), and the order its stars catch fire in.
 var _blaze_time: float = -1.0
 var _blaze_order: Array[int] = []
@@ -179,6 +181,7 @@ func setup(run: RunState) -> void:
 	_shown_lit.clear()
 	_shown_sizes.clear()
 	_resizing.clear()
+	_cropping.clear()
 	_blaze_time = -1.0
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
@@ -316,6 +319,17 @@ func put_out(index: int) -> void:
 	queue_redraw()
 
 
+## Virgo's scythe crops landmark `index`: it goes dark and isn't drawn for `seconds` (its cut halves
+## are drawn over it), then shows unlit.
+func crop(index: int, seconds: float) -> void:
+	put_out(index)
+	_cropping[index] = seconds
+
+
+func is_cropping(index: int) -> bool:
+	return _cropping.has(index)
+
+
 ## The Sun's ignition is over: a sunbeam flies from its rim (the Sun sits at `sun`) to landmark
 ## `index`, which lights when it lands (its landmark_lit event plays then). -1: no beam.
 func launch_sunbeam(sun: Vector2i, index: int) -> void:
@@ -441,6 +455,11 @@ func glow_step() -> int:
 
 ## Moves the glow, flashes and completion on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
+	for index: int in _cropping.keys():
+		_cropping[index] -= delta
+		if _cropping[index] <= 0.0:
+			_cropping.erase(index)
+			queue_redraw()
 	var step: int = glow_step()
 	var cue: int = cue_frame()
 	var twinkling: Array[bool] = _twinkling()
@@ -623,6 +642,8 @@ func ring_frame() -> int:
 
 
 func _draw_landmark(index: int) -> void:
+	if _cropping.has(index):
+		return
 	var size: int = shown_size(index)
 	var at: Vector2i = _map().landmarks[index]
 	if _blaze_time >= 0.0:

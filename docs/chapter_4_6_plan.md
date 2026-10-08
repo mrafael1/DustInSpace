@@ -1,6 +1,6 @@
 # Chapters 4 to 6: ideas to test
 
-**Status: Virgo is being built with the scythe and bound sheaves (step D: kept, revised), 2026-10-08.** Its first two stages are in [design.md](design.md) (chapter 4). The harvest that paid dust failed its stakes gate; bound sheaves with a tighter economy passed it (step C, below). The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
+**Status: Virgo is built with the scythe and bound sheaves (step D: kept, revised), 2026-10-08.** All six stages are in [design.md](design.md) (chapter 4); paintings to come. The harvest that paid dust failed its stakes gate; bound sheaves with a tighter economy passed it (step C, below). The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
 
 ## Direction and stakes
 

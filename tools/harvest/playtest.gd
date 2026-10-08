@@ -16,6 +16,9 @@ var _balance: Balance
 var _runs: int = 200
 var _map: String = "virgo_wing"
 var _binds: int = -1
+## Twists switched on for the run: "quickens", "ties". (The swath, each harvest reaping half the
+## sky by turns, was measured and dropped: docs/design.md, chapter 4.)
+var _twists: Array[String] = []
 var _policies: Array[String] = POLICIES
 var _policy: String = ""
 
@@ -37,6 +40,8 @@ func _initialize() -> void:
 			_binds = 1
 		elif argument == "--no-binds":
 			_binds = 0
+		elif argument in ["--quickens", "--ties"]:
+			_twists.append(argument.trim_prefix("--"))
 		elif argument.begins_with("--policies="):
 			_policies.assign(argument.trim_prefix("--policies=").split(","))
 	var stage: Dictionary = _balance.harvest_stages.get(_map, {}).duplicate()
@@ -52,7 +57,7 @@ func _initialize() -> void:
 
 func _simulate() -> void:
 	var probe: StarMap = _layout(true)
-	print("Paired seeds 1..%d; %s; every %d; link dust %d%%; binds %s" % [_runs, _map, _balance.harvest_every_for(_map), _balance.harvest_link_dust_percent_for(_map), probe.harvest_binds])
+	print("Paired seeds 1..%d; %s; every %d; link dust %d%%; binds %s; twists %s" % [_runs, _map, _balance.harvest_every_for(_map), _balance.harvest_link_dust_percent_for(_map), probe.harvest_binds, _twists])
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
 		for enabled: bool in [false, true]:
@@ -92,6 +97,8 @@ func _layout(enabled: bool) -> StarMap:
 	map.harvest = enabled
 	if _binds >= 0:
 		map.harvest_binds = _binds == 1
+	map.harvest_quickens = map.harvest_quickens or _twists.has("quickens")
+	map.harvest_ties = map.harvest_ties or _twists.has("ties")
 	return map
 
 

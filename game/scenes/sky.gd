@@ -57,6 +57,10 @@ signal landmark_rekindled(at: Vector2i)
 signal harvest_swept
 ## Virgo's bound sheaves: a constellation star at `at` went dark. Feedback only (sound).
 signal landmark_put_out(at: Vector2i)
+## Virgo's binding intro: the star joined to the figure was kept. Feedback only (sound).
+signal landmark_kept(at: Vector2i)
+## Virgo's binding intro: its demo combo collected (no payout). Feedback only (sound).
+signal intro_link_collected
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -71,6 +75,8 @@ const HIT_RADIUS: int = 11
 
 ## Orion's volley intro (#70): how long its stars show before the volley takes them.
 const INTRO_HOLD: float = 0.9
+## Virgo's binding intro: its demo combo is traced at this many seconds a step, star to star.
+const INTRO_TRACE_STEP: float = 0.32
 ## No heatwave: a resize starts everywhere at once.
 const NO_ORIGIN := Vector2i(-9999, -9999)
 ## Leo's heat intro: the beat between one change of its stars and the next (or their leaving).
@@ -319,15 +325,33 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_reap(event.args[0])
 		&"landmarks_unbound":
 			_put_out(event.args[0])
+		&"harvest_intro_ended":
+			# The demo planet's stars leave once they've been seen: no reward.
+			_sequencer.hold(StarView.DISSOLVE_TIME + INTRO_HOLD)
+			for star: Star in event.args[0]:
+				var view: StarView = _views.get(star.id)
+				if view != null:
+					_views.erase(star.id)
+					view.dissolve()
 		&"harvest_intro_placed":
 			for star: Star in event.args[0]:
 				_spawn(star)
 			# A beat to see the stars before the scythe takes them.
 			_sequencer.hold(INTRO_HOLD)
 		&"harvest_intro_lit":
-			_constellation.flash_landmark(event.args[0])
-			# A beat to see it lit before the harvest puts it out.
+			# The demo combo is traced star by star, collects and lights the star; then a beat to see it
+			# lit, joined or alone, before the next.
+			_sequencer.hold(_trace_intro_link(event.args[2], event.args[0], event.args[1]) + INTRO_HOLD)
+		&"harvest_intro_kept":
+			var at: Vector2i = _run.scorpio.landmark_position(event.args[0])
+			_harvest.flash_kept(at)
+			landmark_kept.emit(at)
+			_sequencer.hold(HarvestView.KEPT_TIME)
+		&"harvest_intro_cleared":
+			# A beat to see what the scythe kept, then the demo's star shows as it really is.
 			_sequencer.hold(INTRO_HOLD)
+			for index: int in event.args[0]:
+				_constellation.put_out(index)
 	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
 	if _orion.marked() != null and not _views.values().has(_orion.marked()):
 		_orion.clear_mark()
@@ -716,14 +740,66 @@ func _reap(stars: Array[Star]) -> void:
 	_sequencer.hold(lasts)
 
 
+## Virgo's binding intro: the demo combo `link` (two demo stars, then constellation star `index`) is
+## traced as a player would, the line running from star to star at INTRO_TRACE_STEP a step (each
+## star selected as it's reached, chiming its note), then it collects (the line flares, the demo stars
+## dissolve) and the constellation star lights, its lone ring on if it's `alone`. Returns how long.
+func _trace_intro_link(link: Array[int], index: int, alone: bool) -> float:
+	var points: Array[Vector2i] = []
+	for id: int in link:
+		points.append(_run.scorpio.landmark_position(Scorpio.landmark_index(id)) if Scorpio.is_landmark_id(id) else Vector2i(_views[id].position) if _views.has(id) else Vector2i.ZERO)
+	var steps: int = points.size() - 1
+	var tween: Tween = create_tween()
+	_selected_count = 0
+	tween.tween_method(_show_intro_trace.bind(link, points), 0.0, float(steps), INTRO_TRACE_STEP * steps)
+	tween.tween_callback(_collect_intro_link.bind(link, points, index, alone))
+	return INTRO_TRACE_STEP * steps + StarView.DISSOLVE_TIME
+
+
+## The demo combo `t` steps along `points` (the stars of `link`): the line up to its tip, the stars
+## reached so far selected.
+func _show_intro_trace(t: float, link: Array[int], points: Array[Vector2i]) -> void:
+	var reached: int = mini(floori(t), points.size() - 1)
+	var path: Array[Vector2i] = points.slice(0, reached + 1)
+	if reached < points.size() - 1:
+		path.append(Vector2i(Vector2(points[reached]).lerp(Vector2(points[reached + 1]), t - reached).round()))
+	_link_layer.show_path(path)
+	for k: int in reached + 1:
+		if _views.has(link[k]):
+			_views[link[k]].selected = true
+	if reached + 1 > _selected_count:
+		_selected_count = reached + 1
+		star_selected.emit(_selected_count)
+
+
+func _collect_intro_link(link: Array[int], points: Array[Vector2i], index: int, alone: bool) -> void:
+	_selected_count = 0
+	_link_layer.show_path([] as Array[Vector2i])
+	_link_layer.flash_collected(points)
+	for id: int in link:
+		var view: StarView = _views.get(id)
+		if view != null:
+			_views.erase(id)
+			view.dissolve()
+	_constellation.flash_landmark(index)
+	if alone:
+		_harvest.show_alone(_run.scorpio.landmark_position(index), _run.scorpio.map.sizes[index])
+	intro_link_collected.emit()
+
+
 ## Virgo's bound sheaves: the constellation stars the harvest put out go dark, one after another.
 func _put_out(indices: Array[int]) -> void:
 	for index: int in indices:
 		var at: Vector2i = _run.scorpio.landmark_position(index)
-		_constellation.put_out(index)
-		_harvest.flash_put_out(at)
+		# The lit strings that joined it snap with it.
+		var ends: Array[Vector2i] = []
+		for n: int in _run.scorpio.map.neighbours(index):
+			if _constellation.shows_lit(n):
+				ends.append(_run.scorpio.landmark_position(n))
+		_constellation.crop(index, HarvestView.CROP_TIME)
+		_harvest.flash_crop(at, _constellation.shown_size(index), ends)
 		landmark_put_out.emit(at)
-	_sequencer.hold(HarvestView.PUT_OUT_TIME)
+	_sequencer.hold(HarvestView.CROP_TIME)
 
 
 func _dissolve(stars: Array[Star]) -> void:

@@ -101,10 +101,10 @@ static func virgo() -> ChapterDef:
 	def.stages = [
 		{"name": "HEAD", "map": "virgo_head", "piece": "head", "stars": [0, 1]},
 		{"name": "WING", "map": "virgo_wing", "piece": "wing", "stars": [3, 4]},
-		{"name": "ROBE", "map": "", "piece": "robe", "stars": [7, 8, 9]},
-		{"name": "FEET", "map": "", "piece": "feet", "stars": [10, 11, 12]},
-		{"name": "WHEAT", "map": "", "piece": "wheat", "stars": [6, 5, 2]},
-		{"name": "VIRGO", "map": "", "stars": []},
+		{"name": "ROBE", "map": "virgo_robe", "piece": "robe", "stars": [7, 8, 9]},
+		{"name": "FEET", "map": "virgo_feet", "piece": "feet", "stars": [10, 11, 12]},
+		{"name": "WHEAT", "map": "virgo_wheat", "piece": "wheat", "stars": [6, 5, 2]},
+		{"name": "VIRGO", "map": "virgo_final", "stars": []},
 	]
 	def.figure = StarMap.virgo()
 	def.final_at = Vector2i(134, 82)

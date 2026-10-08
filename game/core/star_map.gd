@@ -79,6 +79,10 @@ var harvest: bool = false
 ## Bound sheaves: at each harvest, a constellation star lit since the last one goes dark again unless
 ## lit strings join it to the figure lit before.
 var harvest_binds: bool = false
+## The quickening: after each harvest the clock is a launch shorter, down to one.
+var harvest_quickens: bool = false
+## Tied at once: the binding acts after every launch, not only at the harvest.
+var harvest_ties: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -601,6 +605,87 @@ static func virgo_wing() -> StarMap:
 	return map
 
 
+## Virgo, stage 3: the Robe. A quicker scythe (a 2-launch clock) on a figure that branches: from the
+## waist (lit, top) the robe falls three ways, the near folds big, the hems small and far. Seven to
+## light. Strings are 32-36 px.
+static func virgo_robe() -> StarMap:
+	var map := StarMap.new()
+	map.id = "virgo_robe"
+	map.title = "ROBE"
+	map.landmarks = [
+		Vector2i(90, 100), Vector2i(68, 124), Vector2i(50, 152), Vector2i(90, 136),
+		Vector2i(90, 168), Vector2i(90, 200), Vector2i(112, 124), Vector2i(130, 152),
+	]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(0, 3), Vector2i(3, 4), Vector2i(4, 5), Vector2i(0, 6), Vector2i(6, 7)]
+	map.sizes = [Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = VIRGO_PART % "robe"
+	map.intros = false
+	map.harvest = true
+	map.harvest_binds = true
+	return map
+
+
+## Virgo, stage 4: the Feet. Tied at once (its intro shows a far star put out): after every launch,
+## not only at the harvest, a lit star not joined to the figure goes dark. From the hip (lit, top) the
+## legs part, each ending in a foot that forks into toe and heel. Eight to light. Strings are 31-34 px.
+static func virgo_feet() -> StarMap:
+	var map := StarMap.new()
+	map.id = "virgo_feet"
+	map.title = "FEET"
+	map.landmarks = [
+		Vector2i(90, 104), Vector2i(66, 128), Vector2i(52, 158), Vector2i(30, 180), Vector2i(64, 188),
+		Vector2i(114, 128), Vector2i(128, 158), Vector2i(150, 180), Vector2i(116, 188),
+	]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(2, 4), Vector2i(0, 5), Vector2i(5, 6), Vector2i(6, 7), Vector2i(6, 8)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = VIRGO_PART % "feet"
+	map.harvest = true
+	map.harvest_binds = true
+	map.harvest_ties = true
+	return map
+
+
+## Virgo, stage 5: the Wheat, the ear of wheat in her hand (Spica). The quickening: after each
+## harvest the clock is a launch shorter (3, then 2, then every launch), and the bound sheaves hold.
+## From the stalk's foot (lit, bottom) the stalk climbs to Spica (big) at the top, a grain branching
+## off each joint by turns. Seven to light. Strings are 27-32 px.
+static func virgo_wheat() -> StarMap:
+	var map := StarMap.new()
+	map.id = "virgo_wheat"
+	map.title = "WHEAT"
+	map.landmarks = [
+		Vector2i(90, 222), Vector2i(90, 190), Vector2i(90, 158), Vector2i(90, 126), Vector2i(90, 96),
+		Vector2i(66, 178), Vector2i(114, 146), Vector2i(66, 114),
+	]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(1, 5), Vector2i(2, 6), Vector2i(3, 7)]
+	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = VIRGO_PART % "wheat"
+	map.intros = false
+	map.harvest = true
+	map.harvest_binds = true
+	map.harvest_quickens = true
+	return map
+
+
+## Virgo's final, stage 6: the whole Virgo (the chart's figure, the head lit: twelve to light),
+## under the scythe, tied at once: after every launch a lit star not joined to the figure goes dark
+## (spatial bots: careless linking 50%, lighting next to the figure first 81%, hoarding 0%). It
+## arrives with its title card: VIRGO, MAIDEN OF THE HARVEST.
+static func virgo_final() -> StarMap:
+	var map: StarMap = virgo()
+	map.id = "virgo_final"
+	# Its arrival is its intro: the binding was shown on the Wing and the Feet.
+	map.intros = false
+	map.harvest = true
+	map.harvest_binds = true
+	map.harvest_ties = true
+	map.arrival_epithet = "MAIDEN OF THE HARVEST"
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -650,6 +735,14 @@ static func by_id(p_id: String) -> StarMap:
 			return virgo_head()
 		"virgo_wing":
 			return virgo_wing()
+		"virgo_robe":
+			return virgo_robe()
+		"virgo_feet":
+			return virgo_feet()
+		"virgo_wheat":
+			return virgo_wheat()
+		"virgo_final":
+			return virgo_final()
 	return scorpio()
 
 

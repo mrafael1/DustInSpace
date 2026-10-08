@@ -28,18 +28,31 @@ signal landmarks_resized(changes: Array[StarHeat.Change])
 ## scythe reaped the loose `stars` (maybe none), for nothing: before a blue planet's burst, between a
 ## red planet's two. Any landmarks_unbound follows, then the burst.
 signal harvested(stars: Array[Star])
-## The harvest clock moved: `launches_left` until the next harvest (after every launch).
-signal harvest_counted(launches_left: int)
+## The harvest clock moved: `launches_left` until the next harvest, of `period` launches between two
+## (a quickening clock shortens), after every launch.
+signal harvest_counted(launches_left: int, period: int)
 ## Virgo's bound sheaves: the harvest put out the constellation stars `indices`, lit since the last
 ## harvest but not joined to the figure lit before it.
 signal landmarks_unbound(indices: Array[int])
 ## Virgo's scythe intro: the stage opened with `stars` in the sky (one of each size, as placed); the
 ## harvest reaps them next (harvested).
 signal harvest_intro_placed(stars: Array[Star])
-## Virgo's binding intro: the stage opened by showing constellation star `index` lit, away from the
-## figure (presentation only: the run doesn't light it); the harvest puts it out next
-## (landmarks_unbound).
-signal harvest_intro_lit(index: int)
+## Virgo's scythe intro: the wheat clock jumps to `launches_left` (presentation only: the run's own
+## clock doesn't move): to its last ear as the stage opens, then back to full after the harvest.
+signal harvest_intro_clock(launches_left: int)
+## Virgo's scythe intro is over: the demo planet's `stars` leave the sky. No reward.
+signal harvest_intro_ended(stars: Array[Star])
+## Virgo's binding intro: the stage opened by showing constellation star `index` lit by a combo,
+## the stars `link` (two demo stars from harvest_intro_placed, then the constellation star's id, in
+## the order they link), next to the lit figure or `alone`, away from it (presentation only: the run
+## doesn't light it, pays nothing, and the demo stars are gone). The scythe sweeps next (harvested,
+## over no stars), then the joined one is kept (harvest_intro_kept) and the alone one goes out
+## (landmarks_unbound), then the kept one goes back to how it was (harvest_intro_cleared).
+signal harvest_intro_lit(index: int, alone: bool, link: Array[int])
+## Virgo's binding intro: the star lit next to the figure survived the scythe.
+signal harvest_intro_kept(index: int)
+## Virgo's binding intro is over: the demo's kept stars `indices` show unlit again, as they are.
+signal harvest_intro_cleared(indices: Array[int])
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
@@ -78,9 +91,11 @@ signal area_struck(centre: Vector2i, stars: Array[Star])
 ## Orion's hunting intro: the stage opened with `stars` already in the sky (inside the circle
 ## area_marked shows next).
 signal hunt_intro_placed(stars: Array[Star])
-## Orion's hunting intro: a demo pack of `kind` flies to `burst` (presentation: no pack is used).
+## Orion's hunting intro (and Virgo's scythe intro): a demo pack of `kind` flies to `burst`
+## (presentation: no pack is used).
 signal hunt_intro_launched(kind: String, burst: Vector2i)
-## Orion's hunting intro: the demo pack burst at `burst` into `stars` (area_struck takes them next).
+## Orion's hunting intro (and Virgo's scythe intro): the demo pack burst at `burst` into `stars`
+## (area_struck takes them next; in Virgo's, harvest_intro_ended).
 signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
 ## Leo's heat intro: the stage that brings the heat (or the cold) opened with `stars` in the sky
 ## (one of each size, copies as placed); the heat acts on them next, each time a stars_resized.
@@ -130,6 +145,10 @@ const HEAT_INTRO_PULSES: int = 3
 const HEAT_INTRO_SEED_SALT: int = 0x4EA7
 ## Virgo's scythe intro: its layout's own RNG stream (XOR'd into the run seed).
 const HARVEST_INTRO_SEED_SALT: int = 0x5C7E
+## Virgo's scythe intro: where its standing stars and its demo planet's burst sit from the sky's
+## middle (apart, so the planet bursts into the space the scythe cleared beside them).
+const HARVEST_INTRO_STANDING := Vector2i(-30, -20)
+const HARVEST_INTRO_BURST := Vector2i(30, 20)
 
 var balance: Balance
 ## The seed of the RNG the run started with. Anything replayable derives its randomness from it.
@@ -203,7 +222,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.heat_change != 0:
 			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns, scorpio.map.heat_turns)
 		if scorpio.map.harvest and balance.harvest_every_for(scorpio.map.id) > 0:
-			harvest = StarHarvest.new(balance.harvest_every_for(scorpio.map.id), scorpio.map.harvest_binds)
+			harvest = StarHarvest.new(balance.harvest_every_for(scorpio.map.id), scorpio.map.harvest_binds, scorpio.map.harvest_quickens, scorpio.map.harvest_ties)
 			_bound.assign(scorpio.lit)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
@@ -312,9 +331,25 @@ func idle_hint_link(rng: RandomNumberGenerator) -> Array[int]:
 	var found: Array[Array] = valid_links()
 	if found.is_empty():
 		return [] as Array[int]
+	# Where the harvest binds, the hint grows the figure: a link that lights a star next to the lit
+	# ones if there is one, else one that lights no star alone.
+	if harvest != null and harvest.binds:
+		var joining: Array[Array] = found.filter(func(ids: Array) -> bool: return _lights(ids) == 1)
+		var safe: Array[Array] = found.filter(func(ids: Array) -> bool: return _lights(ids) >= 0)
+		found = joining if not joining.is_empty() else (safe if not safe.is_empty() else found)
 	var picked: Array[int] = []
 	picked.assign(found[rng.randi_range(0, found.size() - 1)])
 	return picked
+
+
+## Bound sheaves, for the hint: 1 if link `ids` lights a constellation star next to a lit one, 0 if
+## it lights none, -1 if it lights one alone.
+func _lights(ids: Array) -> int:
+	for id: int in ids:
+		if scorpio.is_landmark(id):
+			var index: int = Scorpio.landmark_index(id)
+			return 1 if scorpio.map.neighbours(index).any(func(n: int) -> bool: return scorpio.is_lit(n)) else -1
+	return 0
 
 
 ## Every valid link in the sky (unlit landmarks included, one at most), each as ids in an order that
@@ -838,15 +873,16 @@ func _shift_stars() -> void:
 ## a blue planet's only one, lands after), and, where it binds, puts out the constellation stars lit
 ## since the last harvest that lit strings don't join to the bound figure.
 func _count_harvest() -> void:
-	if harvest.count_launch():
+	var due: bool = harvest.count_launch()
+	if due:
 		var reaped: Array[Star] = stars.duplicate()
 		for star: Star in reaped:
 			stars.erase(star)
 		_orion_forget(reaped)
 		harvested.emit(reaped)
-		if harvest.binds:
-			_bind_sheaves()
-	harvest_counted.emit(harvest.launches_left)
+	if harvest.binds and (due or harvest.ties):
+		_bind_sheaves()
+	harvest_counted.emit(harvest.launches_left, harvest.period)
 
 
 ## Bound sheaves: the constellation stars that go dark at the harvest go dark; every star still lit
@@ -880,10 +916,19 @@ func harvest_preview() -> Array[int]:
 	return result
 
 
+## Bound sheaves: the lit constellation stars that are alone now (no path of lit stars joins them to
+## the bound figure): the next harvest, or with the tie the next launch, puts them out unless they're
+## joined first. None where the harvest doesn't bind.
+func loose_landmarks() -> Array[int]:
+	if harvest == null or not harvest.binds:
+		return [] as Array[int]
+	return StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
+
+
 ## Pure preview: the constellation stars the next launch's harvest puts out (bound sheaves), or none
 ## when the next launch doesn't bring one.
 func unbound_preview() -> Array[int]:
-	if harvest == null or not harvest.binds or not harvest.is_next():
+	if harvest == null or not harvest.binds or not (harvest.is_next() or harvest.ties):
 		return [] as Array[int]
 	return StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
 
@@ -1094,31 +1139,85 @@ func play_heat_intro() -> void:
 
 
 ## Virgo's intro, as a harvest stage opens (the scene calls it once its views are bound). Where the
-## harvest binds (bound sheaves), the constellation star furthest along the figure from the lit ones
-## shows lit, then the harvest puts it out: it isn't joined. Elsewhere, the scythe: a small, a medium
-## and a big star in the middle of the sky, then the harvest reaps them. It pays nothing, changes no
-## progress, doesn't move the clock, and places its stars from its own RNG stream, so packs and
-## layout never shift. Does nothing without a harvest, on a map without intros, or once the run has
-## begun.
+## harvest binds (bound sheaves), the contrast: a constellation star next to the lit figure is lit
+## by a combo (two demo stars of its size appear beside it and link into it; its string joins it),
+## then the one furthest along the figure is lit the same way, alone; the scythe sweeps;
+## the joined one is kept and the alone one goes out; then the kept one shows unlit again. Elsewhere,
+## the scythe: a small, a medium and a big star in the middle of the sky, then the harvest reaps
+## them. It pays nothing, changes no progress, doesn't move the clock, and places its stars from its
+## own RNG stream, so packs and layout never shift. Does nothing without a harvest, on a map without
+## intros, or once the run has begun.
 func play_harvest_intro() -> void:
 	if harvest == null or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
 	if harvest.binds:
 		var far: int = _furthest_unlit()
-		if far >= 0:
-			harvest_intro_lit.emit(far)
-			landmarks_unbound.emit([far] as Array[int])
+		var near: int = _joined_unlit(far)
+		if far < 0 or near < 0:
+			return
+		var layout := RandomNumberGenerator.new()
+		layout.seed = run_seed ^ HARVEST_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+		for demo: Array in [[near, false], [far, true]]:
+			var index: int = demo[0]
+			var size: Star.Size = scorpio.map.sizes[index] as Star.Size
+			var spots: Array[Vector2i] = StarScatter.place(2, scorpio.landmark_position(index), sky_rect, [], layout, scorpio.landmark_positions())
+			var pair: Array[Star] = [add_star(size, spots[0]), add_star(size, spots[1])]
+			harvest_intro_placed.emit(pair.duplicate())
+			var ordered: Array[Star] = _chain_order([pair[0], pair[1], scorpio.landmark_star(index)] as Array[Star])
+			if ordered.is_empty():
+				ordered = [pair[0], pair[1], scorpio.landmark_star(index)]
+			var link: Array[int] = []
+			for star: Star in ordered:
+				link.append(star.id)
+			for star: Star in pair:
+				stars.erase(star)
+			harvest_intro_lit.emit(index, demo[1], link)
+		harvested.emit([] as Array[Star])
+		harvest_intro_kept.emit(near)
+		landmarks_unbound.emit([far] as Array[int])
+		harvest_intro_cleared.emit([near] as Array[int])
 		return
+	# The scythe as it comes in play (playtest: show it on the last ear, with a planet): stars stand in
+	# the sky, the clock is on its last ear, a blue planet is launched, and the scythe clears the
+	# stars already there before the planet bursts into a clean sky; then the ears grow back and
+	# the demo's stars leave.
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ HARVEST_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
-	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), StarScatter.inner_rect(sky_rect).get_center(), sky_rect, [], layout, scorpio.landmark_positions())
+	var middle: Vector2i = StarScatter.inner_rect(sky_rect).get_center()
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), middle + HARVEST_INTRO_STANDING, sky_rect, [], layout, scorpio.landmark_positions())
 	var shown: Array[Star] = []
 	for i: int in spots.size():
 		shown.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
+	# The stage opens on the clock's last ear (playtest), the stars standing.
+	harvest_intro_clock.emit(1)
 	harvest_intro_placed.emit(shown.duplicate())
+	var burst: Vector2i = StarScatter.clamp_to_sky(middle + HARVEST_INTRO_BURST, sky_rect)
+	hunt_intro_launched.emit("blue", burst)
 	for star: Star in shown:
 		stars.erase(star)
 	harvested.emit(shown)
+	var landed: Array[Star] = []
+	for p: Vector2i in StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, [], layout, scorpio.landmark_positions()):
+		landed.append(add_star(HEAT_INTRO_SIZES[landed.size()], p))
+	hunt_intro_burst.emit(burst, landed.duplicate())
+	harvest_intro_clock.emit(harvest.every)
+	for star: Star in landed:
+		stars.erase(star)
+	harvest_intro_ended.emit(landed)
+
+
+## An unlit constellation star next to a lit one, the furthest such from landmark `away` (-1: none).
+func _joined_unlit(away: int) -> int:
+	var best: int = -1
+	var best_distance: float = -1.0
+	for i: int in scorpio.map.count():
+		if scorpio.is_lit(i) or i == away or not scorpio.map.neighbours(i).any(func(n: int) -> bool: return scorpio.is_lit(n)):
+			continue
+		var distance: float = Vector2(scorpio.map.landmarks[i]).distance_to(Vector2(scorpio.map.landmarks[maxi(away, 0)]))
+		if distance > best_distance:
+			best = i
+			best_distance = distance
+	return best
 
 
 ## The unlit constellation star the most strings away from every lit one (-1: none).
