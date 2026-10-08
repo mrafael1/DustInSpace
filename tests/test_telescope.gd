@@ -1,6 +1,8 @@
 extends GutTest
 ## The telescope launcher (issue #52): starts ready, aims by pointing, launches exactly one pack,
-## reloads and aims again, and a tap on it goes back to linking.
+## reloads and aims again, and a tap on it goes back to linking. `_touch`/`_tap`/`_drag` are a mouse's
+## (touch emulated from it, aiming right at the pointer); `_finger*` are a real finger's, which aims
+## TOUCH_LIFT px above itself and can let a launch go (#152).
 
 const Fixtures := preload("res://tests/fixtures.gd")
 const TelescopeScene := preload("res://game/scenes/telescope.tscn")
@@ -145,6 +147,90 @@ func test_touch_shows_the_aim_drag_adjusts_it_release_launches() -> void:
 	assert_eq(scope.burst_preview(), Vector2i(140, 180), "the drag moves it")
 	assert_true(_touch(Vector2i(140, 180) - ORIGIN, false))
 	assert_signal_emitted_with_parameters(run, "pack_launched", ["blue", Vector2i(140, 180)])
+
+
+func test_a_finger_aims_above_itself_and_launches_at_the_reticle() -> void:
+	watch_signals(run)
+	var lift := Vector2i(0, Telescope.TOUCH_LIFT)
+	assert_true(_finger(Vector2i(30, 130) - ORIGIN, true))
+	assert_eq(scope.burst_preview(), Vector2i(30, 130) - lift, "the press aims above the fingertip")
+	assert_signal_not_emitted(run, "pack_launched", "nothing launches on the press")
+	assert_true(_finger_drag(Vector2i(140, 200) - ORIGIN))
+	assert_eq(scope.burst_preview(), Vector2i(140, 200) - lift, "the drag keeps it above")
+	assert_false(scope.is_letting_go())
+	assert_true(_finger(Vector2i(140, 200) - ORIGIN, false))
+	assert_signal_emitted_with_parameters(run, "pack_launched", ["blue", Vector2i(140, 200) - lift])
+	assert_eq(scope.finger_lift(), Telescope.TOUCH_LIFT, "a finger aims: the guided hand points lower")
+
+
+func test_a_finger_aim_is_clamped_into_the_sky_and_reaches_its_bottom() -> void:
+	_finger(Vector2i(90, 90) - ORIGIN, true)
+	assert_eq(scope.burst_preview(), StarScatter.clamp_to_sky(Vector2i(90, 90 - Telescope.TOUCH_LIFT), run.sky_rect), "near the top: clamped")
+	assert_true(inner.has_point(scope.burst_preview()))
+	# The sky's lowest row is in reach without letting go: the finger sits TOUCH_LIFT under it.
+	var bottom := Vector2i(inner.position.x, inner.end.y - 1)
+	for point: Vector2i in [Vector2i(-20, bottom.y + Telescope.TOUCH_LIFT), Vector2i(400, 150)]:
+		_finger_drag(point - ORIGIN)
+		assert_true(inner.has_point(scope.burst_preview()), "%s aims inside the sky" % point)
+	watch_signals(run)
+	_finger_drag(bottom + Vector2i(0, Telescope.TOUCH_LIFT) - ORIGIN)
+	assert_false(scope.is_letting_go(), "the bottom row is still a launch")
+	_finger(bottom + Vector2i(0, Telescope.TOUCH_LIFT) - ORIGIN, false)
+	assert_signal_emitted_with_parameters(run, "pack_launched", ["blue", bottom])
+
+
+func test_a_finger_slid_back_to_the_telescope_lets_the_launch_go() -> void:
+	watch_signals(run)
+	watch_signals(scope)
+	_finger(Vector2i(60, 150) - ORIGIN, true)
+	var low := Vector2i(60, run.sky_rect.end.y + Telescope.TOUCH_LIFT)
+	_finger_drag(low - ORIGIN)
+	assert_true(scope.is_letting_go(), "so low it aims under the sky: shown let go before lifting")
+	_finger_drag(Vector2i(60, 150) - ORIGIN)
+	assert_false(scope.is_letting_go(), "back up: a launch again")
+	_finger_drag(low - ORIGIN)
+	_finger(low - ORIGIN, false)
+	assert_signal_emitted(scope, "launch_let_go", "the cancel cue")
+	assert_signal_not_emitted(run, "pack_launched", "nothing launches")
+	assert_eq(run.owned_packs["blue"], 5, "nothing spent")
+	assert_true(scope.is_aiming(), "still aiming")
+	assert_false(scope.is_letting_go())
+	assert_signal_not_emitted(scope, "aim_cancelled", "the aim itself goes on")
+	_finger(Vector2i(60, 150) - ORIGIN, true)
+	_finger(SCOPE + Vector2i(0, -10), false)
+	assert_signal_emit_count(scope, "launch_let_go", 2, "lifted on the telescope: let go too")
+	assert_true(scope.is_aiming())
+	_finger(Vector2i(60, 150) - ORIGIN, true)
+	_finger(Vector2i(60, 150) - ORIGIN, false)
+	assert_signal_emit_count(run, "pack_launched", 1, "the next lift launches")
+
+
+func test_a_mouse_aims_at_the_pointer_and_never_lets_go() -> void:
+	watch_signals(run)
+	watch_signals(scope)
+	_touch(Vector2i(60, 150) - ORIGIN, true)
+	assert_eq(scope.burst_preview(), Vector2i(60, 150), "a click aims right at the pointer")
+	var low := Vector2i(60, run.sky_rect.end.y + Telescope.TOUCH_LIFT)
+	_drag(low - ORIGIN)
+	assert_false(scope.is_letting_go(), "only a finger lets go")
+	_touch(low - ORIGIN, false)
+	assert_signal_not_emitted(scope, "launch_let_go")
+	assert_signal_emitted_with_parameters(run, "pack_launched", ["blue", StarScatter.clamp_to_sky(low, run.sky_rect)])
+	assert_eq(scope.finger_lift(), 0, "a mouse: the guided hand points right at the spot")
+
+
+func test_a_fingers_emulated_mouse_motion_doesnt_pull_the_aim_down() -> void:
+	_finger(Vector2i(60, 150) - ORIGIN, true)
+	var motion := InputEventMouseMotion.new()
+	motion.device = InputEvent.DEVICE_ID_EMULATION
+	motion.position = Vector2(Vector2i(60, 150) - ORIGIN)
+	assert_true(scope.handle_pointer(motion), "still the telescope's")
+	assert_eq(scope.burst_preview(), Vector2i(60, 150 - Telescope.TOUCH_LIFT), "the lifted aim stays")
+	_finger(Vector2i(60, 150) - ORIGIN, false)
+	_play_until_idle()
+	_pick("blue")
+	assert_true(_hover(Vector2i(30, 100) - ORIGIN), "a real mouse's hover")
+	assert_eq(scope.burst_preview(), Vector2i(30, 100), "aims right at it")
 
 
 func test_mouse_hover_aims_only_while_aiming() -> void:
@@ -331,19 +417,29 @@ func _hover(point: Vector2i) -> bool:
 	return scope.handle_pointer(motion)
 
 
-func _touch_event(point: Vector2i, pressed: bool) -> InputEventScreenTouch:
+func _touch_event(point: Vector2i, pressed: bool, finger: bool = false) -> InputEventScreenTouch:
 	var touch := InputEventScreenTouch.new()
 	touch.index = 0
+	touch.device = 0 if finger else InputEvent.DEVICE_ID_EMULATION
 	touch.position = Vector2(point)
 	touch.pressed = pressed
 	return touch
 
 
-func _drag_event(point: Vector2i) -> InputEventScreenDrag:
+func _drag_event(point: Vector2i, finger: bool = false) -> InputEventScreenDrag:
 	var drag := InputEventScreenDrag.new()
 	drag.index = 0
+	drag.device = 0 if finger else InputEvent.DEVICE_ID_EMULATION
 	drag.position = Vector2(point)
 	return drag
+
+
+func _finger(point: Vector2i, pressed: bool) -> bool:
+	return scope.handle_pointer(_touch_event(point, pressed, true))
+
+
+func _finger_drag(point: Vector2i) -> bool:
+	return scope.handle_pointer(_drag_event(point, true))
 
 
 func _hud_tap(hud: Hud, point: Vector2i) -> void:
