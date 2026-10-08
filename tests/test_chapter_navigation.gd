@@ -164,8 +164,9 @@ func test_winning_a_final_opens_the_next_chapter_on_the_chart() -> void:
 func test_a_replayed_final_opens_nothing() -> void:
 	_save("scorpio", Chapter.stage_count())
 	var app: App = _app()
-	app.switch_chapter()
-	app.switch_chapter()
+	for step: int in ChapterDef.all().size():
+		if app.chapter.id != "scorpio":
+			app.switch_chapter()
 	assert_eq(app.chapter.id, "scorpio")
 	var chart: ChapterSelect = app.get_node("ChapterSelect")
 	app.open_stage(Chapter.FINAL)
