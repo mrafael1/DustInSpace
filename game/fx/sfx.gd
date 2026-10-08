@@ -24,7 +24,7 @@ const CUES: Array[StringName] = [
 	&"pack_load", &"pack_buy", &"tap_refused", &"pull_start", &"pull_step", &"pull_cancel",
 	&"launch", &"tremble", &"burst", &"star_select", &"link_collect", &"link_reject",
 	&"dust_land", &"light_land", &"big_bang_collapse", &"big_bang_bang", &"sun_ignite",
-	&"win", &"loss", &"restart", &"pack_ready", &"drain",
+	&"win", &"loss", &"restart", &"pack_ready", &"drain", &"crop",
 ]
 const VOICES: int = 12
 ## Per cue: x = most voices at once, y = least seconds between two starts.
