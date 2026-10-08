@@ -28,7 +28,20 @@ signal sunbeam_landed(at: Vector2i)
 signal string_sung(segment: int, order: int)
 ## The Head: landmark `index`, big, burned back to small as it popped. Feedback only.
 signal landmark_rekindled(index: int)
+## Leo's final arriving: its `order`-th star caught fire. Feedback only (sound).
+signal blaze_lit(order: int)
+## Leo's final arriving: the whole lion is alight and roars. Feedback only (sound).
+signal roared
 
+## Leo's final arrives (play_blaze): its stars, dark at first (their dim art), catch fire one every
+## BLAZE_STEP along the figure from the lit tail tuft: C0 for BLAZE_FLASH, ember (S4) until
+## BLAZE_EMBER, then themselves. Then the lion roars for ROAR_TIME: the whole figure flashes C0 on
+## two ROAR_FLASH beats and shakes a pixel side to side.
+const BLAZE_STEP: float = 0.12
+const BLAZE_FLASH: float = 0.08
+const BLAZE_EMBER: float = 0.24
+const ROAR_TIME: float = 0.4
+const ROAR_FLASH: float = 0.08
 ## The outline stops this far short of each landmark, so the stars stay clear.
 const LANDMARK_CLEAR: int = 5
 ## A string still to form: one pixel in OUTLINE_STEP.
@@ -103,6 +116,9 @@ var _shown_sizes: Array[int] = []
 ## Landmarks the heat is resizing (the Head): index -> [from, to, seconds in, rekindled]. They play
 ## a sky star's resize (StarView's charge and pop), switching size at RESIZE_FLARE.
 var _resizing: Dictionary[int, Array] = {}
+## Leo's final arriving: seconds into the blaze (-1: none), and the order its stars catch fire in.
+var _blaze_time: float = -1.0
+var _blaze_order: Array[int] = []
 var _preview_strings: Array[int] = []
 var _flash_landmark: int = -1
 var _flash_string: int = -1
@@ -163,6 +179,7 @@ func setup(run: RunState) -> void:
 	_shown_lit.clear()
 	_shown_sizes.clear()
 	_resizing.clear()
+	_blaze_time = -1.0
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
 		_shown_sizes.assign(run.scorpio.map.sizes)
@@ -433,6 +450,17 @@ func advance(delta: float) -> void:
 	if _flash_left > 0.0:
 		_flash_left = maxf(_flash_left - delta, 0.0)
 		redraw = true
+	if _blaze_time >= 0.0:
+		var before: float = _blaze_time
+		_blaze_time += delta
+		for k: int in _blaze_order.size():
+			if before < k * BLAZE_STEP and _blaze_time >= k * BLAZE_STEP:
+				blaze_lit.emit(k)
+		if before < roar_at(_map()) and _blaze_time >= roar_at(_map()):
+			roared.emit()
+		if _blaze_time >= blaze_time(_map()):
+			_blaze_time = -1.0
+		redraw = true
 	for index: int in _resizing.keys():
 		var anim: Array = _resizing[index]
 		var before: float = anim[2]
@@ -590,7 +618,16 @@ func ring_frame() -> int:
 func _draw_landmark(index: int) -> void:
 	var size: int = shown_size(index)
 	var at: Vector2i = _map().landmarks[index]
-	if _resizing.has(index) and not shows_lit(index):
+	if _blaze_time >= 0.0:
+		at += blaze_shake(_blaze_time, _map())
+		var blaze: int = blaze_stage(index)
+		if blaze >= 0:
+			# Dark before it catches fire, then C0, then ember.
+			var art: Dictionary = _art[size][3 if blaze == 0 else 0]
+			for d: Vector2i in art:
+				_dot(at + d, art[d] if blaze == 0 else (Palette.C0 if blaze == 1 else Palette.S4))
+			return
+	if _resizing.has(index) and _resizing[index][2] >= 0.0 and not shows_lit(index):
 		_draw_resizing(index, size, at)
 		return
 	if shows_cue(index):
@@ -632,18 +669,75 @@ func _draw_resizing(index: int, size: int, at: Vector2i) -> void:
 		_dot(at + p, extra[p])
 
 
+## Leo's final arrives: the lion catches fire star by star, then roars. Returns how long it plays.
+func play_blaze() -> float:
+	_blaze_order = blaze_order(_map())
+	_blaze_time = 0.0
+	queue_redraw()
+	return blaze_time(_map())
+
+
+func is_blazing() -> bool:
+	return _blaze_time >= 0.0
+
+
+## The order `map`'s stars catch fire in: from its first lit star outward along the strings.
+static func blaze_order(map: StarMap) -> Array[int]:
+	var order: Array[int] = [map.starting_lit[0] if not map.starting_lit.is_empty() else 0]
+	var k: int = 0
+	while k < order.size():
+		for next: int in map.neighbours(order[k]):
+			if not order.has(next):
+				order.append(next)
+		k += 1
+	return order
+
+
+## When the lion has caught fire and roars, and when the blaze is over.
+static func roar_at(map: StarMap) -> float:
+	return map.count() * BLAZE_STEP
+
+
+static func blaze_time(map: StarMap) -> float:
+	return roar_at(map) + ROAR_TIME
+
+
+## The roar shakes the figure a pixel side to side, `t` seconds into the blaze.
+static func blaze_shake(t: float, map: StarMap) -> Vector2i:
+	var roar: float = t - roar_at(map)
+	if roar < 0.0 or roar >= ROAR_TIME:
+		return Vector2i.ZERO
+	return Vector2i.RIGHT if floori(roar / (ROAR_FLASH * 0.5)) % 2 == 0 else Vector2i.LEFT
+
+
+## How landmark `index` shows in the blaze: 0 still dark, 1 catching (C0), 2 ember, 3 roaring (C0),
+## -1 itself.
+func blaze_stage(index: int) -> int:
+	var roar: float = _blaze_time - roar_at(_map())
+	if roar >= 0.0:
+		var beat: int = floori(roar / ROAR_FLASH)
+		return 1 if roar < ROAR_TIME and beat % 2 == 0 and beat < 4 else -1
+	var age: float = _blaze_time - _blaze_order.find(index) * BLAZE_STEP
+	if age < 0.0:
+		return 0
+	if age < BLAZE_FLASH:
+		return 1
+	return 2 if age < BLAZE_EMBER else -1
+
+
 ## The size landmark `index` shows now (it may lag the core's while the heat's resize plays).
 func shown_size(index: int) -> int:
 	return _shown_sizes[index] if index < _shown_sizes.size() else _map().sizes[index]
 
 
 ## The heat changed these constellation stars (the Head): each charges at its old size, then pops
-## to its new one; a big that burns back to small says so as it pops (landmark_rekindled).
-func resize_landmarks(changes: Array[StarHeat.Change]) -> void:
+## to its new one; a big that burns back to small says so as it pops (landmark_rekindled). `delays`:
+## seconds before a landmark's starts, by landmark index (the lion's heatwave on its way).
+func resize_landmarks(changes: Array[StarHeat.Change], delays: Dictionary = {}) -> void:
 	for change: StarHeat.Change in changes:
 		var index: int = Scorpio.landmark_index(change.star_id)
 		if index >= 0 and index < _map().count():
-			_resizing[index] = [change.from, change.to, 0.0, change.rekindled]
+			_resizing[index] = [change.from, change.to, -float(delays.get(index, 0.0)), change.rekindled]
 	queue_redraw()
 
 

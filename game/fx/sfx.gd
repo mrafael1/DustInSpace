@@ -236,6 +236,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"burst")
 		&"hunt_intro_launched":
 			play(&"launch")
+		&"heat_breathed":
+			# The lion breathes: a low whoosh as the heatwave rolls out, and the heat's chime.
+			play(&"launch", 0.6)
+			play(&"star_select", 1.25)
 		&"stars_resized", &"landmarks_resized":
 			# The heat changes stars where they stand: a bright chime, a lower one as the cold
 			# shrinks them (a burn or a fade sounds on its own).

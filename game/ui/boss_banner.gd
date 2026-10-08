@@ -5,7 +5,8 @@ extends Node2D
 ## then its own colour; the card cuts after its time. No box. Text is bitmap-font Labels; the rules
 ## are drawn in code. Scorpio's (play): as Orion roars on his entrance, "ORION" over "THE HUNTER",
 ## ember. Aquarius's (play_arrival): at once, "AQUARIUS" over "THE WATER BEARER", in cool water
-## colours, as its box of drains comes alight.
+## colours, as its box of drains comes alight. Leo's: "LEO" over "THE LION OF SUMMER", in summer's
+## warm colours, once the lion has caught fire and roars.
 
 const NAME: String = "ORION"
 const EPITHET: String = "THE HUNTER"
@@ -47,10 +48,10 @@ func play() -> void:
 	_refresh()
 
 
-## Another final arrives (no threat, no roar): `title` over `epithet`, shown at once for `seconds`,
-## its name in `colour` and its rules in `rule`.
-func play_arrival(title: String, epithet: String, seconds: float, colour: Color, rule: Color) -> void:
-	_set_card(title, epithet, 0.0, seconds, colour, rule)
+## Another final arrives (no threat): `title` over `epithet`, shown after `wait` seconds for
+## `seconds`, its name in `colour` and its rules in `rule`.
+func play_arrival(title: String, epithet: String, seconds: float, colour: Color, rule: Color, wait: float = 0.0) -> void:
+	_set_card(title, epithet, wait, seconds, colour, rule)
 	_age = 0.0
 	_refresh()
 

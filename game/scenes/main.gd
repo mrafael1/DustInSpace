@@ -273,6 +273,10 @@ func _wire_sound() -> void:
 	# A faded star goes quietly: frost falls, and the burst sounds high and brittle.
 	# A constellation star burning back to small: its embers burst, a fuller burst than a loss.
 	_sky.landmark_rekindled.connect(func(_at: Vector2i) -> void: _sfx.play(&"burst", 1.0))
+	# Leo's final arriving: each star catching fire chimes a step higher, then the lion roars low.
+	var constellation := _sky.get_node("ConstellationLayer") as ConstellationView
+	constellation.blaze_lit.connect(func(order: int) -> void: _sfx.play(&"star_select", 0.8 + 0.06 * order))
+	constellation.roared.connect(_sfx.play.bind(&"big_bang_collapse", 0.8))
 	_sky.star_faded.connect(func(_at: Vector2i) -> void: _sfx.play(&"burst", 1.5))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
