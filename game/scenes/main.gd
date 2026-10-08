@@ -112,6 +112,8 @@ func _ready() -> void:
 	_telescope.aim_started.connect(_idle_hint.reset)
 	_hud.loaded_window_at = func() -> Vector2i:
 		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()
+	_hud.launch_finger_lift = func() -> int:
+		return _telescope.finger_lift() if use_telescope else 0
 	_telescope.message_shown.connect(_hud.show_message)
 	_hud.table_opened.connect(_pause_world.bind(true))
 	_hud.table_closed.connect(_pause_world.bind(false))
@@ -175,7 +177,7 @@ func start_run(balance: Balance) -> bool:
 
 func _process(_delta: float) -> void:
 	var aiming: bool = run != null and not _sequencer.is_busy() and (
-		_telescope.is_aiming() if use_telescope else _launcher.is_pulling())
+		_telescope.is_aiming() and not _telescope.is_letting_go() if use_telescope else _launcher.is_pulling())
 	($Sky/CurrentLayer as CurrentView).aiming = aiming and run.current != null
 	($Sky/HeatLayer as HeatView).aiming = aiming and run.heat != null
 	($Sky/HarvestLayer as HarvestView).aiming = aiming and run.harvest != null
@@ -266,6 +268,7 @@ func _wire_sound() -> void:
 	_telescope.aim_started.connect(_hud.tell_current_rule)
 	_launcher.pull_started.connect(_hud.tell_current_rule)
 	_telescope.aim_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
+	_telescope.launch_let_go.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_telescope.empty_tapped.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_telescope.launch_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_telescope.planet_seated.connect(func(_kind: String) -> void: _sfx.play(&"pack_load", 1.5))

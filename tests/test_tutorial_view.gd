@@ -117,6 +117,43 @@ CONSTELLATION TO WIN", "the goal first")
 	assert_true(scope.is_aiming(), "and still aiming")
 
 
+func test_with_a_finger_the_launch_hands_point_where_the_finger_goes() -> void:
+	_start()
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	_tap_hud(Vector2i(90, 150))
+	_settle()
+	var lift: int = Telescope.TOUCH_LIFT
+	# A finger playing the first launch: the hand is under the spot by the lift.
+	_finger_tap(guide.target())
+	assert_eq(run.stars.size(), 3, "the finger at the hand launched")
+	_settle()
+	_tap_hud(Vector2i(90, 150))
+	var path: Array[int] = guide.get("_path")
+	run.link(path)
+	_settle()
+	guide.advance(TutorialView.SHOW_TIME + 0.1)
+	_settle()
+	_tap_hud(Vector2i(90, 150))
+	_settle()
+	assert_eq(guide.text(), "LAUNCH NEXT TO THIS STAR")
+	var at: Vector2i = run.scorpio.landmark_position(run.tutorial.landmark)
+	var size: int = run.scorpio.map.sizes[run.tutorial.landmark]
+	assert_eq(guide.target(), at - Vector2i(0, StarView.half_extent(size as Star.Size) - lift), "the hand points where the finger goes")
+	var packs: int = run.total_packs()
+	_finger_tap(guide.target())
+	assert_eq(run.total_packs(), packs - 1, "the finger at the hand launches next to the star")
+	assert_eq(run.tutorial.step, Tutorial.Step.LIGHT)
+
+
+func _finger_tap(at: Vector2i) -> void:
+	for pressed: bool in [true, false]:
+		var touch := InputEventScreenTouch.new()
+		touch.position = Vector2(at - scope.origin())
+		touch.pressed = pressed
+		assert_true(scope.handle_pointer(touch), "the aiming telescope takes the finger")
+
+
 func test_the_buy_step_points_at_the_buy_button() -> void:
 	_start()
 	_settle()

@@ -7,7 +7,10 @@ extends Launcher
 ## seats (after a launch, or when one is picked in the HUD), and when its own loaded body is tapped.
 ## A reticle and a dotted sight line show where the pack will burst, and the barrel turns to it in
 ## DIRECTIONS steps. Touch the sky to show the aim, slide to adjust, lift to launch (a tap launches
-## straight away); with a mouse, hovering aims and a click launches. Tap the telescope to stop
+## straight away); with a mouse, hovering aims and a click launches. A finger aims TOUCH_LIFT px above
+## itself (#152), so the reticle and what it previews stay in sight; sliding back down to the telescope
+## (so low that even lifted it would aim under the sky, or onto it) shows the aim let go, and lifting
+## there lets the launch go: nothing launches, the cancel cue plays and the telescope keeps aiming. Tap the telescope to stop
 ## aiming and link stars again: nothing is spent. While aiming, every touch is the telescope's:
 ## none reaches the stars. An empty telescope says so and never aims.
 ## Owns no rules: it calls the same RunState.launch as the slingshot, and the flight, tremble and
@@ -27,6 +30,8 @@ signal empty_tapped
 signal message_shown(text: String)
 ## The run refused a launch at the aim (the guided first run's near launch, too far): still aiming.
 signal launch_refused
+## A finger slid back down to the telescope and lifted there: no launch, still aiming (feedback: sound).
+signal launch_let_go
 
 const EMPTY_MESSAGE: String = "LOAD A PLANET FIRST"
 ## The tube turns in this many whole-pixel direction frames around the pivot.
@@ -72,6 +77,9 @@ const RING_RADIUS: int = StarScatter.RING_MIN
 const RING_DOTS: int = 16
 ## The reticle's corner brackets sit this far from the burst point.
 const RETICLE: int = 6
+## A finger (not a mouse) aims this many px above where it touches (#152): input ergonomics, not
+## balance. The reticle, its scatter ring and the at-risk previews stay clear of the fingertip.
+const TOUCH_LIFT: int = 28
 
 var _aiming: bool = false
 ## The burst point being aimed at (clamped into the sky), on the 180x320 grid.
@@ -80,6 +88,11 @@ var _has_aim: bool = false
 ## A touch that started on the telescope (a tap there aims or cancels), or in the sky while aiming.
 var _scope_pressed: bool = false
 var _sky_pressed: bool = false
+## The sky press is a finger's (aims TOUCH_LIFT above it), and a release now would let it go.
+var _finger_pressed: bool = false
+var _letting_go: bool = false
+## The last press was a finger's, not a mouse's: the guided run's hand points TOUCH_LIFT lower then.
+var _finger_input: bool = DisplayServer.is_touchscreen_available()
 ## Aim once the events playing now have played and the planet has seated: a planet picked in
 ## the HUD, a launch (the next planet), or a sequence that interrupted the aim.
 var _aim_requested: bool = false
@@ -103,7 +116,7 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	if _aiming:
+	if _aiming and not _letting_go:
 		_draw_sight()
 	_draw_telescope()
 	if _aiming:
@@ -143,6 +156,17 @@ func is_loading() -> bool:
 
 func is_aiming() -> bool:
 	return _aiming
+
+
+## A finger is out at the telescope: lifting it now lets the launch go.
+func is_letting_go() -> bool:
+	return _letting_go
+
+
+## How far below the burst point the player's finger goes to aim there: TOUCH_LIFT when the last
+## press was a finger's (or, before any, on a touch screen), 0 with a mouse. The guided run's hand.
+func finger_lift() -> int:
+	return TOUCH_LIFT if _finger_input else 0
 
 
 ## The planet in the telescope, or "" when it's empty.
@@ -232,7 +256,7 @@ func cancel_aim() -> void:
 func cancel_pull() -> void:
 	super.cancel_pull()
 	_scope_pressed = false
-	_sky_pressed = false
+	_release_sky()
 	if _aiming:
 		_stop_aim()
 		_aim_requested = true
@@ -266,12 +290,13 @@ func handle_pointer(event: InputEvent) -> bool:
 	if event is InputEventMouseMotion:
 		if not _aiming:
 			return false
-		if not _scope_pressed:
+		# A finger's own motion (mouse emulated from touch) never aims: its drag does, lifted.
+		if not _scope_pressed and not _finger_pressed and event.device != InputEvent.DEVICE_ID_EMULATION:
 			aim_at(origin() + Vector2i((event as InputEventMouseMotion).position.floor()))
 		return true
 	if event is InputEventScreenDrag and (event as InputEventScreenDrag).index == 0:
 		if _sky_pressed:
-			aim_at(origin() + Vector2i((event as InputEventScreenDrag).position.floor()))
+			_aim_sky_press(Vector2i((event as InputEventScreenDrag).position.floor()))
 		return _aiming or _scope_pressed
 	if event is InputEventScreenTouch and (event as InputEventScreenTouch).index == 0:
 		return _on_touch(event as InputEventScreenTouch)
@@ -284,16 +309,18 @@ func _on_touch(touch: InputEventScreenTouch) -> bool:
 	if touch.canceled:
 		var had: bool = _scope_pressed or _sky_pressed
 		_scope_pressed = false
-		_sky_pressed = false
+		_release_sky()
 		return had or _aiming
 	if touch.pressed:
+		_finger_input = is_finger(touch)
 		if on_scope(point):
 			_scope_pressed = true
 			return true
 		if not _aiming:
 			return false
 		_sky_pressed = true
-		aim_at(origin() + point)
+		_finger_pressed = is_finger(touch)
+		_aim_sky_press(point)
 		return true
 	if _scope_pressed:
 		_scope_pressed = false
@@ -305,11 +332,45 @@ func _on_touch(touch: InputEventScreenTouch) -> bool:
 			start_aim()
 		return true
 	if _sky_pressed:
-		_sky_pressed = false
-		aim_at(origin() + point)
-		_fire()
+		_aim_sky_press(point)
+		var let_go: bool = _letting_go
+		_release_sky()
+		if let_go:
+			launch_let_go.emit()
+		else:
+			_fire()
 		return true
 	return _aiming
+
+
+## True for a real finger's touch or drag, false for one emulated from the mouse (#152).
+static func is_finger(event: InputEvent) -> bool:
+	return event.device != InputEvent.DEVICE_ID_EMULATION
+
+
+## Where a sky press at `point` (this node's coordinates) aims, on the 180x320 grid: right there for
+## a mouse, TOUCH_LIFT px above it for a finger (then clamped into the sky by aim_at).
+func press_aim(point: Vector2i, finger: bool) -> Vector2i:
+	return origin() + point - Vector2i(0, TOUCH_LIFT if finger else 0)
+
+
+## True if a finger lifted at `point` (this node's coordinates) lets the launch go: on the telescope,
+## or so far under the sky that even lifted it aims below it (the HUD's row, around the telescope).
+func lets_go(point: Vector2i) -> bool:
+	return on_scope(point) or press_aim(point, true).y >= _run.sky_rect.end.y
+
+
+## The sky press moved to `point`: aim there, and with a finger, show whether lifting lets it go.
+func _aim_sky_press(point: Vector2i) -> void:
+	_letting_go = _finger_pressed and lets_go(point)
+	aim_at(press_aim(point, _finger_pressed))
+
+
+func _release_sky() -> void:
+	_sky_pressed = false
+	_finger_pressed = false
+	_letting_go = false
+	queue_redraw()
 
 
 ## True if `point` (this node's coordinates) presses the telescope: its tripod or its barrel.
@@ -404,7 +465,7 @@ func _seat(kind: String, click: bool) -> void:
 func _stop_aim() -> void:
 	_aiming = false
 	_scope_pressed = false
-	_sky_pressed = false
+	_release_sky()
 	message_shown.emit("")
 	_pose()
 
@@ -527,7 +588,10 @@ func _draw_sight() -> void:
 ## burst point for a pack that splits (the red pack's twin burst), each with a small C2 core.
 func _draw_burst_preview() -> void:
 	var at: Vector2i = burst_preview() - origin()
-	var points: Array[Vector2i] = burst_points()
+	# Let go (a finger out at the telescope): only cold brackets, no ring, core or sight line.
+	var points: Array[Vector2i] = []
+	if not _letting_go:
+		points = burst_points()
 	for point: Vector2i in points:
 		var centre: Vector2i = point - origin()
 		for i: int in RING_DOTS:
@@ -535,11 +599,14 @@ func _draw_burst_preview() -> void:
 			_dot(centre + Vector2i((Vector2(cos(angle), sin(angle) * StarScatter.RING_SQUASH) * RING_RADIUS).round()), Palette.M5)
 		if points.size() > 1:
 			_dot(centre, Palette.C2)
+	var bracket: Color = Palette.M5 if _letting_go else Palette.C1
 	for corner: Vector2i in [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]:
 		var c: Vector2i = at + corner * RETICLE
 		for i: int in 3:
-			_dot(c - Vector2i(corner.x * i, 0), Palette.C1)
-			_dot(c - Vector2i(0, corner.y * i), Palette.C1)
+			_dot(c - Vector2i(corner.x * i, 0), bracket)
+			_dot(c - Vector2i(0, corner.y * i), bracket)
+	if _letting_go:
+		return
 	draw_rect(Rect2(Vector2(at - Vector2i.ONE), Vector2(3, 3)), Palette.C2)
 	_dot(at, Palette.C0)
 

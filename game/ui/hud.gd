@@ -158,6 +158,9 @@ var _current_told: bool = false
 ## Where the loaded planet shows on the launcher (the telescope's window), for the tutorial's hand.
 ## Main wires it: `func() -> Vector2i`.
 var loaded_window_at: Callable
+## Main sets it: how far below the burst point the player's finger goes to launch there (the
+## telescope aims above a finger, #152), so the guided run's hand points where the finger goes.
+var launch_finger_lift: Callable
 ## The volley countdown above Orion, shown on stages with a volley.
 var _volley := VolleyCounter.new()
 ## The boss's title card, in the middle of the sky.
@@ -745,7 +748,7 @@ func _show_tutorial_step(step: int) -> void:
 			# From the left: the Sun sits at the top of the screen, with no room above it.
 			_guide.show_step(step, sun_at - Vector2i(SunView.RADIUS + 2, 0), true, TutorialView.Point.RIGHT, top)
 		Tutorial.Step.LAUNCH, Tutorial.Step.RED:
-			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12), true, TutorialView.Point.DOWN, top)
+			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12 + _finger_lift()), true, TutorialView.Point.DOWN, top)
 		Tutorial.Step.LINK:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
 			var ids: Array[int] = []
@@ -760,7 +763,9 @@ func _show_tutorial_step(step: int) -> void:
 			var index: int = _run.tutorial.landmark
 			var at: Vector2i = _run.scorpio.landmark_position(index)
 			var size: int = _run.scorpio.map.sizes[index]
-			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size)), true, TutorialView.Point.DOWN, top)
+			# The near launch: the hand points where the finger goes, so the aim lands on the star.
+			var lift: int = _finger_lift() if step == Tutorial.Step.LAUNCH_NEAR else 0
+			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size) - lift), true, TutorialView.Point.DOWN, top)
 			if step == Tutorial.Step.LIGHT:
 				var pair: Array[int] = []
 				for star: Star in _run.stars:
@@ -789,6 +794,11 @@ func _show_tutorial_step(step: int) -> void:
 			_guide.show_step(step, table_button_at() - Vector2i(1, 0), true, TutorialView.Point.RIGHT, top)
 		_:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
+
+
+## How far below the burst point the finger goes to launch there (0 when Main doesn't say).
+func _finger_lift() -> int:
+	return launch_finger_lift.call() if launch_finger_lift.is_valid() else 0
 
 
 ## An Orion threat's guided encounter (#93): its line at the top of the sky and the hand at what it's
