@@ -73,6 +73,7 @@ func _ready() -> void:
 	_store = ProgressStore.new(progress_path)
 	_load_progress()
 	_chart.setup(chapter)
+	_chart.set_chapters(chapters, is_open)
 	_chart.stage_chosen.connect(open_stage)
 	_chart.chapter_step_requested.connect(step_chapter)
 	_chart.chapter_opened.connect(step_chapter.bind(1, true, true))
@@ -264,6 +265,7 @@ func reset_progress() -> void:
 	_store.clear()
 	_load_progress()
 	_chart.setup(chapter)
+	_chart.set_chapters(chapters, is_open)
 	_show_navigation()
 
 
