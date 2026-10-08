@@ -3,13 +3,16 @@ extends SceneTree
 ## deliberately simple; this is pressure evidence, not a prediction of human difficulty.
 ## --map=leo_tail (default) or another heat stage's StarMap id; --runs=N.
 ## Policies: link-first links every link before launching; launch-first launches every owned pack
-## before linking; ripen holds triples of loose stars that won't burn next launch, to let them grow.
+## before linking; ripen holds triples of loose stars that won't burn next launch, to let them grow;
+## hot-first links like link-first but takes the links using stars the heat burns next first (the
+## skill Leo's final asks, where every link breathes heat).
 
-const POLICIES: Array[String] = ["link-first", "launch-first", "ripen"]
+const POLICIES: Array[String] = ["link-first", "launch-first", "ripen", "hot-first"]
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "leo_tail"
 var _rows: Array[Dictionary] = []
+var _policy: String = ""
 
 
 func _initialize() -> void:
@@ -26,7 +29,7 @@ func _simulate() -> void:
 	print("Paired seeds 1..%d; %s; reach %d" % [_runs, _map, _balance.scorpio_max_link_distance])
 	for policy: String in POLICIES:
 		for enabled: bool in [false, true]:
-			if policy == "ripen" and not enabled:
+			if (policy == "ripen" or policy == "hot-first") and not enabled:
 				continue
 			var row: Dictionary = {"map": _map, "policy": policy, "heat": enabled, "runs": _runs, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "grown": 0, "burned": 0, "runs_burning": 0}
 			for seed_value: int in range(1, _runs + 1):
@@ -51,14 +54,17 @@ func _layout(enabled: bool) -> StarMap:
 
 
 func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> void:
+	_policy = policy
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
 	var packs: int = 0
 	var counts: Array[int] = [0, 0]
-	run.stars_resized.connect(func(changes: Array[StarHeat.Change]) -> void:
+	var count := func(changes: Array[StarHeat.Change]) -> void:
 		for change: StarHeat.Change in changes:
-			counts[1 if change.lost else 0] += 1)
+			counts[1 if change.lost else 0] += 1
+	run.stars_resized.connect(count)
+	run.heat_breathed.connect(func(_at: Vector2i, changes: Array[StarHeat.Change]) -> void: count.call(changes))
 	for action: int in 300:
 		if run.is_over():
 			break
@@ -122,6 +128,15 @@ func _aim(run: RunState) -> Vector2i:
 	return target
 
 
+## Whether the heat's next step burns loose star `id` out.
+func _burns_next(run: RunState, id: int) -> bool:
+	var star: Star = run.find_star(id)
+	if star == null or run.heat == null or not run.heat.burns:
+		return false
+	var next: int = star.size + run.heat.change
+	return next > Star.Size.BIG or next < Star.Size.SMALL
+
+
 func _best_link(run: RunState, links: Array[Array]) -> Array[int]:
 	var best: Array[int] = []
 	var best_score: int = -1
@@ -133,6 +148,8 @@ func _best_link(run: RunState, links: Array[Array]) -> Array[int]:
 		for id: int in ids:
 			if run.scorpio.is_landmark(id):
 				score += 100
+			elif _policy == "hot-first" and _burns_next(run, id):
+				score += 60
 		if score > best_score:
 			best = ids
 			best_score = score
