@@ -116,3 +116,24 @@ func test_chevrons_slide_clear_of_crowding_stars() -> void:
 	assert_false(crowded.has(mid_tip), "the one under a star moved")
 	for p: Vector2i in crowded:
 		assert_gt(p.distance_to(Vector2(mid_tip)), 4.0, "clear of the star")
+
+
+func test_a_finger_letting_the_launch_go_hides_the_drift_preview() -> void:
+	var main: Main = _main("aquarius_body")
+	var telescope: Telescope = main.get_node("Telescope")
+	var current: CurrentView = main.get_node("Sky/CurrentLayer")
+	_settle_until_aiming(main)
+	var press := InputEventScreenTouch.new()
+	press.device = 0
+	press.pressed = true
+	press.position = Vector2(Vector2i(60, 150) - telescope.origin())
+	telescope.handle_pointer(press)
+	main._process(0.0)
+	assert_true(current.aiming, "a finger aiming shows the drift preview")
+	var low := InputEventScreenDrag.new()
+	low.device = 0
+	low.position = Vector2(Vector2i(60, main.run.sky_rect.end.y + Telescope.TOUCH_LIFT) - telescope.origin())
+	telescope.handle_pointer(low)
+	assert_true(telescope.is_letting_go())
+	main._process(0.0)
+	assert_false(current.aiming, "let go: the preview goes with the scatter ring")

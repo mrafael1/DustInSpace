@@ -177,7 +177,7 @@ func start_run(balance: Balance) -> bool:
 
 func _process(_delta: float) -> void:
 	var aiming: bool = run != null and not _sequencer.is_busy() and (
-		_telescope.is_aiming() if use_telescope else _launcher.is_pulling())
+		_telescope.is_aiming() and not _telescope.is_letting_go() if use_telescope else _launcher.is_pulling())
 	($Sky/CurrentLayer as CurrentView).aiming = aiming and run.current != null
 	($Sky/HeatLayer as HeatView).aiming = aiming and run.heat != null
 	($Sky/HarvestLayer as HarvestView).aiming = aiming and run.harvest != null
