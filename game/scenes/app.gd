@@ -9,8 +9,12 @@ extends Node
 ## is saved with the progress ("tutorial": {"done": true}). After that the chart's TUTORIAL button
 ## plays it again (replay_tutorial): the Stinger, guided, its win counting as usual.
 ## Chapters (ChapterDef.all): each keeps its own progress. One opens once the chapter before it is
-## won (Aquarius after Scorpio's final); from then on the chart's top-left plaque goes from one to
-## the other. The chart opens on the latest open chapter. Debug builds can always switch.
+## won (Aquarius after Scorpio's final). The chart's arrows (or a swipe) slide to the chapter before
+## or after, if it's open; a locked one shows a padlock. Winning the final that opens the next
+## chapter plays its opening back on the chart (the padlock bursts), then slides on to it and
+## reveals it. The chart opens on the latest open chapter. The chart has its own sound (Sfx).
+## Debug builds, on the chart: [ and ] go to the chapter before or after, open or not; O plays the
+## next chapter's opening.
 ## Debug builds, on the chart: U previews every part won and plays the final's unlock; F previews
 ## the final won too and plays its painted Scorpio rising. A preview is a copy of the chapter shown
 ## on the chart only: it is never saved and never unlocks a stage; opening a stage drops it.
@@ -39,6 +43,10 @@ var _store: ProgressStore
 ## The stage in play, or null on the chart.
 var _stage: Main
 var _stage_point: int = -1
+## Back from a win: whether it opened the next chapter (its final, won the first time).
+var _opens_chapter: bool = false
+## The chart's sound.
+var _sfx: Sfx
 ## Back from a win: the point it completed and the one it unlocked (-1 for none).
 var _won_point: int = -1
 var _unlocked: int = -1
@@ -64,8 +72,20 @@ func _ready() -> void:
 	_chart.stage_chosen.connect(open_stage)
 	_chart.tutorial_requested.connect(replay_tutorial)
 	_chart.current_trial_requested.connect(open_current_trial.bind(true, 0, "aquarius"))
-	_chart.chapter_switch_requested.connect(switch_chapter)
-	_show_chapter_plaques()
+	_chart.chapter_step_requested.connect(step_chapter)
+	_chart.chapter_opened.connect(step_chapter.bind(1, true, true))
+	_sfx = Sfx.new()
+	_sfx.name = "ChartSfx"
+	add_child(_sfx)
+	_chart.slid.connect(_sfx.play.bind(&"launch", 1.6))
+	_chart.nav_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
+	_chart.padlock_shaken.connect(_sfx.play.bind(&"tremble", 1.3))
+	_chart.padlock_broke.connect(func() -> void:
+		_sfx.play(&"burst", 1.2)
+		_sfx.play(&"pack_ready", 1.0))
+	_chart.star_revealed.connect(func(order: int) -> void: _sfx.on_string_sung(-1, order))
+	_chart.chapter_revealed.connect(_sfx.play.bind(&"sun_ignite", 1.0))
+	_show_navigation()
 	get_window().size_changed.connect(fit_screen)
 	fit_screen()
 	set_process_unhandled_key_input(OS.is_debug_build())
@@ -96,12 +116,26 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	elif key.keycode == KEY_F:
 		debug_win_final()
 		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_BRACKETLEFT or key.keycode == KEY_BRACKETRIGHT:
+		step_chapter(-1 if key.keycode == KEY_BRACKETLEFT else 1, false, true)
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_O:
+		debug_open_next()
+		get_viewport().set_input_as_handled()
 
 
 ## Debug: previews every part won, then the chart plays the final's unlock.
 func debug_win_parts() -> void:
 	_show_preview(Chapter.FINAL)
 	_chart.show_progress(Chapter.FINAL - 1, Chapter.FINAL)
+
+
+## Debug: the chart plays the next chapter's opening (as after its final's win), then slides on to
+## it, open or not. Nothing is saved.
+func debug_open_next() -> void:
+	if chapters.find(chapter) + 1 < chapters.size():
+		_chart.show_progress(-1, -1, false)
+		_chart.play_opening()
 
 
 ## Debug: previews every stage won, then the chart plays the final's win.
@@ -120,7 +154,22 @@ func is_open(which: Chapter) -> bool:
 	return false
 
 
-## The chart goes to the next chapter (round to the first), if it's open or this is a debug build.
+## The chart slides to the chapter `step` away (-1 before, +1 after) if there is one and it's open
+## (`force`: open or not, for debug); `reveal` pops its stars in, as when it has just opened.
+func step_chapter(step: int, reveal: bool = false, force: bool = false) -> void:
+	if _stage != null:
+		return
+	var at: int = chapters.find(chapter) + step
+	if at < 0 or at >= chapters.size() or not (force or is_open(chapters[at])):
+		return
+	_end_preview()
+	chapter = chapters[at]
+	_chart.slide_to(chapter, step, reveal)
+	_show_navigation()
+
+
+## Tests and debug: the chart goes at once to the next chapter (round to the first), if it's open or
+## this is a debug build.
 func switch_chapter() -> void:
 	if _stage != null:
 		return
@@ -130,7 +179,7 @@ func switch_chapter() -> void:
 	_end_preview()
 	chapter = other
 	_chart.setup(chapter)
-	_show_chapter_plaques()
+	_show_navigation()
 
 
 ## The chapter the plaque goes to, or null.
@@ -143,11 +192,18 @@ func _other_chapter() -> Chapter:
 	return null
 
 
-## The TUTORIAL plaque (Scorpio's guided run) and the plaque to the other chapter.
-func _show_chapter_plaques() -> void:
+## The TUTORIAL plaque (Scorpio's guided run) and where the chart's arrows lead.
+func _show_navigation() -> void:
 	_chart.show_tutorial_button(tutorial_done and chapter == chapters[0])
-	var other: Chapter = _other_chapter()
-	_chart.show_chapter_switch(other.def.title if other != null else "")
+	var at: int = chapters.find(chapter)
+	_chart.show_navigation(_nav_to(at - 1), _nav_to(at + 1))
+
+
+## Where an arrow to chapter `index` leads: nowhere past the ends, else open or locked.
+func _nav_to(index: int) -> ChapterSelect.Nav:
+	if index < 0 or index >= chapters.size():
+		return ChapterSelect.Nav.NONE
+	return ChapterSelect.Nav.OPEN if is_open(chapters[index]) else ChapterSelect.Nav.LOCKED
 
 
 func is_previewing() -> bool:
@@ -236,10 +292,11 @@ func back_to_chart() -> void:
 	_stage = null
 	_show_chart(true)
 	fit_screen()
-	_chart.show_progress(_won_point, _unlocked)
+	_chart.show_progress(_won_point, _unlocked, _opens_chapter)
 	_won_point = -1
 	_unlocked = -1
-	_show_chapter_plaques()
+	_opens_chapter = false
+	_show_navigation()
 
 
 func fit_screen() -> void:
@@ -264,6 +321,8 @@ func _on_encounter_finished(threat: int) -> void:
 
 func _on_stage_won() -> void:
 	var first_time: bool = not chapter.is_completed(_stage_point)
+	var next: int = chapters.find(chapter) + 1
+	_opens_chapter = first_time and Chapter.is_final(_stage_point) and next < chapters.size() and chapters[next].def.unlocked_by == chapter.id
 	var unlocked: int = chapter.complete(_stage_point)
 	_store.save_chapter(chapter.id, chapter.to_save())
 	_won_point = _stage_point if first_time else -1
