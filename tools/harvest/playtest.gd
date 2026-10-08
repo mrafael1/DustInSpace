@@ -51,12 +51,14 @@ func _initialize() -> void:
 		elif argument.begins_with("--policies="):
 			_policies.assign(argument.trim_prefix("--policies=").split(","))
 		elif argument == "--no-link-dust":
-			_balance.harvest_links_pay_dust = false
+			_balance.harvest_link_dust_percent = 0
+		elif argument.begins_with("--link-dust="):
+			_balance.harvest_link_dust_percent = argument.trim_prefix("--link-dust=").to_int()
 	_simulate.call_deferred()
 
 
 func _simulate() -> void:
-	print("Paired seeds 1..%d; %s; every %d; pay %s; sheaves x%d; cap %d; reaps new %s; links pay dust %s" % [_runs, _map, _balance.harvest_every, _balance.harvest_pay, _balance.harvest_sheaf_scale, _balance.harvest_cap, _balance.harvest_reaps_new, _balance.harvest_links_pay_dust])
+	print("Paired seeds 1..%d; %s; every %d; pay %s; sheaves x%d; cap %d; reaps new %s; link dust %d%%; binds %s" % [_runs, _map, _balance.harvest_every, _balance.harvest_pay, _balance.harvest_sheaf_scale, _balance.harvest_cap, _balance.harvest_reaps_new, _balance.harvest_link_dust_percent, _balance.harvest_binds])
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
 		for enabled: bool in [false, true]:

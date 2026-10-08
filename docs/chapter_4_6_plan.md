@@ -1,6 +1,6 @@
 # Chapters 4 to 6: ideas to test
 
-**Status: Virgo's harvest failed its stakes gate (step C, below), 2026-10-08.** The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
+**Status: Virgo's harvest-as-dust failed its stakes gate; bound sheaves with a tighter economy passes it (step C, below), 2026-10-08.** The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
 
 ## Direction and stakes
 
@@ -125,6 +125,25 @@ Both reap the standing stars for nothing at the harvest (pay 0) and keep links' 
 | Whole Scorpio, 2 | 6.00 | 6.83 (2.4) | 6.41 (1.2) | 6.53 (0.3) | |
 
 Packs per win (constellation stars put out a run). Bound sheaves is the candidate to keep: a figure that branches and a short clock make it bite. Turning its pack cost into lost runs needs a tighter economy on Virgo's stages, still to measure.
+
+### Step C passes with bound sheaves and a tighter economy (2026-10-08)
+
+Links pay a percent of their dust under the harvest (`harvest.link_dust_percent`, rounded down: 90% is one dust less a link). Whole Leo (12 to light, branching), reaping for nothing, 200 paired seeds, won %:
+
+| Clock, link dust | Careless (link at once) | Hoard | Bound (next to the figure first) | Bound-strict |
+|---|---|---|---|---|
+| 2, 90% | 37 | 20 | **80.5** | 62.5 |
+| 2, 80% | 30.5 | 14 | **78** | 55 |
+| 2, 70% | 26 | 6 | **72** | 46 |
+| 2, 60% | 0 | 0 | 1 | 0.5 |
+| 3, 90% | 55 | 0 | **80** | 75.5 |
+| 3, 80% | 51 | 0 | **74** | 70.5 |
+| 3, 70% | 42.5 | 0 | **66.5** | 60.5 |
+| 2, 90%, **no binding** (control) | 85 | 50.5 | 85.5 | |
+
+The binding makes the stakes: without it careless linking wins 85%; with it, 37%. Both extremes lose and reading the figure wins, which is the gate. Below about 60% the economy breaks for everyone.
+
+On part-sized layouts (5-7 to light) at clock 2 and 90%, it barely bites: careless 94-100%, bound 95-100%, 0.5-1.2 constellation stars put out a run (Leo's Head and Mane, Aquarius's Body, Scorpio's Body and Heart). Virgo's part stages have to be drawn to tempt careless linking (far landmarks easy to light before the near ones, several arms from the lit star), and the final carries the full stake, as Leo's did.
 
 ## Chapter 5: Sagittarius, the black hole
 

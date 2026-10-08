@@ -600,7 +600,7 @@ func link(star_ids: Array[int]) -> String:
 		stars.erase(star)
 	_orion_forget(linked)
 	var reward: Balance.ComboReward = balance.combos[combo]
-	var link_dust: int = reward.dust if harvest == null or balance.harvest_links_pay_dust else 0
+	var link_dust: int = reward.dust if harvest == null else reward.dust * balance.harvest_link_dust_percent / 100
 	dust += link_dust
 	var link_light: int = reward.light * (balance.harvest_ripe_scale if is_ripe(linked) else 1)
 	light += link_light
