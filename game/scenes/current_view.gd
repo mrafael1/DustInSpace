@@ -153,7 +153,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		for at: Vector2i in _flashes:
 			var went: Vector2i = _flash_ways.get(at, Vector2i.ZERO)
 			result.merge(extinction_pixels(at, went if went != Vector2i.ZERO else _shown_flow, _flashes[at], area), true)
-	if not aiming and not _sequencer.is_busy():
+	if not aiming and (_sequencer == null or not _sequencer.is_busy()):
 		var way := Vector2i(signi(_run.current.displacement.x), signi(_run.current.displacement.y))
 		for id: int in _run.launch_drains():
 			var star: Star = _run.find_star(id)
