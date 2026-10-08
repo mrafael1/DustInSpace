@@ -4,7 +4,8 @@ extends Node2D
 ## on this node. An ear still standing is a launch left; a cut one shows its stubble. Standing ears
 ## are cool (M5 grains on an M3 stalk); the last one, when the next launch brings the harvest, is
 ## ripe gold (C1 grains, C2 stalk) and sways a pixel. A launch cuts an ear with a small flare; the
-## harvest grows them all back. Shown from the run's events (count), never ahead of them.
+## harvest grows them all back. A quickening clock grows one fewer back each harvest: the lost ear's
+## place stays empty. Shown from the run's events (count), never ahead of them.
 
 ## An ear: grains either side of the stalk (x -1 and +1) on rows 0-4, the stalk down to row 8.
 const EAR_ROWS: int = 9
@@ -22,6 +23,8 @@ const SWAY_STEP: float = 0.4
 const CUT_FLASH: float = 0.15
 
 var _every: int = 0
+## Ears the clock grows back now (a quickening clock loses one each harvest); the rest are gone.
+var _period: int = 0
 var _left: int = 0
 var _time: float = 0.0
 var _cut: int = -1
@@ -31,6 +34,7 @@ var _cut_time: float = -1.0
 ## Shows a clock of `every` ears with `left` still standing (0: none, hidden).
 func setup(every: int, left: int) -> void:
 	_every = every
+	_period = every
 	_left = left
 	_cut = -1
 	_cut_time = -1.0
@@ -38,13 +42,21 @@ func setup(every: int, left: int) -> void:
 	queue_redraw()
 
 
-## The clock moved to `left` ears standing: one is cut, or (after a harvest) they all grow back.
-func count(left: int) -> void:
+## The clock moved to `left` ears standing of `period`: one is cut, or (after a harvest) they grow
+## back, `period` of them.
+func count(left: int, period: int = -1) -> void:
 	if left < _left:
 		_cut = left
 		_cut_time = 0.0
 	_left = left
+	if period > 0:
+		_period = period
 	queue_redraw()
+
+
+## Ears the clock grows back now.
+func period() -> int:
+	return _period
 
 
 func standing() -> int:
@@ -78,6 +90,8 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	for i: int in _every:
 		var x: int = roundi((i - (_every - 1) / 2.0) * SPACING)
+		if i >= _period:
+			continue
 		if i >= _left:
 			for y: int in range(EAR_ROWS - STUBBLE_ROWS, EAR_ROWS):
 				dots[Vector2i(x, y)] = STUBBLE

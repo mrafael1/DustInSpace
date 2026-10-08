@@ -97,6 +97,9 @@ const DAY_NIGHT_MESSAGE: String = "HEAT AND COLD SWAP\nBIGS BURN SMALLS FADE"
 ## Virgo's harvest: the scythe's clock (said with its number of launches), and the bound sheaves.
 const SCYTHE_MESSAGE: String = "EVERY %d LAUNCHES THE\nSCYTHE REAPS THE SKY"
 const BIND_MESSAGE: String = "LIT STARS MUST JOIN\nTHE FIGURE BY HARVEST"
+## Tied at once (the binding after every launch) and the quickening (a shorter clock each harvest).
+const TIE_MESSAGE: String = "LIT STARS MUST JOIN\nTHE FIGURE AT ONCE"
+const QUICKEN_MESSAGE: String = "THE SCYTHE COMES\nSOONER EACH HARVEST"
 ## Virgo's clock sits this far below the Sun's centre.
 const HARVEST_CLOCK_BELOW: int = 30
 ## Leo's final: the lion breathes, on every link as well as every launch.
@@ -259,7 +262,10 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
 	if run.scorpio != null and run.scorpio.map.arrival_epithet != "":
-		if run.scorpio.map.heat_on_links:
+		if run.harvest != null:
+			# Virgo's: harvest gold over the wheat's ripe gold.
+			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.C1, Palette.C3)
+		elif run.scorpio.map.heat_on_links:
 			# Leo's: summer gold over ember, once the lion has caught fire and roars.
 			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.C2, Palette.S4, ConstellationView.roar_at(run.scorpio.map))
 		else:
@@ -322,8 +328,13 @@ func tell_current_rule() -> void:
 	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links), RULE_MESSAGE_TIME)
 
 
-## What Virgo's message says: the scythe's clock, or the bound sheaves where it binds.
+## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,
+## or the quickening clock.
 static func harvest_rule(harvest: StarHarvest) -> String:
+	if harvest.quickens:
+		return QUICKEN_MESSAGE
+	if harvest.binds and harvest.ties:
+		return TIE_MESSAGE
 	return BIND_MESSAGE if harvest.binds else SCYTHE_MESSAGE % harvest.every
 
 
@@ -613,7 +624,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_volley.count(event.args[0])
 			return
 		&"harvest_counted":
-			_harvest_clock.count(event.args[0])
+			_harvest_clock.count(event.args[0], event.args[1])
 			return
 		&"volley_fired":
 			_volley.fire()
