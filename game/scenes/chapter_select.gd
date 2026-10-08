@@ -201,7 +201,7 @@ const SWIPE: int = 28
 ## constellations between them pass at the camera's speed, the background stars at STAR_PARALLAX of
 ## it (each trailing a short streak once that speed passes STREAK_SPEED px/s, up to STREAK_MAX px),
 ## the milky way and the nebulae stay put. Forward (the next chapter) is to the right.
-const ZODIAC: Array[String] = ["scorpio", "sagittarius", "capricornus", "aquarius", "pisces", "aries", "taurus", "gemini", "cancer", "leo"]
+const ZODIAC: Array[String] = ["scorpio", "sagittarius", "capricornus", "aquarius", "pisces", "aries", "taurus", "gemini", "cancer", "leo", "virgo"]
 const SKY_SPAN: int = 180
 const VOYAGE_BASE: float = 0.6
 const VOYAGE_PER_SIGN: float = 0.28

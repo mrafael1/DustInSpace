@@ -309,6 +309,13 @@ func flash_landmark(index: int) -> void:
 	queue_redraw()
 
 
+## Virgo's bound sheaves: landmark `index` shows dark again (unlit), its strings with it.
+func put_out(index: int) -> void:
+	if index < _shown_lit.size():
+		_shown_lit[index] = false
+	queue_redraw()
+
+
 ## The Sun's ignition is over: a sunbeam flies from its rim (the Sun sits at `sun`) to landmark
 ## `index`, which lights when it lands (its landmark_lit event plays then). -1: no beam.
 func launch_sunbeam(sun: Vector2i, index: int) -> void:

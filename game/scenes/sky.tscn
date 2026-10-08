@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/sky.gd" id="1_sky"]
 [ext_resource type="Script" path="res://game/scenes/constellation_view.gd" id="9_constellation"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://game/scenes/orion_view.gd" id="3_orion"]
 [ext_resource type="Script" path="res://game/scenes/current_view.gd" id="4_current"]
 [ext_resource type="Script" path="res://game/scenes/heat_view.gd" id="5_heat"]
+[ext_resource type="Script" path="res://game/scenes/harvest_view.gd" id="6_harvest"]
 
 [node name="Sky" type="Node2D"]
 script = ExtResource("1_sky")
@@ -27,6 +28,9 @@ script = ExtResource("5_heat")
 script = ExtResource("2_link_layer")
 
 [node name="StarLayer" type="Node2D" parent="."]
+
+[node name="HarvestLayer" type="Node2D" parent="."]
+script = ExtResource("6_harvest")
 
 [node name="OrionLayer" type="Node2D" parent="."]
 script = ExtResource("3_orion")
