@@ -24,6 +24,12 @@ signal stars_resized(changes: Array[StarHeat.Change])
 ## The heat changed the size of the constellation stars still to light (the Head), once the launch
 ## resolved; a big one came back small (`rekindled`).
 signal landmarks_resized(changes: Array[StarHeat.Change])
+## Virgo's harvest (chapter 4): the launch that ran the clock out resolved, and the loose `stars`
+## were reaped, paying `dust` (no light). Only when there were stars to reap.
+signal harvested(stars: Array[Star], dust: int)
+## The harvest clock moved: `launches_left` until the next harvest (after every launch, and once as
+## the run starts).
+signal harvest_counted(launches_left: int)
 signal big_bang_started(burst_position: Vector2i, cleared: Array[Star], dust: int)
 signal combo_collected(combo: String, stars: Array[Star], dust: int, light: int)
 signal link_rejected(star_ids: Array[int])
@@ -141,6 +147,8 @@ var encounter: Encounter
 var current: StarCurrent
 ## Leo's heat (chapter 3), over the whole stage, or null when the map has none.
 var heat: StarHeat
+## Virgo's harvest (chapter 4), or null when the map has none (or balance.json no harvest block).
+var harvest: StarHarvest
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
 var _current_reserved: Dictionary[int, Vector2i] = {}
 ## The guided run's Sun has rekindled once (its own target is spent).
@@ -180,6 +188,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			current = StarCurrent.new(area, scorpio.map.current_direction * step, scorpio.map.current_drains, scorpio.map.current_turns)
 		if scorpio.map.heat_change != 0:
 			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns, scorpio.map.heat_turns)
+		if scorpio.map.harvest and balance.harvest_every > 0:
+			harvest = StarHarvest.new(balance.harvest_every, balance.harvest_pay.duplicate(), balance.harvest_reaps_new)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -441,6 +451,8 @@ func launch(target: Vector2i) -> bool:
 		heat.turn()
 	if current != null:
 		current.turn()
+	if harvest != null and not result.big_bang:
+		_count_harvest(first_new_id)
 	_current_reserved.clear()
 	# The hunting area's strike comes before any single mark, so a mark never lands on a star the
 	# arrow is about to take.
@@ -578,9 +590,10 @@ func link(star_ids: Array[int]) -> String:
 		stars.erase(star)
 	_orion_forget(linked)
 	var reward: Balance.ComboReward = balance.combos[combo]
-	dust += reward.dust
+	var link_dust: int = reward.dust if harvest == null or balance.harvest_links_pay_dust else 0
+	dust += link_dust
 	light += reward.light
-	combo_collected.emit(combo, linked, reward.dust, reward.light)
+	combo_collected.emit(combo, linked, link_dust, reward.light)
 	if scorpio != null:
 		for star: Star in linked:
 			if scorpio.is_landmark(star.id):
@@ -798,6 +811,36 @@ func _shift_stars() -> void:
 			stars.erase(find_star(move.star_id))
 	if not shifted.is_empty():
 		stars_shifted.emit(shifted)
+
+
+## The harvest clock counts a launch; when it runs out, the loose stars pay and are reaped (the
+## stars this launch brought stand, unless the harvest reaps new ones too).
+func _count_harvest(first_new_id: int) -> void:
+	if harvest.count_launch():
+		var skip: Dictionary[int, bool] = {}
+		for star: Star in stars:
+			if star.id >= first_new_id:
+				skip[star.id] = true
+		var reaped: Array[Star] = harvest.reaped(stars, skip)
+		if not reaped.is_empty():
+			var gain: int = harvest.value(reaped)
+			for star: Star in reaped:
+				stars.erase(star)
+			_orion_forget(reaped)
+			dust += gain
+			harvested.emit(reaped, gain)
+	harvest_counted.emit(harvest.launches_left)
+
+
+## Pure preview: what the next launch's harvest reaps of the stars in the sky now (star id to its
+## pay), or {} when the next launch doesn't bring one. The stars that launch brings aren't known.
+func harvest_preview() -> Dictionary[int, int]:
+	var result: Dictionary[int, int] = {}
+	if harvest == null or not harvest.is_next():
+		return result
+	for star: Star in stars:
+		result[star.id] = harvest.pay_for(star)
+	return result
 
 
 func _heat_stars(first_new_id: int) -> void:

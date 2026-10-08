@@ -70,6 +70,9 @@ var heat_on_links: bool = false
 ## Heat and cold take turns, swapping after every launch (the Mane's day and night), starting with
 ## heat_change.
 var heat_turns: bool = false
+## Virgo's harvest (chapter 4): every few launches (balance.json's harvest block), the loose stars
+## pay dust by size and are reaped (StarHarvest).
+var harvest: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 

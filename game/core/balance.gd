@@ -81,6 +81,15 @@ var hint_idle_seconds: float = 0.0
 ## own (current_steps, by StarMap id: chapter 2's stages ramp up), else it uses this one.
 var current_step: int = 0
 var current_steps: Dictionary[String, int] = {}
+## Virgo's harvest (chapter 4): launches between two harvests (0: no harvest), the dust a reaped
+## star pays by size (small, medium, big), and whether a harvest reaps the stars its own launch
+## brought.
+var harvest_every: int = 0
+var harvest_pay: Array[int] = [0, 0, 0]
+var harvest_reaps_new: bool = false
+## Under the harvest, links still pay their dust (false: they pay light only, and the harvest is
+## the stage's dust).
+var harvest_links_pay_dust: bool = true
 
 var errors: Array[String] = []
 
@@ -163,6 +172,8 @@ func _parse(data: Dictionary) -> void:
 			var stages: Dictionary = _read_dict(currents, "stages", "currents.")
 			for map_id: Variant in stages:
 				current_steps[str(map_id)] = _read_int(stages, map_id, "currents.stages.", 1)
+	if data.has("harvest"):
+		_parse_harvest(_read_dict(data, "harvest", ""))
 	for block: String in VOLLEY_BLOCKS:
 		if data.has(block):
 			volleys[block] = _parse_volley(_read_dict(data, block, ""), block + ".")
@@ -221,6 +232,22 @@ func _parse_volley(raw: Dictionary, ctx: String) -> VolleyDef:
 	if raw.has("intro_stars"):
 		def.intro_stars = _read_int(raw, "intro_stars", ctx, 0)
 	return def
+
+
+func _parse_harvest(raw: Dictionary) -> void:
+	harvest_every = _read_int(raw, "every", "harvest.", 1)
+	var pay: Dictionary = _read_dict(raw, "pay", "harvest.")
+	harvest_pay = [_read_int(pay, "small", "harvest.pay.", 0), _read_int(pay, "medium", "harvest.pay.", 0), _read_int(pay, "big", "harvest.pay.", 0)]
+	if raw.has("links_pay_dust"):
+		if typeof(raw["links_pay_dust"]) != TYPE_BOOL:
+			errors.append("harvest.links_pay_dust: must be true or false")
+		else:
+			harvest_links_pay_dust = raw["links_pay_dust"]
+	if raw.has("reaps_new"):
+		if typeof(raw["reaps_new"]) != TYPE_BOOL:
+			errors.append("harvest.reaps_new: must be true or false")
+		else:
+			harvest_reaps_new = raw["reaps_new"]
 
 
 func _parse_scorpio(raw: Dictionary) -> void:
