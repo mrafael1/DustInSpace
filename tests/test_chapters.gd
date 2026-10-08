@@ -86,20 +86,16 @@ func test_aquarius_opens_once_scorpios_final_is_won_and_the_chart_opens_on_it() 
 	assert_eq(again.chapter.id, "aquarius", "the latest open chapter")
 
 
-func test_the_chapter_plaque_switches_the_chart_and_each_keeps_its_progress() -> void:
+func test_switching_chapters_keeps_each_ones_progress() -> void:
 	_scorpio_won()
 	var app: App = _app()
 	var chart: ChapterSelect = app.get_node("ChapterSelect")
-	assert_true(chart.is_chapter_switch_shown())
-	# A debug build (the tests') can always go on to the next chapter, Leo, round to Scorpio.
-	assert_eq(chart.get_node("ChapterButton").text, "LEO")
 	assert_false(chart.is_tutorial_button_shown(), "the guided run is Scorpio's")
+	# A debug build (the tests') can always go on to the next chapter, Leo, round to Scorpio.
 	app.switch_chapter()
 	assert_eq(app.chapter.id, "leo")
-	assert_eq(chart.get_node("ChapterButton").text, "SCORPIO")
 	app.switch_chapter()
 	assert_eq(app.chapter.id, "scorpio")
-	assert_eq(chart.get_node("ChapterButton").text, "AQUARIUS")
 	assert_true(app.chapter.is_completed(Chapter.FINAL), "Scorpio's progress is its own")
 	assert_eq(ProgressStore.new(STORE).load_chapter("aquarius"), {}, "nothing saved for Aquarius")
 

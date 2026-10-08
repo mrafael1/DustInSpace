@@ -35,6 +35,16 @@ extends CanvasLayer
 ## colour from then on.
 ## Once the guided first run is finished, a TUTORIAL plaque (the MAP button's style) in the
 ## screen's top-right corner plays it again (App opens the Stinger guided).
+## Chapters: an arrow either side of the heading leads to the chapter before and after (none at the
+## ends): a warm chevron when that chapter is open, a padlock while it's locked. The chapters share
+## one sky, the zodiac along the ecliptic, each chart at its own sign's place: a tap on an arrow, or
+## a swipe across the chart, is a voyage along it, the camera easing out of one constellation and
+## past the others (faint, named) into the next, the background stars drifting behind at their own
+## depth and streaking with the speed; a tap on a padlock shakes it and the subtitle says why. Back from the win of a final that
+## opens the next chapter, once the figure has come to life, that padlock shakes and glows, bursts
+## into shards, and a comet streaks from the crown out past the arrow and leads the voyage on to
+## the new chapter, whose stars pop in one by one from its first stage under a shower of sparkles while
+## the subtitle says NEW CHAPTER, then a comet runs from its crown to the stage to play.
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
 
 ## The player asked to play stage `stage`.
@@ -42,11 +52,26 @@ signal stage_chosen(stage: int)
 ## The player asked to play the guided first run again (the TUTORIAL button).
 signal tutorial_requested
 signal current_trial_requested
-## The player asked for the other chapter's chart (the chapter plaque, top left).
-signal chapter_switch_requested
+## The player asked for the chapter `step` away (an arrow or a swipe: -1 before, +1 after). Only
+## for an open one: a locked one is refused here (nav_refused).
+signal chapter_step_requested(step: int)
+## The next chapter's opening has played (its padlock broke, the comet left): App voyages on to it.
+signal chapter_opened
+## The selection star landed on the new chapter's stage at the end of a voyage. Feedback only (sound).
+signal star_landed
+## Feedback only (sound): a voyage to another chapter began; a padlock refused a tap; the opening
+## padlock started shaking, then broke; the reveal popped its `order`-th star, then ended.
+signal slid
+signal nav_refused
+signal padlock_shaken
+signal padlock_broke
+signal star_revealed(order: int)
+signal chapter_revealed
 
 ## How a string of the path shows: a cool guide, the way to the stage to play next, or travelled.
 enum Leg { GUIDE, NEXT, LIT }
+## Where an arrow leads: nowhere (no chapter that way), a locked chapter, an open one.
+enum Nav { NONE, LOCKED, OPEN }
 
 const TITLE_Y: int = 30
 const SUBTITLE_Y: int = 42
@@ -152,6 +177,81 @@ static var _dormant: Dictionary = {}
 ## The chapter the static helpers draw when none is given: Scorpio, the first.
 static var _scorpio: ChapterDef
 
+## The chapter arrows: centred NAV_X either side of the screen's middle, on row NAV_Y (they rise
+## with the heading); pressed within NAV_HIT round that. A chevron (C2, C0 pressed, an N0 shadow)
+## or a padlock (an N8 shackle over an N7 body with an N3 keyhole).
+const NAV_X: int = 62
+const NAV_Y: int = 38
+const NAV_HIT := Vector2i(26, 26)
+## A tap on a padlock: it shakes a pixel side to side for REFUSE_SHAKE, and the subtitle says
+## REFUSE_TEXT for REFUSE_SAY.
+const REFUSE_SHAKE: float = 0.3
+const REFUSE_SAY: float = 2.2
+const REFUSE_TEXT: String = "WIN THIS CHAPTER FIRST"
+## A swipe across the chart, at least SWIPE px and mostly sideways, steps chapter too.
+const SWIPE: int = 28
+## The sky the chapters share: the zodiac in the order the Sun passes it, SKY_SPAN px (a screen)
+## per sign; a chapter's chart sits at its own sign's place. A voyage between two takes VOYAGE_BASE
+## plus VOYAGE_PER_SIGN for every sign crossed: the camera speeds up over its first VOYAGE_EASE,
+## cruises, and slows down over its last (a calm pan across the sky, not a warp). The charts and the
+## constellations between them pass at the camera's speed, the background stars at STAR_PARALLAX of
+## it (each trailing a short streak once that speed passes STREAK_SPEED px/s, up to STREAK_MAX px),
+## the milky way and the nebulae stay put. Forward (the next chapter) is to the right.
+const ZODIAC: Array[String] = ["scorpio", "sagittarius", "capricornus", "aquarius", "pisces", "aries", "taurus", "gemini", "cancer", "leo"]
+const SKY_SPAN: int = 180
+const VOYAGE_BASE: float = 0.6
+const VOYAGE_PER_SIGN: float = 0.28
+const VOYAGE_EASE: float = 0.25
+const STAR_PARALLAX: float = 0.4
+const STREAK_SPEED: float = 160.0
+const STREAK_MAX: int = 3
+## The constellations passed on a voyage, in their screen's home place: their stars (an N8 cross
+## with an M5 heart, the brightest an M6 glint with M5 arms), their strings (solid N5, stopping short
+## of each star), their name (3x5, N8) centred under them.
+const PASSING: Dictionary = {
+	"sagittarius": {"name": "SAGITTARIUS", "stars": [Vector2i(56, 172), Vector2i(78, 158), Vector2i(98, 164), Vector2i(94, 188), Vector2i(70, 192), Vector2i(86, 138), Vector2i(118, 156), Vector2i(124, 184)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 0), Vector2i(1, 5), Vector2i(5, 2), Vector2i(2, 6), Vector2i(3, 7)], "bright": [1, 2]},
+	"capricornus": {"name": "CAPRICORNUS", "stars": [Vector2i(40, 140), Vector2i(70, 150), Vector2i(110, 160), Vector2i(140, 150), Vector2i(150, 128), Vector2i(100, 190), Vector2i(66, 180)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(0, 6), Vector2i(6, 5), Vector2i(5, 3)], "bright": [0, 4]},
+	"pisces": {"name": "PISCES", "stars": [Vector2i(30, 110), Vector2i(50, 140), Vector2i(70, 168), Vector2i(96, 194), Vector2i(120, 180), Vector2i(140, 168), Vector2i(156, 160), Vector2i(166, 146), Vector2i(152, 138), Vector2i(144, 152)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5), Vector2i(5, 6), Vector2i(6, 7), Vector2i(7, 8), Vector2i(8, 9), Vector2i(9, 6)], "bright": [3]},
+	"aries": {"name": "ARIES", "stars": [Vector2i(50, 164), Vector2i(92, 150), Vector2i(112, 156), Vector2i(120, 168)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3)], "bright": [1]},
+	"taurus": {"name": "TAURUS", "stars": [Vector2i(96, 172), Vector2i(118, 160), Vector2i(136, 150), Vector2i(112, 182), Vector2i(128, 188), Vector2i(160, 120), Vector2i(166, 172), Vector2i(48, 128), Vector2i(53, 125), Vector2i(51, 132)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(0, 3), Vector2i(3, 4), Vector2i(2, 5), Vector2i(4, 6)], "bright": [2, 8]},
+	"gemini": {"name": "GEMINI", "stars": [Vector2i(60, 110), Vector2i(64, 140), Vector2i(70, 170), Vector2i(76, 200), Vector2i(92, 112), Vector2i(96, 142), Vector2i(102, 170), Vector2i(110, 198)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(4, 5), Vector2i(5, 6), Vector2i(6, 7), Vector2i(0, 4)], "bright": [0, 4]},
+	"cancer": {"name": "CANCER", "stars": [Vector2i(92, 160), Vector2i(88, 130), Vector2i(70, 190), Vector2i(118, 186), Vector2i(94, 146)], "lines": [Vector2i(0, 4), Vector2i(4, 1), Vector2i(0, 2), Vector2i(0, 3)], "bright": []},
+}
+## The selection star leads every voyage: over the camera's speed-up it lifts off the stage that
+## was selected and flies to LEAD_AHEAD px ahead of the screen's middle (towards where it's going),
+## leads the cruise there, and over the slow-down lands on the new chapter's stage to play (the
+## crown, when the voyage reveals a new chapter). Its trail follows the way it actually went, the
+## last TRAIL.size() places it was drawn at; the selection brackets show again once it has landed.
+const LEAD_AHEAD: int = 46
+## A passing constellation's name sits this far under its lowest star.
+const PASSING_NAME_GAP: int = 8
+## The background stars: about one per STAR_ODDS px of sky, placed per SKY_SPAN-wide section from
+## that section's own seed (STAR_SEED), in rows STAR_ROWS: the same sky every time, endless sideways.
+const STAR_ROWS := Vector2i(-160, 330)
+const STAR_SEED: int = 0x57A2
+## The next chapter opening: its padlock shakes, ever faster, and heats (N7, C3, C2) for OPEN_SHAKE,
+## then bursts: a ring and OPEN_SHARDS shards falling away over OPEN_BREAK as the chevron flashes
+## in; a comet streaks from the crown out past the arrow and off the screen from OPEN_COMET_AT for
+## OPEN_COMET. Then chapter_opened.
+const OPEN_SHAKE: float = 0.6
+const OPEN_BREAK: float = 0.55
+const OPEN_SHARDS: int = 18
+const OPEN_COMET_AT: float = 0.7
+const OPEN_COMET: float = 0.7
+const OPEN_TIME: float = OPEN_COMET_AT + OPEN_COMET
+const SHARD_COLOURS: Array[Color] = [Palette.C0, Palette.C1, Palette.C2, Palette.C3]
+## The new chapter's reveal: its stars pop in one every REVEAL_STEP from its first stage (a C0 cross
+## and a ring cooling over REVEAL_POP), each string once both its stars are in, the crown last;
+## REVEAL_SPARKLES sparkles twinkle across the sky over REVEAL_SPARKLE; the heading's title stamps
+## C0, and a title card (the finals' BossBanner) stamps the chapter's name over REVEAL_TEXT in the
+## sky at REVEAL_CARD_Y for REVEAL_SAY. Then a comet runs from the crown to the stage to play.
+const REVEAL_STEP: float = 0.07
+const REVEAL_POP: float = 0.3
+const REVEAL_SPARKLES: int = 56
+const REVEAL_SPARKLE: float = 1.6
+const REVEAL_SAY: float = 2.4
+const REVEAL_TEXT: String = "CHAPTER %d IS OPEN"
+const REVEAL_CARD_Y: int = 200
 ## Where a stage's number sits from its point.
 const NUMBER_OFFSET := Vector2i(10, -16)
 ## The TUTORIAL plaque sits this far in from the screen's top-right corner (like the HUD's MAP).
@@ -176,15 +276,52 @@ var _pressed_play: bool = false
 var _pressed_tutorial: bool = false
 var _pressed_flow: bool = false
 var _flow: MapButton
-var _pressed_switch: bool = false
 ## The plaque naming the other chapter (hidden while there's none to go to).
-var _switch: MapButton
 ## The TUTORIAL plaque (hidden until the guided first run has been finished).
 var _tutorial: MapButton
 ## The final's unlock playing: seconds since it began (-1: none), and whether one waits for the
 ## point lighting to end.
 var _unlock_time: float = -1.0
 var _unlock_next: bool = false
+## Where each arrow leads (left, right: Nav), which one is pressed (-1, +1 or 0), a refused one and
+## the seconds since, and where the press began (for a swipe).
+var _nav: Array[int] = [Nav.NONE, Nav.NONE]
+var _pressed_nav: int = 0
+var _refuse_side: int = 0
+var _refuse_time: float = -1.0
+var _press_at := Vector2i(-1, -1)
+## Where the camera is on the shared sky (the world x of the screen's left edge), and a voyage to
+## `_voyage_chapter`: seconds in (-1: none), how long it takes, from and to where, whether it has
+## handed over to the new chart yet, and whether it reveals it.
+var _camera: float = 0.0
+var _voyage_time: float = -1.0
+var _voyage_length: float = 1.0
+var _voyage_from: float = 0.0
+var _voyage_to: float = 0.0
+var _voyage_chapter: Chapter
+var _voyage_swapped: bool = false
+var _voyage_reveal: bool = false
+## The selection star on a voyage: where it lifts off and lands on the shared sky (world x), and the
+## places it was last drawn at (its trail, newest first).
+var _lead_from := Vector2i.ZERO
+var _lead_to := Vector2i.ZERO
+var _lead_trail: Array[Vector2i] = []
+## The background stars on screen (screen x, y, their hash), worked out again whenever the camera
+## or the chart moves; the key they were worked out for.
+var _stars: Array[Vector3i] = []
+var _stars_key := Vector3i(-1, -1, -1)
+## The passing constellations' names.
+var _passing_names: Dictionary[String, Label] = {}
+static var _sections: Dictionary[int, Array] = {}
+## The next chapter's opening: waiting for the figure to come to life, then seconds in (-1: none).
+var _open_pending: bool = false
+var _open_time: float = -1.0
+## The reveal: waiting for the voyage to end, then seconds in (-1: none), and the stars' order.
+var _reveal_pending: bool = false
+var _reveal_time: float = -1.0
+var _reveal_order: Array[int] = []
+## The reveal's title card.
+var _card: BossBanner
 ## The painting moving after a win: the stage whose piece rises (or FINAL: the scorpion coming to
 ## life), and seconds since it began (-1: none).
 var _figure_stage: int = -1
@@ -195,7 +332,6 @@ var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 var _numbers: Array[Label] = []
 ## The space behind the chart, built once per screen, and its twinkling stars.
 var _space: ImageTexture
-var _twinklers: Array[Vector2i] = []
 ## Picks when and where shooting stars fly (tests seed it).
 var meteor_rng := RandomNumberGenerator.new()
 ## The shooting star: the pixels it streaks along and how long it's been flying (-1: none), and how
@@ -229,10 +365,6 @@ func _ready() -> void:
 	_tutorial.text = "TUTORIAL"
 	_tutorial.visible = false
 	add_child(_tutorial)
-	_switch = MapButtonScene.instantiate()
-	_switch.name = "ChapterButton"
-	_switch.visible = false
-	add_child(_switch)
 	if OS.is_debug_build():
 		_flow = MapButtonScene.instantiate()
 		_flow.name = "CurrentTrialButton"
@@ -240,6 +372,17 @@ func _ready() -> void:
 		add_child(_flow)
 	_place_tutorial()
 	_place_heading()
+	_card = BossBanner.new()
+	_card.name = "RevealCard"
+	add_child(_card)
+	for sign: String in PASSING:
+		var name_label := Label.new()
+		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_label.label_settings = HudText.secondary(Palette.N8)
+		name_label.text = PASSING[sign]["name"]
+		name_label.visible = false
+		add_child(name_label)
+		_passing_names[sign] = name_label
 	for stage: int in Chapter.stage_count():
 		var number := Label.new()
 		number.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -263,9 +406,8 @@ func setup(chapter: Chapter) -> void:
 	_chapter = chapter
 	if changed:
 		_load_paintings(chapter.def)
-		# The background stars keep clear of this chapter's figure.
-		_space = null
-		_twinklers = twinkling_stars(_screen, chapter.def)
+	if _voyage_time < 0.0:
+		_camera = sky_x(chapter.def.id)
 	_travel.clear()
 	_light_point = -1
 	_then_travel_to = -1
@@ -273,7 +415,14 @@ func setup(chapter: Chapter) -> void:
 	_unlock_next = false
 	_figure_time = -1.0
 	_figure_stage = -1
+	_open_pending = false
+	_open_time = -1.0
+	_reveal_time = -1.0
+	_reveal_pending = false
+	if _card != null:
+		_card.hide_card()
 	_selected = chapter.current()
+	_restore_heading()
 	_refresh()
 
 
@@ -286,8 +435,7 @@ func fit_screen(screen: Rect2i) -> void:
 	offset = Vector2(-screen.position.x, extra - lift)
 	var local := Rect2i(screen.position + Vector2i(0, lift), screen.size)
 	if local != _screen or _space == null:
-		_space = ImageTexture.create_from_image(space_image(local, _def()))
-		_twinklers = twinkling_stars(local, _def())
+		_space = ImageTexture.create_from_image(space_image(local, _def(), false))
 	_screen = local
 	_place_heading()
 	_place_tutorial()
@@ -315,11 +463,58 @@ static func play_rect(screen: Rect2i = Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 ## SKY_TWINKLE_ODDS.
 static func twinkling_stars(screen: Rect2i, def: ChapterDef = null) -> Array[Vector2i]:
 	var twinklers: Array[Vector2i] = []
-	for p: Vector2i in space_stars(screen, def):
-		var h: int = _hash(p) / STAR_ODDS
-		if h % GLINT_ODDS != 0 and (h / GLINT_ODDS) % SKY_TWINKLE_ODDS == 0:
-			twinklers.append(p)
+	for star: Vector3i in sky_stars(screen, def):
+		if twinkles(star.z):
+			twinklers.append(Vector2i(star.x, star.y))
 	return twinklers
+
+
+## A background star (by its hash) is a 3 px glint, plain, or a plain one that twinkles.
+static func is_glint(h: int) -> bool:
+	return h % GLINT_ODDS == 0
+
+
+static func twinkles(h: int) -> bool:
+	return not is_glint(h) and (h / GLINT_ODDS) % SKY_TWINKLE_ODDS == 0
+
+
+## Section `section` of the sky's background stars (world x, y, hash): from its own seed.
+static func sky_section(section: int) -> Array:
+	if _sections.has(section):
+		return _sections[section]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = STAR_SEED ^ (section * 2654435761)
+	var stars: Array[Vector3i] = []
+	for i: int in SKY_SPAN * (STAR_ROWS.y - STAR_ROWS.x) / STAR_ODDS:
+		stars.append(Vector3i(section * SKY_SPAN + rng.randi_range(0, SKY_SPAN - 1), rng.randi_range(STAR_ROWS.x, STAR_ROWS.y - 1), rng.randi() & 0x3FFFFFFF))
+	_sections[section] = stars
+	return stars
+
+
+## The background stars on `screen` (screen x, y, hash) with the sky's stars at `stars_x` (their
+## world x of the screen's left) and the chart drawn `chart_x` px across: clear of the chart's
+## stars, stage points and numbers, its heading and its stage label.
+static func sky_stars(screen: Rect2i, def: ChapterDef = null, stars_x: int = 0, chart_x: int = 0) -> Array[Vector3i]:
+	def = _or_scorpio(def)
+	var shift := Vector2i(chart_x, 0)
+	var title := Rect2i(40, TITLE_Y - heading_rise(screen) - 3, 100, SUBTITLE_Y - TITLE_Y + 13)
+	var keep_off: Array[Rect2i] = [Rect2i(title.position + shift, title.size)]
+	for area: Rect2i in label_areas(screen):
+		keep_off.append(Rect2i(area.position + shift, area.size))
+	for stage: int in Chapter.stage_count():
+		keep_off.append(Rect2i(stage_position(stage, def) + NUMBER_OFFSET - Vector2i(2, 2) + shift, Vector2i(12, 10)))
+	var points: Array[Vector2i] = []
+	for star: Vector2i in def.figure.landmarks + [def.final_at]:
+		points.append(star + shift)
+	var found: Array[Vector3i] = []
+	var left: int = stars_x + screen.position.x
+	for section: int in range(floori(float(left) / SKY_SPAN), floori(float(left + screen.size.x) / SKY_SPAN) + 1):
+		for star: Vector3i in sky_section(section):
+			var p := Vector2i(star.x - stars_x, star.y)
+			if not screen.has_point(p) or _covered(p, keep_off, points):
+				continue
+			found.append(Vector3i(p.x, p.y, star.z))
+	return found
 
 
 ## The milky way's motes: x how far along the band each starts, y how far across it, z its speed.
@@ -347,9 +542,9 @@ static func mote_pixels(motes: Array[Vector3], time: float) -> Dictionary[Vector
 	return dots
 
 
-## Whether the background star at `p` is lit up at `time` (its own phase, from its hash).
-static func sky_twinkles(p: Vector2i, time: float) -> bool:
-	var phase: float = float(_hash(p + Vector2i(7, 3)) % 1000) / 1000.0 * SKY_TWINKLE_PERIOD
+## Whether the background star at `p` (or with hash `h`) is lit up at `time`, on its own phase.
+static func sky_twinkles(p: Vector2i, time: float, h: int = -1) -> bool:
+	var phase: float = float((h if h >= 0 else _hash(p + Vector2i(7, 3))) % 1000) / 1000.0 * SKY_TWINKLE_PERIOD
 	return fmod(time + phase, SKY_TWINKLE_PERIOD) < SKY_TWINKLE_ON
 
 
@@ -385,7 +580,7 @@ func meteor_pixels() -> Dictionary[Vector2i, Color]:
 
 ## The space behind the chart for a visible screen `screen` (game coordinates; the image's 0,0 is
 ## screen.position). Opaque, cool palette colours only, the same pixels for the same place.
-static func space_image(screen: Rect2i, def: ChapterDef = null) -> Image:
+static func space_image(screen: Rect2i, def: ChapterDef = null, with_stars: bool = true) -> Image:
 	var image := Image.create_empty(screen.size.x, screen.size.y, false, Image.FORMAT_RGBA8)
 	var a := Vector2(MILKY_WAY[0])
 	var along: Vector2 = (Vector2(MILKY_WAY[1]) - a).normalized()
@@ -393,17 +588,17 @@ static func space_image(screen: Rect2i, def: ChapterDef = null) -> Image:
 		for x: int in screen.size.x:
 			var p := Vector2i(x, y) + screen.position
 			image.set_pixel(x, y, _space_colour(p, a, along))
-	for p: Vector2i in space_stars(screen, def):
-		var h: int = _hash(p) / STAR_ODDS
-		var local: Vector2i = p - screen.position
-		if h % GLINT_ODDS == 0:
+	for star: Vector3i in (sky_stars(screen, def) if with_stars else ([] as Array[Vector3i])):
+		var h: int = star.z
+		var local: Vector2i = Vector2i(star.x, star.y) - screen.position
+		if is_glint(h):
 			for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 				var q: Vector2i = local + n
 				if q.x >= 0 and q.y >= 0 and q.x < screen.size.x and q.y < screen.size.y:
 					image.set_pixel(q.x, q.y, Palette.N7)
 			image.set_pixel(local.x, local.y, Palette.M5)
 		else:
-			image.set_pixel(local.x, local.y, STAR_COLOURS[h % STAR_COLOURS.size()])
+			image.set_pixel(local.x, local.y, STAR_COLOURS[(h / GLINT_ODDS) % STAR_COLOURS.size()])
 	return image
 
 
@@ -412,28 +607,22 @@ static func label_areas(screen: Rect2i = Rect2i(Vector2i.ZERO, ScreenZones.SCREE
 	return [Rect2i(PANEL.position.x, INFO_Y + label_drop(screen) - 3, PANEL.size.x, 13), play_rect(screen).grow(3)]
 
 
-## Where the background stars are in `screen`: a fixed hash per pixel, clear of the chapter's
-## stars and stage points and the stage panel.
+## Whether a background star at `p` would sit in one of `areas` or too near one of `points`.
+static func _covered(p: Vector2i, areas: Array[Rect2i], points: Array[Vector2i]) -> bool:
+	for area: Rect2i in areas:
+		if area.has_point(p):
+			return true
+	for q: Vector2i in points:
+		if (q - p).length_squared() < STAR_CLEAR * STAR_CLEAR:
+			return true
+	return false
+
+
+## Where the background stars are in `screen`, at rest (see sky_stars).
 static func space_stars(screen: Rect2i, def: ChapterDef = null) -> Array[Vector2i]:
-	def = _or_scorpio(def)
 	var stars: Array[Vector2i] = []
-	var title := Rect2i(40, TITLE_Y - heading_rise(screen) - 3, 100, SUBTITLE_Y - TITLE_Y + 13)
-	var labels: Array[Rect2i] = label_areas(screen)
-	for y: int in range(screen.position.y, screen.end.y):
-		for x: int in range(screen.position.x, screen.end.x):
-			var p := Vector2i(x, y)
-			if _hash(p) % STAR_ODDS != 0 or title.has_point(p) or labels.any(func(r: Rect2i) -> bool: return r.has_point(p)):
-				continue
-			var clear: bool = true
-			for star: Vector2i in def.figure.landmarks + [def.final_at]:
-				if (star - p).length_squared() < STAR_CLEAR * STAR_CLEAR:
-					clear = false
-					break
-			for stage: int in Chapter.stage_count():
-				if Rect2i(stage_position(stage, def) + NUMBER_OFFSET - Vector2i(2, 2), Vector2i(12, 10)).has_point(p):
-					clear = false
-			if clear:
-				stars.append(p)
+	for star: Vector3i in sky_stars(screen, def):
+		stars.append(Vector2i(star.x, star.y))
 	return stars
 
 
@@ -478,7 +667,8 @@ static func _hash(p: Vector2i) -> int:
 ## travels to `unlocked` (the stage it opened, or -1) and selects it.
 ## The final's own moments play bigger: its unlock (unlock_sequence), and the painted Scorpio rising
 ## once it's won.
-func show_progress(lit: int, unlocked: int) -> void:
+func show_progress(lit: int, unlocked: int, opens_next: bool = false) -> void:
+	_open_pending = opens_next and Chapter.is_final(lit)
 	_travel.clear()
 	_unlock_time = -1.0
 	_unlock_next = false
@@ -499,6 +689,198 @@ func show_progress(lit: int, unlocked: int) -> void:
 
 func is_unlocking() -> bool:
 	return _unlock_time >= 0.0 or _unlock_next
+
+
+## Whether something plays that a tap mustn't interrupt: an unlock, the next chapter opening, a
+## voyage or a reveal.
+func is_busy() -> bool:
+	return is_unlocking() or is_opening() or is_voyaging() or is_revealing()
+
+
+## Where each arrow leads: `left` and `right` (Nav).
+func show_navigation(left: Nav, right: Nav) -> void:
+	_nav = [left, right]
+	_chart.queue_redraw()
+
+
+## Where the arrow on `side` (-1 left, +1 right) leads (Nav).
+func navigation(side: int) -> int:
+	return _nav[0 if side < 0 else 1]
+
+
+## The arrow on `side`'s centre and its tap target (chart coordinates).
+func nav_centre(side: int) -> Vector2i:
+	return Vector2i(ScreenZones.SCREEN.x / 2 + side * NAV_X, NAV_Y - heading_rise(_screen))
+
+
+func nav_target(side: int) -> Rect2i:
+	return Rect2i(nav_centre(side) - NAV_HIT / 2, NAV_HIT)
+
+
+## Steps to the chapter on `side`: asks for it if it's open, shakes its padlock if it's locked.
+func step(side: int) -> void:
+	match navigation(side):
+		Nav.OPEN:
+			chapter_step_requested.emit(side)
+		Nav.LOCKED:
+			_refuse_side = side
+			_refuse_time = 0.0
+			_say(REFUSE_TEXT, Palette.N8)
+			nav_refused.emit()
+			_chart.queue_redraw()
+
+
+## Voyages along the sky to `chapter`'s constellation; with `reveal`, its stars then pop in (the new
+## chapter's reveal), and the opening's comet leads the way.
+func voyage_to(chapter: Chapter, reveal: bool = false) -> void:
+	_voyage_chapter = chapter
+	_voyage_reveal = reveal
+	_voyage_from = _camera
+	_voyage_to = sky_x(chapter.def.id)
+	_voyage_length = voyage_time(absi(roundi(_voyage_to - _voyage_from)) / SKY_SPAN)
+	_voyage_swapped = false
+	_voyage_time = 0.0
+	# The opening's comet left off the screen's right edge by the arrow; otherwise the star lifts off
+	# the stage that was selected.
+	var lift: Vector2i = Vector2i(_screen.end.x + 12, nav_centre(1).y) if reveal else stage_position(_selected, _def())
+	_lead_from = lift + Vector2i(roundi(_camera), 0)
+	var land: Vector2i = stage_position(Chapter.FINAL if reveal else chapter.current(), chapter.def)
+	_lead_to = land + Vector2i(sky_x(chapter.def.id), 0)
+	_lead_trail.clear()
+	_travel.clear()
+	slid.emit()
+
+
+## Where the selection star is on screen now, on a voyage: lifting off, leading, landing.
+func lead_star() -> Vector2i:
+	var k: float = clampf(_voyage_time / _voyage_length, 0.0, 1.0) if _voyage_time >= 0.0 else 1.0
+	var forward: int = signi(roundi(_voyage_to - _voyage_from))
+	var from: Vector2i = _lead_from - Vector2i(roundi(_camera), 0)
+	var to: Vector2i = _lead_to - Vector2i(roundi(_camera), 0)
+	var ahead := Vector2i(ScreenZones.SCREEN.x / 2 + forward * LEAD_AHEAD, (from.y + to.y) / 2)
+	var a: float = VOYAGE_EASE
+	if k < a:
+		return Vector2i(Vector2(from).lerp(Vector2(ahead), smoothstep(0.0, 1.0, k / a)).round())
+	if k > 1.0 - a:
+		return Vector2i(Vector2(ahead).lerp(Vector2(to), smoothstep(0.0, 1.0, (k - 1.0 + a) / a)).round())
+	return ahead
+
+
+## How long a voyage across `signs` signs of the zodiac takes.
+static func voyage_time(signs: int) -> float:
+	return VOYAGE_BASE + VOYAGE_PER_SIGN * maxi(signs, 1)
+
+
+## Where a chapter's chart (or a passing constellation, by its id) sits on the shared sky.
+static func sky_x(id: String) -> int:
+	return maxi(ZODIAC.find(id), 0) * SKY_SPAN
+
+
+## How far through the voyage the camera is (0-1): speeding up, cruising, slowing down.
+func voyage_progress() -> float:
+	if _voyage_time < 0.0:
+		return 1.0
+	return cruise(_voyage_time / _voyage_length)
+
+
+## A voyage's progress `k` of the way through its time: a steady speed-up over VOYAGE_EASE, a
+## cruise, a steady slow-down over the last VOYAGE_EASE.
+static func cruise(k: float) -> float:
+	var a: float = VOYAGE_EASE
+	k = clampf(k, 0.0, 1.0)
+	if k < a:
+		return k * k / (2.0 * a * (1.0 - a))
+	if k > 1.0 - a:
+		return 1.0 - (1.0 - k) * (1.0 - k) / (2.0 * a * (1.0 - a))
+	return (k - a / 2.0) / (1.0 - a)
+
+
+## The camera's speed now, px a second (signed).
+func voyage_speed() -> float:
+	if _voyage_time < 0.0:
+		return 0.0
+	var k: float = clampf(_voyage_time / _voyage_length, 0.0, 1.0)
+	var a: float = VOYAGE_EASE
+	var rate: float = minf(minf(k, 1.0 - k), a) / (a * (1.0 - a))
+	return (_voyage_to - _voyage_from) * rate / _voyage_length
+
+
+func camera() -> float:
+	return _camera
+
+
+## Plays the next chapter's opening now (debug: after a final's win it follows the figure's life).
+func play_opening() -> void:
+	_open_pending = false
+	_open_time = 0.0
+	padlock_shaken.emit()
+	_chart.queue_redraw()
+
+
+func is_voyaging() -> bool:
+	return _voyage_time >= 0.0
+
+
+func is_opening() -> bool:
+	return _open_pending or _open_time >= 0.0
+
+
+func is_revealing() -> bool:
+	return _reveal_pending or _reveal_time >= 0.0
+
+
+## How far across the screen the chart is drawn now: 0 at rest, its place on the sky against the
+## camera's on a voyage (whole pixels).
+func chart_x() -> int:
+	if _chapter == null:
+		return 0
+	return roundi(sky_x(_chapter.def.id) - _camera)
+
+
+## Whether landmark `landmark` shows: always, except while the reveal hasn't popped it yet.
+func revealed(landmark: int) -> bool:
+	if not is_revealing():
+		return true
+	if _reveal_time < 0.0:
+		return false
+	return _reveal_order.find(landmark) * REVEAL_STEP <= _reveal_time
+
+
+## The order a chapter's stars pop in when it's revealed: each part's stars, from the first part.
+static func reveal_order(def: ChapterDef) -> Array[int]:
+	var order: Array[int] = []
+	for stage: int in Chapter.FINAL:
+		for landmark: int in def.stages[stage]["stars"]:
+			order.append(landmark)
+	return order
+
+
+func _start_reveal() -> void:
+	_reveal_pending = false
+	_reveal_order = reveal_order(_def())
+	_reveal_time = 0.0
+	_title.label_settings.font_color = Palette.C0
+	_card.position = Vector2(ScreenZones.SCREEN.x / 2, REVEAL_CARD_Y + label_drop(_screen))
+	_card.play_arrival(_def().title, REVEAL_TEXT % _def().number, REVEAL_SAY, Palette.C1, Palette.C2)
+	star_revealed.emit(0)
+
+
+## The subtitle says `text` for a while (a refusal, the reveal) in `colour`.
+func _say(text: String, colour: Color) -> void:
+	_subtitle.text = text
+	_subtitle.label_settings.font_color = colour
+	_place_heading()
+
+
+## The heading as the chapter has it: its title in C1, CHAPTER n in N8.
+func _restore_heading() -> void:
+	if _chapter == null or _title == null:
+		return
+	_title.text = _def().title
+	_title.label_settings.font_color = Palette.C1
+	_subtitle.text = "CHAPTER %d" % _def().number
+	_subtitle.label_settings.font_color = Palette.N8
+	_place_heading()
 
 
 ## Whether the whole Scorpio shows alive: once the final is won.
@@ -658,27 +1040,10 @@ func tutorial_target() -> Rect2i:
 	return _tutorial.target()
 
 
-## Shows the plaque to the other chapter, named `title` ("" hides it).
-func show_chapter_switch(title: String) -> void:
-	_switch.text = title
-	_switch.visible = title != ""
-
-
-func is_chapter_switch_shown() -> bool:
-	return _switch.visible
-
-
-## The chapter plaque's tap target (chart coordinates).
-func chapter_switch_target() -> Rect2i:
-	return _switch.target()
-
-
 func _place_tutorial() -> void:
-	if _switch != null:
-		_switch.position = Vector2(_screen.position + Vector2i(TUTORIAL_INSET, TUTORIAL_INSET))
 	if _flow != null:
-		# Debug only: below the chapter plaque.
-		_flow.position = Vector2(_screen.position + Vector2i(TUTORIAL_INSET, TUTORIAL_INSET + 18))
+		# Debug only: the top-left corner.
+		_flow.position = Vector2(_screen.position + Vector2i(TUTORIAL_INSET, TUTORIAL_INSET))
 	if _tutorial == null:
 		return
 	var width: int = _tutorial.plaque_size().x
@@ -699,12 +1064,26 @@ func handle_pointer(event: InputEvent) -> bool:
 		return true
 	if _tutorial.visible and (_pressed_tutorial or (touch.pressed and tutorial_target().has_point(at))):
 		return _press_tutorial(touch, at)
-	if _switch.visible and (_pressed_switch or (touch.pressed and chapter_switch_target().has_point(at))):
-		_pressed_switch = touch.pressed
-		_switch.pressed = touch.pressed
-		if not touch.pressed and not touch.canceled and chapter_switch_target().has_point(at) and not is_unlocking() and not is_travelling():
-			chapter_switch_requested.emit()
-		return true
+	for side: int in [-1, 1]:
+		var on: bool = nav_target(side).has_point(at)
+		if _pressed_nav == side or (touch.pressed and on and navigation(side) != Nav.NONE):
+			_pressed_nav = side if touch.pressed else 0
+			if not touch.pressed and not touch.canceled and on and not is_busy():
+				step(side)
+			_chart.queue_redraw()
+			return true
+	if touch.pressed:
+		_press_at = at
+	elif not touch.canceled and _press_at.x >= 0 and not is_busy():
+		# A swipe: mostly sideways and long enough steps to the chapter it pulls in.
+		var drag: Vector2i = at - _press_at
+		_press_at = Vector2i(-1, -1)
+		if absi(drag.x) >= SWIPE and absi(drag.x) > 2 * absi(drag.y):
+			_pressed_play = false
+			_pressed_point = -1
+			step(1 if drag.x < 0 else -1)
+			_chart.queue_redraw()
+			return true
 	if touch.pressed:
 		_pressed_play = can_play() and play_rect(_screen).has_point(at)
 		_pressed_point = -1 if _pressed_play else stage_at(at, _def())
@@ -718,7 +1097,7 @@ func handle_pointer(event: InputEvent) -> bool:
 		return used
 	if _pressed_play and play_rect(_screen).has_point(at) and can_play():
 		stage_chosen.emit(_selected)
-	elif _pressed_point >= 0 and stage_at(at, _def()) == _pressed_point and not is_travelling() and not is_lighting() and not is_unlocking():
+	elif _pressed_point >= 0 and stage_at(at, _def()) == _pressed_point and not is_travelling() and not is_lighting() and not is_busy():
 		select(_pressed_point)
 	_pressed_play = false
 	_pressed_point = -1
@@ -776,8 +1155,96 @@ func advance(delta: float) -> void:
 		if _figure_time >= length:
 			_figure_time = -1.0
 			_figure_stage = -1
+	redraw = _advance_chapters(delta) or redraw
 	if redraw:
 		_chart.queue_redraw()
+
+
+## Moves the chapter navigation's animations on: a refusal, a voyage, the next chapter opening and
+## its reveal. Returns whether anything moved.
+func _advance_chapters(delta: float) -> bool:
+	var moved: bool = false
+	if _refuse_time >= 0.0:
+		_refuse_time += delta
+		moved = true
+		if _refuse_time >= REFUSE_SAY:
+			_refuse_time = -1.0
+			if not is_revealing():
+				_restore_heading()
+	if _open_pending and _figure_time < 0.0 and _light_point < 0:
+		_open_pending = false
+		_open_time = 0.0
+		padlock_shaken.emit()
+	if _open_time >= 0.0:
+		var before: float = _open_time
+		_open_time += delta
+		moved = true
+		if before < OPEN_SHAKE and _open_time >= OPEN_SHAKE:
+			padlock_broke.emit()
+		if _open_time >= OPEN_TIME:
+			_open_time = -1.0
+			chapter_opened.emit()
+	if _voyage_time >= 0.0:
+		_voyage_time += delta
+		moved = true
+		_camera = lerpf(_voyage_from, _voyage_to, voyage_progress())
+		# The new chart takes over halfway, while neither is on screen (they're signs apart).
+		if not _voyage_swapped and voyage_progress() >= 0.5:
+			_voyage_swapped = true
+			setup(_voyage_chapter)
+			_reveal_pending = _voyage_reveal
+		if _voyage_time >= _voyage_length:
+			_voyage_time = -1.0
+			_camera = _voyage_to
+			_lead_trail.clear()
+			star_landed.emit()
+			if _reveal_pending:
+				_start_reveal()
+		else:
+			_lead_trail.push_front(lead_star())
+			if _lead_trail.size() > TRAIL.size():
+				_lead_trail.pop_back()
+		_place_slid()
+	if _reveal_time >= 0.0:
+		var before: float = _reveal_time
+		_reveal_time += delta
+		moved = true
+		for k: int in range(1, _reveal_order.size()):
+			if before < k * REVEAL_STEP and _reveal_time >= k * REVEAL_STEP:
+				star_revealed.emit(k)
+		if before < 0.12 and _reveal_time >= 0.12:
+			_title.label_settings.font_color = Palette.C1
+		var popped: float = _reveal_order.size() * REVEAL_STEP + REVEAL_POP
+		if before < popped and _reveal_time >= popped:
+			chapter_revealed.emit()
+			# The crown's comet runs to the stage to play.
+			_selected = Chapter.FINAL
+			select(_chapter.current())
+		if _reveal_time >= maxf(popped, maxf(REVEAL_SAY, REVEAL_SPARKLE)):
+			_reveal_time = -1.0
+			_card.hide_card()
+			_restore_heading()
+			_refresh()
+	return moved
+
+
+## The labels that travel with the chart (the numbers, the heading, the stage label) and the passing
+## constellations' names follow the camera.
+func _place_slid() -> void:
+	_place_heading()
+	_refresh()
+	for sign: String in PASSING:
+		var shift: int = roundi(sky_x(sign) - _camera)
+		var label: Label = _passing_names[sign]
+		label.visible = is_voyaging() and shift > -SKY_SPAN and shift < _screen.end.x
+		if label.visible:
+			var lowest: int = 0
+			var span := Vector2i(SKY_SPAN, 0)
+			for star: Vector2i in PASSING[sign]["stars"]:
+				lowest = maxi(lowest, star.y)
+				span = Vector2i(mini(span.x, star.x), maxi(span.y, star.x))
+			label.size = label.get_minimum_size()
+			label.position = Vector2(shift + (span.x + span.y) / 2 - floori(label.size.x / 2.0), lowest + PASSING_NAME_GAP)
 
 
 ## The shooting star flies on and ends; the next one waits its turn.
@@ -871,7 +1338,8 @@ func _refresh() -> void:
 			Chapter.PointState.AVAILABLE:
 				colour = Palette.C2
 		_numbers[stage].label_settings = HudText.secondary(colour)
-		_numbers[stage].position = Vector2(stage_position(stage, _def()) + NUMBER_OFFSET)
+		_numbers[stage].position = Vector2(stage_position(stage, _def()) + NUMBER_OFFSET + Vector2i(chart_x(), 0))
+		_numbers[stage].visible = not is_revealing()
 	if _chapter.has_stage(_selected):
 		_info.text = _chapter.stage_name(_selected)
 		_info.label_settings.font_color = Palette.C1
@@ -879,11 +1347,13 @@ func _refresh() -> void:
 		_info.text = "COMING SOON"
 		_info.label_settings.font_color = Palette.N8
 	_centre(_info, INFO_Y + label_drop(_screen))
+	_info.position.x += chart_x()
 	_play.visible = can_play()
 	_play.text = "REPLAY" if _chapter.is_completed(_selected) else "PLAY"
 	_play.size = _play.get_minimum_size()
 	var play: Rect2i = play_rect(_screen)
-	_play.position = Vector2(play.position.x + floori((play.size.x - _play.size.x) / 2.0), play.position.y + 7)
+	_play.position = Vector2(play.position.x + floori((play.size.x - _play.size.x) / 2.0) + chart_x(), play.position.y + 7)
+	_play.visible = can_play() and not is_revealing()
 	_chart.queue_redraw()
 
 
@@ -893,6 +1363,8 @@ func _place_heading() -> void:
 	var rise: int = heading_rise(_screen)
 	_centre(_title, TITLE_Y - rise)
 	_centre(_subtitle, SUBTITLE_Y - rise)
+	_title.position.x += chart_x()
+	_subtitle.position.x += chart_x()
 
 
 func _centre(label: Label, y: int) -> void:
@@ -902,33 +1374,41 @@ func _centre(label: Label, y: int) -> void:
 
 func _draw_chart() -> void:
 	if _space == null:
-		_space = ImageTexture.create_from_image(space_image(_screen, _def()))
+		_space = ImageTexture.create_from_image(space_image(_screen, _def(), false))
 	_chart.draw_texture(_space, Vector2(_screen.position))
 	var motes: Dictionary[Vector2i, Color] = mote_pixels(_motes, _time)
 	for p: Vector2i in motes:
 		_dot(p, motes[p])
-	for p: Vector2i in _twinklers:
-		if sky_twinkles(p, _time):
-			_dot(p, Palette.M6)
+	_draw_sky_stars()
+	_draw_passing()
 	var meteor: Dictionary[Vector2i, Color] = meteor_pixels()
 	for p: Vector2i in meteor:
 		_dot(p, meteor[p])
 	if _chapter == null:
 		return
+	_draw_sparkles()
+	_draw_lead_comet()
+	# The chart is drawn at its place on the sky against the camera's.
+	_chart.draw_set_transform(Vector2(chart_x(), 0))
 	_draw_figure()
 	var legs: Array[Leg] = string_legs()
 	for leg: Leg in [Leg.GUIDE, Leg.NEXT, Leg.LIT]:
 		for segment: int in _def().figure.segment_count():
-			if legs[segment] == leg:
+			var ends: Vector2i = _def().figure.segments[segment]
+			if legs[segment] == leg and revealed(ends.x) and revealed(ends.y):
 				_draw_string(segment, leg)
 	if unlock_phase(_unlock_time) == 2 and _unlock_time - (UNLOCK_TIME - UNLOCK_BURST) < UNLOCK_FLASH:
 		for segment: int in _def().figure.segment_count():
 			for p: Vector2i in LinkLayer.line_pixels(_def().figure.landmarks[_def().figure.segments[segment].x], _def().figure.landmarks[_def().figure.segments[segment].y]):
 				_dot(p, Palette.C0)
 	for landmark: int in _def().figure.landmarks.size():
-		_draw_star(landmark)
-	_draw_crown()
-	_draw_selection(stage_position(_selected, _def()))
+		if revealed(landmark):
+			_draw_star(landmark)
+	_draw_pops()
+	if not is_revealing() or _reveal_time >= _reveal_order.size() * REVEAL_STEP:
+		_draw_crown()
+	if not is_revealing() and not is_voyaging():
+		_draw_selection(stage_position(_selected, _def()))
 	if _light_point >= 0:
 		var k: float = _light_time / LIGHT_TIME
 		var colour: Color = LIGHT_COLOURS[mini(floori(k * LIGHT_COLOURS.size()), LIGHT_COLOURS.size() - 1)]
@@ -938,8 +1418,247 @@ func _draw_chart() -> void:
 	_draw_comet()
 	_draw_unlock()
 	_draw_label_rules()
-	if can_play():
+	if can_play() and not is_revealing():
 		_draw_plaque(play_rect(_screen), Palette.M3 if _pressed_play else Palette.N0, Palette.C2)
+	_chart.draw_set_transform(Vector2.ZERO)
+	_draw_navigation()
+	_draw_opening()
+
+
+## The background stars at their depth: still at rest, drifting behind the camera on a voyage at
+## STAR_PARALLAX of its speed, each streaking behind itself (N6, then N5) as that speed grows.
+func _draw_sky_stars() -> void:
+	var stars_x: int = roundi(_camera * STAR_PARALLAX)
+	var key := Vector3i(stars_x, chart_x(), ZODIAC.find(_def().id))
+	if key != _stars_key:
+		_stars_key = key
+		_stars = sky_stars(_screen, _def(), stars_x, chart_x())
+	var speed: float = voyage_speed() * STAR_PARALLAX
+	var streak: int = clampi(roundi((absf(speed) - STREAK_SPEED) / 60.0), 0, STREAK_MAX)
+	var behind: int = -signi(roundi(speed))
+	for star: Vector3i in _stars:
+		var p := Vector2i(star.x, star.y)
+		# Only the brighter half streaks, so the sky keeps its points.
+		if star.z % 2 == 0:
+			for k: int in range(1, streak + 1):
+				_dot(p - Vector2i(behind * k, 0), Palette.N5 if k == 1 else Palette.N4)
+		if is_glint(star.z):
+			for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				_dot(p + n, Palette.N7)
+			_dot(p, Palette.M5)
+		elif twinkles(star.z) and sky_twinkles(p, _time, star.z):
+			_dot(p, Palette.M6)
+		else:
+			_dot(p, STAR_COLOURS[(star.z / GLINT_ODDS) % STAR_COLOURS.size()])
+
+
+## The constellations between the chapters, passing on a voyage: faint stars, dotted strings.
+func _draw_passing() -> void:
+	if not is_voyaging():
+		return
+	for sign: String in PASSING:
+		var shift := Vector2i(roundi(sky_x(sign) - _camera), 0)
+		if shift.x <= -SKY_SPAN or shift.x >= _screen.end.x:
+			continue
+		var stars: Array = PASSING[sign]["stars"]
+		for line: Vector2i in PASSING[sign]["lines"]:
+			var pixels: Array[Vector2i] = LinkLayer.line_pixels(stars[line.x] + shift, stars[line.y] + shift)
+			for k: int in range(3, pixels.size() - 3):
+				_dot(pixels[k], Palette.N5)
+		for i: int in stars.size():
+			var at: Vector2i = stars[i] + shift
+			var bright: bool = PASSING[sign]["bright"].has(i)
+			for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				_dot(at + n, Palette.M5 if bright else Palette.N8)
+				if bright:
+					_dot(at + n * 2, Palette.N7)
+			_dot(at, Palette.M6 if bright else Palette.M5)
+
+
+## The selection star leading a voyage (lead_star), its trail along the way it went.
+func _draw_lead_comet() -> void:
+	if not is_voyaging():
+		return
+	var head: Vector2i = lead_star()
+	# The trail joins the places it was drawn at, cooling along the way.
+	var points: Array[Vector2i] = [head]
+	points.append_array(_lead_trail)
+	var trail: Array[Vector2i] = []
+	for k: int in range(1, points.size()):
+		var leg: Array[Vector2i] = LinkLayer.line_pixels(points[k - 1], points[k])
+		trail.append_array(leg.slice(1))
+	# Leading the cruise it holds still on screen while the sky streams past: a speed trail streams
+	# out behind it, as long as the camera is fast.
+	var speed: float = voyage_speed()
+	var streak: int = clampi(roundi(absf(speed) / 22.0), 0, TRAIL.size() * 3)
+	for k: int in range(streak, 0, -1):
+		_dot(head - Vector2i(signi(roundi(speed)) * k, 0), TRAIL[mini(k * TRAIL.size() / maxi(streak, 1), TRAIL.size() - 1)])
+	var length: int = mini(trail.size(), TRAIL.size() * 3)
+	for k: int in range(length - 1, -1, -1):
+		_dot(trail[k], TRAIL[mini(k * TRAIL.size() / maxi(length, 1), TRAIL.size() - 1)])
+	for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		_dot(head + n, Palette.C1)
+	_dot(head, Palette.C0)
+
+
+## The chapter arrows: a chevron to an open chapter, a padlock to a locked one, nothing at the
+## ends. The opening's padlock shakes and heats, then gives way to the chevron.
+func _draw_navigation() -> void:
+	for side: int in [-1, 1]:
+		var state: int = navigation(side)
+		var at: Vector2i = nav_centre(side)
+		if side == 1 and is_opening():
+			if _open_time < OPEN_SHAKE:
+				var k: float = maxf(_open_time, 0.0) / OPEN_SHAKE
+				var rate: float = lerpf(0.06, 0.025, k)
+				var shake: int = [1, 0, -1, 0][int(maxf(_open_time, 0.0) / rate) % 4] if _open_time >= 0.0 else 0
+				var heat: Color = Palette.N7 if k < 0.4 else (Palette.C3 if k < 0.75 else Palette.C2)
+				_draw_padlock(at + Vector2i(shake, 0), heat)
+				if _open_time >= 0.0:
+					for d: Vector2i in ConstellationView.circle_pixels(8 + int(_open_time / 0.08) % 2):
+						if (d.x + d.y) % 2 == 0:
+							_dot(at + d, Palette.C3 if k < 0.6 else Palette.C2)
+				continue
+			# Flashes in, then bounces towards the new chapter as the comet passes it.
+			var bounce: int = 2 if absf(_open_time - (OPEN_COMET_AT + OPEN_COMET * 0.45)) < 0.08 else 0
+			_draw_chevron(at + Vector2i(bounce, 0), side, Palette.C0 if _open_time - OPEN_SHAKE < 0.12 or bounce > 0 else Palette.C2)
+			continue
+		if state == Nav.NONE:
+			continue
+		var shift: int = 0
+		if side == _refuse_side and _refuse_time >= 0.0 and _refuse_time < REFUSE_SHAKE:
+			shift = [1, 0, -1, 0][int(_refuse_time / 0.03) % 4]
+		if state == Nav.LOCKED:
+			_draw_padlock(at + Vector2i(shift, 0), Palette.N7)
+		else:
+			_draw_chevron(at, side, Palette.C0 if _pressed_nav == side else Palette.C2)
+
+
+## A chevron pointing to `side`, two pixels thick, with an N0 shadow.
+func _draw_chevron(at: Vector2i, side: int, colour: Color) -> void:
+	var pixels: Array[Vector2i] = chevron_pixels(side)
+	for p: Vector2i in pixels:
+		_dot(at + p + Vector2i.ONE, Palette.N0)
+	for p: Vector2i in pixels:
+		_dot(at + p, colour)
+
+
+static func chevron_pixels(side: int) -> Array[Vector2i]:
+	var pixels: Array[Vector2i] = []
+	for y: int in range(-4, 5):
+		var x: int = 2 - absi(y)
+		pixels.append(Vector2i(x * side, y))
+		pixels.append(Vector2i((x - 1) * side, y))
+	return pixels
+
+
+## A padlock: a shackle (N8) over a body in `body` with an N3 keyhole, and an N0 shadow.
+func _draw_padlock(at: Vector2i, body: Color) -> void:
+	var shape: Dictionary[Vector2i, Color] = padlock_pixels(body)
+	for p: Vector2i in shape:
+		_dot(at + p + Vector2i.ONE, Palette.N0)
+	for p: Vector2i in shape:
+		_dot(at + p, shape[p])
+
+
+static func padlock_pixels(body: Color) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	for p: Vector2i in [Vector2i(-1, -5), Vector2i(0, -5), Vector2i(1, -5), Vector2i(-2, -4), Vector2i(2, -4), Vector2i(-2, -3), Vector2i(2, -3), Vector2i(-2, -2), Vector2i(2, -2)]:
+		pixels[p] = Palette.N8
+	for y: int in range(-1, 4):
+		for x: int in range(-3, 4):
+			pixels[Vector2i(x, y)] = body
+	pixels[Vector2i(0, 0)] = Palette.N3
+	pixels[Vector2i(0, 1)] = Palette.N3
+	return pixels
+
+
+## The next chapter opening, past its shake: the padlock's burst (a ring and shards falling away)
+## and the comet from the crown out past the arrow.
+func _draw_opening() -> void:
+	if _open_time < OPEN_SHAKE:
+		return
+	var at: Vector2i = nav_centre(1)
+	var t: float = _open_time - OPEN_SHAKE
+	if t < OPEN_BREAK:
+		for p: Vector2i in shard_pixels(t):
+			_dot(at + p, SHARD_COLOURS[mini(floori(t / OPEN_BREAK * SHARD_COLOURS.size()), SHARD_COLOURS.size() - 1)])
+		if t < 0.28:
+			var k: float = t / 0.28
+			for d: Vector2i in ConstellationView.circle_pixels(4 + roundi(k * 20.0)):
+				_dot(at + d, SHARD_COLOURS[mini(floori(k * SHARD_COLOURS.size()), SHARD_COLOURS.size() - 1)])
+		if t < 0.12:
+			for r: int in 8:
+				var dir: Vector2 = Vector2.from_angle(TAU * r / 8.0)
+				for p: Vector2i in LinkLayer.line_pixels(at + Vector2i((dir * 5.0).round()), at + Vector2i((dir * (9.0 + t * 80.0)).round())):
+					_dot(p, Palette.C0)
+	var c: float = (_open_time - OPEN_COMET_AT) / OPEN_COMET
+	if c < 0.0 or c >= 1.0:
+		return
+	var path: Array[Vector2i] = opening_path()
+	var head: int = roundi(c * (path.size() + TRAIL.size()))
+	for k: int in range(TRAIL.size() - 1, -1, -1):
+		var i: int = head - k
+		if i >= 0 and i < path.size():
+			_dot(path[i], TRAIL[k])
+	if head < path.size():
+		for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			_dot(path[head] + n, Palette.C1)
+		_dot(path[head], Palette.C0)
+
+
+## The padlock's shards `t` seconds after it broke: flung out round it, falling.
+static func shard_pixels(t: float) -> Array[Vector2i]:
+	var pixels: Array[Vector2i] = []
+	for i: int in OPEN_SHARDS:
+		var angle: float = TAU * i / OPEN_SHARDS + 0.3
+		var speed: float = 42.0 + 22.0 * float((i * 7) % 5) / 4.0
+		var p := Vector2(cos(angle), sin(angle)) * speed * t + Vector2(0.0, 110.0 * t * t)
+		pixels.append(Vector2i(p.round()))
+	return pixels
+
+
+## The opening comet's way: from the crown to the arrow, then on off the screen's right edge.
+func opening_path() -> Array[Vector2i]:
+	var arrow: Vector2i = nav_centre(1)
+	var path: Array[Vector2i] = LinkLayer.line_pixels(stage_position(Chapter.FINAL, _def()), arrow)
+	path.append_array(LinkLayer.line_pixels(arrow, Vector2i(_screen.end.x + 12, arrow.y)).slice(1))
+	return path
+
+
+## The reveal's pops: each star just in throws a C0 cross and a ring that cools as it grows.
+func _draw_pops() -> void:
+	if _reveal_time < 0.0:
+		return
+	for k: int in _reveal_order.size():
+		var age: float = _reveal_time - k * REVEAL_STEP
+		if age < 0.0 or age >= REVEAL_POP:
+			continue
+		var at: Vector2i = _def().figure.landmarks[_reveal_order[k]]
+		if age < 0.08:
+			for d: Vector2i in [Vector2i.ZERO, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i(0, -2), Vector2i(0, 2), Vector2i(-2, 0), Vector2i(2, 0)]:
+				_dot(at + d, Palette.C0)
+		var ring: float = age / REVEAL_POP
+		for d: Vector2i in ConstellationView.circle_pixels(3 + roundi(ring * 7.0)):
+			_dot(at + d, LIGHT_COLOURS[mini(floori(ring * LIGHT_COLOURS.size()), LIGHT_COLOURS.size() - 1)])
+
+
+## The reveal's shower: sparkles twinkling up across the sky (a C0 cross, then a C1 dot, then N8).
+func _draw_sparkles() -> void:
+	if _reveal_time < 0.0:
+		return
+	for i: int in REVEAL_SPARKLES:
+		var h: int = CurrentView._hash(i * 7 + 13)
+		var at := Vector2i(_screen.position.x + 6 + h % (_screen.size.x - 12), _screen.position.y + 50 + (h / 97) % (_screen.size.y - 120))
+		var age: float = _reveal_time - (REVEAL_SPARKLE - 0.35) * i / REVEAL_SPARKLES
+		if age < 0.0 or age >= 0.35:
+			continue
+		if age < 0.12:
+			for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				_dot(at + d, Palette.C1)
+			_dot(at, Palette.C0)
+		else:
+			_dot(at, Palette.C1 if age < 0.24 else Palette.N8)
 
 
 ## The thin rules either side of the stage name, each tipped with a small star: warm for a stage
