@@ -204,7 +204,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.heat_change != 0:
 			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns, scorpio.map.heat_turns)
 		if scorpio.map.harvest and balance.harvest_every_for(scorpio.map.id) > 0:
-			harvest = StarHarvest.new(balance.harvest_every_for(scorpio.map.id), scorpio.map.harvest_binds, scorpio.map.harvest_swath, scorpio.map.harvest_quickens, scorpio.map.harvest_ties)
+			harvest = StarHarvest.new(balance.harvest_every_for(scorpio.map.id), scorpio.map.harvest_binds, scorpio.map.harvest_quickens, scorpio.map.harvest_ties)
 			_bound.assign(scorpio.lit)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
@@ -839,18 +839,13 @@ func _shift_stars() -> void:
 ## a blue planet's only one, lands after), and, where it binds, puts out the constellation stars lit
 ## since the last harvest that lit strings don't join to the bound figure.
 func _count_harvest() -> void:
-	var middle: int = sky_rect.get_center().x
-	var reaps: Callable = harvest.reaps.bind(middle)
-	var due: bool = harvest.launches_left == 1
+	var due: bool = harvest.count_launch()
 	if due:
-		var reaped: Array[Star] = stars.filter(func(star: Star) -> bool: return reaps.call(star.position.x))
-		harvest.count_launch()
+		var reaped: Array[Star] = stars.duplicate()
 		for star: Star in reaped:
 			stars.erase(star)
 		_orion_forget(reaped)
 		harvested.emit(reaped)
-	else:
-		harvest.count_launch()
 	if harvest.binds and (due or harvest.ties):
 		_bind_sheaves()
 	harvest_counted.emit(harvest.launches_left, harvest.period)
@@ -883,8 +878,7 @@ func harvest_preview() -> Array[int]:
 	if harvest == null or not harvest.is_next():
 		return result
 	for star: Star in stars:
-		if harvest.reaps(star.position.x, sky_rect.get_center().x):
-			result.append(star.id)
+		result.append(star.id)
 	return result
 
 

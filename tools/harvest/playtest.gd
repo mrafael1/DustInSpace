@@ -16,7 +16,8 @@ var _balance: Balance
 var _runs: int = 200
 var _map: String = "virgo_wing"
 var _binds: int = -1
-## Twists switched on for the run: "swath", "quickens", "ties".
+## Twists switched on for the run: "quickens", "ties". (The swath, each harvest reaping half the
+## sky by turns, was measured and dropped: docs/design.md, chapter 4.)
 var _twists: Array[String] = []
 var _policies: Array[String] = POLICIES
 var _policy: String = ""
@@ -39,7 +40,7 @@ func _initialize() -> void:
 			_binds = 1
 		elif argument == "--no-binds":
 			_binds = 0
-		elif argument in ["--swath", "--quickens", "--ties"]:
+		elif argument in ["--quickens", "--ties"]:
 			_twists.append(argument.trim_prefix("--"))
 		elif argument.begins_with("--policies="):
 			_policies.assign(argument.trim_prefix("--policies=").split(","))
@@ -96,7 +97,6 @@ func _layout(enabled: bool) -> StarMap:
 	map.harvest = enabled
 	if _binds >= 0:
 		map.harvest_binds = _binds == 1
-	map.harvest_swath = map.harvest_swath or _twists.has("swath")
 	map.harvest_quickens = map.harvest_quickens or _twists.has("quickens")
 	map.harvest_ties = map.harvest_ties or _twists.has("ties")
 	return map

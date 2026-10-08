@@ -79,8 +79,6 @@ var harvest: bool = false
 ## Bound sheaves: at each harvest, a constellation star lit since the last one goes dark again unless
 ## lit strings join it to the figure lit before.
 var harvest_binds: bool = false
-## The swath: each harvest reaps only half the sky, the left half first, then the right, by turns.
-var harvest_swath: bool = false
 ## The quickening: after each harvest the clock is a launch shorter, down to one.
 var harvest_quickens: bool = false
 ## Tied at once: the binding acts after every launch, not only at the harvest.

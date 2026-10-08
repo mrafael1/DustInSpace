@@ -415,22 +415,12 @@ func _next_id(run: RunState) -> int:
 
 
 func test_the_quickening_shortens_the_clock_each_harvest_down_to_one() -> void:
-	var harvest := StarHarvest.new(3, false, false, true)
+	var harvest := StarHarvest.new(3, false, true)
 	var periods: Array[int] = []
 	for launch: int in 9:
 		if harvest.count_launch():
 			periods.append(harvest.period)
 	assert_eq(periods, [2, 1, 1, 1, 1, 1] as Array[int], "3 launches, then 2, then 1 at a time")
-
-
-func test_the_swath_reaps_one_half_of_the_sky_by_turns() -> void:
-	var harvest := StarHarvest.new(1, false, true)
-	assert_true(harvest.reaps(10, 90), "the left half first")
-	assert_false(harvest.reaps(150, 90))
-	harvest.count_launch()
-	assert_false(harvest.reaps(10, 90), "then the right")
-	assert_true(harvest.reaps(150, 90))
-	assert_true(StarHarvest.new(1).reaps(150, 90), "without the swath, the whole sky")
 
 
 func test_tied_at_once_puts_out_an_unjoined_star_after_any_launch() -> void:
@@ -483,8 +473,8 @@ func test_a_quickening_clock_loses_an_ear_each_harvest() -> void:
 
 
 func test_the_twists_say_their_rules() -> void:
-	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, false, false, true)), Hud.TIE_MESSAGE)
-	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, false, true)), Hud.QUICKEN_MESSAGE)
+	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, false, true)), Hud.TIE_MESSAGE)
+	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, true)), Hud.QUICKEN_MESSAGE)
 	for text: String in [Hud.TIE_MESSAGE, Hud.QUICKEN_MESSAGE]:
 		for line: String in text.split("\n"):
 			assert_lte(line.length(), 22, line)
