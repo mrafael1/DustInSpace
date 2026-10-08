@@ -55,6 +55,7 @@ func test_normal_run_cannot_switch_into_a_trial() -> void:
 
 func test_trial_win_cannot_save_scorpio_or_tutorial_progress() -> void:
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = STORE
 	add_child_autofree(app)
 	var before: Dictionary = app.chapter.to_save().duplicate(true)
@@ -111,19 +112,14 @@ func test_mobile_control_switches_flow_without_launching_and_cancel_uses_nothing
 	assert_eq(main.run.total_packs(), packs)
 
 
-func test_chart_flow_button_opens_trial_without_starting_a_campaign_stage() -> void:
+func test_the_aquarius_trial_opens_without_starting_a_campaign_stage() -> void:
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = STORE
 	add_child_autofree(app)
-	var chart: ChapterSelect = app.get_node("ChapterSelect")
-	var button: MapButton = chart.get_node("CurrentTrialButton")
-	var press := InputEventScreenTouch.new()
-	press.position = Vector2(button.target().get_center())
-	press.pressed = true
-	assert_true(chart.handle_pointer(press))
-	var release := InputEventScreenTouch.new()
-	release.position = press.position
-	assert_true(chart.handle_pointer(release))
+	assert_false(app.get_node("ChapterSelect").has_node("CurrentTrialButton"), "no FLOW plaque on the chart")
+	# The A key's trial (debug builds).
+	app.open_current_trial(true, 0, "aquarius")
 	assert_true(app.stage().current_trial)
 	assert_false(app.stage().tutorial)
 	assert_false(FileAccess.file_exists(STORE))

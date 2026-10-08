@@ -55,13 +55,16 @@ CONSTELLATION TO WIN", "the goal first")
 	assert_true(guide.waits_for_tap())
 	var landmark: int = run.rekindle_target()
 	assert_eq(guide.target().x, run.scorpio.landmark_position(landmark).x, "the hand on the next constellation star")
-	hud.show_map_button(true)
-	var map: Vector2i = hud.map_target().get_center()
+	var pause: Vector2i = hud.pause_target().get_center()
 	var press := InputEventScreenTouch.new()
-	press.position = Vector2(map)
+	press.position = Vector2(pause)
 	press.pressed = true
 	hud.handle_pointer(press)
-	assert_true(guide.waits_for_tap(), "MAP isn't a tap on")
+	assert_true(guide.waits_for_tap(), "the pause button isn't a tap on")
+	press.pressed = false
+	hud.handle_pointer(press)
+	assert_true(hud.pause_menu().is_open())
+	hud.close_pause()
 	_tap_hud(Vector2i(90, 150))
 	_settle()
 	assert_eq(guide.text(), "TAP THE SKY TO LAUNCH\nA CHEAP BLUE PLANET")
@@ -304,6 +307,7 @@ func test_the_hand_turns_to_point_right() -> void:
 
 func test_the_app_plays_it_on_the_stingers_first_run_and_saves_it() -> void:
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = store_path
 	add_child_autofree(app)
 	assert_false(app.tutorial_done)
@@ -315,6 +319,7 @@ func test_the_app_plays_it_on_the_stingers_first_run_and_saves_it() -> void:
 	assert_true(app.tutorial_done)
 	app.back_to_chart()
 	var again: App = AppScene.instantiate()
+	again.opens_on_title = false
 	again.progress_path = store_path
 	add_child_autofree(again)
 	assert_true(again.tutorial_done, "saved")
@@ -404,20 +409,22 @@ func test_lighting_the_star_teaches_three_of_its_size() -> void:
 	assert_true(run.link_in_reach(path))
 
 
-func test_the_chart_offers_the_tutorial_again_once_finished() -> void:
+func test_the_options_offer_the_tutorial_again_once_finished() -> void:
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = store_path
 	add_child_autofree(app)
-	var chart: ChapterSelect = app.get_node("ChapterSelect")
-	assert_false(chart.is_tutorial_button_shown(), "the first Stinger run is guided anyway")
+	var options: OptionsMenu = app.options()
+	assert_false(options.panel().ids().has(&"tutorial"), "the first Stinger run is guided anyway")
 	app.open_stage(0)
 	app.stage().run.tutorial_step.emit(Tutorial.Step.DONE)
 	app.back_to_chart()
-	assert_true(chart.is_tutorial_button_shown(), "finished once: it can be played again")
-	assert_lte(chart.tutorial_target().end.x - 4, chart.get("_screen").end.x, "in the top-right corner")
-	watch_signals(chart)
-	_tap_chart(chart, chart.tutorial_target().get_center())
-	assert_signal_emitted(chart, "tutorial_requested")
+	assert_true(options.panel().ids().has(&"tutorial"), "finished once: it can be played again")
+	watch_signals(options)
+	_tap_chart(options, options.gear_target().get_center())
+	_tap_chart(options, options.panel().item_rect(&"tutorial").get_center())
+	assert_signal_emitted(options, "tutorial_requested")
+	assert_false(options.is_open(), "the menu closes")
 	assert_not_null(app.stage(), "the Stinger opens")
 	assert_eq(app.stage().star_map, "stinger")
 	assert_not_null(app.stage().run.tutorial, "guided again")
@@ -428,9 +435,10 @@ func test_the_chart_offers_the_tutorial_again_once_finished() -> void:
 func test_a_saved_tutorial_shows_the_button_and_a_plain_stinger_isnt_guided() -> void:
 	ProgressStore.new(store_path).save_chapter(App.TUTORIAL_ID, {"done": true})
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = store_path
 	add_child_autofree(app)
-	assert_true((app.get_node("ChapterSelect") as ChapterSelect).is_tutorial_button_shown())
+	assert_true(app.options().panel().ids().has(&"tutorial"))
 	app.open_stage(0)
 	assert_null(app.stage().run.tutorial, "PLAY isn't guided")
 	app.back_to_chart()
@@ -438,22 +446,35 @@ func test_a_saved_tutorial_shows_the_button_and_a_plain_stinger_isnt_guided() ->
 	assert_not_null(app.stage().run.tutorial, "TUTORIAL is")
 
 
-func test_the_button_waits_for_the_finals_unlock() -> void:
-	var chart: ChapterSelect = (load("res://game/scenes/chapter_select.tscn") as PackedScene).instantiate()
-	add_child_autofree(chart)
+func test_the_tutorial_waits_for_the_finals_unlock() -> void:
+	ProgressStore.new(store_path).save_chapter(App.TUTORIAL_ID, {"done": true})
+	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
+	app.progress_path = store_path
+	add_child_autofree(app)
+	var chart: ChapterSelect = app.get_node("ChapterSelect")
 	chart.set_process(false)
-	var chapter := Chapter.new()
 	for stage: int in Chapter.FINAL:
-		chapter.complete(stage)
-	chart.setup(chapter)
-	chart.show_tutorial_button(true)
+		app.chapter.complete(stage)
 	chart.show_progress(4, Chapter.FINAL)
-	watch_signals(chart)
-	_tap_chart(chart, chart.tutorial_target().get_center())
-	assert_signal_not_emitted(chart, "tutorial_requested")
+	app.replay_tutorial()
+	assert_null(app.stage(), "not while the final unlocks")
 
 
-func _tap_chart(chart: ChapterSelect, at: Vector2i) -> void:
+func test_the_tutorial_from_another_chapter_plays_scorpios_stinger() -> void:
+	ProgressStore.new(store_path).save_chapter(App.TUTORIAL_ID, {"done": true})
+	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
+	app.progress_path = store_path
+	add_child_autofree(app)
+	app.chapter = app.chapters[2]
+	app.replay_tutorial()
+	assert_eq(app.chapter, app.chapters[0], "back on Scorpio")
+	assert_eq(app.stage().star_map, "stinger")
+	assert_not_null(app.stage().run.tutorial, "guided")
+
+
+func _tap_chart(chart: Object, at: Vector2i) -> void:
 	for pressed: bool in [true, false]:
 		var touch := InputEventScreenTouch.new()
 		touch.position = Vector2(at)

@@ -18,7 +18,10 @@ extends CanvasLayer
 ## less, so a lit cost always buys; right after a collect, a grey one may buy too.
 ## The boss stage (the final): as Orion enters, his title card stamps onto the middle of the sky
 ## (BossBanner).
-## The COMBOS button (under the MAP slot) opens the table (PaytableView, #94): each link and what it
+## The pause button (top-right, two bars on the plaque) opens the pause menu (a MenuPanel): RESUME,
+## RESTART (a fresh run of the stage), the sound level (as the speaker cycles it) and, in a chapter,
+## MAP. The game holds still behind it as under the table, and a tap off it resumes.
+## The COMBOS button (under the pause button) opens the table (PaytableView, #94): each link and what it
 ## pays. While it shows the game holds still (Main pauses the world on table_opened; the HUD holds
 ## its own counters, message and guide) and any tap closes it.
 
@@ -30,8 +33,15 @@ signal pack_ready(kind: String)
 ## The player picked a planet with its icon or its buy button, and it loaded (or was bought and
 ## loaded). The telescope aims with it (Main wires it).
 signal planet_chosen(kind: String)
-## The MAP button was tapped: back to the chapter's chart (#62; only shown in a chapter).
+## The pause menu's MAP was chosen: back to the chapter's chart (#62; only offered in a chapter).
 signal map_requested
+## The pause menu's RESTART was chosen: a fresh run of the stage (the menu has closed).
+signal restart_requested
+## The pause menu's sound button was tapped: the speaker's next level.
+signal sound_cycle_requested
+## The pause menu opened or closed: Main pauses the world while it shows.
+signal pause_opened
+signal pause_closed
 ## The table opened or closed: Main pauses the world while it shows.
 signal table_opened
 signal table_closed
@@ -47,11 +57,13 @@ const SLOT_Y: int = 290
 ## them to the real screen's corners).
 ## The speaker sits 10 px in from the corner: a phone's rounded corner clipped it at 4 px.
 const SOUND_AT := Vector2i(10, 10)
-## The MAP button (in a chapter) sits this far in from the top-right corner.
+## The pause button sits this far in from the top-right corner.
 const MAP_INSET: int = 10
-## The COMBOS button sits under the MAP slot, this far below its top: their 44 pt targets don't meet.
+## The COMBOS button sits under the pause button, this far below its top: their 44 pt targets don't
+## meet.
 const TABLE_BELOW: int = 22
 const TABLE_TEXT: String = "COMBOS"
+const PAUSE_HEADING: String = "PAUSED"
 const DUST_ICON_AT := Vector2i(12, 300)
 ## On a wider screen the dust counter and the pack slots stay at most this many px out beside the
 ## game's own 180 columns, close to the stage, rather than in the far corners.
@@ -141,8 +153,11 @@ var _banner := BossBanner.new()
 ## The table (#94) and its button.
 var _table := PaytableView.new()
 var _table_button: MapButton = MapButtonScene.instantiate()
-## The HUD's own children's process modes while the table holds them still.
+## The HUD's own children's process modes while the table or the pause menu holds them still.
 var _held: Dictionary[Node, Node.ProcessMode] = {}
+## The pause menu, and whether it offers MAP (in a chapter).
+var _pause := MenuPanel.new()
+var _map_offered: bool = false
 ## The guided first run's guide: a line and a pointing hand.
 var _guide := TutorialView.new()
 ## Where the Sun is (Main sets it), for the guide's hand.
@@ -154,7 +169,7 @@ var sun_at: Vector2i = Vector2i(90, 39)
 ## Refusal reasons said lately, and seconds until they may be said again.
 var _refusal_quiet: Dictionary[int, float] = {}
 @onready var _message: Label = $Message
-@onready var _map: MapButton = $MapButton
+@onready var _pause_button: MapButton = $PauseButton
 
 
 func _ready() -> void:
@@ -178,6 +193,12 @@ func _ready() -> void:
 	add_child(_table_button)
 	_table.name = "Table"
 	add_child(_table)
+	_pause.name = "PauseMenu"
+	_pause.heading = PAUSE_HEADING
+	add_child(_pause)
+	_pause.chosen.connect(_on_pause_chosen)
+	_pause.dismissed.connect(close_pause)
+	_build_pause()
 
 
 func _process(delta: float) -> void:
@@ -192,9 +213,10 @@ func fit_screen(screen: Rect2i) -> void:
 	var left: int = maxi(screen.position.x, -HUD_REACH)
 	var right: int = mini(screen.end.x - ScreenZones.SCREEN.x, HUD_REACH)
 	_sound.position = Vector2(SOUND_AT + screen.position)
-	# The MAP button mirrors the speaker in the top-right corner.
-	_map.position = Vector2(Vector2i(screen.end.x - MAP_INSET - MapButton.SIZE.x, screen.position.y + MAP_INSET))
-	# The COMBOS button's right edge lines up with MAP's.
+	# The pause button mirrors the speaker in the top-right corner.
+	_pause_button.position = Vector2(Vector2i(screen.end.x - MAP_INSET - _pause_button.plaque_size().x, screen.position.y + MAP_INSET))
+	_pause.fit_screen(screen)
+	# The COMBOS button's right edge lines up with the pause button's.
 	_table_button.position = Vector2(Vector2i(screen.end.x - MAP_INSET - _table_button.plaque_size().x, screen.position.y + MAP_INSET + TABLE_BELOW))
 	($DustIcon as Node2D).position = Vector2(DUST_ICON_AT + Vector2i(left, bottom))
 	_rest[_dust] = Vector2(DUST_AT + Vector2i(left, bottom))
@@ -231,6 +253,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.M6, Palette.M4)
 	_guide.hide_guide()
 	close_table()
+	close_pause()
 	_press([])
 	refresh()
 
@@ -328,12 +351,7 @@ func open_table() -> void:
 	if _run == null or _table.is_open():
 		return
 	_table.open(_run.balance)
-	for child: Node in get_children():
-		if child != _table:
-			_held[child] = child.process_mode
-			child.process_mode = Node.PROCESS_MODE_DISABLED
-	# The guide's line would crowd the plaque's top: it goes unseen (not hidden: it keeps its step).
-	_guide.modulate = Color.TRANSPARENT
+	_hold(_table)
 	table_opened.emit()
 
 
@@ -341,12 +359,87 @@ func close_table() -> void:
 	if not _table.is_open():
 		return
 	_table.close()
+	_let_go()
+	table_closed.emit()
+
+
+## Opens the pause menu; the game holds still until it closes.
+func open_pause() -> void:
+	if _run == null or _pause.is_open():
+		return
+	_pause.open()
+	_hold(_pause)
+	pause_opened.emit()
+
+
+func close_pause() -> void:
+	if not _pause.is_open():
+		return
+	_pause.close()
+	_let_go()
+	pause_closed.emit()
+
+
+func pause_menu() -> MenuPanel:
+	return _pause
+
+
+## Whether the pause menu offers MAP (in a chapter).
+func offer_map(on: bool) -> void:
+	_map_offered = on
+	_build_pause()
+
+
+func is_map_offered() -> bool:
+	return _map_offered
+
+
+## The pause button's tap target.
+func pause_target() -> Rect2i:
+	return _pause_button.target()
+
+
+## Every child but `keep` holds still (the table's or the pause menu's plaque).
+func _hold(keep: Node) -> void:
+	for child: Node in get_children():
+		if child != keep:
+			_held[child] = child.process_mode
+			child.process_mode = Node.PROCESS_MODE_DISABLED
+	# The guide's line would crowd the plaque's top: it goes unseen (not hidden: it keeps its step).
+	_guide.modulate = Color.TRANSPARENT
+
+
+func _let_go() -> void:
 	for child: Node in _held:
 		if is_instance_valid(child):
 			child.process_mode = _held[child]
 	_held.clear()
 	_guide.modulate = Color.WHITE
-	table_closed.emit()
+
+
+func _build_pause() -> void:
+	var items: Array[Dictionary] = [
+		{"id": &"resume", "text": "RESUME"},
+		{"id": &"restart", "text": "RESTART"},
+		{"id": &"sound", "text": OptionsMenu.SOUND_TEXT[_sound.level if _sound != null else 0], "level": _sound.level if _sound != null else 0},
+	]
+	if _map_offered:
+		items.append({"id": &"map", "text": "MAP"})
+	_pause.set_items(items)
+
+
+func _on_pause_chosen(id: StringName) -> void:
+	match id:
+		&"resume":
+			close_pause()
+		&"restart":
+			close_pause()
+			restart_requested.emit()
+		&"sound":
+			sound_cycle_requested.emit()
+		&"map":
+			close_pause()
+			map_requested.emit()
 
 
 func table() -> PaytableView:
@@ -371,6 +464,8 @@ func message() -> String:
 ## Shows the sound level (Sfx.Level) on the speaker.
 func show_sound_level(level: int) -> void:
 	_sound.level = level
+	_pause.set_item_text(&"sound", OptionsMenu.SOUND_TEXT[level])
+	_pause.set_item_level(&"sound", level)
 
 
 func sound_level() -> int:
@@ -378,19 +473,6 @@ func sound_level() -> int:
 
 
 ## The speaker's tap target on screen (SoundToggle takes the taps).
-## Shows the MAP button (in a chapter) or hides it.
-func show_map_button(on: bool) -> void:
-	_map.visible = on
-
-
-func is_map_button_shown() -> bool:
-	return _map.visible
-
-
-func map_target() -> Rect2i:
-	return _map.target()
-
-
 func sound_target() -> Rect2i:
 	return Rect2i(SoundIcon.TARGET.position + Vector2i(_sound.position), SoundIcon.TARGET.size)
 
@@ -401,6 +483,9 @@ func slot(kind: String) -> PackSlot:
 
 ## Feeds one touch (in screen coordinates). Returns true if it was used.
 func handle_pointer(event: InputEvent) -> bool:
+	# The pause menu takes every touch while it shows.
+	if _pause.is_open():
+		return _pause.handle_pointer(event)
 	# The table takes every touch while it shows; a tap closes it.
 	if _table.is_open():
 		var close := event as InputEventScreenTouch
@@ -408,9 +493,9 @@ func handle_pointer(event: InputEvent) -> bool:
 			close_table()
 		return event is InputEventScreenTouch or event is InputEventScreenDrag
 	# A tutorial step that only explains goes on at a tap. Off the buttons it takes the touch; on a
-	# planet's button the tap goes on and does what it does too (MAP just leaves).
+	# planet's button the tap goes on and does what it does too (the pause button just pauses).
 	var on_button: Array = target_at(Vector2i((event as InputEventScreenTouch).position.floor())) if event is InputEventScreenTouch else []
-	if _guide.waits_for_tap() and _run != null and on_button != ["", &"map"]:
+	if _guide.waits_for_tap() and _run != null and on_button != ["", &"pause"]:
 		var tap := event as InputEventScreenTouch
 		if tap != null and not tap.pressed and not tap.canceled:
 			_run.tutorial_continue()
@@ -438,8 +523,8 @@ func handle_pointer(event: InputEvent) -> bool:
 
 ## The tap target under a screen point, as [kind, &"icon" or &"cost"], or [] for none.
 func target_at(point: Vector2i) -> Array:
-	if _map.visible and _map.target().has_point(point):
-		return ["", &"map"]
+	if _pause_button.visible and _pause_button.target().has_point(point):
+		return ["", &"pause"]
 	if _table_button.visible and _table_button.target().has_point(point):
 		return ["", &"table"]
 	for kind: String in _slots:
@@ -452,15 +537,15 @@ func target_at(point: Vector2i) -> Array:
 ## Remembers the target a press started on; a buy button shows held down while pressed.
 func _press(target: Array) -> void:
 	_pressed = target
-	_map.pressed = target == ["", &"map"]
+	_pause_button.pressed = target == ["", &"pause"]
 	_table_button.pressed = target == ["", &"table"]
 	for kind: String in _slots:
 		_slots[kind].press_buy(target == [kind, &"cost"])
 
 
 func _tap(kind: String, part: StringName) -> void:
-	if part == &"map":
-		map_requested.emit()
+	if part == &"pause":
+		open_pause()
 		return
 	if part == &"table":
 		open_table()

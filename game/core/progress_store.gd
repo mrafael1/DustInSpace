@@ -32,6 +32,14 @@ func save_chapter(id: String, data: Dictionary) -> bool:
 	return true
 
 
+## Forgets every chapter's progress (the options' RESET PROGRESS). Returns false if the file is
+## still there.
+func clear() -> bool:
+	if not FileAccess.file_exists(path):
+		return true
+	return DirAccess.remove_absolute(ProjectSettings.globalize_path(path)) == OK
+
+
 func _read() -> Dictionary:
 	if not FileAccess.file_exists(path):
 		return {}

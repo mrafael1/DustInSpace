@@ -126,12 +126,11 @@ func test_the_one_of_each_row_moves_on_with_time() -> void:
 	assert_ne(hud.table().sequence_sizes(), first)
 
 
-func test_the_table_button_sits_under_the_map_slot() -> void:
+func test_the_table_button_sits_under_the_pause_button() -> void:
 	_start()
-	hud.show_map_button(true)
-	assert_false(hud.table_target().intersects(hud.map_target()), "their targets don't meet")
+	assert_false(hud.table_target().intersects(hud.pause_target()), "their targets don't meet")
 	assert_eq(hud.target_at(hud.table_target().get_center()), ["", &"table"])
-	assert_eq(hud.target_at(hud.map_target().get_center()), ["", &"map"])
+	assert_eq(hud.target_at(hud.pause_target().get_center()), ["", &"pause"])
 	assert_lt(hud.table_target().end.y, ScreenZones.SKY.position.y + 1, "above the sky, clear of the stars")
 
 
