@@ -92,6 +92,7 @@ func test_aquarius_opens_on_the_hand_and_winning_it_opens_the_body() -> void:
 
 func test_playing_the_hand_from_the_chart_is_not_the_tutorial_and_saves_as_aquarius() -> void:
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = STORE
 	add_child_autofree(app)
 	app.switch_chapter()
@@ -349,6 +350,7 @@ func test_a_replayed_stage_holds_its_painting_more_briefly() -> void:
 	assert_almost_eq(first - again, ConstellationView.FIGURE_CODA - ConstellationView.REPEAT_CODA, 0.001, "only the hold is shorter")
 	assert_gt(again, ConstellationView.TUNE_TIME + ConstellationView.FIGURE_RISE + ConstellationView.FIGURE_FLASH, "the reveal plays whole")
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = STORE
 	add_child_autofree(app)
 	app.switch_chapter()

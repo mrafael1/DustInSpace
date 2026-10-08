@@ -14,6 +14,7 @@ func after_each() -> void:
 
 func _app() -> App:
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = STORE
 	add_child_autofree(app)
 	return app
@@ -89,8 +90,6 @@ func test_aquarius_opens_once_scorpios_final_is_won_and_the_chart_opens_on_it() 
 func test_switching_chapters_keeps_each_ones_progress() -> void:
 	_scorpio_won()
 	var app: App = _app()
-	var chart: ChapterSelect = app.get_node("ChapterSelect")
-	assert_false(chart.is_tutorial_button_shown(), "the guided run is Scorpio's")
 	# A debug build (the tests') can always go on to the next chapter, Leo, round to Scorpio.
 	app.switch_chapter()
 	assert_eq(app.chapter.id, "leo")

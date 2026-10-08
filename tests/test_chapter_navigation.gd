@@ -16,6 +16,7 @@ func after_each() -> void:
 
 func _app() -> App:
 	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
 	app.progress_path = STORE
 	add_child_autofree(app)
 	return app
