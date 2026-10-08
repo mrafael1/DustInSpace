@@ -73,6 +73,14 @@ signal heat_intro_placed(stars: Array[Star])
 signal heat_intro_paused
 ## Leo's heat intro is over: `stars`, what the heat left of it, leave the sky. No reward.
 signal heat_intro_cleared(stars: Array[Star])
+## Leo's final opened: the lion arrives (it catches fire star by star, roars, and its title card
+## shows) before play starts. Presentation only.
+signal lion_arrived
+## The lion breathed (Leo's final): a successful link at `at` (its stars' centre) stoked the heat,
+## which changed `changes` at once, loose stars and the constellation stars still to light alike
+## (theirs have landmark ids). A lost loose star burned out; a big constellation star came back
+## small.
+signal heat_breathed(at: Vector2i, changes: Array[StarHeat.Change])
 ## The boss stage (the final) opened: Orion shows himself before play starts. Presentation only.
 signal boss_appeared
 ## The guided first run moved on to `step` (a Tutorial.Step).
@@ -591,6 +599,10 @@ func link(star_ids: Array[int]) -> String:
 	# also looses volleys: the single arrow flies first, so the mark is always settled (saved or shot)
 	# before the volley picks its victims, and the new mark comes after both: a volley never takes a
 	# marked star, and no star is hit twice. Saving the mark doesn't touch the volley's count.
+	# The lion breathes (its final): the link stokes the heat, once the Sun has rekindled (and
+	# cleared the sky) or not; the link that completes it doesn't.
+	if heat != null and scorpio != null and scorpio.map.heat_on_links and not scorpio.is_complete():
+		_breathe(_centre_of(linked))
 	if orion != null:
 		_orion_shoot()
 	if volley != null and not scorpio.is_complete():
@@ -796,6 +808,61 @@ func _heat_stars(first_new_id: int) -> void:
 	_apply_heat(heat.preview(stars, skip))
 
 
+## The lion's breath from a link at `at`: every loose star changes (and may burn) and so does every
+## constellation star still to light, at once.
+func _breathe(at: Vector2i) -> void:
+	var changes: Array[StarHeat.Change] = _breath_changes(stars, scorpio.unlit_stars())
+	for change: StarHeat.Change in changes:
+		if change.star_id < 0:
+			scorpio.map.sizes[Scorpio.landmark_index(change.star_id)] = change.to
+		elif change.lost:
+			stars.erase(find_star(change.star_id))
+		else:
+			find_star(change.star_id).size = change.to
+	if not changes.is_empty():
+		heat_breathed.emit(at, changes)
+
+
+func _breath_changes(loose: Array[Star], landmarks: Array[Star]) -> Array[StarHeat.Change]:
+	var changes: Array[StarHeat.Change] = heat.preview(loose)
+	if scorpio.map.heat_landmarks:
+		changes.append_array(heat.preview_landmarks(landmarks))
+	return changes
+
+
+## Pure preview of the lion's breath a link of `star_ids` would draw (Leo's final): what it does to
+## the stars it leaves and the constellation stars still to light after it. Nothing for an invalid
+## link, one that completes the constellation, or a map where links don't breathe. A link that fills
+## the Sun clears the sky first, so only the constellation then changes. (A sunbeam's landmark is
+## shown changing although it lights first.)
+func breath_preview(star_ids: Array[int]) -> Array[StarHeat.Change]:
+	if heat == null or scorpio == null or not scorpio.map.heat_on_links:
+		return []
+	var combo: String = combo_for(star_ids)
+	if combo == Combos.INVALID:
+		return []
+	var loose: Array[Star] = []
+	if light + balance.combos[combo].light < light_target():
+		for star: Star in stars:
+			if not star_ids.has(star.id):
+				loose.append(star)
+	var landmarks: Array[Star] = []
+	for star: Star in scorpio.unlit_stars():
+		if not star_ids.has(star.id):
+			landmarks.append(star)
+	if landmarks.is_empty():
+		return []
+	return _breath_changes(loose, landmarks)
+
+
+## The centre of `linked`, on whole pixels.
+func _centre_of(linked: Array[Star]) -> Vector2i:
+	var sum := Vector2i.ZERO
+	for star: Star in linked:
+		sum += star.position
+	return sum / maxi(1, linked.size())
+
+
 ## The Head: the constellation stars still to light change a size; a big one comes back small.
 func _heat_landmarks() -> void:
 	var changes: Array[StarHeat.Change] = heat.preview_landmarks(scorpio.unlit_stars())
@@ -908,6 +975,9 @@ func play_volley_intro() -> void:
 ## begun.
 func play_heat_intro() -> void:
 	if heat == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	if scorpio.map.heat_on_links:
+		lion_arrived.emit()
 		return
 	if scorpio.map.heat_landmarks:
 		_landmark_heat_intro()

@@ -82,6 +82,8 @@ const COLD_MESSAGE: String = "THE COLD SHRINKS STARS\nEACH LAUNCH"
 const FADE_MESSAGE: String = "THE COLD SHRINKS STARS\nSMALL ONES FADE"
 ## Day and night (the Mane): heat and cold take turns, and each takes its own stars.
 const DAY_NIGHT_MESSAGE: String = "HEAT AND COLD SWAP\nBIGS BURN SMALLS FADE"
+## Leo's final: the lion breathes, on every link as well as every launch.
+const BREATH_MESSAGE: String = "EVERY LINK AND LAUNCH\nFEEDS THE HEAT"
 ## The Head: the constellation stars grow too (a big one comes back small); loose bigs burn.
 const LION_MESSAGE: String = "THE LION GROWS TOO\nBIG STARS BURN OUT"
 const RULE_MESSAGE_TIME: float = 3.5
@@ -222,7 +224,11 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
 	if run.scorpio != null and run.scorpio.map.arrival_epithet != "":
-		_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.M6, Palette.M4)
+		if run.scorpio.map.heat_on_links:
+			# Leo's: summer gold over ember, once the lion has caught fire and roars.
+			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.C2, Palette.S4, ConstellationView.roar_at(run.scorpio.map))
+		else:
+			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.M6, Palette.M4)
 	_guide.hide_guide()
 	close_table()
 	_press([])
@@ -273,12 +279,14 @@ func tell_current_rule() -> void:
 	if _current_told or _run == null or (_run.current == null and _run.heat == null):
 		return
 	_current_told = true
-	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks), RULE_MESSAGE_TIME)
+	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links), RULE_MESSAGE_TIME)
 
 
 ## What the heat's message says: it grows or shrinks stars (or both, by turns), and whether it
 ## takes them.
-static func heat_rule(heat: StarHeat, landmarks: bool = false) -> String:
+static func heat_rule(heat: StarHeat, landmarks: bool = false, links: bool = false) -> String:
+	if links:
+		return BREATH_MESSAGE
 	if landmarks:
 		return LION_MESSAGE
 	if heat.turns:

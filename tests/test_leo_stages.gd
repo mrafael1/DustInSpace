@@ -39,7 +39,7 @@ func test_the_leo_figure_is_a_pickable_tree_and_its_parts_share_it_out() -> void
 	assert_eq(StarMap.by_id("leo").title, "LEO")
 
 
-func test_leo_opens_once_aquarius_is_won_and_builds_its_first_stages() -> void:
+func test_leo_opens_once_aquarius_is_won_and_builds_every_stage() -> void:
 	var leo := Chapter.new(ChapterDef.leo())
 	assert_eq(leo.id, "leo")
 	assert_eq(leo.def.number, 3)
@@ -49,8 +49,7 @@ func test_leo_opens_once_aquarius_is_won_and_builds_its_first_stages() -> void:
 	assert_eq(leo.map_id(2), "leo_heart")
 	assert_eq(leo.map_id(3), "leo_mane")
 	assert_eq(leo.map_id(4), "leo_head")
-	for stage: int in range(5, Chapter.stage_count()):
-		assert_eq(leo.map_id(stage), "", "%s is still to come" % leo.stage_name(stage))
+	assert_eq(leo.map_id(5), "leo_final", "every stage is built")
 
 
 func test_the_tail_teaches_a_heat_that_only_helps() -> void:

@@ -67,6 +67,8 @@ const HIT_RADIUS: int = 11
 
 ## Orion's volley intro (#70): how long its stars show before the volley takes them.
 const INTRO_HOLD: float = 0.9
+## No heatwave: a resize starts everywhere at once.
+const NO_ORIGIN := Vector2i(-9999, -9999)
 ## Leo's heat intro: the beat between one change of its stars and the next (or their leaving).
 const HEAT_INTRO_BEAT: float = 0.55
 
@@ -288,6 +290,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_spawn(star)
 			# A beat to see the stars before the heat changes them.
 			_sequencer.hold(INTRO_HOLD)
+		&"heat_breathed":
+			_breathe(event.args[0], event.args[1])
+		&"lion_arrived":
+			_sequencer.hold(_constellation.play_blaze())
 		&"landmarks_resized":
 			_constellation.resize_landmarks(event.args[0])
 			_sequencer.hold(StarView.RESIZE_TIME)
@@ -421,6 +427,10 @@ func _show_link() -> void:
 	# or loose the volley.
 	if _run != null:
 		_orion.ready_bow(_run.link_shoots(_gesture.selected), _run.link_fires_volley(_gesture.selected))
+		# Leo's final: a full, valid link shows what its breath would do.
+		var full: bool = _gesture.selected.size() == Combos.LINK_LENGTH and _run.combo_for(_gesture.selected) != Combos.INVALID
+		var breathes: bool = _run.scorpio != null and _run.scorpio.map.heat_on_links
+		_heat.tracing = _gesture.selected if full and breathes else ([] as Array[int])
 
 
 ## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it
@@ -585,17 +595,41 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 	_sequencer.hold(StarView.DRIFT_TIME)
 
 
+## The lion breathed (Leo's final): a heatwave rolls out from the link at `at`, and every star it
+## changes, loose or the lion's own, charges and pops as the wave reaches it.
+func _breathe(at: Vector2i, changes: Array[StarHeat.Change]) -> void:
+	_heat.flash_breath(at)
+	var loose: Array[StarHeat.Change] = []
+	var lion: Array[StarHeat.Change] = []
+	var delays: Dictionary = {}
+	var latest: float = 0.0
+	for change: StarHeat.Change in changes:
+		if change.star_id < 0:
+			var index: int = Scorpio.landmark_index(change.star_id)
+			delays[index] = HeatView.breath_delay(at, _run.scorpio.landmark_position(index))
+			latest = maxf(latest, delays[index])
+			lion.append(change)
+		else:
+			loose.append(change)
+	_constellation.resize_landmarks(lion, delays)
+	var hold: float = _resize(loose, at)
+	_sequencer.hold(maxf(hold, latest + StarView.RESIZE_TIME))
+
+
 ## The heat (or the cold): every changed star charges and pops to its new size where it stands; a
 ## lost one charges the same, then bursts into embers (a big burning out) or a fall of frost (a
-## small fading), for nothing.
-func _resize(changes: Array[StarHeat.Change]) -> void:
+## small fading), for nothing. With a heatwave from `origin`, each starts as the wave reaches it.
+## Returns (and holds) how long it plays.
+func _resize(changes: Array[StarHeat.Change], origin: Vector2i = NO_ORIGIN) -> float:
 	var hold: float = StarView.RESIZE_TIME
 	for change: StarHeat.Change in changes:
 		var view: StarView = _views.get(change.star_id)
 		if view == null:
 			continue
+		var delay: float = 0.0 if origin == NO_ORIGIN else HeatView.breath_delay(origin, Vector2i(view.position))
+		hold = maxf(hold, delay + StarView.RESIZE_TIME)
 		if not change.lost:
-			view.resize_to(change.to)
+			view.resize_to(change.to, delay)
 			continue
 		_views.erase(change.star_id)
 		var fades: bool = change.is_cold()
@@ -606,10 +640,11 @@ func _resize(changes: Array[StarHeat.Change]) -> void:
 			else:
 				_heat.flash_burn(Vector2i(v.position))
 				star_burned.emit(Vector2i(v.position)))
-		view.charge(fades)
-		view.explode(StarView.RESIZE_FLARE)
-		hold = maxf(hold, StarView.RESIZE_FLARE + StarView.DISSOLVE_TIME)
+		view.charge(fades, delay)
+		view.explode(delay + StarView.RESIZE_FLARE)
+		hold = maxf(hold, delay + StarView.RESIZE_FLARE + StarView.DISSOLVE_TIME)
 	_sequencer.hold(hold)
+	return hold
 
 
 ## Where a drained star's path meets the field's edge: the first pixel outside it.

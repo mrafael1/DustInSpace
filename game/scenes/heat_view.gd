@@ -40,11 +40,25 @@ const SNOWFLAKE: Dictionary[Vector2i, Color] = {
 ## then M5, slower and shorter than a burn's embers.
 const FADE_FLAKES: int = 6
 const FADE_FALL := Vector2(12.0, 22.0)
+## The lion's breath (Leo's final): a heatwave rolls out from the link at BREATH_SPEED px/s for
+## BREATH_TIME, a dotted ember ring (C2 at its front, S4 a pixel behind, S3 behind that), and the
+## stars change as it reaches them. The embers rise BREATH_SURGE times faster meanwhile.
+const BREATH_SPEED: float = 360.0
+const BREATH_TIME: float = 0.55
+const BREATH_SURGE: float = 3.0
+const BREATH_RING: Array[Color] = [Palette.C2, Palette.S4, Palette.S3]
 
 var aiming: bool = false:
 	set(value):
 		if aiming != value:
 			aiming = value
+			queue_redraw()
+## A full, valid link being traced on Leo's final: its breath's preview shows round each star it
+## would change. Empty: none.
+var tracing: Array[int] = []:
+	set(value):
+		if tracing != value:
+			tracing = value.duplicate()
 			queue_redraw()
 var _run: RunState
 var _sequencer: EventSequencer
@@ -54,6 +68,8 @@ var _time: float = 0.0
 var _burns: Dictionary[Vector2i, float] = {}
 ## Fades playing: where, and the seconds since.
 var _fades: Dictionary[Vector2i, float] = {}
+## Heatwaves rolling out: from where, and the seconds since.
+var _breaths: Dictionary[Vector2i, float] = {}
 ## The heat (+1) or cold (-1) the motes show. Day and night turn in the core the moment a launch
 ## resolves; the view turns only once that launch has played out (its burst and resizes).
 var _shown_change: int = 0
@@ -69,6 +85,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	aiming = false
 	_burns.clear()
 	_fades.clear()
+	_breaths.clear()
+	tracing = []
 	_shown_change = run.heat.change if run.heat != null else 0
 	set_process(run.heat != null)
 	queue_redraw()
@@ -82,11 +100,12 @@ func _process(delta: float) -> void:
 ## Moves the motes and any burns or fades on, and turns day and night once the launch has played
 ## out. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
-	_time += delta
-	for flashes: Dictionary[Vector2i, float] in [_burns, _fades]:
+	_time += delta * (BREATH_SURGE if not _breaths.is_empty() else 1.0)
+	for flashes: Dictionary[Vector2i, float] in [_burns, _fades, _breaths]:
+		var lasts: float = BREATH_TIME if flashes == _breaths else BURN_TIME
 		for at: Vector2i in flashes.keys():
 			flashes[at] += delta
-			if flashes[at] >= BURN_TIME:
+			if flashes[at] >= lasts:
 				flashes.erase(at)
 	if _run != null and _run.heat != null and (_sequencer == null or not _sequencer.is_busy()):
 		_shown_change = _run.heat.change
@@ -96,6 +115,37 @@ func advance(delta: float) -> void:
 func flash_burn(at: Vector2i) -> void:
 	_burns[at] = 0.0
 	queue_redraw()
+
+
+## The lion breathed from a link at `at`: a heatwave rolls out from it.
+func flash_breath(at: Vector2i) -> void:
+	_breaths[at] = 0.0
+	queue_redraw()
+
+
+func is_breathing() -> bool:
+	return not _breaths.is_empty()
+
+
+## Seconds the heatwave from `from` takes to reach `to`.
+static func breath_delay(from: Vector2i, to: Vector2i) -> float:
+	return Vector2(from).distance_to(Vector2(to)) / BREATH_SPEED
+
+
+## The heatwave from `at`, `t` seconds out: a dotted ring three pixels deep, inside `area`.
+static func breath_pixels(at: Vector2i, t: float, area: Rect2i) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	if t < 0.0 or t >= BREATH_TIME:
+		return pixels
+	var front: int = roundi(t * BREATH_SPEED)
+	for k: int in BREATH_RING.size():
+		var radius: int = front - k
+		if radius < 1:
+			continue
+		for p: Vector2i in ConstellationView.circle_pixels(radius):
+			if (p.x + p.y + k) % 2 == 0 and area.has_point(at + p):
+				pixels[at + p] = BREATH_RING[k]
+	return pixels
 
 
 ## Plays a small star fading out in the cold at `at`.
@@ -126,15 +176,22 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		result.merge(burn_pixels(at, _burns[at]), true)
 	for at: Vector2i in _fades:
 		result.merge(fade_pixels(at, _fades[at]), true)
-	if aiming and _sequencer != null and not _sequencer.is_busy():
+	for at: Vector2i in _breaths:
+		result.merge(breath_pixels(at, _breaths[at], _run.sky_rect), true)
+	var idle: bool = _sequencer == null or not _sequencer.is_busy()
+	if not tracing.is_empty() and idle:
+		result.merge(preview_pixels(_run, tracing), true)
+	elif aiming and idle:
 		result.merge(preview_pixels(_run), true)
 	return result
 
 
-## What the next launch does, drawn round each star it changes.
-static func preview_pixels(run: RunState) -> Dictionary[Vector2i, Color]:
+## What the next launch does, drawn round each star it changes; or with `link`, what that link's
+## breath would do (Leo's final).
+static func preview_pixels(run: RunState, link: Array[int] = []) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	for change: StarHeat.Change in run.heat_preview():
+	var changes: Array[StarHeat.Change] = run.breath_preview(link) if not link.is_empty() else run.heat_preview()
+	for change: StarHeat.Change in changes:
 		# A constellation star (the Head) has a landmark id.
 		var star: Star = run.find_star(change.star_id) if change.star_id >= 0 else run.scorpio.landmark_star(Scorpio.landmark_index(change.star_id))
 		if star == null:

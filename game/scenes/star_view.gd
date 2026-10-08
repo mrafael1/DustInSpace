@@ -137,6 +137,8 @@ var _resize_time: float = -1.0
 ## The size it was before the resize, and whether it shrinks.
 var _resize_from: int = -1
 var _resize_shrinks: bool = false
+## Seconds before a delayed resize starts (the lion's heatwave reaching it), or 0.
+var _resize_wait: float = 0.0
 
 
 func _process(delta: float) -> void:
@@ -192,27 +194,31 @@ func drain_to(edge: Vector2i) -> void:
 
 
 ## The heat changes its size where it stands: it charges at its old size, then pops to the new one
-## (RESIZE_FLARE's timeline).
-func resize_to(new_size: Star.Size) -> void:
+## (RESIZE_FLARE's timeline), after `delay` seconds (a heatwave on its way).
+func resize_to(new_size: Star.Size, delay: float = 0.0) -> void:
 	_resize_from = size
 	_resize_shrinks = new_size < size
 	_resize_to = new_size
-	_resize_time = 0.0
-	_refresh()
+	_start_resize(delay)
 
 
 ## A star the heat burns out (or the cold fades) charges as a resizing one does, then explode()
 ## takes it at RESIZE_FLARE: embers closing in, or frost (`cold`).
-func charge(cold: bool) -> void:
+func charge(cold: bool, delay: float = 0.0) -> void:
 	_resize_from = size
 	_resize_shrinks = cold
 	_resize_to = size
-	_resize_time = 0.0
-	_refresh()
+	_start_resize(delay)
 
 
 func is_resizing() -> bool:
-	return _resize_time >= 0.0
+	return _resize_time >= 0.0 or _resize_wait > 0.0
+
+
+func _start_resize(delay: float) -> void:
+	_resize_wait = maxf(delay, 0.0)
+	_resize_time = -1.0 if _resize_wait > 0.0 else 0.0
+	_refresh()
 
 
 ## Flares, then vanishes and frees itself.
@@ -388,6 +394,14 @@ static func _ease_out_back(k: float) -> float:
 
 
 func _advance_resize(delta: float) -> void:
+	if _resize_wait > 0.0:
+		_resize_wait -= delta
+		if _resize_wait > 0.0:
+			return
+		# The part of this tick past the wait already counts toward the resize.
+		delta = -_resize_wait
+		_resize_wait = 0.0
+		_resize_time = 0.0
 	if _resize_time < 0.0:
 		return
 	_resize_time += delta
