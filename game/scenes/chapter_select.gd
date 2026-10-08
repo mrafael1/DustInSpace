@@ -1577,7 +1577,10 @@ func _draw_chart() -> void:
 	for p: Vector2i in motes:
 		_dot(p, motes[p])
 	_draw_sky_stars()
+	# The constellations between sit on the chart with their names, a screen below the title.
+	_chart.draw_set_transform(Vector2.ZERO)
 	_draw_passing()
+	_chart.draw_set_transform(Vector2(0, -roundi(_camera_y)))
 	var meteor: Dictionary[Vector2i, Color] = meteor_pixels()
 	for p: Vector2i in meteor:
 		_dot(p, meteor[p])
