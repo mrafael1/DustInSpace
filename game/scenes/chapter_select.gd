@@ -54,7 +54,6 @@ extends CanvasLayer
 
 ## The player asked to play stage `stage`.
 signal stage_chosen(stage: int)
-signal current_trial_requested
 ## The player asked for the chapter `step` away (an arrow or a swipe: -1 before, +1 after). Only
 ## for an open one: a locked one is refused here (nav_refused).
 signal chapter_step_requested(step: int)
@@ -265,9 +264,6 @@ const STAR_SEED_ABOVE: int = 0x7A11
 const DESCENT_TIME: float = 1.6
 ## Where a stage's number sits from its point.
 const NUMBER_OFFSET := Vector2i(10, -16)
-## The debug FLOW plaque sits this far in from the screen's top-left corner.
-const CORNER_INSET: int = 10
-const MapButtonScene := preload("res://game/ui/map_button.tscn")
 ## Scorpio's crown point (each chapter has its own: ChapterDef.final_at).
 const FINAL_AT := Vector2i(90, 66)
 
@@ -284,8 +280,6 @@ var _light_time: float = 0.0
 var _then_travel_to: int = -1
 var _pressed_point: int = -1
 var _pressed_play: bool = false
-var _pressed_flow: bool = false
-var _flow: MapButton
 ## The final's unlock playing: seconds since it began (-1: none), and whether one waits for the
 ## point lighting to end.
 var _unlock_time: float = -1.0
@@ -376,12 +370,6 @@ func _ready() -> void:
 	_motes = mote_layout()
 	# The paintings load before any draw call uses them.
 	_load_paintings(_def())
-	if OS.is_debug_build():
-		_flow = MapButtonScene.instantiate()
-		_flow.name = "CurrentTrialButton"
-		_flow.text = "FLOW"
-		add_child(_flow)
-	_place_flow()
 	_place_heading()
 	_card = BossBanner.new()
 	_card.name = "RevealCard"
@@ -456,7 +444,6 @@ func fit_screen(screen: Rect2i) -> void:
 		_camera_y = _screen.size.y
 	_place_title()
 	_place_heading()
-	_place_flow()
 	_refresh()
 	_chart.queue_redraw()
 
@@ -1174,10 +1161,6 @@ static func travel_pixels(from_stage: int, to_stage: int, def: ChapterDef = null
 
 
 ## Shows the TUTORIAL plaque (once the guided first run has been finished).
-## Debug only: the FLOW plaque in the top-left corner.
-func _place_flow() -> void:
-	if _flow != null:
-		_flow.position = Vector2(_screen.position + Vector2i(CORNER_INSET, CORNER_INSET))
 
 
 ## Feeds one touch (game coordinates). Returns true if it was used.
@@ -1190,12 +1173,6 @@ func handle_pointer(event: InputEvent) -> bool:
 	if is_on_title():
 		if not touch.pressed and not touch.canceled:
 			start_descent()
-		return true
-	if _flow != null and (_pressed_flow or (touch.pressed and _flow.target().has_point(at))):
-		_pressed_flow = touch.pressed
-		_flow.pressed = touch.pressed
-		if not touch.pressed and not touch.canceled and _flow.target().has_point(at) and not is_unlocking():
-			current_trial_requested.emit()
 		return true
 	for side: int in [-1, 1]:
 		var on: bool = nav_target(side).has_point(at)

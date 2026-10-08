@@ -4,10 +4,10 @@
 
 ## Play and compare
 
-- In the Godot editor/debug build, press **C** on the chart for this Tail trial (Shift+C: flow off). **FLOW** on the chart, or **A** (Shift+A: off), opens the later Aquarius flow layout (below).
+- In the Godot editor/debug build, press **C** on the chart for this Tail trial (Shift+C: flow off). **A** on the chart (Shift+A: off) opens the later Aquarius flow layout (below).
 - In the trial, tap **FLOW ON/OFF**, or press **C**, to restart with the same seed and the other setting. The control is blocked during animations and while the combination table is open.
 - **MAP** returns to Scorpio's chart. Ordinary Scorpio stages still use their original threats.
-- CLI: `godot --path . -- --currents` (or `--currents-off`; `--aquarius` / `--aquarius-off` for the Aquarius layout). Debug exports also expose the FLOW button. Release builds do not expose the experiment.
+- CLI: `godot --path . -- --currents` (or `--currents-off`; `--aquarius` / `--aquarius-off` for the Aquarius layout). Release builds do not expose the experiment.
 
 One leftward field covers `(64,124)` through `(171,223)` in the home layout, shifting with the map on taller screens. A successful normal launch resolves its entire pack, then shifts affected loose stars once. Strength is `currents.step` in balance.json (currently 24 native pixels). Stars are processed downstream first (leftmost first here), so upstream stars can follow their neighbours regardless of creation order. A blocked destination leaves the star in place. New stars participate; landmarks stay fixed. Buying, linking, cancelled gestures and invalid actions do not advance the flow. Forced debug Big Bangs keep the existing clearing behavior and bypass the movement step; the trial's normal Big Bang chance remains disabled.
 

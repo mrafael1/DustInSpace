@@ -71,7 +71,6 @@ func _ready() -> void:
 	_load_progress()
 	_chart.setup(chapter)
 	_chart.stage_chosen.connect(open_stage)
-	_chart.current_trial_requested.connect(open_current_trial.bind(true, 0, "aquarius"))
 	_chart.chapter_step_requested.connect(step_chapter)
 	_chart.chapter_opened.connect(step_chapter.bind(1, true, true))
 	_sfx = Sfx.new()
