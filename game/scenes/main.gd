@@ -104,11 +104,15 @@ func _ready() -> void:
 	_idle_hint.sky = _sky
 	_idle_hint.is_held = func() -> bool:
 		return _collect.particle_count() > 0 or _sun.is_igniting() or _hud.tutorial_guide().has_hand()
-	# The hand shows a link, so the sky must take links: an aiming telescope (which takes every sky
-	# touch) stops aiming, as if tapped; and a telescope that starts aiming ends the hint.
-	_idle_hint.hint_started.connect(func(_link: Array[int]) -> void:
-		if use_telescope and _telescope.is_aiming():
-			_telescope.cancel_aim())
+	# While the telescope aims, the hint never stops it (#152: the aim preview may be what the player
+	# is reading): the hand taps the aimed spot instead, and waits longer while a preview shows. A
+	# telescope that starts aiming ends a link hint.
+	_idle_hint.is_aiming = func() -> bool:
+		return use_telescope and _telescope.is_aiming()
+	_idle_hint.aim_spot = func() -> Vector2i:
+		return _telescope.burst_preview()
+	_idle_hint.shows_aim_preview = func() -> bool:
+		return run != null and (run.current != null or run.heat != null or run.harvest != null)
 	_telescope.aim_started.connect(_idle_hint.reset)
 	_hud.loaded_window_at = func() -> Vector2i:
 		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()

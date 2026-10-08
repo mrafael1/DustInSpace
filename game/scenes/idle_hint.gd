@@ -10,11 +10,17 @@ extends Node
 ## play: the event sequencer is busy (a burst, a Big Bang, the Sun igniting) or `is_held` says so
 ## (Main: payouts still flying, the tutorial's own hand showing); a hint playing then stops. Owns no
 ## rules; which link it shows is the core's call.
+## While the telescope aims (#152) the hint never stops the aim, so the aim preview the player may
+## be studying (drift trails, grow and burn outlines, reap outlines) stays: the hand acts out a
+## launch instead, tapping the aimed spot without firing. With such a preview showing it waits
+## longer (AIM_PREVIEW_IDLE_SECONDS), as the player is likely reading it.
 ## It watches input as Main's last child, so it sees every touch before anything takes it (a release
 ## over the speaker included), and takes none.
 
-## A hint starts showing `link` (Main stops an aiming telescope, so the sky takes links).
+## A hint starts showing `link` (only while the telescope isn't aiming).
 signal hint_started(link: Array[int])
+## A hint starts acting out a launch: the hand taps `spot`, the aimed burst point (while aiming).
+signal launch_hint_started(spot: Vector2i)
 ## A finger touched down, before anything else took the touch (the playtest log's idle gaps).
 signal touch_started
 ## A finger lifted (or its touch was cancelled), and a finger moved: the playtest log's idle gaps
@@ -24,11 +30,21 @@ signal dragged
 
 ## The demo runs this many times through the link before the hand goes.
 const PASSES: int = 2
+## While an aim preview marks what the launch would change, the wait is at least this long:
+## presentation timing (the player reading the marks), not a game rule, so it lives here and not in
+## balance.json.
+const AIM_PREVIEW_IDLE_SECONDS: float = 8.0
 
 ## Main sets it: the sky whose stars shine and whose link the hand shows.
 var sky: SkyView
 ## Main sets it: true while an animation outside the sequencer plays, so the wait holds still.
 var is_held: Callable = func() -> bool: return false
+## Main sets it: true while the telescope aims (a hint then acts out a launch, never a link).
+var is_aiming: Callable = func() -> bool: return false
+## Main sets it: the aimed burst point the launch hint taps, on the 180x320 grid.
+var aim_spot: Callable = func() -> Vector2i: return Vector2i.ZERO
+## Main sets it: true while the aim shows a preview of what the launch changes (the longer wait).
+var shows_aim_preview: Callable = func() -> bool: return false
 
 var _run: RunState
 var _sequencer: EventSequencer
@@ -120,19 +136,38 @@ func advance(delta: float) -> void:
 		_stop()
 		return
 	if _shine_time >= 0.0:
+		if _hand.is_tapping() and not is_aiming.call():
+			_stop()
+			return
 		_shine_time += delta
 		_show()
 		return
 	_idle += delta
-	if _idle < _run.balance.hint_idle_seconds:
+	if _idle < wait_time():
 		return
 	_idle = 0.0
+	if is_aiming.call():
+		_start_launch_hint()
+		return
 	_link = _run.idle_hint_link(_rng)
 	if not _link.is_empty():
 		_shine_time = 0.0
 		hint_started.emit(_link.duplicate())
 		_hand.play(sky.link_points(_link))
 		_show()
+
+
+## Seconds of idling before a hint: hints.idle_seconds, or longer while an aim preview shows.
+func wait_time() -> float:
+	var wait: float = _run.balance.hint_idle_seconds
+	if is_aiming.call() and shows_aim_preview.call():
+		wait = maxf(wait, AIM_PREVIEW_IDLE_SECONDS)
+	return wait
+
+
+## Whether the hint acts out a launch now (the hand tapping the aim).
+func shows_launch() -> bool:
+	return _shine_time >= 0.0 and _hand.is_tapping()
 
 
 ## Whether the wait holds still: no hint here, the run is over, someone is touching or tracing, or
@@ -155,8 +190,29 @@ static func play_time() -> float:
 	return PASSES * HandDemo.pass_time(Combos.LINK_LENGTH)
 
 
+## How long a launch hint plays: PASSES taps.
+static func launch_play_time() -> float:
+	return PASSES * HandDemo.tap_time()
+
+
+## The hand taps the aimed spot (it fires nothing: the hand is drawn, no touch is made).
+func _start_launch_hint() -> void:
+	var spot: Vector2i = aim_spot.call()
+	_shine_time = 0.0
+	launch_hint_started.emit(spot)
+	_hand.play_tap(spot)
+	_show()
+
+
 ## Moves the hand on and shines the star it reached; once the last pass is done, the hint ends.
 func _show() -> void:
+	if _hand.is_tapping():
+		if _shine_time >= launch_play_time():
+			_stop()
+			return
+		_hand.move_tap(aim_spot.call())
+		_hand.show_time(_shine_time)
+		return
 	if _shine_time >= play_time():
 		_stop()
 		return
