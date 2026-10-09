@@ -115,13 +115,62 @@ func test_a_launch_heats_too_as_on_the_head() -> void:
 		assert_eq(run.scorpio.map.sizes[i], _grown(before[i]))
 
 
-func test_the_lion_arrives_instead_of_an_intro() -> void:
+func test_the_lion_arrives_then_a_demo_link_breathes_on_three_stars() -> void:
+	# #149: the breath, the final's own rule, was the one Leo rule with no demo of its effect.
 	var run: RunState = _run()
+	var sizes_before: Array[int] = run.scorpio.map.sizes.duplicate()
+	var packs: Dictionary = run.owned_packs.duplicate()
+	var order: Array[String] = []
+	var placed: Array[Star] = []
+	var link: Array[int] = []
+	var breath: Array[StarHeat.Change] = []
+	run.lion_arrived.connect(func() -> void: order.append("arrived"))
+	run.heat_intro_placed.connect(func(stars: Array[Star]) -> void:
+		order.append("placed")
+		placed.append_array(stars))
+	run.heat_intro_linked.connect(func(ids: Array[int]) -> void:
+		order.append("linked")
+		link.append_array(ids))
+	run.heat_breathed.connect(func(_at: Vector2i, changes: Array[StarHeat.Change]) -> void:
+		order.append("breathed")
+		breath.append_array(changes))
+	run.heat_intro_cleared.connect(func(_stars: Array[Star]) -> void: order.append("cleared"))
 	watch_signals(run)
 	run.play_heat_intro()
-	assert_signal_emitted(run, "lion_arrived")
-	assert_signal_not_emitted(run, "landmarks_resized", "its stars keep their sizes")
-	assert_true(run.stars.is_empty())
+	assert_eq(order, ["arrived", "placed", "linked", "breathed", "cleared"] as Array[String])
+	assert_eq(placed.size(), 6, "a small triple and a small, a medium and a big")
+	assert_eq(link.size(), 3)
+	for id: int in link:
+		assert_eq(placed.filter(func(star: Star) -> bool: return star.id == id)[0].size, Star.Size.SMALL, "the link is the small triple")
+	assert_eq(breath.size(), 3, "its breath changes the other three")
+	var lost: int = 0
+	for change: StarHeat.Change in breath:
+		assert_gte(change.star_id, 0, "never the lion's own stars")
+		assert_false(link.has(change.star_id))
+		lost += int(change.lost)
+		if not change.lost:
+			assert_eq(change.to, change.from + 1, "a star grows")
+	assert_eq(lost, 1, "and the big burns out")
+	assert_signal_not_emitted(run, "landmarks_resized", "the lion's stars keep their sizes")
+	assert_eq(run.scorpio.map.sizes, sizes_before)
+	assert_true(run.stars.is_empty(), "it leaves no star")
+	assert_eq(run.dust, 0, "and pays nothing")
+	assert_eq(run.owned_packs, packs, "and uses no pack")
+
+
+func test_the_breath_demo_never_shifts_the_packs() -> void:
+	var skies: Array[Array] = []
+	for demo: bool in [true, false]:
+		var run: RunState = _run()
+		if demo:
+			run.play_heat_intro()
+		var sky: Array[String] = []
+		run.pack_burst.connect(func(_k: String, _at: Vector2i, stars: Array[Star]) -> void:
+			for star: Star in stars:
+				sky.append("%d:%s" % [star.size, star.position]))
+		run.launch(Vector2i(90, 200))
+		skies.append(sky)
+	assert_eq(skies[0], skies[1], "the same first burst with or without it")
 
 
 # --- The show ----------------------------------------------------------------------------------
@@ -256,3 +305,22 @@ func test_the_final_says_every_link_feeds_the_heat() -> void:
 		assert_lte(line.length(), 22)
 		for c: String in line:
 			assert_true(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 +-/", c)
+
+
+func test_the_stage_opens_with_the_lion_then_its_breath_shown_and_said() -> void:
+	var main: Main = _main()
+	var sky: SkyView = main.get_node("Sky")
+	var hud: Hud = main.get_node("HUD")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var said: Array[bool] = [false]
+	var demo_stars: Array[int] = [0]
+	for tick: int in 600:
+		if not sequencer.is_busy():
+			break
+		sequencer.advance(0.02)
+		said[0] = said[0] or hud.message() == Hud.BREATH_MESSAGE
+		demo_stars[0] = maxi(demo_stars[0], sky.star_count())
+	assert_false(sequencer.is_busy(), "the opening plays out")
+	assert_eq(demo_stars[0], 6, "the demo's stars show")
+	assert_true(said[0], "and the rule is said as the breath shows")
+	assert_true(main.run.stars.is_empty(), "play starts on an empty sky")
