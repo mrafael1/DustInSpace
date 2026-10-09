@@ -83,7 +83,7 @@ const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
 ## committed; revisits and retries hear it again, it's short): it moves stars; where it drains,
 ## that it takes the stars it carries past its edge; a tide or box, that it turns and drains.
 ## At most 22 characters a line (132 px).
-const FLOW_MESSAGE: String = "EACH LAUNCH, THE FLOW\nMOVES THE STARS"
+const FLOW_MESSAGE: String = "EACH LAUNCH THE FLOW\nMOVES THE STARS"
 const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
 const TIDE_MESSAGE: String = "TIDE TURNS EACH LAUNCH\nBOTH SIDES DRAIN STARS"
 const BOX_MESSAGE: String = "FLOW TURNS EACH LAUNCH\nEVERY SIDE DRAINS"
