@@ -326,6 +326,7 @@ func test_the_speaker_works_over_the_end_screen() -> void:
 	for i: int in 180:
 		main_sequencer.advance(1.0 / 30.0)
 		particles.advance(1.0 / 30.0)
+	end_screen.advance(EndScreen.LOSS_BEAT)
 	assert_true(end_screen.is_showing())
 	_tap_screen(Vector2i(8, 8))
 	assert_eq((main.get_node("Sfx") as Sfx).level, Sfx.Level.LOW, "muted over the jingle")

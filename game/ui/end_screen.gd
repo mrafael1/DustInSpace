@@ -2,7 +2,9 @@ class_name EndScreen
 extends CanvasLayer
 ## The run's end: when run_won or run_lost has played, this waits for the sequencer to finish
 ## (so the Sun's ignition plays out) and for every payout particle to land (so the counters
-## show what the plaque says), then shows a plaque over everything.
+## show what the plaque says), then shows a plaque over everything. A loss first has a beat of
+## its own (LOSS_BEAT, loss_beat_started: the sky and the Sun cool, the planets refuse), and its
+## plaque says why the run ended (RunState.loss_reasons).
 ## Win: "SUN RESTORED" and the light. Loss: "THE SUN FADES" and the light reached.
 ## On the Scorpio map: "SCORPIO COMPLETE" or "SCORPIO UNFINISHED" and the strings formed.
 ## RESTART asks Main for a new run; in a chapter (#62), MAP beside it goes back to the chart.
@@ -15,6 +17,8 @@ signal restart_requested
 signal map_requested
 ## The plaque appeared. Feedback only (sound).
 signal shown(won: bool)
+## A lost run's last payout landed: the plaque follows in LOSS_BEAT. Feedback only.
+signal loss_beat_started
 
 const WIDTH: int = 140
 const CENTRE_X: int = 90
@@ -27,6 +31,12 @@ const BUTTON_SIZE := Vector2i(64, 22)
 const BUTTON_GAP: int = 6
 ## MAP, beside RESTART when in a chapter.
 const MAP_SIZE := Vector2i(44, 22)
+## A loss's own moment between the last payout landing and the plaque.
+const LOSS_BEAT: float = 0.7
+## Why a lost run ended, one line per reason that applies (a lost run has them all). Out of
+## planets and out of dust for one read as one line.
+const NO_LINKS_TEXT: String = "NO LINKS LEFT"
+const NO_PLANET_TEXT: String = "NO DUST FOR A PLANET"
 
 ## In a chapter: show MAP beside RESTART (Main sets it).
 var map_enabled: bool = false
@@ -45,6 +55,8 @@ var _button: Rect2i = Rect2i()
 var _map_button: Rect2i = Rect2i()
 ## Which button a press started on: &"restart", &"map" or &"".
 var _pressed_on: StringName = &""
+## Seconds left of the loss beat, or -1 when none is playing.
+var _beat_left: float = -1.0
 
 @onready var _canvas: Node2D = $Canvas
 @onready var _lines: Node2D = $Canvas/Lines
@@ -57,6 +69,10 @@ func _ready() -> void:
 	_restart.label_settings = HudText.primary(Palette.C1)
 	_map.label_settings = HudText.primary(Palette.C1)
 	visible = false
+
+
+func _process(delta: float) -> void:
+	advance(delta)
 
 
 func _input(event: InputEvent) -> void:
@@ -76,6 +92,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_ending = false
 	_waiting_for_payouts = false
 	_pressed_on = &""
+	_beat_left = -1.0
 	visible = false
 	_clear_lines()
 
@@ -88,6 +105,30 @@ func watch_payouts(payouts: CollectParticles) -> void:
 
 func is_showing() -> bool:
 	return visible
+
+
+func is_in_loss_beat() -> bool:
+	return _beat_left >= 0.0
+
+
+## Moves the loss beat on. Driven by `_process`; tests call it directly.
+func advance(delta: float) -> void:
+	if _beat_left < 0.0:
+		return
+	_beat_left -= delta
+	if _beat_left <= 0.0:
+		_beat_left = -1.0
+		_show_end()
+
+
+## The plaque's lines saying why a run with `reasons` (RunState.loss_reasons) was lost.
+static func loss_lines(reasons: Array[RunState.LossReason]) -> Array[String]:
+	var texts: Array[String] = []
+	if reasons.has(RunState.LossReason.NO_COMBINATION):
+		texts.append(NO_LINKS_TEXT)
+	if reasons.has(RunState.LossReason.NO_PACKS) and reasons.has(RunState.LossReason.NO_DUST):
+		texts.append(NO_PLANET_TEXT)
+	return texts
 
 
 ## The text rows shown, top to bottom (not the button).
@@ -142,13 +183,22 @@ func _on_sequence_finished() -> void:
 	if _payouts != null and _payouts.particle_count() > 0:
 		_waiting_for_payouts = true
 	else:
-		_show_end()
+		_end()
 
 
 func _on_payouts_landed() -> void:
 	if _waiting_for_payouts:
 		_waiting_for_payouts = false
+		_end()
+
+
+## Everything has landed: a win shows its plaque at once, a loss after its beat.
+func _end() -> void:
+	if _run.outcome != RunState.Outcome.LOST:
 		_show_end()
+		return
+	_beat_left = LOSS_BEAT
+	loss_beat_started.emit()
 
 
 func _show_end() -> void:
@@ -168,6 +218,9 @@ func _show_end() -> void:
 	else:
 		_add_line("THE SUN FADES", Palette.S4)
 		_add_line(light, Palette.C1)
+	if not won:
+		for text: String in loss_lines(_run.loss_reasons()):
+			_add_line(text, Palette.C1)
 	var rows: int = _lines.get_child_count()
 	var height: int = PADDING + rows * LINE_STEP + BUTTON_GAP + BUTTON_SIZE.y + PADDING
 	var shift: Vector2i = _shift()

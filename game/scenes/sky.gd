@@ -460,6 +460,15 @@ func _show_hints(ids: Array[int]) -> void:
 	_constellation.show_hints(landmarks, tracing)
 
 
+## A lost run's beat (EndScreen.loss_beat_started): every star left in the sky, and every
+## unlit landmark, dims a step as the link hint dims them, and stays so. Presentation only.
+func cool_down() -> void:
+	for id: int in _views:
+		_views[id].hinted = false
+		_views[id].dimmed = true
+	_constellation.show_hints([], true)
+
+
 ## The idle hint (#90, IdleHint): the stars and landmarks of `ids` shine with the link hint's shine
 ## and nothing dims; empty clears it. Never while a link is traced: the link hint has the sky then.
 func show_idle_hint(ids: Array[int]) -> void:

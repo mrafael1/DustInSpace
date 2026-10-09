@@ -99,6 +99,7 @@ func _ready() -> void:
 	_hud.pause_opened.connect(_pause_world.bind(true))
 	_hud.pause_closed.connect(_pause_world.bind(false))
 	_end_screen.watch_payouts(_collect)
+	_end_screen.loss_beat_started.connect(_on_loss_beat)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
 	_sky.link_traced.connect(_hud.follow_link)
 	# A refused pick: the line says why (#91), instead of the shake and buzz of a wrong link.
@@ -392,6 +393,14 @@ func _wire_playtest_log() -> void:
 	_telescope.launch_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("launch"))
 	_sky.link_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
 	_sky.step_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
+
+
+## A lost run's own moment before its plaque: the sky's stars and the Sun cool a step and the
+## planets refuse once, so the loss is seen before it's read.
+func _on_loss_beat() -> void:
+	_sky.cool_down()
+	_sun.fade()
+	_hud.nudge_packs()
 
 
 func _on_panel_opened() -> void:

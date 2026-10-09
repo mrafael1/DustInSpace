@@ -77,6 +77,8 @@ var _glow_textures: Dictionary[int, ImageTexture] = {}
 ## The visible screen in game coordinates (Main's fit_screen): on a 9:16 phone the game's own
 ## 180x320; taller or wider ones show more, and the glow fills it.
 var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
+## A lost run: every pixel sits one step down its ramp (fade).
+var _faded: bool = false
 
 
 func _process(delta: float) -> void:
@@ -93,6 +95,9 @@ func _draw() -> void:
 	var lit: bool = frame > 0
 	var dots: Dictionary[Vector2i, Color] = pixels(
 		DISC_ROWS if lit else fill_rows(), RAYS if lit else lit_rays(), lit, is_pulsing(), _ripple)
+	if _faded:
+		for offset: Vector2i in dots:
+			dots[offset] = _lower(dots[offset])
 	for offset: Vector2i in dots:
 		draw_rect(Rect2(Vector2(offset), Vector2.ONE), dots[offset])
 
@@ -113,6 +118,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_release_left = 0.0
 	_glow_textures.clear()
 	_ignite_time = IGNITE_TIME if run.outcome == RunState.Outcome.WON else -1.0
+	_faded = false
 	queue_redraw()
 
 
@@ -123,6 +129,17 @@ func fit_screen(screen: Rect2i) -> void:
 	_screen = screen
 	_glow_textures.clear()
 	queue_redraw()
+
+
+## A lost run's beat (EndScreen.loss_beat_started): the Sun sinks one step down its ramps, its
+## embers a smoulder step cooler, and stays so until the next run. Presentation only.
+func fade() -> void:
+	_faded = true
+	queue_redraw()
+
+
+func is_faded() -> bool:
+	return _faded
 
 
 ## A light particle landed: the fill rises and the Sun pulses. The last one lets a won run ignite.
@@ -391,6 +408,15 @@ static func _lift(colour: Color) -> Color:
 		return DIM_RAMP[mini(i + 1, DIM_RAMP.size() - 1)]
 	i = LIT_RAMP.find(colour)
 	return LIT_RAMP[mini(i + 1, LIT_RAMP.size() - 1)] if i >= 0 else colour
+
+
+## One step darker on the pixel's own ramp; the darkest step stays.
+static func _lower(colour: Color) -> Color:
+	var i: int = DIM_RAMP.find(colour)
+	if i >= 0:
+		return DIM_RAMP[maxi(i - 1, 0)]
+	i = LIT_RAMP.find(colour)
+	return LIT_RAMP[maxi(i - 1, 0)] if i >= 0 else colour
 
 
 ## Ordered-dither threshold for a pixel, from 0 to 15/16.
