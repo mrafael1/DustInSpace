@@ -116,8 +116,22 @@ func _main(map_id: String) -> Main:
 	return main
 
 
+## A stage that opens by showing its heat (the Haunch's burning, the Mane's day and night, #148):
+## plays it out first.
+func _main_after_intro(map_id: String) -> Main:
+	var main: Main = _main(map_id)
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	for tick: int in 2000:
+		if not sequencer.is_busy():
+			break
+		sequencer.advance(1.0 / 60.0)
+	# The views catch up with the run once it's played (the Mane's demo showed the night).
+	(main.get_node("Sky/HeatLayer") as HeatView).advance(0.0)
+	return main
+
+
 func test_embers_rise_over_the_whole_sky_with_no_edges() -> void:
-	var main: Main = _main("leo_haunch")
+	var main: Main = _main_after_intro("leo_haunch")
 	var view: HeatView = main.get_node("Sky/HeatLayer")
 	assert_true(view.is_processing())
 	var sky: Rect2i = main.run.sky_rect
@@ -144,7 +158,7 @@ func test_no_heat_no_field() -> void:
 
 
 func test_the_aim_previews_each_change_round_its_star() -> void:
-	var main: Main = _main("leo_haunch")
+	var main: Main = _main_after_intro("leo_haunch")
 	var run: RunState = main.run
 	var view: HeatView = main.get_node("Sky/HeatLayer")
 	var small: Star = run.add_star(Star.Size.SMALL, Vector2i(100, 120))
@@ -168,7 +182,7 @@ func test_the_aim_previews_each_change_round_its_star() -> void:
 
 
 func test_a_launch_resizes_and_burns_the_star_views() -> void:
-	var main: Main = _main("leo_haunch")
+	var main: Main = _main_after_intro("leo_haunch")
 	var run: RunState = main.run
 	var sky: SkyView = main.get_node("Sky")
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
@@ -257,7 +271,7 @@ func test_frost_falls_in_the_cold() -> void:
 
 
 func test_the_sky_turns_to_night_once_the_launch_has_played_out() -> void:
-	var main: Main = _main("leo_mane")
+	var main: Main = _main_after_intro("leo_mane")
 	var run: RunState = main.run
 	var view: HeatView = main.get_node("Sky/HeatLayer")
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
@@ -349,8 +363,40 @@ func test_the_intro_never_shifts_the_packs() -> void:
 	assert_eq(sizes[0], sizes[1], "the same packs open with or without it")
 
 
+func test_the_haunch_opens_by_burning_its_demo_bigs() -> void:
+	var run: RunState = _intro_run(StarMap.leo_haunch())
+	watch_signals(run)
+	run.play_heat_intro()
+	assert_signal_emitted(run, "heat_intro_placed", "burning arrives: shown as it opens (#148)")
+	var burned: int = 0
+	for call: int in get_signal_emit_count(run, "stars_resized"):
+		for change: StarHeat.Change in get_signal_parameters(run, "stars_resized", call)[0]:
+			if change.lost:
+				burned += 1
+	assert_gt(burned, 0, "a big one grows again and burns out")
+	assert_true(run.stars.is_empty(), "the demo leaves the sky")
+	assert_eq(run.dust, 0)
+
+
+func test_the_mane_opens_by_showing_day_then_night() -> void:
+	var run: RunState = _intro_run(StarMap.leo_mane())
+	var start: int = run.heat.change
+	watch_signals(run)
+	run.play_heat_intro()
+	assert_signal_emitted(run, "heat_intro_placed", "day and night: shown as it opens (#148)")
+	assert_signal_emit_count(run, "heat_intro_turned", 1, "night falls once")
+	assert_eq(get_signal_parameters(run, "heat_intro_turned")[0], -start)
+	assert_eq(get_signal_emit_count(run, "stars_resized"), 2, "the heat acts by day, then the cold by night")
+	var day: Array = get_signal_parameters(run, "stars_resized", 0)[0]
+	var night: Array = get_signal_parameters(run, "stars_resized", 1)[0]
+	assert_true(day.any(func(c: StarHeat.Change) -> bool: return c.lost), "by day a big burns")
+	assert_true(night.all(func(c: StarHeat.Change) -> bool: return c.lost or c.to < c.from), "by night they shrink")
+	assert_eq(run.heat.change, start, "the run's first launch is still by day")
+	assert_true(run.stars.is_empty())
+
+
 func test_only_the_stages_that_bring_the_heat_or_the_cold_show_it_once_as_they_open() -> void:
-	for id: String in ["leo_haunch", "leo_mane", "aquarius_hand"]:
+	for id: String in ["aquarius_hand"]:
 		var run: RunState = _intro_run(StarMap.by_id(id))
 		watch_signals(run)
 		run.play_heat_intro()

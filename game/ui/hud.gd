@@ -674,6 +674,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"harvest_intro_clock":
 			_harvest_clock.jump(event.args[0])
 			return
+		&"harvest_intro_quickened":
+			# The Wheat's intro says its rule as the clock shows it.
+			_harvest_clock.count(event.args[0], event.args[1])
+			tell_current_rule()
+			return
 		&"volley_fired":
 			_volley.fire()
 			return
