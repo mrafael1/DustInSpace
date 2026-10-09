@@ -1012,12 +1012,12 @@ func _bind_sheaves() -> void:
 		landmarks_unbound.emit(unbound)
 
 
-## The dust a link of `combo` pays on this stage (Virgo's links pay a share of it).
+## The dust a link of `combo` pays on this stage (Virgo's links pay less: a cut off each).
 func link_dust(combo: String) -> int:
 	var dust_paid: int = balance.combos[combo].dust
 	if harvest == null:
 		return dust_paid
-	return dust_paid * balance.harvest_link_dust_percent_for(scorpio.map.id) / 100
+	return Balance.after_cut(dust_paid, balance.harvest_link_dust_cut_for(scorpio.map.id))
 
 
 ## Pure preview: the loose stars the next launch's harvest reaps (all in the sky now; of the stars
