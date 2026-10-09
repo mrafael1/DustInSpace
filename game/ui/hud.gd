@@ -87,20 +87,25 @@ const THREAT_MESSAGES: Dictionary = {
 	Encounter.Threat.HUNT: HUNT_MESSAGE,
 }
 ## A current's rule, said once a run as the player first aims (#128: before the first launch is
-## committed; revisits and retries hear it again, it's short): it moves stars; where it drains,
-## that it takes the stars it carries past its edge; a tide or box, that it turns and drains.
-## At most 22 characters a line (132 px).
-const FLOW_MESSAGE: String = "EACH LAUNCH THE FLOW\nMOVES THE STARS"
-const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
-const TIDE_MESSAGE: String = "TIDE TURNS EACH LAUNCH\nBOTH SIDES DRAIN STARS"
-const BOX_MESSAGE: String = "FLOW TURNS EACH LAUNCH\nEVERY SIDE DRAINS"
-## Leo's heat (chapter 3), said the same way: what it does, and what it takes when it burns.
+## committed; revisits and retries hear it again, it's short). Said as what to do where it takes
+## stars (#149, as Virgo's: what the flow does, then to link the stars its marks show first); the
+## plain flow, where to aim. At most 22 characters a line (132 px).
+const FLOW_MESSAGE: String = "THE FLOW CARRIES STARS\nSO AIM UPSTREAM"
+const DRAIN_MESSAGE: String = "THE FLOW DRAINS STARS\nLINK MARKED ONES FIRST"
+const TIDE_MESSAGE: String = "BOTH SIDES DRAIN STARS\nLINK MARKED ONES FIRST"
+const BOX_MESSAGE: String = "EVERY SIDE DRAINS\nLINK MARKED ONES FIRST"
+## Leo's heat (chapter 3), said the same way: what it does; where it takes stars, which to link.
 const HEAT_MESSAGE: String = "THE HEAT GROWS STARS\nEACH LAUNCH"
-const BURN_MESSAGE: String = "THE HEAT GROWS STARS\nBIG ONES BURN OUT"
+const BURN_MESSAGE: String = "LINK BIG STARS BEFORE\nA LAUNCH BURNS THEM"
 const COLD_MESSAGE: String = "THE COLD SHRINKS STARS\nEACH LAUNCH"
-const FADE_MESSAGE: String = "THE COLD SHRINKS STARS\nSMALL ONES FADE"
+const FADE_MESSAGE: String = "LINK SMALL STARS FIRST\nTHE COLD FADES THEM"
 ## Day and night (the Mane): heat and cold take turns, and each takes its own stars.
-const DAY_NIGHT_MESSAGE: String = "HEAT AND COLD SWAP\nBIGS BURN SMALLS FADE"
+const DAY_NIGHT_MESSAGE: String = "BY DAY LINK THE BIGS\nBY NIGHT THE SMALLS"
+## A run's first star lost to the flow, the heat or the cold says what took it and what to do, once
+## a run each (#149: a loss was never explained; Virgo's lone line is the model).
+const DRAIN_LOSS_MESSAGE: String = "THE FLOW TOOK A STAR\nLINK MARKED ONES FIRST"
+const BURN_LOSS_MESSAGE: String = "THE HEAT BURNED A STAR\nLINK MARKED ONES FIRST"
+const FADE_LOSS_MESSAGE: String = "THE COLD FADED A STAR\nLINK MARKED ONES FIRST"
 ## Virgo's harvest: the scythe's clock (said with its number of launches), and the bound sheaves.
 const SCYTHE_MESSAGE: String = "EVERY %d LAUNCHES THE\nSCYTHE REAPS THE SKY"
 ## Said as what to do (playtest: "lit stars must join the figure" wasn't understood).
@@ -116,10 +121,10 @@ const LONE_QUIET: float = 12.0
 const QUICKEN_MESSAGE: String = "THE SCYTHE COMES\nSOONER EACH HARVEST"
 ## Virgo's clock sits this far below the Sun's centre.
 const HARVEST_CLOCK_BELOW: int = 30
-## Leo's final: the lion breathes, on every link as well as every launch.
-const BREATH_MESSAGE: String = "EVERY LINK AND LAUNCH\nFEEDS THE HEAT"
+## Leo's final: the lion breathes, on every link as well as every launch: link the bigs first.
+const BREATH_MESSAGE: String = "EVERY LINK HEATS TOO\nLINK BIG STARS FIRST"
 ## The Head: the constellation stars grow too (a big one comes back small); loose bigs burn.
-const LION_MESSAGE: String = "THE LION GROWS TOO\nBIG STARS BURN OUT"
+const LION_MESSAGE: String = "THE LION GROWS TOO\nLINK BIG STARS FIRST"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
 ## no launch, other message or clear cuts it before it can be read; only another teaching line can.
@@ -173,6 +178,10 @@ var _message_held: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
 var _current_told: bool = false
+## A launch has played this run (an intro's demo losses come before it and say nothing), and the
+## loss lines said this run.
+var _launch_shown: bool = false
+var _losses_told: Dictionary[String, bool] = {}
 ## Main sets it: how far below the burst point the player's finger goes to launch there (the
 ## telescope aims above a finger, #152), so the guided run's hand points where the finger goes.
 var launch_finger_lift: Callable
@@ -279,6 +288,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_build_slots(run.balance.pack_kinds())
 	_orion_told = false
 	_current_told = false
+	_launch_shown = false
+	_losses_told.clear()
 	_lone_quiet = 0.0
 	clear_message()
 	_volley.visible = run.volley != null
@@ -354,10 +365,20 @@ func tell_current_rule() -> void:
 	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null):
 		return
 	_current_told = true
+	show_message(_stage_rule(), RULE_MESSAGE_TIME, true)
+
+
+## The stage's rule line: its harvest's, current's or heat's ("" without any).
+func _stage_rule() -> String:
+	if _run == null:
+		return ""
 	if _run.harvest != null:
-		show_message(harvest_rule(_run.harvest), RULE_MESSAGE_TIME, true)
-		return
-	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links), RULE_MESSAGE_TIME, true)
+		return harvest_rule(_run.harvest)
+	if _run.current != null:
+		return current_rule(_run.current)
+	if _run.heat != null:
+		return heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links)
+	return ""
 
 
 ## Bound sheaves: a constellation star just lit alone says it will be cut, and when (once a while).
@@ -372,6 +393,27 @@ func _tell_lone(index: int) -> void:
 ## launch does.
 static func lone_rule(harvest: StarHarvest) -> String:
 	return LONE_TIE_MESSAGE if harvest.ties else LONE_MESSAGE
+
+
+## A run's first star drained, burned or faded says so, and what to do, once a run each (`changes`:
+## a shift's moves or the heat's changes). Never for an intro's demo stars, which go before any
+## launch; and not over the stage's own rule while it's still on show (it says as much already):
+## the next loss once it's gone says it.
+func _tell_loss(changes: Array) -> void:
+	if not _launch_shown or (message() != "" and message() == _stage_rule()):
+		return
+	var said: String = ""
+	for change: Variant in changes:
+		if change is StarCurrent.Move and (change as StarCurrent.Move).drained:
+			said = DRAIN_LOSS_MESSAGE
+		elif change is StarHeat.Change and (change as StarHeat.Change).lost and (change as StarHeat.Change).star_id >= 0:
+			said = FADE_LOSS_MESSAGE if (change as StarHeat.Change).is_cold() else BURN_LOSS_MESSAGE
+		if said != "":
+			break
+	if said == "" or _losses_told.has(said):
+		return
+	_losses_told[said] = true
+	show_message(said, RULE_MESSAGE_TIME, true)
 
 
 ## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,
@@ -680,6 +722,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_shown_loaded = event.args[0]
 		&"pack_launched":
 			_shown_packs[event.args[0]] = _shown_packs.get(event.args[0], 0) - 1
+			_launch_shown = true
 		&"big_bang_started":
 			# Streams to the counter once it bangs, like a combo's dust.
 			_dust_in_flight += event.args[2]
@@ -734,6 +777,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"stars_shifted", &"stars_resized":
 			# Normally said when the player first aimed; a launch made without aiming says it here.
 			tell_current_rule()
+			_tell_loss(event.args[0])
+			return
+		&"heat_breathed":
+			_tell_loss(event.args[1])
 			return
 		&"star_marked":
 			_tell_threat(Encounter.Threat.MARK)
