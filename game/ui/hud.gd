@@ -83,7 +83,7 @@ const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
 ## committed; revisits and retries hear it again, it's short): it moves stars; where it drains,
 ## that it takes the stars it carries past its edge; a tide or box, that it turns and drains.
 ## At most 22 characters a line (132 px).
-const FLOW_MESSAGE: String = "EACH LAUNCH, THE FLOW\nMOVES THE STARS"
+const FLOW_MESSAGE: String = "EACH LAUNCH THE FLOW\nMOVES THE STARS"
 const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
 const TIDE_MESSAGE: String = "TIDE TURNS EACH LAUNCH\nBOTH SIDES DRAIN STARS"
 const BOX_MESSAGE: String = "FLOW TURNS EACH LAUNCH\nEVERY SIDE DRAINS"
@@ -773,7 +773,10 @@ func _show_tutorial_step(step: int) -> void:
 			# From the left: the Sun sits at the top of the screen, with no room above it.
 			_guide.show_step(step, sun_at - Vector2i(SunView.RADIUS + 2, 0), true, TutorialView.Point.RIGHT, top)
 		Tutorial.Step.LAUNCH, Tutorial.Step.RED:
-			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12 + _finger_lift()), true, TutorialView.Point.DOWN, top)
+			# Open sky, clear of the figure and below the next step's two lines, so the new stars
+			# read as new (#148).
+			var spot: Vector2i = _run.open_launch_spot(top + 2 * TutorialView.LINE_STEP)
+			_guide.show_step(step, spot + Vector2i(0, _finger_lift()), true, TutorialView.Point.DOWN, top)
 		Tutorial.Step.LINK:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
 			var ids: Array[int] = []
@@ -800,7 +803,8 @@ func _show_tutorial_step(step: int) -> void:
 					if star.size == size and pair.size() < 2:
 						pair.append(star.id)
 				if pair.size() == 2:
-					var path: Array[int] = _reachable_order([pair[0], Scorpio.landmark_id(index), pair[1]])
+					# The hand starts on the constellation star, the one this link lights (#148).
+					var path: Array[int] = _reachable_order([Scorpio.landmark_id(index), pair[0], pair[1]])
 					_guide.follow_path(path, _link_positions(path))
 		Tutorial.Step.SCOPE:
 			var window: Vector2i = loaded_window_at.call() if loaded_window_at.is_valid() else Vector2i(90, 290)
