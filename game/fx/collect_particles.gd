@@ -5,8 +5,9 @@ extends Node2D
 ## part of the reward; `dust_arrived` / `light_arrived` fire as it lands, so the counters tick up
 ## on arrival. Particles never hold the sequencer, so input comes back while they fly.
 ## A Big Bang's dust streams from the burst point once it bangs, in more, smaller shares.
-## Owns no rules: the amounts come from the event. Every particle is 1-2 palette pixels on
-## whole pixels: a head and a one-step-darker trail.
+## Owns no rules: the amounts come from the event. Every particle is drawn on whole pixels in
+## palette colours: a 2x2 head (1 px for the last stretch, as it's taken in) and a two-pixel trail
+## stepping down its ramp, so it reads apart from the 1 px background stars.
 
 signal dust_arrived(amount: int)
 signal light_arrived(amount: int)
@@ -35,11 +36,15 @@ const BIG_BANG_PARTICLES: int = 24
 const MAX_BOW: int = 30
 ## The longest a combo's particles can take to all land: dust and light together.
 const LONGEST_TRAVEL: float = LAUNCH_DELAY + STAGGER * (2 * MAX_PARTICLES - 1) + FLIGHT_MAX
-## Head colour, then trail colour, per kind.
+## Head colour, then the trail's colours nearest first, per kind: each kind's ramp, stepping down.
 const COLOURS: Dictionary[Kind, Array] = {
-	Kind.DUST: [Palette.D0, Palette.N8],
-	Kind.LIGHT: [Palette.C0, Palette.C2],
+	Kind.DUST: [Palette.D0, Palette.N8, Palette.N7],
+	Kind.LIGHT: [Palette.C0, Palette.C1, Palette.C2],
 }
+## How far behind the head (in flight progress) each trail pixel sits, nearest first.
+const TRAIL_LAG: Array[float] = [0.05, 0.1]
+## The head is 2x2 until this far along, then 1 px for the last stretch into its counter.
+const HEAD_SHRINK_AT: float = 0.85
 
 ## Where dust particles land: the dust icon.
 @export var dust_target: Vector2i = Vector2i(12, 300)
@@ -63,9 +68,10 @@ class Particle:
 	func progress() -> float:
 		return clampf((age - delay) / duration, 0.0, 1.0)
 
-	## The point at `t` along the quadratic Bézier, eased so it speeds into the counter.
+	## The point at `t` along the quadratic Bézier, eased so it leaves its star at once and speeds
+	## into the counter (half linear, half t², rather than a pure t² that lingers at the star).
 	func point_at(t: float) -> Vector2i:
-		var e: float = t * t
+		var e: float = 0.5 * t + 0.5 * t * t
 		return Vector2i(from.lerp(bend, e).lerp(bend.lerp(to, e), e).round())
 
 
@@ -90,10 +96,12 @@ func _draw() -> void:
 			continue
 		var t: float = p.progress()
 		var head: Vector2i = p.point_at(t)
-		var trail: Vector2i = p.point_at(maxf(t - 0.06, 0.0))
-		if trail != head:
-			draw_rect(Rect2(Vector2(trail), Vector2.ONE), COLOURS[p.kind][1])
-		draw_rect(Rect2(Vector2(head), Vector2.ONE), COLOURS[p.kind][0])
+		# Farthest trail pixel first, so nearer ones and the head draw over it.
+		for i: int in range(TRAIL_LAG.size() - 1, -1, -1):
+			var trail: Vector2i = p.point_at(maxf(t - TRAIL_LAG[i], 0.0))
+			if trail != head:
+				draw_rect(Rect2(Vector2(trail), Vector2.ONE), COLOURS[p.kind][i + 1])
+		draw_rect(Rect2(Vector2(head), Vector2(head_size(t))), COLOURS[p.kind][0])
 
 
 ## A new run drops every particle still in the air: the new run's counters start from its state.
@@ -113,6 +121,11 @@ func in_flight(kind: Kind) -> int:
 		if p.kind == kind:
 			total += p.amount
 	return total
+
+
+## The head's size at flight progress `t`: 2x2, then 1 px as it reaches its counter.
+static func head_size(t: float) -> Vector2i:
+	return Vector2i.ONE * (2 if t < HEAD_SHRINK_AT else 1)
 
 
 func particle_count() -> int:
