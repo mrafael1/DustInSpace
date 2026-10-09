@@ -186,7 +186,7 @@ The Stinger's first play is guided. Each step shows a line or two under the Sun,
 | Icon | THE LOADED PLANET SPINS | the loaded planet's icon (its idle spin), from above | the same |
 | Red | LAUNCH THE RED PLANET / IT SPLITS IN TWO / WITH MORE BIG STARS | a spot in the sky | a launch; scripted: its twin bursts hold big, medium, big and big, small, medium. The red steps are skipped if no red one is owned |
 | Red link | LINK THEM TO FILL THE SUN | three big stars in turn, in an order that stays in reach | any link: it fills the Sun (below) |
-| Full Sun | A FULL SUN LIGHTS A STAR | the star it lit, once the sky has cleared | no launch: it goes on by itself |
+| Full Sun | A FULL SUN LIGHTS A STAR | the star it lights, from the moment the Sun ignites | no launch: it goes on by itself 3 s after the star is lit (its clock waits while the Sun ignites and the sky clears) |
 | 5 | SPEND DUST ON A PLANET | the blue buy button (from the left) | a buy ends it (skipped if the dust isn't there) |
 | 6 | LIGHT EVERY STAR TO WIN / COMBOS SHOWS EVERY LINK | the COMBOS button (from the left), for 4 s | everything: free play |
 
