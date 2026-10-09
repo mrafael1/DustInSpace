@@ -14,8 +14,9 @@ extends Node2D
 ## 4. The bang: a hard 2-frame full-screen flash, then a solid white core shrinking away (no
 ##    dithered fade), 3 staggered shockwave rings and
 ##    about 200 multi-colour palette pixels that streak and twinkle; the world shakes (a Camera2D,
-##    so the HUD and the banner stay still); newborn sparkles twinkle up across the sky; a
-##    "BIG BANG" banner pops in, shimmers and rolls its dust up from 0, for BANNER_TIME.
+##    so the HUD and the banner stay still); newborn sparkles twinkle up across the whole visible
+##    sky; once the flash cuts, a "BIG BANG" banner pops in, shimmers and rolls its dust up from 0
+##    at 2x, for BANNER_TIME.
 ## 5. The dust streams to the counter (CollectParticles).
 ## 6. The sequence holds input until INPUT_BACK_AFTER past the bang.
 ## Owns no rules: the dust comes from the event. Rare means different: none of these effects are
@@ -90,17 +91,25 @@ const DEBRIS_TWINKLE_STEP: float = 0.08
 const SPARKLES: int = 28
 const SPARKLE_SPREAD: float = 1.2
 const SPARKLE_LIFE: float = 0.6
-const SPARKLE_AREA := Rect2i(8, 16, 164, 232)
+## Sparkles keep this far in from the visible screen's sides and top, and above SPARKLE_BOTTOM
+## (the land and the HUD).
+const SPARKLE_INSET := Vector2i(8, 16)
+const SPARKLE_BOTTOM: int = 248
 const SPARKLE_RAMPS: Array = [
 	[Palette.C1, Palette.C0, Palette.C1, Palette.C2, Palette.C3],
 	[Palette.D0, Palette.C0, Palette.D0, Palette.N8, Palette.N7],
 ]
-## Banner: one frame at 3x before it settles at 2x, its letters shimmering C0/C1, and the dust
-## rolling up from 0 like a slot machine's payout.
+## Banner: it appears once the full-screen flash cuts (BANNER_AT), so its pop isn't spent on a
+## white screen: one frame at 3x before it settles at 2x, its letters shimmering C1/C0 (C1 first,
+## over the white core), and the dust rolling up from 0 at 2x like a slot machine's payout.
+const BANNER_AT: float = BANG_AT + FLASH_HOLD
 const BANNER_POP: float = 0.1
 const SHIMMER_TIME: float = 0.6
 const SHIMMER_STEP: float = 0.08
 const COUNT_TIME: float = 0.6
+## The amount's row: its top below the title, and the gap between the number and the dust icon.
+const AMOUNT_Y: int = 20
+const AMOUNT_GAP: int = 2
 
 var _sequencer: EventSequencer
 ## Seconds since the event, or -1 when no Big Bang is playing.
@@ -125,6 +134,7 @@ var _darken: ImageTexture
 @onready var _banner: Node2D = $Front/Banner
 @onready var _title: Label = $Front/Banner/Title
 @onready var _amount: Label = $Front/Banner/Amount
+@onready var _icon: DustIcon = $Front/Banner/DustIcon
 @onready var _shake: Camera2D = $Shake
 
 
@@ -209,12 +219,12 @@ func advance(delta: float) -> void:
 	_mark(before, FREEZE_AT, collapse_started)
 	_mark(before, FREEZE_AT + COLLAPSE_TIME, silence_started)
 	_mark(before, BANG_AT, banged)
-	if _time >= BANG_AT + maxf(BANNER_TIME, DEBRIS_LIFE_MAX):
+	if _time >= maxf(BANNER_AT + BANNER_TIME, BANG_AT + DEBRIS_LIFE_MAX):
 		_stop()
 		return
-	_banner.visible = _time >= BANG_AT and _time < BANG_AT + BANNER_TIME
+	_banner.visible = _time >= BANNER_AT and _time < BANNER_AT + BANNER_TIME
 	_shake.offset = Vector2(Motion.shake(shake_offset(_time - BANG_AT)))
-	_show_banner(_time - BANG_AT)
+	_show_banner(_time - BANNER_AT)
 	queue_redraw()
 	_front.queue_redraw()
 
@@ -290,7 +300,14 @@ static func sparkle_pixels(u: float, ramp: int) -> Dictionary[Vector2i, Color]:
 	return dots
 
 
-## The dust the banner shows `t` seconds after the bang: rolling up from 0 over COUNT_TIME.
+## Where newborn sparkles may appear on a visible screen of `visible` (game coordinates): its
+## whole sky, a taller phone's included, clear of its edges and of the land and HUD.
+static func sparkle_area(visible: Rect2i) -> Rect2i:
+	var top_left: Vector2i = visible.position + SPARKLE_INSET
+	return Rect2i(top_left, Vector2i(visible.end.x - SPARKLE_INSET.x, SPARKLE_BOTTOM) - top_left)
+
+
+## The dust the banner shows `t` seconds after it appears: rolling up from 0 over COUNT_TIME.
 static func banner_count(total: int, t: float) -> int:
 	if t <= 0.0:
 		return 0
@@ -358,24 +375,38 @@ func _scatter_sparkles() -> void:
 	_sparkle_at.clear()
 	_sparkle_delay.clear()
 	_sparkle_ramp.clear()
+	var area: Rect2i = sparkle_area(Rect2i(_visible_rect()))
 	for i: int in SPARKLES:
 		_sparkle_at.append(Vector2i(
-			_rng.randi_range(SPARKLE_AREA.position.x, SPARKLE_AREA.end.x - 1),
-			_rng.randi_range(SPARKLE_AREA.position.y, SPARKLE_AREA.end.y - 1)))
+			_rng.randi_range(area.position.x, area.end.x - 1),
+			_rng.randi_range(area.position.y, area.end.y - 1)))
 		_sparkle_delay.append(_rng.randf_range(0.1, SPARKLE_SPREAD))
 		_sparkle_ramp.append(i % 2)
 
 
-## The banner `t` seconds after the bang (negative: before it): the 3x pop, the shimmer and the
+## The banner `t` seconds after it appears (negative: before it): the 3x pop, the shimmer and the
 ## rolling dust. The title is centred on the banner at every scale, by its own box: a Label's
 ## box can be wider than its text, which the centred alignment then pushes right.
 func _show_banner(t: float) -> void:
 	var scale_by: int = 3 if t >= 0.0 and t < BANNER_POP else 2
 	_title.scale = Vector2(scale_by, scale_by)
 	_title.position = Vector2(-floori(_title.size.x * scale_by / 2.0), -floori(_title.size.y * (scale_by - 2) / 2.0))
-	var shimmering: bool = t >= 0.0 and t < SHIMMER_TIME and posmod(floori(t / SHIMMER_STEP), 2) == 0
+	var shimmering: bool = t >= 0.0 and t < SHIMMER_TIME and posmod(floori(t / SHIMMER_STEP), 2) == 1
 	_title.label_settings.font_color = Palette.C0 if shimmering else Palette.C1
 	_amount.text = "+%d" % banner_count(_dust, t)
+	_place_amount()
+
+
+## The +N and its dust icon at 2x, centred together under the title, on whole pixels.
+func _place_amount() -> void:
+	var settings: LabelSettings = _amount.label_settings
+	var text_width: int = ceili(settings.font.get_string_size(_amount.text, HORIZONTAL_ALIGNMENT_LEFT, -1, settings.font_size).x)
+	var icon_width: int = DustIcon.pixels(false).keys().reduce(func(w: int, at: Vector2i) -> int: return maxi(w, absi(at.x) * 2 + 1), 0)
+	var left: int = -floori((text_width * 2 + AMOUNT_GAP + icon_width * 2) / 2.0)
+	_amount.position = Vector2(left, AMOUNT_Y)
+	# The icon is centred on its node: level with the middle of the 2x text (its glyphs, not the
+	# Label's box, which is taller).
+	_icon.position = Vector2(left + text_width * 2 + AMOUNT_GAP + icon_width, AMOUNT_Y + roundi(settings.font.get_height(settings.font_size)))
 
 
 func _scatter_debris() -> void:

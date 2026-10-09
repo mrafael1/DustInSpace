@@ -60,7 +60,11 @@ func test_the_banner_shows_the_dust_for_two_and_a_half_seconds() -> void:
 	_big_bang()
 	assert_false(big_bang.is_banner_shown(), "no banner before the bang: the surprise")
 	big_bang.advance(BigBangSequence.BANG_AT + 0.01)
-	assert_true(big_bang.is_banner_shown())
+	assert_true(big_bang.is_flashing())
+	assert_false(big_bang.is_banner_shown(), "not under the white flash (#150)")
+	big_bang.advance(BigBangSequence.FLASH_HOLD)
+	assert_false(big_bang.is_flashing())
+	assert_true(big_bang.is_banner_shown(), "as soon as the flash cuts")
 	assert_eq(big_bang.banner_text(), "BIG BANG +0", "the dust rolls up from 0")
 	big_bang.advance(BigBangSequence.COUNT_TIME)
 	assert_eq(big_bang.banner_text(), "BIG BANG +%d" % run.balance.big_bang_base_dust)
@@ -71,16 +75,44 @@ func test_the_banner_shows_the_dust_for_two_and_a_half_seconds() -> void:
 func test_the_banner_pops_in_and_shimmers() -> void:
 	_big_bang()
 	var title: Label = big_bang.get_node("Front/Banner/Title")
-	big_bang.advance(BigBangSequence.BANG_AT + 0.01)
+	big_bang.advance(BigBangSequence.BANNER_AT + 0.01)
 	assert_eq(title.scale, Vector2(3, 3), "pops in big")
 	assert_eq(title.position, title.position.round(), "whole pixels")
+	assert_eq(title.label_settings.font_color, Palette.C1, "C1 first: it reads over the white core (#150)")
+	big_bang.advance(BigBangSequence.SHIMMER_STEP)
 	assert_eq(title.label_settings.font_color, Palette.C0, "shimmering")
 	big_bang.advance(BigBangSequence.BANNER_POP)
 	assert_eq(title.scale, Vector2(2, 2), "then settles, integer scale only")
 	assert_eq(title.position.x + title.size.x * title.scale.x / 2.0, 0.0, "centred on the banner")
-	assert_eq(title.label_settings.font_color, Palette.C1)
 	big_bang.advance(BigBangSequence.SHIMMER_TIME)
 	assert_eq(title.label_settings.font_color, Palette.C1, "the shimmer stops")
+
+
+## #150: the payout is the climax: the +N and its icon at 2x like the title, centred under it.
+func test_the_amount_is_as_big_as_the_title_and_centred() -> void:
+	_big_bang()
+	big_bang.advance(BigBangSequence.BANNER_AT + BigBangSequence.COUNT_TIME)
+	var title: Label = big_bang.get_node("Front/Banner/Title")
+	var amount: Label = big_bang.get_node("Front/Banner/Amount")
+	var icon: DustIcon = big_bang.get_node("Front/Banner/DustIcon")
+	assert_eq(amount.scale, title.scale)
+	assert_eq(icon.scale, Vector2(2, 2))
+	assert_eq(amount.position, amount.position.round(), "whole pixels")
+	assert_eq(icon.position, icon.position.round(), "whole pixels")
+	var glyphs: float = title.label_settings.font.get_height(title.label_settings.font_size)
+	assert_gt(amount.position.y, title.position.y + glyphs * title.scale.y, "under the title's letters")
+	assert_eq(icon.position.y, amount.position.y + glyphs, "level with the number")
+	var left: float = amount.position.x
+	var right: float = icon.position.x + 9.0
+	assert_almost_eq(left + right, 0.0, 1.0, "the number and icon centred together")
+
+
+func test_sparkles_fill_the_whole_visible_sky() -> void:
+	assert_eq(BigBangSequence.sparkle_area(Rect2i(0, 0, 180, 320)), Rect2i(8, 16, 164, 232), "a 9:16 screen")
+	var tall: Rect2i = BigBangSequence.sparkle_area(Rect2i(0, -80, 180, 400))
+	assert_eq(tall.position.y, -64, "a tall phone's extra sky too (#150)")
+	assert_eq(tall.end.y, BigBangSequence.SPARKLE_BOTTOM, "never over the land and HUD")
+	assert_eq(BigBangSequence.sparkle_area(Rect2i(-30, 0, 240, 320)).position.x, -22, "a wide screen's sides")
 
 
 func test_the_dust_rolls_up_like_a_payout() -> void:

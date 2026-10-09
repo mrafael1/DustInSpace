@@ -168,6 +168,20 @@ func test_an_unlit_landmark_looks_like_its_sky_star_and_a_lit_one_turns_gold() -
 	assert_gt(ConstellationView.star_pixels(Star.Size.BIG).size(), ConstellationView.star_pixels(Star.Size.SMALL).size())
 
 
+## #150: under deuteranopia the small star's orange and the lit gold look alike; a lit landmark
+## also carries a shape no sky star has: a steady dotted ring just past its art.
+func test_a_lit_landmark_wears_a_ring_no_sky_star_has() -> void:
+	for size: int in 3:
+		var ring: Array[Vector2i] = ConstellationView.lit_mark_pixels(size)
+		assert_gt(ring.size(), 6, "a ring all round")
+		var art: Dictionary[Vector2i, Color] = ConstellationView.landmark_pixels(size, true)
+		var extent: int = StarView.half_extent(size as Star.Size)
+		for p: Vector2i in ring:
+			assert_false(art.has(p), "off the star")
+			assert_gt(Vector2(p).length(), float(extent), "outside the reach of a sky star's tips")
+			assert_eq(posmod(p.x + p.y, 2), 0, "dotted, like a lit string")
+
+
 func test_a_lit_landmark_twinkles_like_a_sky_star() -> void:
 	var glints: int = 0
 	var steps: int = 240

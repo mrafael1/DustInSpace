@@ -5,9 +5,10 @@ extends Node2D
 ## Unlit (usable in a combo), it looks exactly like that sky star, in shape and colour (small
 ## orange, medium mauve, big blue-white), still, with four small corner brackets in ember (C3/C4,
 ## swapping every CUE_STEP) that say "you can pick this". Lit, it turns gold whatever its size
-## (the "lit" frames), with a warm halo (LIT_HALO) and the twinkle (the lit_glint frame for a
-## moment every StarView.TWINKLE_PERIOD), and no brackets: gold in the sky means "done", like the
-## strings. Strings between two lit landmarks glow C1 with a C0 glint
+## (the "lit" frames), with a warm halo (LIT_HALO), the twinkle (the lit_glint frame for a
+## moment every StarView.TWINKLE_PERIOD) and a steady dotted C1 ring (lit_mark_pixels: a shape no
+## sky star has, so "lit" reads without telling gold from orange, #150), and no brackets: gold in
+## the sky means "done", like the strings. Strings between two lit landmarks glow C1 with a C0 glint
 ## running along them; strings still to form are dotted N8. While a link is traced, the landmarks
 ## in it keep their colour and show their halo and the dashed C1 selection ring, like a picked sky
 ## star, and the strings it would form are dashed C2; every other string thins (TRACE_THIN) so
@@ -59,6 +60,8 @@ const CUE_GAP: int = 2
 const CUE_STEP: float = 0.6
 ## A lit landmark's halo, near then far, on every size: warm, like its gold.
 const LIT_HALO: Array = [Palette.C4, Palette.C5]
+## A lit landmark's steady ring sits this many px past its art's edge, dotted every other pixel.
+const LIT_MARK_GAP: int = 3
 ## A landmark or string that just lit shows C0 this long.
 const LIT_FLASH: float = 0.25
 ## A landmark lighting throws a 1 px ring from its art's edge out LIT_RING_GROWTH px over
@@ -560,6 +563,16 @@ static func lit_halo_pixels(size: int) -> Dictionary[Vector2i, Color]:
 	return StarView.halo_pixels(size as Star.Size, LIT_HALO)
 
 
+## A lit landmark's steady ring around a landmark of `size`, as offsets from its centre: a 1 px
+## circle LIT_MARK_GAP px past the art, every other pixel (drawn C1, like a lit string's dots).
+static func lit_mark_pixels(size: int) -> Array[Vector2i]:
+	var dots: Array[Vector2i] = []
+	for d: Vector2i in circle_pixels(StarView.half_extent(size as Star.Size) + LIT_MARK_GAP):
+		if posmod(d.x + d.y, 2) == 0:
+			dots.append(d)
+	return dots
+
+
 ## Whether lit landmark `index` shows its twinkle's glint `time` seconds in: like a sky star, for
 ## StarView.GLINT_TIME every StarView.TWINKLE_PERIOD, each landmark at its own phase.
 static func twinkles(index: int, time: float) -> bool:
@@ -669,6 +682,9 @@ func _draw_landmark(index: int) -> void:
 		var halo: Dictionary[Vector2i, Color] = lit_halo_pixels(size) if lit else StarView.halo_pixels(size as Star.Size)
 		for d: Vector2i in halo:
 			_dot(at + d, halo[d])
+	if lit and not flash:
+		for d: Vector2i in lit_mark_pixels(size):
+			_dot(at + d, Palette.C1)
 	var shine: int = StarView.shine_stage(_hint_time) if hinted else -1
 	var dots: Dictionary = _art[size][3 if shows_dimmed(index) else (4 if shine >= 0 else 0)]
 	if lit:

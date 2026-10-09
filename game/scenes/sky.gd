@@ -231,11 +231,19 @@ func selected_ids() -> Array[int]:
 func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	# The gap hints follow the stars in the sky.
 	_constellation.queue_redraw()
+	var _played: bool = _play_core_event(event) or _play_orion_event(event) or _play_heat_event(event) \
+		or _play_current_event(event) or _play_harvest_event(event)
+	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
+	if _orion.marked() != null and not _views.values().has(_orion.marked()):
+		_orion.clear_mark()
+
+
+## The events every stage plays: packs, links, the Big Bang and the constellation. True if
+## `event` was one.
+func _play_core_event(event: EventSequencer.RunEvent) -> bool:
 	match event.type:
 		&"pack_burst":
 			_burst(event.args[1], event.args[2])
-		&"stars_shifted":
-			_shift(event.args[0])
 		&"stars_resized":
 			_resize(event.args[0])
 		&"combo_collected":
@@ -250,9 +258,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_constellation.flash_landmark(event.args[0])
 			_orion.hurt(_unlit_shown())
-		&"boss_appeared":
-			_orion.enter()
-			_sequencer.hold(OrionView.ENTER_TIME)
 		&"string_built":
 			_constellation.flash_string(event.args[0])
 		&"sun_rekindled":
@@ -268,6 +273,17 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_completion_waiting = true
 			else:
 				_play_completion()
+		_:
+			return false
+	return true
+
+
+## Orion's events: his entrance, marks, arrows, volleys and hunting circles. True if `event` was one.
+func _play_orion_event(event: EventSequencer.RunEvent) -> bool:
+	match event.type:
+		&"boss_appeared":
+			_orion.enter()
+			_sequencer.hold(OrionView.ENTER_TIME)
 		&"star_marked":
 			var marked: StarView = _views.get((event.args[0] as Star).id)
 			if marked != null:
@@ -276,10 +292,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"star_shot":
 			_shoot(event.args[0])
 		&"volley_intro_placed":
-			for star: Star in event.args[0]:
-				_spawn(star)
 			# A beat to see the stars before the intro volley takes them.
-			_sequencer.hold(INTRO_HOLD)
+			_place_intro(event.args[0])
 		&"volley_fired":
 			_volley(event.args[0])
 		&"volley_counted":
@@ -289,35 +303,25 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_sequencer.hold(staging)
 		&"area_struck":
 			_strike_area(event.args[1])
+		&"area_marked":
+			_orion.mark_area(event.args[0], event.args[1])
+			_sequencer.hold(OrionView.MARK_TIME)
 		&"hunt_intro_placed":
-			for star: Star in event.args[0]:
-				_spawn(star)
 			# A beat to see the stars before Orion marks his circle round them.
-			_sequencer.hold(INTRO_HOLD)
+			_place_intro(event.args[0])
 		&"hunt_intro_burst":
 			_burst(event.args[0], event.args[1])
+		_:
+			return false
+	return true
+
+
+## Leo's events: the heat and the lion. True if `event` was one.
+func _play_heat_event(event: EventSequencer.RunEvent) -> bool:
+	match event.type:
 		&"heat_intro_placed":
-			for star: Star in event.args[0]:
-				_spawn(star)
 			# A beat to see the stars before the heat changes them.
-			_sequencer.hold(INTRO_HOLD)
-		&"current_intro_placed":
-			for star: Star in event.args[0]:
-				_spawn(star)
-			# A beat to see the stars before the flow carries them.
-			_sequencer.hold(INTRO_HOLD)
-		&"current_intro_flowed":
-			# The water shows the way it's about to flow (a tide's turn), a beat before it does.
-			_current.show_flow(event.args[0])
-			_sequencer.hold(HEAT_INTRO_BEAT)
-		&"current_intro_cleared":
-			# What the flow left fades out once it has been seen: no reward, nothing drained.
-			_sequencer.hold(StarView.DISSOLVE_TIME)
-			for star: Star in event.args[0]:
-				var view: StarView = _views.get(star.id)
-				if view != null:
-					_views.erase(star.id)
-					view.dissolve()
+			_place_intro(event.args[0])
 		&"heat_breathed":
 			_breathe(event.args[0], event.args[1])
 		&"lion_arrived":
@@ -333,35 +337,48 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_sequencer.hold(HEAT_INTRO_BEAT)
 		&"heat_intro_cleared":
 			# What the heat left fades out once it has been seen: no reward, nothing burst.
-			_sequencer.hold(StarView.DISSOLVE_TIME)
-			for star: Star in event.args[0]:
-				var view: StarView = _views.get(star.id)
-				if view != null:
-					_views.erase(star.id)
-					view.dissolve()
-		&"area_marked":
-			_orion.mark_area(event.args[0], event.args[1])
-			_sequencer.hold(OrionView.MARK_TIME)
+			_clear_intro(event.args[0], StarView.DISSOLVE_TIME)
+		_:
+			return false
+	return true
+
+
+## Aquarius's events: the current and its intro. True if `event` was one.
+func _play_current_event(event: EventSequencer.RunEvent) -> bool:
+	match event.type:
+		&"stars_shifted":
+			_shift(event.args[0])
+		&"current_intro_placed":
+			# A beat to see the stars before the flow carries them.
+			_place_intro(event.args[0])
+		&"current_intro_flowed":
+			# The water shows the way it's about to flow (a tide's turn), a beat before it does.
+			_current.show_flow(event.args[0])
+			_sequencer.hold(HEAT_INTRO_BEAT)
+		&"current_intro_cleared":
+			# What the flow left fades out once it has been seen: no reward, nothing drained.
+			_clear_intro(event.args[0], StarView.DISSOLVE_TIME)
+		_:
+			return false
+	return true
+
+
+## Virgo's events: the harvest, the binding and their intro. True if `event` was one.
+func _play_harvest_event(event: EventSequencer.RunEvent) -> bool:
+	match event.type:
 		&"harvested":
 			_reap(event.args[0])
 		&"landmarks_unbound":
 			_put_out(event.args[0])
 		&"harvest_intro_ended":
 			# The demo planet's stars leave once they've been seen: no reward.
-			_sequencer.hold(StarView.DISSOLVE_TIME + INTRO_HOLD)
-			for star: Star in event.args[0]:
-				var view: StarView = _views.get(star.id)
-				if view != null:
-					_views.erase(star.id)
-					view.dissolve()
+			_clear_intro(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD)
 		&"harvest_intro_quickened":
 			# A beat to see the clock: ripe, then one ear fewer, then as the run starts.
 			_sequencer.hold(INTRO_HOLD)
 		&"harvest_intro_placed":
-			for star: Star in event.args[0]:
-				_spawn(star)
 			# A beat to see the stars before the scythe takes them.
-			_sequencer.hold(INTRO_HOLD)
+			_place_intro(event.args[0])
 		&"harvest_intro_lit":
 			# The demo combo is traced star by star, collects and lights the star; then a beat to see it
 			# lit, joined or alone, before the next.
@@ -376,9 +393,26 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_sequencer.hold(INTRO_HOLD)
 			for index: int in event.args[0]:
 				_constellation.put_out(index)
-	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
-	if _orion.marked() != null and not _views.values().has(_orion.marked()):
-		_orion.clear_mark()
+		_:
+			return false
+	return true
+
+
+## A stage's intro placed its demo stars: they appear, and play waits a beat to see them.
+func _place_intro(stars: Array) -> void:
+	for star: Star in stars:
+		_spawn(star)
+	_sequencer.hold(INTRO_HOLD)
+
+
+## An intro's demo stars leave once seen, for nothing: they dissolve, and play waits `hold`.
+func _clear_intro(stars: Array, hold: float) -> void:
+	_sequencer.hold(hold)
+	for star: Star in stars:
+		var view: StarView = _views.get(star.id)
+		if view != null:
+			_views.erase(star.id)
+			view.dissolve()
 
 
 ## Presses only start inside the sky; a release always ends the press that started.
@@ -424,6 +458,15 @@ func _show_hints(ids: Array[int]) -> void:
 		_views[id].hinted = next.has(id)
 		_views[id].dimmed = tracing and not next.has(id) and not ids.has(id)
 	_constellation.show_hints(landmarks, tracing)
+
+
+## A lost run's beat (EndScreen.loss_beat_started): every star left in the sky, and every
+## unlit landmark, dims a step as the link hint dims them, and stays so. Presentation only.
+func cool_down() -> void:
+	for id: int in _views:
+		_views[id].hinted = false
+		_views[id].dimmed = true
+	_constellation.show_hints([], true)
 
 
 ## The idle hint (#90, IdleHint): the stars and landmarks of `ids` shine with the link hint's shine
@@ -633,11 +676,7 @@ static func explode_order(stars: Array[Star]) -> Array[Star]:
 ## Orion's arrow flies to `star`, which bursts as it lands; the next events wait for it.
 func _shoot(star: Star) -> void:
 	var landing: float = _orion.shoot(star.position, star.size)
-	var view: StarView = _views.get(star.id)
-	if view != null:
-		_views.erase(star.id)
-		view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
-		view.explode(landing)
+	_burst_star(star, landing)
 	_sequencer.hold(landing + StarView.DISSOLVE_TIME * 0.5)
 
 
@@ -722,11 +761,7 @@ func _edge_point(exit: Vector2i) -> Vector2i:
 func _strike_area(stars: Array[Star]) -> void:
 	var landing: float = _orion.strike_area()
 	for star: Star in stars:
-		var view: StarView = _views.get(star.id)
-		if view != null:
-			_views.erase(star.id)
-			view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
-			view.explode(landing)
+		_burst_star(star, landing)
 	_sequencer.hold(landing + StarView.DISSOLVE_TIME * 0.5)
 
 
@@ -740,12 +775,19 @@ func _volley(stars: Array[Star]) -> void:
 	var last: float = _orion.volley_time()
 	for i: int in stars.size():
 		last = landings[i]
-		var view: StarView = _views.get(stars[i].id)
-		if view != null:
-			_views.erase(stars[i].id)
-			view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
-			view.explode(landings[i])
+		_burst_star(stars[i], landings[i])
 	_sequencer.hold(last + StarView.DISSOLVE_TIME * 0.5)
+
+
+## An arrow lands on `star` in `landing` seconds: its view leaves the sky and bursts then (the
+## burst's sparks and sound follow star_exploded).
+func _burst_star(star: Star, landing: float) -> void:
+	var view: StarView = _views.get(star.id)
+	if view == null:
+		return
+	_views.erase(star.id)
+	view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
+	view.explode(landing)
 
 
 ## Virgo's harvest: the scythe's blade sweeps the sky, cutting each reaped star as it passes.

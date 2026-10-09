@@ -555,6 +555,12 @@ func sound_target() -> Rect2i:
 	return Rect2i(SoundIcon.TARGET.position + Vector2i(_sound.position), SoundIcon.TARGET.size)
 
 
+## A lost run's beat: every planet's slot gives a refused tap's S4 nudge, once.
+func nudge_packs() -> void:
+	for kind: String in _slots:
+		_slots[kind].nudge()
+
+
 func slot(kind: String) -> PackSlot:
 	return _slots.get(kind)
 
@@ -759,10 +765,15 @@ func _big_three() -> Array[int]:
 	return []
 
 
+## The dust icon's centre, in the HUD's coordinates: where dust particles land.
+func dust_icon_centre() -> Vector2i:
+	return Vector2i(($DustIcon as Node2D).position)
+
+
 ## Where the dust icon tops out (its top middle), in the HUD's coordinates.
 func dust_icon_top() -> Vector2i:
 	# The large icon is 9x9, centred on its node.
-	return Vector2i(($DustIcon as Node2D).position) - Vector2i(0, 5)
+	return dust_icon_centre() - Vector2i(0, 5)
 
 
 ## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
