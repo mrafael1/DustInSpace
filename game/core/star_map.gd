@@ -643,7 +643,9 @@ static func virgo_feet() -> StarMap:
 
 
 ## Virgo, stage 5: the Wheat, the ear of wheat in her hand (Spica). The quickening: after each
-## harvest the clock is a launch shorter (3, then 2, then every launch), and the bound sheaves hold.
+## harvest the clock is a launch shorter (3, then 2, then every launch), and the bound sheaves hold,
+## tied at once as on the Feet (#149: so the final's tie is felt again just before it; spatial bots,
+## careless linking 90.7% -> 85.3%, lighting next to the figure 94.7% -> 89.7%).
 ## From the stalk's foot (lit, bottom) the stalk climbs to Spica (big) at the top, a grain branching
 ## off each joint by turns. Seven to light. Strings are 27-32 px.
 static func virgo_wheat() -> StarMap:
@@ -661,6 +663,7 @@ static func virgo_wheat() -> StarMap:
 	map.harvest = true
 	map.harvest_binds = true
 	map.harvest_quickens = true
+	map.harvest_ties = true
 	return map
 
 
