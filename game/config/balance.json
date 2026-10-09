@@ -19,6 +19,6 @@
   "volley": { "interval": 2, "fraction": 1.0, "intro_stars": 6 },
   "hunt": { "radius": 38, "intro_stars": 3 },
   "hints": { "idle_seconds": 4 },
-  "harvest": { "every": 3, "link_dust_percent": 90, "stages": { "virgo_head": { "link_dust_percent": 100 } } },
+  "harvest": { "every": 3, "link_dust_cut": 1, "stages": { "virgo_head": { "link_dust_cut": 0 } } },
   "currents": { "step": 24, "stages": { "aquarius_hand": 24, "aquarius_body": 24, "aquarius_legs": 28, "aquarius_stream": 32, "aquarius_jar": 56, "aquarius_final": 56 } }
 }

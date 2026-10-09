@@ -334,6 +334,7 @@ func _wire_sound() -> void:
 	_telescope.aim_started.connect(_sfx.play.bind(&"pull_start", 1.0))
 	# A current's rule is said as the player first aims, before the first launch is committed.
 	_telescope.aim_started.connect(_hud.tell_current_rule)
+	_telescope.aim_started.connect(func() -> void: _hud.tell_aim(_telescope.shown_pack()))
 	_launcher.pull_started.connect(_hud.tell_current_rule)
 	_telescope.aim_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_telescope.launch_let_go.connect(_sfx.play.bind(&"pull_cancel", 1.0))

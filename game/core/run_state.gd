@@ -34,6 +34,11 @@ signal harvest_counted(launches_left: int, period: int)
 ## Virgo's bound sheaves: the harvest put out the constellation stars `indices`, lit since the last
 ## harvest but not joined to the figure lit before it.
 signal landmarks_unbound(indices: Array[int])
+## Virgo's bound sheaves, just before the scythe sweeps (harvested follows): of the constellation stars
+## lit since they were last bound, the harvest keeps `kept` (joined to the figure) and cuts `cut`
+## (landmarks_unbound follows with them), so the sweep can show each as the blade reaches it (#149).
+## Presentation: the binding itself is landmarks_unbound.
+signal harvest_bound(kept: Array[int], cut: Array[int])
 ## Virgo's scythe intro: the stage opened with `stars` in the sky (one of each size, as placed); the
 ## harvest reaps them next (harvested).
 signal harvest_intro_placed(stars: Array[Star])
@@ -106,6 +111,9 @@ signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
 signal heat_intro_placed(stars: Array[Star])
 ## Leo's heat intro paused a beat between two of its steps (the heat acting again, or the end).
 signal heat_intro_paused
+## Leo's final's breath intro (#149): the demo stars `link` (from heat_intro_placed, in the order
+## they link) are linked, traced and collected for nothing; the breath follows (heat_breathed).
+signal heat_intro_linked(link: Array[int])
 ## Leo's heat intro on the Mane (#148): day and night swapped between its two steps; the heat now
 ## changes stars by `change` (+1 the heat, -1 the cold). Presentation only: the run's own heat
 ## starts as it was.
@@ -166,10 +174,13 @@ const LAYOUT_SEED_SALT: int = 0x5CA77E4
 ## Leo's heat intro: the stars it shows (one of each size), and how many times at most the heat acts
 ## on them. Its layout's own RNG stream (XOR'd into the run seed).
 const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
+## Leo's final's breath intro: the demo link's stars (a small triple), before the stars it heats.
+const BREATH_INTRO_LINK: Array[Star.Size] = [Star.Size.SMALL, Star.Size.SMALL, Star.Size.SMALL]
 const HEAT_INTRO_PULSES: int = 3
 const HEAT_INTRO_SEED_SALT: int = 0x4EA7
-## Leo's heat intro: its stars gather this far at least from every constellation star (the scatter
-## ring and a margin), so they don't read as part of the figure (the Haunch's runs through the middle).
+## Leo's heat intro: its stars gather this far at least from every constellation star and string (the
+## scatter ring and a margin), so they don't read as part of the figure (the Haunch's runs through the
+## middle).
 const HEAT_INTRO_CLEARANCE: int = 48
 ## Aquarius's current intro: how many times the flow moves its stars (a tide or a box turns between
 ## them), and the demo stars' offsets across the flow (so they don't stand in a ruled line).
@@ -464,6 +475,28 @@ func launch_drains() -> Array[int]:
 	return result
 
 
+## Pure: whether a star the next launch brings, landing at `point`, is carried out of its draining
+## flow on that same launch (the new stars flow too; #149: the aim only showed the stars already out).
+func burst_drains_at(point: Vector2i) -> bool:
+	if current == null or not current.drains or is_over():
+		return false
+	return current.leaves(point, StarScatter.clamp_to_sky(point + current.displacement, sky_rect))
+
+
+## Pure: for each burst of a `kind` pack in order (the red's twin burst: both), whether the next
+## launch's harvest reaps that burst's stars as they land: a split planet's bursts before its last,
+## when the launch brings the harvest (#149: the aim never showed a red's first burst going).
+func harvest_reaps_bursts(kind: String) -> Array[bool]:
+	var reaped: Array[bool] = []
+	if not balance.packs.has(kind):
+		return reaped
+	var bursts: int = balance.packs[kind].bursts
+	var due: bool = harvest != null and harvest.is_next() and not is_over()
+	for i: int in bursts:
+		reaped.append(due and i < bursts - 1)
+	return reaped
+
+
 ## Pure: the stars in the sky now that the next launch's heat burns out (a big in the heat), wherever
 ## it's aimed. A star the current drains first isn't counted; the constellation stars (the Head's)
 ## burn back instead of out, so they're never in it.
@@ -584,7 +617,7 @@ func launch(target: Vector2i) -> bool:
 	# arrow is about to take.
 	if hunt != null:
 		_hunt_strike()
-		area_marked.emit(hunt.mark(sky_rect, stars), hunt.radius)
+		area_marked.emit(hunt.mark(sky_rect, stars, _unlit_positions()), hunt.radius)
 		if encounter != null and encounter.area_marked():
 			encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null and not orion.has_target():
@@ -715,18 +748,23 @@ static func _clearance(points: Array[Vector2i], taken: Array[Vector2i]) -> int:
 
 ## Whether launching the loaded pack at `aim` keeps its stars out of the hunting circle: every point
 ## it bursts at (a split pack's every one) keeps its whole scatter ring, and a margin, outside it.
+## With the telescope empty (a launch just left it so, and the guide shows its spot then), every
+## planet must keep clear: the player picks one after (#149: the red's twin burst reached in).
 func is_safe_launch(aim: Vector2i) -> bool:
 	if hunt == null or not hunt.has_area():
 		return true
-	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
-	var pack: Balance.PackDef = balance.packs[kind]
-	var points: Array[Vector2i] = [StarScatter.clamp_to_sky(aim, sky_rect)]
-	if pack.bursts > 1:
-		points = StarScatter.split_points(aim, pack.burst_spread, pack.bursts, sky_rect)
-	var clear: int = hunt.radius + StarScatter.RING_MAX + ENCOUNTER_CLEARANCE
-	for point: Vector2i in points:
-		if (point - hunt.centre).length_squared() <= clear * clear:
-			return false
+	var kinds: Array[String] = balance.pack_kinds()
+	if loaded_pack != "":
+		kinds = [loaded_pack]
+	for kind: String in kinds:
+		var pack: Balance.PackDef = balance.packs[kind]
+		var points: Array[Vector2i] = [StarScatter.clamp_to_sky(aim, sky_rect)]
+		if pack.bursts > 1:
+			points = StarScatter.split_points(aim, pack.burst_spread, pack.bursts, sky_rect)
+		var clear: int = hunt.radius + StarScatter.RING_MAX + ENCOUNTER_CLEARANCE
+		for point: Vector2i in points:
+			if (point - hunt.centre).length_squared() <= clear * clear:
+				return false
 	return true
 
 
@@ -783,10 +821,11 @@ func link(star_ids: Array[int]) -> String:
 		if scorpio.is_complete():
 			constellation_completed.emit()
 	# Orion: a link that left his mark behind has the arrow take it (a clear took it already), before
-	# the loss check sees the sky. Then he marks a new star if the run goes on. On the Claws (#74) he
-	# also looses volleys: the single arrow flies first, so the mark is always settled (saved or shot)
-	# before the volley picks its victims, and the new mark comes after both: a volley never takes a
-	# marked star, and no star is hit twice. Saving the mark doesn't touch the volley's count.
+	# the loss check sees the sky. Then he marks a new star if the run goes on. On the final he also
+	# looses volleys (the Claws had them too, until #97): the single arrow flies first, so the mark is
+	# always settled (saved or shot) before the volley picks its victims, and the new mark comes after
+	# both: a volley never takes a marked star, and no star is hit twice. Saving the mark doesn't touch
+	# the volley's count.
 	# The lion breathes (its final): the link stokes the heat, once the Sun has rekindled (and
 	# cleared the sky) or not; the link that completes it doesn't.
 	if heat != null and scorpio != null and scorpio.map.heat_on_links and not scorpio.is_complete():
@@ -995,6 +1034,13 @@ func _shift_stars() -> void:
 func _count_harvest() -> void:
 	var due: bool = harvest.count_launch()
 	if due:
+		if harvest.binds:
+			var cut: Array[int] = StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
+			var kept: Array[int] = []
+			for i: int in scorpio.map.count():
+				if scorpio.is_lit(i) and not _bound[i] and not cut.has(i):
+					kept.append(i)
+			harvest_bound.emit(kept, cut)
 		var reaped: Array[Star] = stars.duplicate()
 		for star: Star in reaped:
 			stars.erase(star)
@@ -1016,12 +1062,12 @@ func _bind_sheaves() -> void:
 		landmarks_unbound.emit(unbound)
 
 
-## The dust a link of `combo` pays on this stage (Virgo's links pay a share of it).
+## The dust a link of `combo` pays on this stage (Virgo's links pay less: a cut off each).
 func link_dust(combo: String) -> int:
 	var dust_paid: int = balance.combos[combo].dust
 	if harvest == null:
 		return dust_paid
-	return dust_paid * balance.harvest_link_dust_percent_for(scorpio.map.id) / 100
+	return Balance.after_cut(dust_paid, balance.harvest_link_dust_cut_for(scorpio.map.id))
 
 
 ## Pure preview: the loose stars the next launch's harvest reaps (all in the sky now; of the stars
@@ -1043,6 +1089,22 @@ func loose_landmarks() -> Array[int]:
 	if harvest == null or not harvest.binds:
 		return [] as Array[int]
 	return StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
+
+
+## Bound sheaves, for the link being traced: the constellation star a link of `star_ids` would light
+## alone (no path of lit stars joining it to the bound figure once it's lit), or -1: an invalid link,
+## one that lights a star next to the figure or none, or a stage where the harvest doesn't bind
+## (#149: the risk showed only once the star was lit, too late to choose another link).
+func link_lights_alone(star_ids: Array[int]) -> int:
+	if harvest == null or not harvest.binds or combo_for(star_ids) == Combos.INVALID:
+		return -1
+	for id: int in star_ids:
+		if scorpio.is_landmark(id):
+			var index: int = Scorpio.landmark_index(id)
+			var lit: Array[bool] = scorpio.lit.duplicate()
+			lit[index] = true
+			return index if StarHarvest.unbound(lit, _bound, scorpio.map.neighbours).has(index) else -1
+	return -1
 
 
 ## Pure preview: the constellation stars the next launch's harvest puts out (bound sheaves), or none
@@ -1232,6 +1294,7 @@ func play_heat_intro() -> void:
 		return
 	if scorpio.map.heat_on_links:
 		lion_arrived.emit()
+		_breath_intro()
 		return
 	if scorpio.map.heat_landmarks:
 		_landmark_heat_intro()
@@ -1267,13 +1330,56 @@ func play_heat_intro() -> void:
 		heat_intro_cleared.emit(left)
 
 
-## The spot nearest the sky's middle at least HEAT_INTRO_CLEARANCE from every constellation star (the
-## middle itself when it's clear); where no spot is (the Mane's figure fills the sky), the spot
-## furthest from them. Its scatter ring stays inside the sky.
+## Leo's final, once the lion has arrived (#149: the breath, the final's own rule, was the one Leo
+## rule with no demo): a small triple and a small, a medium and a big appear in open sky; the triple
+## links (traced and collected, for nothing), and its breath rolls out over the others as a link's
+## would: the small and the medium grow, the big burns out. What's left leaves. The lion's own stars
+## don't change, and the run's heat is left as it was; its layout has its own RNG stream.
+func _breath_intro() -> void:
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ HEAT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	var sizes: Array[Star.Size] = BREATH_INTRO_LINK.duplicate()
+	sizes.append_array(HEAT_INTRO_SIZES)
+	var spots: Array[Vector2i] = StarScatter.place(sizes.size(), _open_middle(), sky_rect, [], layout, scorpio.landmark_positions())
+	var shown: Array[Star] = []
+	for i: int in spots.size():
+		var star: Star = add_star(sizes[i], spots[i])
+		shown.append(Star.new(star.id, star.size, star.position))
+	heat_intro_placed.emit(shown)
+	var linked: Array[Star] = stars.slice(0, BREATH_INTRO_LINK.size())
+	var ordered: Array[Star] = _chain_order(linked)
+	if ordered.is_empty():
+		ordered = linked
+	var ids: Array[int] = []
+	for star: Star in ordered:
+		ids.append(star.id)
+		stars.erase(star)
+	heat_intro_linked.emit(ids)
+	var changes: Array[StarHeat.Change] = heat.preview(stars)
+	for change: StarHeat.Change in changes:
+		if change.lost:
+			stars.erase(find_star(change.star_id))
+		else:
+			find_star(change.star_id).size = change.to
+	heat_breathed.emit(_centre_of(ordered), changes)
+	heat_intro_paused.emit()
+	if not stars.is_empty():
+		var left: Array[Star] = stars.duplicate()
+		stars.clear()
+		heat_intro_cleared.emit(left)
+
+
+## The spot nearest the sky's middle at least HEAT_INTRO_CLEARANCE from every constellation star and
+## string (the middle itself when it's clear); where no spot is (the Mane's figure fills the sky),
+## the spot furthest from them. Its scatter ring stays inside the sky.
 func _open_middle() -> Vector2i:
 	var inner: Rect2i = StarScatter.inner_rect(sky_rect).grow(-StarScatter.RING_MAX)
 	var middle: Vector2i = inner.get_center()
 	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
+	var strings: Array[Array] = []
+	for segment: int in scorpio.map.segment_count():
+		var ends: Array[int] = scorpio.map.segment_landmarks(segment)
+		strings.append([Vector2(landmarks[ends[0]]), Vector2(landmarks[ends[1]])])
 	var best: Vector2i = Vector2i(-1, -1)
 	var best_far: int = -1
 	var clearest: Vector2i = middle
@@ -1284,6 +1390,10 @@ func _open_middle() -> Vector2i:
 			var near: int = 1 << 30
 			for at: Vector2i in landmarks:
 				near = mini(near, (at - spot).length_squared())
+			# Its strings too (#149: a demo star beside a string read as one of the figure's).
+			for ends: Array in strings:
+				var closest: Vector2 = Geometry2D.get_closest_point_to_segment(Vector2(spot), ends[0], ends[1])
+				near = mini(near, int(closest.distance_squared_to(Vector2(spot))))
 			if near > clearest_near:
 				clearest = spot
 				clearest_near = near
@@ -1442,6 +1552,7 @@ func play_harvest_intro() -> void:
 			for star: Star in pair:
 				stars.erase(star)
 			harvest_intro_lit.emit(index, demo[1], link)
+		harvest_bound.emit([near] as Array[int], [far] as Array[int])
 		harvested.emit([] as Array[Star])
 		harvest_intro_kept.emit(near)
 		landmarks_unbound.emit([far] as Array[int])
@@ -1541,7 +1652,7 @@ func play_hunt_intro() -> void:
 		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ Hunt.SEED_SALT ^ LAYOUT_SEED_SALT
-	var centre: Vector2i = hunt.mark(sky_rect)
+	var centre: Vector2i = hunt.mark(sky_rect, [] as Array[Star], _unlit_positions())
 	var placed: Array[Star] = _hunt_intro_stars(balance.hunt_intro_stars, centre, layout)
 	hunt_intro_placed.emit(placed)
 	area_marked.emit(centre, hunt.radius)
@@ -1579,6 +1690,14 @@ func link_fires_volley(star_ids: Array[int]) -> bool:
 		if scorpio.is_landmark(id):
 			lit[Scorpio.landmark_index(id)] = true
 	return lit.has(false)
+
+
+## Where the constellation stars still to light stand (Orion's circle keeps off them where it can).
+func _unlit_positions() -> Array[Vector2i]:
+	var positions: Array[Vector2i] = []
+	for star: Star in scorpio.unlit_stars():
+		positions.append(star.position)
+	return positions
 
 
 ## Orion's hunting area: the arrow strikes the marked circle (none on the first launch) and every

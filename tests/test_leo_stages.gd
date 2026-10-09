@@ -311,6 +311,23 @@ func _intro_run(map: StarMap, seed_value: int = 7) -> RunState:
 	return RunState.new(Balance.load_file(), Fixtures.rng(seed_value), SKY, map)
 
 
+func test_the_demo_stars_keep_clear_of_the_figures_stars_and_strings() -> void:
+	# #149: a demo star 10 px from a Tail string looked like one of the figure's; strings count too.
+	for map: StarMap in [StarMap.leo_tail(), StarMap.leo_haunch(), StarMap.leo_heart(), StarMap.leo_mane()]:
+		for seed_value: int in range(1, 21):
+			var run: RunState = _intro_run(map, seed_value)
+			var placed: Array[Star] = []
+			run.heat_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append_array(stars))
+			run.play_heat_intro()
+			assert_eq(placed.size(), 3)
+			for star: Star in placed:
+				var at := Vector2(star.position)
+				for segment: int in run.scorpio.map.segment_count():
+					var ends: Array[int] = run.scorpio.map.segment_landmarks(segment)
+					var closest: Vector2 = Geometry2D.get_closest_point_to_segment(at, Vector2(run.scorpio.landmark_position(ends[0])), Vector2(run.scorpio.landmark_position(ends[1])))
+					assert_gte(closest.distance_to(at), 20.0, "%s seed %d: demo star %s clear of string %d" % [map.id, seed_value, star.position, segment])
+
+
 func test_the_tail_opens_by_showing_the_heat_grow_three_stars() -> void:
 	var run: RunState = _intro_run(StarMap.leo_tail())
 	var packs: Dictionary = run.owned_packs.duplicate()
@@ -618,3 +635,23 @@ func test_the_aim_previews_each_constellation_stars_next_size() -> void:
 		for offset: Vector2i in ring:
 			hits += int(dots.get(run.scorpio.landmark_position(i) + offset) == HeatView.NEXT_COLOURS[next])
 		assert_gt(hits, 2, "landmark %d shows the %s it becomes" % [i, Star.size_key(next as Star.Size)])
+
+
+func test_while_aiming_a_loss_is_drawn_solid_and_a_routine_change_sparse() -> void:
+	# #149: nearly every star wears an outline while aiming; the ones about to burn or fade must pop.
+	var run: RunState = _intro_run(StarMap.leo_haunch())
+	var grows: Star = run.add_star(Star.Size.SMALL, Vector2i(40, 130))
+	var burns: Star = run.add_star(Star.Size.BIG, Vector2i(140, 130))
+	var dots: Dictionary[Vector2i, Color] = HeatView.preview_pixels(run)
+	var burn_outline: Array[Vector2i] = StarView.outline_pixels(Star.Size.BIG)
+	for offset: Vector2i in burn_outline:
+		assert_eq(dots.get(burns.position + offset), Palette.S4, "the burn's outline is solid ember")
+	var grow_outline: Array[Vector2i] = StarView.outline_pixels(Star.Size.MEDIUM)
+	var shown: int = grow_outline.filter(func(o: Vector2i) -> bool: return dots.get(grows.position + o) == HeatView.NEXT_COLOURS[Star.Size.MEDIUM]).size()
+	assert_gt(shown, 0, "a growing star still shows the size it becomes")
+	assert_lte(shown * 3, grow_outline.size(), "sparse: at most about one pixel in three")
+	var cold: RunState = _intro_run(StarMap.leo_heart())
+	var fades: Star = cold.add_star(Star.Size.SMALL, Vector2i(40, 130))
+	var frost: Dictionary[Vector2i, Color] = HeatView.preview_pixels(cold)
+	for offset: Vector2i in StarView.outline_pixels(Star.Size.SMALL):
+		assert_eq(frost.get(fades.position + offset), HeatView.FROST, "the fade's outline is solid frost")

@@ -600,9 +600,9 @@ static func virgo_wing() -> StarMap:
 	return map
 
 
-## Virgo, stage 3: the Robe. A quicker scythe (a 2-launch clock) on a figure that branches: from the
-## waist (lit, top) the robe falls three ways, the near folds big, the hems small and far. Seven to
-## light. Strings are 32-36 px.
+## Virgo, stage 3: the Robe. The binding on a figure that branches (the clock stays 3 launches: a
+## 2-launch clock was a cliff): from the waist (lit, top) the robe falls three ways, the near folds
+## big, the hems small and far. Seven to light. Strings are 32-36 px.
 static func virgo_robe() -> StarMap:
 	var map := StarMap.new()
 	map.id = "virgo_robe"

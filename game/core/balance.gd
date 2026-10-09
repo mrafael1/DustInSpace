@@ -81,11 +81,12 @@ var hint_idle_seconds: float = 0.0
 ## own (current_steps, by StarMap id: chapter 2's stages ramp up), else it uses this one.
 var current_step: int = 0
 var current_steps: Dictionary[String, int] = {}
-## Virgo's harvest (chapter 4): launches between two harvests (0: no harvest), and the percent of
-## their dust links pay under it (rounded down). A stage can have its own (harvest_stages, by
-## StarMap id: {"every", "link_dust_percent"}, each optional), else it uses these.
+## Virgo's harvest (chapter 4): launches between two harvests (0: no harvest), and the dust taken
+## off every link under it (never below 0; #149: it was a 90% share rounded down, which took exactly
+## one off every shipped combo, so it now says so). A stage can have its own (harvest_stages, by
+## StarMap id: {"every", "link_dust_cut"}, each optional), else it uses these.
 var harvest_every: int = 0
-var harvest_link_dust_percent: int = 100
+var harvest_link_dust_cut: int = 0
 var harvest_stages: Dictionary[String, Dictionary] = {}
 
 var errors: Array[String] = []
@@ -101,9 +102,14 @@ func harvest_every_for(map_id: String) -> int:
 	return harvest_stages.get(map_id, {}).get("every", harvest_every)
 
 
-## The percent of their dust links pay under the harvest on the stage playing `map_id`.
-func harvest_link_dust_percent_for(map_id: String) -> int:
-	return harvest_stages.get(map_id, {}).get("link_dust_percent", harvest_link_dust_percent)
+## The dust taken off every link under the harvest on the stage playing `map_id`.
+func harvest_link_dust_cut_for(map_id: String) -> int:
+	return harvest_stages.get(map_id, {}).get("link_dust_cut", harvest_link_dust_cut)
+
+
+## A link's `dust` with `cut` taken off it, never below 0 (what a link pays under Virgo's harvest).
+static func after_cut(dust: int, cut: int) -> int:
+	return maxi(0, dust - cut)
 
 
 static func load_file(path: String = DEFAULT_PATH) -> Balance:
@@ -243,8 +249,8 @@ func _parse_volley(raw: Dictionary, ctx: String) -> VolleyDef:
 
 func _parse_harvest(raw: Dictionary) -> void:
 	harvest_every = _read_int(raw, "every", "harvest.", 1)
-	if raw.has("link_dust_percent"):
-		harvest_link_dust_percent = _read_int(raw, "link_dust_percent", "harvest.", 0)
+	if raw.has("link_dust_cut"):
+		harvest_link_dust_cut = _read_int(raw, "link_dust_cut", "harvest.", 0)
 	if raw.has("stages"):
 		var stages: Dictionary = _read_dict(raw, "stages", "harvest.")
 		for map_id: Variant in stages:
@@ -253,8 +259,8 @@ func _parse_harvest(raw: Dictionary) -> void:
 			var stage: Dictionary = {}
 			if entry.has("every"):
 				stage["every"] = _read_int(entry, "every", ctx, 1)
-			if entry.has("link_dust_percent"):
-				stage["link_dust_percent"] = _read_int(entry, "link_dust_percent", ctx, 0)
+			if entry.has("link_dust_cut"):
+				stage["link_dust_cut"] = _read_int(entry, "link_dust_cut", ctx, 0)
 			harvest_stages[str(map_id)] = stage
 
 
