@@ -676,3 +676,24 @@ func test_the_wheats_clock_shows_the_lost_ear_and_says_the_rule() -> void:
 			periods.append(period)
 	assert_eq(periods, [3, 2, 3] as Array[int], "the clock loses an ear, then shows as the run starts")
 	assert_eq(hud.message(), Hud.QUICKEN_MESSAGE)
+
+
+func test_an_ear_reads_as_wheat_its_head_bent_and_its_grains_alternating() -> void:
+	# #149: grains paired either side of a straight stalk read as '888'.
+	var clock := HarvestClock.new()
+	add_child_autofree(clock)
+	clock.setup(3, 3)
+	# The middle ear stands on x 0: its grains, row by row.
+	var grains: Dictionary[int, Array] = {}
+	var dots: Dictionary[Vector2i, Color] = clock.pixels()
+	for p: Vector2i in dots:
+		if absi(p.x) < HarvestClock.SPACING / 2 and dots[p] == HarvestClock.COOL_GRAIN:
+			if not grains.has(p.y):
+				grains[p.y] = []
+			grains[p.y].append(p.x)
+	var top: int = grains.keys().min()
+	assert_true(grains[top].all(func(x: int) -> bool: return x > 0), "the head bends a pixel off the stalk at its top")
+	for y: int in grains:
+		assert_false(grains[y].has(-1) and grains[y].has(1), "row %d: no grain on both sides, they alternate" % y)
+	assert_true(grains.values().any(func(xs: Array) -> bool: return xs.has(-1)), "grains to the left")
+	assert_true(grains.values().any(func(xs: Array) -> bool: return xs.has(1)), "and to the right")

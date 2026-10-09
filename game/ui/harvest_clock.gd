@@ -7,9 +7,14 @@ extends Node2D
 ## harvest grows them all back. A quickening clock grows one fewer back each harvest: the lost ear's
 ## place stays empty. Shown from the run's events (count), never ahead of them.
 
-## An ear: grains either side of the stalk (x -1 and +1) on rows 0-4, the stalk down to row 8.
+## An ear: a head of grains on rows 0-5, alternating sides of the stalk and bending a pixel to the
+## right at its top like a heavy ear (#149: grains paired either side of a straight stalk read as
+## '888'), on a stalk down to row 8.
 const EAR_ROWS: int = 9
-const GRAIN_ROWS: Array[int] = [1, 3, 5]
+const EAR_GRAINS: Array[Vector2i] = [
+	Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(1, 2), Vector2i(2, 2),
+	Vector2i(-1, 3), Vector2i(0, 3), Vector2i(0, 4), Vector2i(1, 4), Vector2i(-1, 5), Vector2i(0, 5),
+]
 const STUBBLE_ROWS: int = 3
 const SPACING: int = 7
 const COOL_GRAIN: Color = Palette.M5
@@ -108,10 +113,8 @@ func pixels() -> Dictionary[Vector2i, Color]:
 			continue
 		var ripe: bool = _left == 1
 		var lean: int = (int(_time / SWAY_STEP) % 2) if ripe else 0
-		for y: int in EAR_ROWS:
-			dots[Vector2i(x + (lean if y < 5 else 0), y)] = RIPE_STALK if ripe else COOL_STALK
-		for y: int in GRAIN_ROWS:
-			for side: int in [-1, 1]:
-				dots[Vector2i(x + side + lean, y)] = RIPE_GRAIN if ripe else COOL_GRAIN
-		dots[Vector2i(x + lean, 0)] = RIPE_GRAIN if ripe else COOL_GRAIN
+		for y: int in range(EAR_ROWS - STUBBLE_ROWS, EAR_ROWS):
+			dots[Vector2i(x, y)] = RIPE_STALK if ripe else COOL_STALK
+		for grain: Vector2i in EAR_GRAINS:
+			dots[Vector2i(x + grain.x + (lean if grain.y < 5 else 0), grain.y)] = RIPE_GRAIN if ripe else COOL_GRAIN
 	return dots
