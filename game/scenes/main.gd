@@ -171,6 +171,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_heat_intro()
 	# And a stage bringing Virgo's scythe or its binding: shown once as it opens.
 	run.play_harvest_intro()
+	# And an Aquarius stage bringing its flow, drain, tide or box: the flow shown on a few stars.
+	run.play_current_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)

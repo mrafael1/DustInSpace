@@ -15,6 +15,16 @@ func _main(map_id: String) -> Main:
 	return main
 
 
+## Plays the stage's opening demo of its flow out (#148), so the view shows the run's own flow.
+func _play_intro(main: Main) -> void:
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	for tick: int in 2000:
+		if not sequencer.is_busy():
+			break
+		sequencer.advance(1.0 / 60.0)
+	(main.get_node("Sky/CurrentLayer") as CurrentView).advance(0.0)
+
+
 ## Lets the stage settle until the telescope aims (it aims on its own once a planet is loaded).
 func _settle_until_aiming(main: Main) -> void:
 	var telescope: Telescope = main.get_node("Telescope")
@@ -90,6 +100,7 @@ func test_every_draining_stage_names_the_loss_and_every_line_fits() -> void:
 
 func test_a_turning_flow_points_at_the_edge_its_next_launch_drains_to() -> void:
 	var main: Main = _main("aquarius_jar")
+	_play_intro(main)
 	var view: CurrentView = main.get_node("Sky/CurrentLayer")
 	var area: Rect2i = main.run.current.region
 	var mid_y: int = area.position.y + area.size.y / 2

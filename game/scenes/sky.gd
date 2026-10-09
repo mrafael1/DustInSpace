@@ -301,6 +301,23 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				_spawn(star)
 			# A beat to see the stars before the heat changes them.
 			_sequencer.hold(INTRO_HOLD)
+		&"current_intro_placed":
+			for star: Star in event.args[0]:
+				_spawn(star)
+			# A beat to see the stars before the flow carries them.
+			_sequencer.hold(INTRO_HOLD)
+		&"current_intro_flowed":
+			# The water shows the way it's about to flow (a tide's turn), a beat before it does.
+			_current.show_flow(event.args[0])
+			_sequencer.hold(HEAT_INTRO_BEAT)
+		&"current_intro_cleared":
+			# What the flow left fades out once it has been seen: no reward, nothing drained.
+			_sequencer.hold(StarView.DISSOLVE_TIME)
+			for star: Star in event.args[0]:
+				var view: StarView = _views.get(star.id)
+				if view != null:
+					_views.erase(star.id)
+					view.dissolve()
 		&"heat_breathed":
 			_breathe(event.args[0], event.args[1])
 		&"lion_arrived":

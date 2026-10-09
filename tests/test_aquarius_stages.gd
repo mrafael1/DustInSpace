@@ -247,7 +247,14 @@ func test_both_drains_show_and_the_next_launchs_is_brighter() -> void:
 	main.star_map = "aquarius_jar"
 	main.in_chapter = true
 	add_child_autofree(main)
+	# The stage's opening demo of the tide plays out first (#148).
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	for tick: int in 2000:
+		if not sequencer.is_busy():
+			break
+		sequencer.advance(1.0 / 60.0)
 	var view: CurrentView = main.get_node("Sky/CurrentLayer")
+	view.advance(0.0)
 	var area: Rect2i = main.run.current.region
 	var left := Vector2i(area.position.x, area.position.y)
 	var right := Vector2i(area.end.x - 1, area.position.y)
