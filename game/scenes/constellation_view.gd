@@ -58,6 +58,11 @@ const GLOW_STEP: float = 0.12
 const CUE_COLOURS: Array[Color] = [Palette.C3, Palette.C4]
 const CUE_GAP: int = 2
 const CUE_STEP: float = 0.6
+## A corner of the cue that comes within this many px (either way) of Orion's crosshair on a marked
+## star beside it is left out, so the two warm cues don't run into one shape (#149); the others stay,
+## so the star still reads as one to light. Only a mark this close to the landmark can touch its cue.
+const CUE_RETICLE_CLEAR: int = 2
+const RETICLE_NEAR: int = 32
 ## A lit landmark's halo, near then far, on every size: warm, like its gold.
 const LIT_HALO: Array = [Palette.C4, Palette.C5]
 ## A lit landmark's steady ring sits this many px past its art's edge, dotted every other pixel.
@@ -607,6 +612,47 @@ func _draw_string(segment: int) -> void:
 			_dot(pixels[i], Palette.N8)
 
 
+## The cue's pixels around a landmark of `size` at `at`, but for any corner within
+## CUE_RETICLE_CLEAR px of a pixel of `reticle` (Orion's crosshair, in the same space).
+static func cue_pixels_clear_of(size: int, at: Vector2i, reticle: Array[Vector2i]) -> Array[Vector2i]:
+	var cue: Array[Vector2i] = cue_pixels(size)
+	if reticle.is_empty():
+		return cue
+	var kept: Array[Vector2i] = []
+	for corner: int in cue.size() / 3:
+		var l: Array[Vector2i] = cue.slice(corner * 3, corner * 3 + 3)
+		var near: bool = l.any(func(d: Vector2i) -> bool: return reticle.any(func(r: Vector2i) -> bool:
+			return absi(at.x + d.x - r.x) <= CUE_RETICLE_CLEAR and absi(at.y + d.y - r.y) <= CUE_RETICLE_CLEAR))
+		if not near:
+			kept.append_array(l)
+	return kept
+
+
+## The cue landmark `index` shows (offsets from it): its four corners, but for those by Orion's
+## crosshair. None where it shows no cue.
+func shown_cue(index: int) -> Array[Vector2i]:
+	if not shows_cue(index):
+		return [] as Array[Vector2i]
+	var at: Vector2i = _map().landmarks[index]
+	return cue_pixels_clear_of(shown_size(index), at, _reticle_near(at))
+
+
+## Orion's crosshair on a marked star near the landmark at `at` (in this view's space), at rest and
+## pulsed out, or none (no mark, or one too far away to touch its cue).
+func _reticle_near(at: Vector2i) -> Array[Vector2i]:
+	var pixels: Array[Vector2i] = []
+	var marked: Star = _run.marked_star() if _run != null and _run.orion != null else null
+	if marked == null:
+		return pixels
+	var local: Vector2i = marked.position - _run.scorpio.shift
+	if (local - at).length_squared() > RETICLE_NEAR * RETICLE_NEAR:
+		return pixels
+	for lock: int in 2:
+		for p: Vector2i in OrionView.reticle_pixels(marked.size, lock):
+			pixels.append(local + p)
+	return pixels
+
+
 ## The selectable cue's pixels around a landmark of `size`: an L in each corner, pointing in.
 static func cue_pixels(size: int) -> Array[Vector2i]:
 	var o: int = StarView.half_extent(size as Star.Size) + CUE_GAP
@@ -672,7 +718,7 @@ func _draw_landmark(index: int) -> void:
 		_draw_resizing(index, size, at)
 		return
 	if shows_cue(index):
-		for d: Vector2i in cue_pixels(size):
+		for d: Vector2i in shown_cue(index):
 			_dot(at + d, CUE_COLOURS[cue_frame()])
 	var lit: bool = shows_lit(index)
 	var picked: bool = _selected.has(index) and not lit
