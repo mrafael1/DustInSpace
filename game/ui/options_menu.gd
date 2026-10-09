@@ -2,11 +2,12 @@ class_name OptionsMenu
 extends CanvasLayer
 ## The options, over the title and the chart: a gear button (the plaque style, C1 gear) in the
 ## screen's top-right corner opens a MenuPanel: SOUND (the speaker's on, low, mute, with the
-## speaker drawn on it), TUTORIAL (the guided first run again, once it's been finished) and RESET
-## PROGRESS (held, since it can't be undone). Tap off the panel or CLOSE to close it. Owns no
+## speaker drawn on it), MOTION (full or reduced: Motion), TUTORIAL (the guided first run again,
+## once it's been finished) and RESET PROGRESS (held, since it can't be undone). Tap off the panel or CLOSE to close it. Owns no
 ## rules: App acts on its signals. Works in game coordinates (App sets the screen like Main's UI).
 
 signal sound_cycle_requested
+signal motion_toggle_requested
 signal tutorial_requested
 signal reset_requested
 ## Feedback only (sound): the panel opened, closed, a button was tapped, a hold began.
@@ -20,12 +21,15 @@ const MapButtonScene := preload("res://game/ui/map_button.tscn")
 const INSET: int = 10
 const HEADING: String = "OPTIONS"
 const SOUND_TEXT: Array[String] = ["SOUND ON", "SOUND LOW", "SOUND OFF"]
+## MOTION's text: full, then reduced.
+const MOTION_TEXT: Array[String] = ["MOTION FULL", "MOTION REDUCED"]
 const RESET_NOTE: String = "PROGRESS RESET"
 
 var _gear: MapButton
 var _panel := MenuPanel.new()
 var _pressed_gear: bool = false
 var _level: int = 0
+var _reduced_motion: bool = false
 var _tutorial_shown: bool = false
 var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 
@@ -68,6 +72,13 @@ func show_sound_level(level: int) -> void:
 	if _panel.ids().has(&"sound"):
 		_panel.set_item_text(&"sound", SOUND_TEXT[level])
 		_panel.set_item_level(&"sound", level)
+
+
+## Whether MOTION shows reduced (Motion.reduced).
+func show_motion(reduced: bool) -> void:
+	_reduced_motion = reduced
+	if _panel.ids().has(&"motion"):
+		_panel.set_item_text(&"motion", MOTION_TEXT[1 if reduced else 0])
 
 
 ## Whether TUTORIAL is offered (once the guided first run has been finished).
@@ -132,6 +143,7 @@ func handle_pointer(event: InputEvent) -> bool:
 
 func _build() -> void:
 	var items: Array[Dictionary] = [{"id": &"sound", "text": SOUND_TEXT[_level], "level": _level}]
+	items.append({"id": &"motion", "text": MOTION_TEXT[1 if _reduced_motion else 0]})
 	if _tutorial_shown:
 		items.append({"id": &"tutorial", "text": "TUTORIAL"})
 	items.append({"id": &"reset", "text": "RESET PROGRESS", "hold": true})
@@ -144,6 +156,8 @@ func _on_chosen(id: StringName) -> void:
 	match id:
 		&"sound":
 			sound_cycle_requested.emit()
+		&"motion":
+			motion_toggle_requested.emit()
 		&"tutorial":
 			close()
 			tutorial_requested.emit()

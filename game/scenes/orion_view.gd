@@ -272,7 +272,7 @@ func shake() -> Vector2i:
 	if not is_flashing():
 		return Vector2i.ZERO
 	var age: float = _hurt_age if _hurt_age >= 0.0 and _hurt_age < HURT_TIME else maxf(_enter_age - ROAR_AT, _fall_age)
-	return Vector2i(1 if int(age / SHAKE_STEP) % 2 == 0 else -1, 0)
+	return Motion.shake(Vector2i(1 if int(age / SHAKE_STEP) % 2 == 0 else -1, 0))
 
 
 ## How many health pips show: they fill one by one after his roar; all once he has entered.

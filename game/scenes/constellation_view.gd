@@ -647,7 +647,7 @@ func _draw_landmark(index: int) -> void:
 	var size: int = shown_size(index)
 	var at: Vector2i = _map().landmarks[index]
 	if _blaze_time >= 0.0:
-		at += blaze_shake(_blaze_time, _map())
+		at += Motion.shake(blaze_shake(_blaze_time, _map()))
 		var blaze: int = blaze_stage(index)
 		if blaze >= 0:
 			# Dark before it catches fire, then C0, then ember.

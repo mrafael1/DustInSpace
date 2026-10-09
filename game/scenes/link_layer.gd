@@ -225,7 +225,7 @@ func _draw_flash(flash: Flash) -> void:
 	var left: float = 1.0 - flash.time / flash.duration
 	var shake := Vector2i.ZERO
 	if flash.shakes:
-		shake.x = REJECT_SHAKE[mini(int(flash.time / REJECT_SHAKE_STEP), REJECT_SHAKE.size() - 1)]
+		shake.x = Motion.shake_x(REJECT_SHAKE[mini(int(flash.time / REJECT_SHAKE_STEP), REJECT_SHAKE.size() - 1)])
 	for p: Vector2i in path_pixels(flash.points):
 		var q: Vector2i = p + shake
 		if StarView.BAYER[posmod(q.y, 4) * 4 + posmod(q.x, 4)] < ceili(left * 16.0):

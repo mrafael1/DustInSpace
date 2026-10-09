@@ -202,7 +202,7 @@ func advance(delta: float) -> void:
 		_icon.position = Vector2.ZERO
 		_buy.queue_redraw()
 		return
-	_icon.position = Vector2(NUDGE[step], 0)
+	_icon.position = Vector2(Motion.shake_x(NUDGE[step]), 0)
 
 
 func _advance_cue(delta: float) -> void:

@@ -321,6 +321,9 @@ func _add_options() -> void:
 	_options.name = "Options"
 	add_child(_options)
 	_options.show_sound_level(_sfx.level)
+	Motion.load_setting(settings_path)
+	_options.show_motion(Motion.reduced)
+	_options.motion_toggle_requested.connect(toggle_reduced_motion)
 	_sfx.level_changed.connect(_options.show_sound_level)
 	_options.sound_cycle_requested.connect(_sfx.cycle_level)
 	_options.tutorial_requested.connect(replay_tutorial)
@@ -330,6 +333,12 @@ func _add_options() -> void:
 	_options.closed.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_options.tapped.connect(_sfx.play.bind(&"star_select", 1.3))
 	_options.hold_started.connect(_sfx.play.bind(&"tremble", 1.3))
+
+
+## The options' MOTION: reduced motion on or off, saved with the sound level.
+func toggle_reduced_motion() -> void:
+	Motion.set_reduced(not Motion.reduced, settings_path)
+	_options.show_motion(Motion.reduced)
 
 
 func options() -> OptionsMenu:

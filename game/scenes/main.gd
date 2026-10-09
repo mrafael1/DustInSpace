@@ -73,7 +73,14 @@ var _paused: Dictionary[Node, Node.ProcessMode] = {}
 var _pause_pending: bool = false
 
 
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+
+
 func _ready() -> void:
+	# Played on its own (not inside App, which loads it), the stage reads the motion option itself.
+	if get_parent() == get_tree().root:
+		Motion.load_setting(_sfx.settings_path)
 	set_process(false)
 	# _input runs from the last child up: the idle hint watches every touch first (it takes none),
 	# then the speaker, then the sequencer's input lock.
@@ -127,6 +134,9 @@ func _ready() -> void:
 	($DebugKeys as DebugKeys).current_switch_requested.connect(switch_current)
 	($CurrentTrialControls as CurrentTrialControls).current_switch_requested.connect(switch_current)
 	_sequencer.sequence_finished.connect(_on_sequence_finished)
+	# Reduced motion: a sequence plays at double speed, half its length (game-feel principle 7).
+	_sequencer.sequence_started.connect(_play_sequences_at.bind(true))
+	_sequencer.sequence_finished.connect(_play_sequences_at.bind(false))
 	_wire_playtest_log()
 	switch_launcher(use_telescope)
 	_wire_sound()
@@ -153,6 +163,7 @@ func start_run(balance: Balance) -> bool:
 	($Sky/HarvestLayer as HarvestView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
 	_sequencer.bind(run)
+	_play_sequences_at(false)
 	_playtest_log.guided = tutorial
 	for child: Node in get_children():
 		if child.has_method("setup"):
@@ -377,6 +388,16 @@ func _wire_playtest_log() -> void:
 	_telescope.launch_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("launch"))
 	_sky.link_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
 	_sky.step_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
+
+
+## The game's speed while a sequence plays (`busy`) or not: SEQUENCE_SPEED with reduced motion
+## while it plays, else normal.
+static func sequence_speed(busy: bool) -> float:
+	return Motion.SEQUENCE_SPEED if busy and Motion.reduced else 1.0
+
+
+func _play_sequences_at(busy: bool) -> void:
+	Engine.time_scale = sequence_speed(busy)
 
 
 func _on_sequence_finished() -> void:
