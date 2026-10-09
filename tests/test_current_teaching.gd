@@ -142,6 +142,33 @@ func test_the_final_arrives_with_its_box_coming_alight_and_its_title() -> void:
 		assert_false((stage.get_node("Sky/CurrentLayer") as CurrentView).is_arriving())
 
 
+func test_a_finals_rule_waits_for_its_title_card() -> void:
+	# #149: the card (AQUARIUS / THE WATER BEARER) and the rule line spoke at once.
+	var main: Main = _main("aquarius_final")
+	var hud: Hud = main.get_node("HUD")
+	var banner: BossBanner = hud.boss_banner()
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	banner.set_process(false)
+	for tick: int in 30:
+		sequencer.advance(0.05)
+		hud.advance(0.05)
+	assert_true(banner.is_playing(), "the card is still up")
+	assert_ne(hud.message(), Hud.BOX_MESSAGE, "so the rule waits")
+	banner.advance(Hud.ARRIVAL_TIME)
+	hud.advance(0.05)
+	assert_false(banner.is_playing())
+	assert_eq(hud.message(), Hud.BOX_MESSAGE, "the card gone, the rule is said")
+
+
+func test_a_stage_without_a_card_says_its_rule_at_once() -> void:
+	var main: Main = _main("aquarius_jar")
+	var hud: Hud = main.get_node("HUD")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	for tick: int in 10:
+		sequencer.advance(0.05)
+	assert_eq(hud.message(), Hud.TIDE_MESSAGE, "as its demo stars appear")
+
+
 func test_chevrons_slide_clear_of_crowding_stars() -> void:
 	var area := Rect2i(24, 78, 132, 172)
 	var plain: Dictionary[Vector2i, Color] = CurrentView.chevron_pixels(area, Vector2i.LEFT)

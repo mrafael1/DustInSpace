@@ -182,6 +182,8 @@ var _current_told: bool = false
 ## loss lines said this run.
 var _launch_shown: bool = false
 var _losses_told: Dictionary[String, bool] = {}
+## The stage's rule is due but waits for the final's title card to go (#149).
+var _rule_waiting: bool = false
 ## Main sets it: how far below the burst point the player's finger goes to launch there (the
 ## telescope aims above a finger, #152), so the guided run's hand points where the finger goes.
 var launch_finger_lift: Callable
@@ -290,6 +292,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_current_told = false
 	_launch_shown = false
 	_losses_told.clear()
+	_rule_waiting = false
 	_lone_quiet = 0.0
 	clear_message()
 	_volley.visible = run.volley != null
@@ -351,6 +354,9 @@ func advance(delta: float) -> void:
 		_hops[label] = maxf(_hops[label] - delta, 0.0)
 		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
 	_message_held = maxf(_message_held - delta, 0.0)
+	if _rule_waiting and not _banner.is_playing():
+		_rule_waiting = false
+		_say_rule()
 	if _message_left > 0.0:
 		_message_left -= delta
 		_message.visible = _message_left > 0.0
@@ -365,6 +371,15 @@ func tell_current_rule() -> void:
 	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null):
 		return
 	_current_told = true
+	# A final's title card is up, or about to be: the rule waits for it to go, so the two don't
+	# speak at once (#149).
+	if _banner.is_playing():
+		_rule_waiting = true
+		return
+	_say_rule()
+
+
+func _say_rule() -> void:
 	show_message(_stage_rule(), RULE_MESSAGE_TIME, true)
 
 
