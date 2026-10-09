@@ -79,6 +79,13 @@ const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's first hunting area of a run (#71) says what the ring means.
 const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
+## Each threat's own line above the launcher, said at its first mark or circle of a run. Left unsaid
+## while the threat's guided encounter says it at the top of the sky (#149: two lines saying one
+## thing at once split the player's attention while the hand acts).
+const THREAT_MESSAGES: Dictionary = {
+	Encounter.Threat.MARK: ORION_MESSAGE,
+	Encounter.Threat.HUNT: HUNT_MESSAGE,
+}
 ## A current's rule, said once a run as the player first aims (#128: before the first launch is
 ## committed; revisits and retries hear it again, it's short). Said as what to do where it takes
 ## stars (#149, as Virgo's: what the flow does, then to link the stars its marks show first); the
@@ -107,6 +114,9 @@ const BIND_MESSAGE: String = "LIGHT STARS NEXT TO\nLIT ONES OR LOSE THEM"
 const TIE_MESSAGE: String = "LONE LIT STARS GO OUT\nAFTER EVERY LAUNCH"
 ## Said when the player lights a star alone (not next to the lit figure), at most once a while.
 const LONE_MESSAGE: String = "THIS STAR IS ALONE\nTHE SCYTHE CUTS IT"
+## Tied at once (the Feet, the final), a lone star goes out after the very next launch, scythe or
+## not (#149: naming the scythe made it sound like it would last until the harvest).
+const LONE_TIE_MESSAGE: String = "THIS STAR IS ALONE\nNEXT LAUNCH CUTS IT"
 const LONE_QUIET: float = 12.0
 const QUICKEN_MESSAGE: String = "THE SCYTHE COMES\nSOONER EACH HARVEST"
 ## Virgo's clock sits this far below the Sun's centre.
@@ -134,6 +144,9 @@ const MESSAGE_LINE_STEP: int = 10
 ## ENCOUNTER_LINE_LEFT so it clears Orion's corner (two lines at most, 5x7, no punctuation). The
 ## volley's says its interval.
 const ENCOUNTER_LINE_LEFT: int = 42
+## An encounter's line keeps this far clear of the constellation's stars and of the arrows hanging
+## under the sky's top (#149).
+const ENCOUNTER_CLEAR: int = 3
 const ENCOUNTER_LINES: Dictionary = {
 	Encounter.Threat.MARK: "LINK THE MARKED STAR\nOR HIS ARROW TAKES IT",
 	Encounter.Threat.VOLLEY: "EVERY %d LINKS\nHIS ARROWS FALL",
@@ -368,12 +381,18 @@ func _stage_rule() -> String:
 	return ""
 
 
-## Bound sheaves: a constellation star just lit alone says the scythe will cut it (once a while).
+## Bound sheaves: a constellation star just lit alone says it will be cut, and when (once a while).
 func _tell_lone(index: int) -> void:
 	if _run == null or not _run.loose_landmarks().has(index) or _lone_quiet > 0.0:
 		return
 	_lone_quiet = LONE_QUIET
-	show_message(LONE_MESSAGE, RULE_MESSAGE_TIME, true)
+	show_message(lone_rule(_run.harvest), RULE_MESSAGE_TIME, true)
+
+
+## What a lone lit star's line says: the scythe cuts it at the harvest, or, tied at once, the next
+## launch does.
+static func lone_rule(harvest: StarHarvest) -> String:
+	return LONE_TIE_MESSAGE if harvest.ties else LONE_MESSAGE
 
 
 ## A run's first star drained, burned or faded says so, and what to do, once a run each (`changes`:
@@ -470,7 +489,7 @@ func explain_refusal(reason: RunState.PickRefusal) -> void:
 func open_table() -> void:
 	if _run == null or _table.is_open():
 		return
-	_table.open(_run.balance, _run.balance.harvest_link_dust_percent_for(_run.scorpio.map.id) if _run.harvest != null else 100)
+	_table.open(_run.balance, _run.balance.harvest_link_dust_cut_for(_run.scorpio.map.id) if _run.harvest != null else 0)
 	_hold(_table)
 	table_opened.emit()
 
@@ -764,14 +783,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_tell_loss(event.args[1])
 			return
 		&"star_marked":
-			if not _orion_told:
-				_orion_told = true
-				show_message(ORION_MESSAGE, ORION_MESSAGE_TIME, true)
+			_tell_threat(Encounter.Threat.MARK)
 			return
 		&"area_marked":
-			if not _orion_told:
-				_orion_told = true
-				show_message(HUNT_MESSAGE, ORION_MESSAGE_TIME, true)
+			_tell_threat(Encounter.Threat.HUNT)
 			return
 		_:
 			return
@@ -895,6 +910,18 @@ func _finger_lift() -> int:
 	return launch_finger_lift.call() if launch_finger_lift.is_valid() else 0
 
 
+## Orion's first mark or circle of a run says what it means above the launcher (once a run), unless
+## the threat's guided encounter is saying it at the top of the sky right now (the Tail's first mark).
+## The Heart's intro still captions its demo: its encounter only guides from the first real circle.
+func _tell_threat(threat: Encounter.Threat) -> void:
+	if _orion_told:
+		return
+	_orion_told = true
+	if _run.encounter != null and _run.encounter.threat == threat and _run.encounter.is_guiding():
+		return
+	show_message(THREAT_MESSAGES[threat], ORION_MESSAGE_TIME, true)
+
+
 ## An Orion threat's guided encounter (#93): its line at the top of the sky and the hand at what it's
 ## about, while it guides; gone once it's done. The mark: the hand acts out a link that saves the
 ## marked star. The volley: it points at the countdown above him. The hunting circle: it points at a
@@ -903,21 +930,60 @@ func _show_encounter(threat: int, step: int) -> void:
 	if step != Encounter.Step.GUIDING:
 		_guide.hide_guide()
 		return
-	var top: int = _run.sky_rect.position.y + TutorialView.TOP
-	var left: int = _run.sky_rect.position.x + ENCOUNTER_LINE_LEFT
+	# Its line says it now: the threat's own line above the launcher (the Heart intro's caption, if
+	# it's still up) comes down rather than say it twice.
+	if THREAT_MESSAGES.has(threat) and message() == THREAT_MESSAGES[threat]:
+		clear_message()
+	var line: String = ENCOUNTER_LINES[threat] % _run.volley.interval if threat == Encounter.Threat.VOLLEY else ENCOUNTER_LINES[threat]
+	var block: Rect2i = encounter_block(line)
 	match threat:
 		Encounter.Threat.MARK:
 			var link: Array[int] = _run.encounter_link()
 			var target: Star = _run.marked_star()
 			var at: Vector2i = target.position - Vector2i(0, StarView.half_extent(target.size)) if target != null else Vector2i.ZERO
-			_guide.show_line(ENCOUNTER_LINES[threat], at, target != null, TutorialView.Point.DOWN, top, left)
+			_guide.show_line(line, at, target != null, TutorialView.Point.DOWN, block.position.y, block.position.x, block.end.x)
 			if not link.is_empty():
 				_guide.follow_path(link, _link_positions(link), _link_centres(link))
 		Encounter.Threat.VOLLEY:
 			# Down onto the countdown above his head (its row's top is the node's origin).
-			_guide.show_line(ENCOUNTER_LINES[threat] % _run.volley.interval, Vector2i(_volley.position), true, TutorialView.Point.DOWN, top, left)
+			_guide.show_line(line, Vector2i(_volley.position), true, TutorialView.Point.DOWN, block.position.y, block.position.x, block.end.x)
 		Encounter.Threat.HUNT:
-			_guide.show_line(ENCOUNTER_LINES[threat], _run.safe_launch_spot(), true, TutorialView.Point.DOWN, top, left)
+			_guide.show_line(line, _run.safe_launch_spot(), true, TutorialView.Point.DOWN, block.position.y, block.position.x, block.end.x)
+
+
+## Where an encounter's `line` goes: right of Orion's corner, under the sky's top as the tutorial's
+## line, centred. If that would cover a constellation star, or the arrows hanging under the sky's top
+## on a volley stage (#149: on the Body it hid three of the five arrows and ran into the lit spine
+## top), the nearest spot below that keeps ENCOUNTER_CLEAR px clear of both (and of the screen's
+## edge): at each height it's tried centred, then slid a pixel at a time either way. Where no spot is
+## clear, the usual one.
+func encounter_block(line: String) -> Rect2i:
+	var sky: Rect2i = _run.sky_rect
+	var left: int = sky.position.x + ENCOUNTER_LINE_LEFT
+	var size: Vector2i = _guide.text_size(line)
+	var usual := Rect2i(Vector2i(left + (sky.end.x - left - size.x) / 2, sky.position.y + TutorialView.TOP), size)
+	var taken: Array[Rect2i] = []
+	if _run.scorpio != null:
+		for i: int in _run.scorpio.map.count():
+			var half: int = StarView.half_extent(_run.scorpio.map.sizes[i] as Star.Size)
+			taken.append(Rect2i(_run.scorpio.landmark_position(i) - Vector2i(half, half), Vector2i(half, half) * 2 + Vector2i.ONE))
+	if _run.volley != null:
+		var arrows_top: int = sky.position.y + OrionView.OVERHEAD_Y - OrionView.SHAFT
+		var xs: Array[int] = OrionView.OVERHEAD_X
+		# Each shaft, its head a pixel either side and its shiver a pixel more.
+		taken.append(Rect2i(sky.position.x + xs.front() - 2, arrows_top, xs.back() - xs.front() + 5, OrionView.SHAFT + 1))
+	var right: int = sky.end.x - ENCOUNTER_CLEAR
+	var widest: int = maxi(usual.position.x - left, right - size.x - usual.position.x)
+	for y: int in range(usual.position.y, sky.end.y - size.y + 1):
+		for slide: int in widest + 1:
+			for x: int in ([usual.position.x] if slide == 0 else [usual.position.x - slide, usual.position.x + slide]):
+				var block := Rect2i(Vector2i(x, y), size)
+				if x < left or block.end.x > right:
+					continue
+				var grown: Rect2i = block.grow(ENCOUNTER_CLEAR)
+				if not taken.any(func(r: Rect2i) -> bool: return r.intersects(grown)):
+					return block
+	return usual
 
 
 ## The run refused a launch (the guided near launch, too far): the guide's ring flashes and its line

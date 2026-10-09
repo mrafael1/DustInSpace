@@ -18,9 +18,9 @@ const ORION_CORNER := Rect2i(0, 0, 44, 44)
 const INTRO_CLEAR: int = 24
 
 ## Successful links between volleys (balance.json volley.interval).
-var interval: int = 3
+var interval: int = 0
 ## The share of loose stars a volley destroys, rounded up (balance.json volley.fraction).
-var fraction: float = 0.5
+var fraction: float = 0.0
 ## The stars the stage opens with, which the intro volley destroys (0: no intro).
 var intro_stars: int = 0
 ## Links counted since the last volley.
