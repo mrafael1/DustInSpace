@@ -160,7 +160,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		tween.kill()
 	_waiting.clear()
 	_constellation.setup(run)
-	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.sky_rect)
+	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.sky_rect, _orion_keeps_clear_of(run))
 	if run.volley != null:
 		_orion.show_volley_charge(run.volley.links_left(), run.volley.interval)
 	if run.scorpio != null and run.scorpio.map.boss:
@@ -560,6 +560,8 @@ func _show_link() -> void:
 		var full: bool = _gesture.selected.size() == Combos.LINK_LENGTH and _run.combo_for(_gesture.selected) != Combos.INVALID
 		var breathes: bool = _run.scorpio != null and _run.scorpio.map.heat_on_links
 		_heat.tracing = _gesture.selected if full and breathes else ([] as Array[int])
+		# Virgo's binding: a full, valid link that would light a star alone shows its ring now.
+		_harvest.tracing_alone = _run.link_lights_alone(_gesture.selected) if full else -1
 
 
 ## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it
@@ -948,6 +950,18 @@ func _add_view(star: Star) -> StarView:
 	view.halo_changed.connect(_on_halo_changed)
 	_star_layer.add_child(view)
 	return view
+
+
+## What Orion's hanging arrows keep clear of: each constellation star, as its spot and its halo's
+## reach (a lit one's halo is its widest).
+static func _orion_keeps_clear_of(run: RunState) -> Array[Vector3i]:
+	var spots: Array[Vector3i] = []
+	if run.scorpio == null:
+		return spots
+	for i: int in run.scorpio.map.count():
+		var at: Vector2i = run.scorpio.landmark_position(i)
+		spots.append(Vector3i(at.x, at.y, StarView.HALO_RADIUS[run.scorpio.map.sizes[i]]))
+	return spots
 
 
 ## Removes every view, including ones still dissolving from the previous run.

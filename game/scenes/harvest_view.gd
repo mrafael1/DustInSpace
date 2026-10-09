@@ -58,6 +58,13 @@ var aiming: bool = false:
 		if aiming != value:
 			aiming = value
 			queue_redraw()
+## The constellation star the link being traced would light alone (RunState.link_lights_alone), which
+## wears its lone ring before the link is made (#149), or -1.
+var tracing_alone: int = -1:
+	set(value):
+		if tracing_alone != value:
+			tracing_alone = value
+			queue_redraw()
 var _run: RunState
 var _sequencer: EventSequencer
 var _sweep_time: float = -1.0
@@ -83,6 +90,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_run = run
 	_sequencer = sequencer
 	aiming = false
+	tracing_alone = -1
 	_sweep_time = -1.0
 	_chaff.clear()
 	_put_outs.clear()
@@ -204,6 +212,8 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	for at: Vector2i in rings:
 		if not (_crops.has(at) and _crops[at][0] >= 0.0):
 			result.merge(lone_ring_pixels(at, rings[at], _time), true)
+	if tracing_alone >= 0:
+		result.merge(lone_ring_pixels(_run.scorpio.landmark_position(tracing_alone), _run.scorpio.map.sizes[tracing_alone], _time), true)
 	if aiming and idle:
 		result.merge(preview_pixels(_run), true)
 	for at: Vector2i in _kept:
