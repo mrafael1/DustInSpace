@@ -83,9 +83,27 @@ func test_orion_enters_star_by_star_then_roars_and_the_card_names_him() -> void:
 	assert_false(orion.is_entering())
 	assert_false(hud.boss_banner().is_showing())
 	assert_false(sequencer.is_busy())
-	assert_eq(orion.health_pixels().size(), 11 * OrionView.HEALTH_PIP * OrionView.HEALTH_PIP, "all eleven pips")
+	var health: Dictionary[Vector2i, Color] = orion.health_pixels()
+	var pips: int = health.values().filter(func(c: Color) -> bool: return c in OrionView.HEALTH_WHOLE).size()
+	assert_eq(pips, 11 * OrionView.HEALTH_PIP.x * OrionView.HEALTH_PIP.y, "all eleven pips")
 	for colour: Color in orion.figure_pixels().values():
-		assert_true(colour in [Palette.S2, Palette.S3, Palette.S4, Palette.N3], "ember at rest")
+		assert_true(colour in [Palette.S2, Palette.S3, Palette.S4, Palette.N3, OrionView.HEALTH_PLATE], "ember at rest")
+
+
+func test_his_health_reads_as_a_bar_on_a_rimmed_plate() -> void:
+	# #149: bare 2 px pips 1 px apart read as a dashed line, no heavier than the strings.
+	_start_final()
+	_tick(OrionView.ENTER_TIME + 0.1)
+	var health: Dictionary[Vector2i, Color] = orion.health_pixels()
+	var first: Vector2i = run.sky_rect.position + OrionView.FIGURE_AT + OrionView.HEALTH_AT
+	assert_eq(health.get(first), OrionView.HEALTH_WHOLE[0], "the first pip's top")
+	assert_eq(health.get(first + Vector2i(0, OrionView.HEALTH_PIP.y - 1)), OrionView.HEALTH_WHOLE[-1], "taller pips: three rows")
+	assert_eq(health.get(first + Vector2i(OrionView.HEALTH_PIP.x, 0)), OrionView.HEALTH_PLATE, "the gap between pips shows the plate")
+	assert_eq(health.get(first - Vector2i(1, 1)), OrionView.HEALTH_PLATE, "a pixel of plate round the row")
+	assert_eq(health.get(first - Vector2i(2, 2)), OrionView.HEALTH_RIM, "rimmed in his lines' ember")
+	var width: int = 11 * (OrionView.HEALTH_PIP.x + OrionView.HEALTH_GAP) - OrionView.HEALTH_GAP
+	assert_eq(health.get(first + Vector2i(width + 1, OrionView.HEALTH_PIP.y + 1)), OrionView.HEALTH_RIM, "the rim's far corner")
+	assert_false(health.has(first + Vector2i(width + 2, 0)), "nothing past it")
 
 
 func test_a_landmark_lit_hurts_him() -> void:
