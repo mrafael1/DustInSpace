@@ -498,7 +498,10 @@ static func leo_mane() -> StarMap:
 
 ## Leo, stage 5: the Head. The heat turns on the lion itself: each launch the constellation stars
 ## still to light grow a size too, and a big one burns back to small (it can't be lost), while the
-## loose stars grow and burn out as on the Haunch. A pair saved for one may stop matching it. From the mane
+## loose stars grow and burn out as on the Haunch. A pair saved for one may stop matching it. And the
+## lion breathes, as on the final: every successful link stokes the heat too (#149: a rehearsal of the
+## final's rule, so careless hoarding loses before it; spatial bots, launch-first 99.3% -> 72.3%,
+## linking at once 99.3%, reading the heat 100%). From the mane
 ## (lit, left) the brow climbs to the crown (mu), then the face (epsilon) runs down to the mouth
 ## (lambda) at the right, the jaw branching below the face. Five to light. Strings are 31-35 px.
 static func leo_head() -> StarMap:
@@ -513,6 +516,7 @@ static func leo_head() -> StarMap:
 	map.heat_change = 1
 	map.heat_burns = true
 	map.heat_landmarks = true
+	map.heat_on_links = true
 	return map
 
 

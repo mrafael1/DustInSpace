@@ -1293,7 +1293,12 @@ func play_heat_intro() -> void:
 	if heat == null or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
 	if scorpio.map.heat_on_links:
-		lion_arrived.emit()
+		# The final arrives as the lion: the breath was met on the Head, which shows it (#149).
+		if scorpio.map.arrival_epithet != "":
+			lion_arrived.emit()
+			return
+		_landmark_heat_intro()
+		heat_intro_paused.emit()
 		_breath_intro()
 		return
 	if scorpio.map.heat_landmarks:
@@ -1330,11 +1335,12 @@ func play_heat_intro() -> void:
 		heat_intro_cleared.emit(left)
 
 
-## Leo's final, once the lion has arrived (#149: the breath, the final's own rule, was the one Leo
-## rule with no demo): a small triple and a small, a medium and a big appear in open sky; the triple
-## links (traced and collected, for nothing), and its breath rolls out over the others as a link's
-## would: the small and the medium grow, the big burns out. What's left leaves. The lion's own stars
-## don't change, and the run's heat is left as it was; its layout has its own RNG stream.
+## The Head, after its lion's stars have turned through their sizes (#149: the breath, which the
+## Head now brings before the final, was the one Leo rule with no demo): a small triple and a small,
+## a medium and a big appear in open sky; the triple links (traced and collected, for nothing), and
+## its breath rolls out over the others as a link's would: the small and the medium grow, the big
+## burns out. What's left leaves. The lion's own stars don't change, and the run's heat is left as it
+## was; its layout has its own RNG stream.
 func _breath_intro() -> void:
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ HEAT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
