@@ -211,7 +211,11 @@ func fit_screen() -> void:
 	var window: Window = get_window()
 	if window == get_tree().root:
 		window.content_scale_size = ScreenZones.fill_size(window.size)
-	var visible: Vector2 = get_viewport().get_visible_rect().size
+	fit_visible(get_viewport().get_visible_rect().size)
+
+
+## Places the game's screen in a visible area of `visible` game pixels (fit_screen's second half).
+func fit_visible(visible: Vector2) -> void:
 	var offset: Vector2i = ScreenZones.game_offset(visible)
 	($BigBang/Shake as Camera2D).position = Vector2(-offset)
 	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front, $CurrentTrialControls] as Array[CanvasLayer]:
@@ -232,6 +236,8 @@ func fit_screen() -> void:
 	_sun.position = Vector2(ScreenZones.sun_centre(_extra))
 	_hud.sun_at = ScreenZones.sun_centre(_extra)
 	_collect.light_target = ScreenZones.sun_centre(_extra)
+	# Dust lands on the icon wherever the HUD put it (a wide screen moves it out to the left).
+	_collect.dust_target = _hud.dust_icon_centre()
 
 
 ## Shows the telescope (true) or the slingshot and hands it the input; the other one hides and

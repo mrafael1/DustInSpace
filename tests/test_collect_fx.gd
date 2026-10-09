@@ -88,6 +88,17 @@ func test_targets_are_the_dust_icon_and_the_sun() -> void:
 	assert_eq(Vector2(fx.light_target), (main.get_node("Sun") as Node2D).position)
 
 
+## On a screen wider than the game the HUD moves the dust icon out; the dust follows it (#150).
+func test_dust_lands_on_the_icon_on_a_wide_screen() -> void:
+	var main: Main = preload("res://game/scenes/main.tscn").instantiate()
+	add_child_autofree(main)
+	main.fit_visible(Vector2(240, 320))
+	var fx: CollectParticles = main.get_node("CollectParticles")
+	var icon: Vector2 = (main.get_node("HUD/DustIcon") as Node2D).position
+	assert_ne(icon, Vector2(Hud.DUST_ICON_AT), "the icon moved out")
+	assert_eq(Vector2(fx.dust_target), icon)
+
+
 func test_a_new_run_drops_the_particles_in_the_air() -> void:
 	_link_sequence()
 	sequencer.advance(0.0)
