@@ -671,8 +671,9 @@ static func virgo_wheat() -> StarMap:
 static func virgo_final() -> StarMap:
 	var map: StarMap = virgo()
 	map.id = "virgo_final"
-	# Its arrival is its intro: the binding was shown on the Wing and the Feet.
-	map.intros = false
+	# Its arrival is its intro (RunState.maiden_arrived): the binding was shown on the Wing and the
+	# Feet, so it acts the rule out in a few beats instead.
+	map.intros = true
 	map.harvest = true
 	map.harvest_binds = true
 	map.harvest_ties = true

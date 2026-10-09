@@ -43,6 +43,11 @@ const BLAZE_FLASH: float = 0.08
 const BLAZE_EMBER: float = 0.24
 const ROAR_TIME: float = 0.4
 const ROAR_FLASH: float = 0.08
+## Virgo's final arrives (play_binding, #149): the same walk out from the lit head along the strings,
+## each star catching C0 then staying harvest gold (C1), bound, until the whole maiden has been gold
+## for BIND_HOLD; no roar. Then each shows as itself.
+const BIND_GOLD: Color = Palette.C1
+const BIND_HOLD: float = 0.4
 ## The outline stops this far short of each landmark, so the stars stay clear.
 const LANDMARK_CLEAR: int = 5
 ## A string still to form: one pixel in OUTLINE_STEP.
@@ -124,6 +129,8 @@ var _cropping: Dictionary[int, float] = {}
 ## Leo's final arriving: seconds into the blaze (-1: none), and the order its stars catch fire in.
 var _blaze_time: float = -1.0
 var _blaze_order: Array[int] = []
+## The blaze binds (Virgo's gold walk, no roar) rather than burns.
+var _binding: bool = false
 var _preview_strings: Array[int] = []
 var _flash_landmark: int = -1
 var _flash_string: int = -1
@@ -186,6 +193,7 @@ func setup(run: RunState) -> void:
 	_resizing.clear()
 	_cropping.clear()
 	_blaze_time = -1.0
+	_binding = false
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
 		_shown_sizes.assign(run.scorpio.map.sizes)
@@ -485,9 +493,9 @@ func advance(delta: float) -> void:
 		for k: int in _blaze_order.size():
 			if before < k * BLAZE_STEP and _blaze_time >= k * BLAZE_STEP:
 				blaze_lit.emit(k)
-		if before < roar_at(_map()) and _blaze_time >= roar_at(_map()):
+		if not _binding and before < roar_at(_map()) and _blaze_time >= roar_at(_map()):
 			roared.emit()
-		if _blaze_time >= blaze_time(_map()):
+		if _blaze_time >= (binding_time(_map()) if _binding else blaze_time(_map())):
 			_blaze_time = -1.0
 		redraw = true
 	for index: int in _resizing.keys():
@@ -660,13 +668,14 @@ func _draw_landmark(index: int) -> void:
 	var size: int = shown_size(index)
 	var at: Vector2i = _map().landmarks[index]
 	if _blaze_time >= 0.0:
-		at += Motion.shake(blaze_shake(_blaze_time, _map()))
+		if not _binding:
+			at += Motion.shake(blaze_shake(_blaze_time, _map()))
 		var blaze: int = blaze_stage(index)
 		if blaze >= 0:
-			# Dark before it catches fire, then C0, then ember.
+			# Dark before it catches fire, then C0, then ember (or, binding, harvest gold).
 			var art: Dictionary = _art[size][3 if blaze == 0 else 0]
 			for d: Vector2i in art:
-				_dot(at + d, art[d] if blaze == 0 else (Palette.C0 if blaze == 1 else Palette.S4))
+				_dot(at + d, art[d] if blaze == 0 else (Palette.C0 if blaze == 1 else (BIND_GOLD if _binding else Palette.S4)))
 			return
 	if _resizing.has(index) and _resizing[index][2] >= 0.0 and not shows_lit(index):
 		_draw_resizing(index, size, at)
@@ -717,8 +726,23 @@ func _draw_resizing(index: int, size: int, at: Vector2i) -> void:
 func play_blaze() -> float:
 	_blaze_order = blaze_order(_map())
 	_blaze_time = 0.0
+	_binding = false
 	queue_redraw()
 	return blaze_time(_map())
+
+
+## Virgo's final arrives: the maiden's stars turn gold one by one outward from her lit head along
+## the strings (bound to it), hold, then show as themselves. Returns how long it plays.
+func play_binding() -> float:
+	_blaze_order = blaze_order(_map())
+	_blaze_time = 0.0
+	_binding = true
+	queue_redraw()
+	return binding_time(_map())
+
+
+static func binding_time(map: StarMap) -> float:
+	return roar_at(map) + BIND_HOLD
 
 
 func is_blazing() -> bool:
@@ -758,6 +782,11 @@ static func blaze_shake(t: float, map: StarMap) -> Vector2i:
 ## -1 itself.
 func blaze_stage(index: int) -> int:
 	var roar: float = _blaze_time - roar_at(_map())
+	if _binding:
+		var age_bound: float = _blaze_time - _blaze_order.find(index) * BLAZE_STEP
+		if age_bound < 0.0:
+			return 0
+		return 1 if age_bound < BLAZE_FLASH else 2
 	if roar >= 0.0:
 		var beat: int = floori(roar / ROAR_FLASH)
 		return 1 if roar < ROAR_TIME and beat % 2 == 0 and beat < 4 else -1

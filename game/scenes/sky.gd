@@ -99,6 +99,8 @@ var _rekindle_landmark: int = -1
 ## Scorpio: the completion tune waits for the payouts still flying.
 var _payouts: CollectParticles
 var _completion_waiting: bool = false
+## Virgo's final: the sweep that comes next is its arrival's (its title card follows).
+var _arrival_sweep: bool = false
 
 @onready var _constellation: ConstellationView = $ConstellationLayer
 @onready var _halo_layer: Node2D = $HaloLayer
@@ -146,6 +148,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_clear()
 	_completion_waiting = false
 	_rekindle_landmark = -1
+	_arrival_sweep = false
 	_constellation.setup(run)
 	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.sky_rect)
 	if run.volley != null:
@@ -366,8 +369,15 @@ func _play_current_event(event: EventSequencer.RunEvent) -> bool:
 ## Virgo's events: the harvest, the binding and their intro. True if `event` was one.
 func _play_harvest_event(event: EventSequencer.RunEvent) -> bool:
 	match event.type:
+		&"maiden_arrived":
+			_arrival_sweep = true
+			_sequencer.hold(_constellation.play_binding())
 		&"harvested":
 			_reap(event.args[0])
+			if _arrival_sweep:
+				# Virgo's final's arrival: play waits for the title card after the sweep to go too.
+				_arrival_sweep = false
+				_sequencer.hold(HarvestView.SWEEP_TIME + Hud.ARRIVAL_TIME)
 		&"landmarks_unbound":
 			_put_out(event.args[0])
 		&"harvest_intro_ended":
