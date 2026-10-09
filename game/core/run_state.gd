@@ -779,10 +779,11 @@ func link(star_ids: Array[int]) -> String:
 		if scorpio.is_complete():
 			constellation_completed.emit()
 	# Orion: a link that left his mark behind has the arrow take it (a clear took it already), before
-	# the loss check sees the sky. Then he marks a new star if the run goes on. On the Claws (#74) he
-	# also looses volleys: the single arrow flies first, so the mark is always settled (saved or shot)
-	# before the volley picks its victims, and the new mark comes after both: a volley never takes a
-	# marked star, and no star is hit twice. Saving the mark doesn't touch the volley's count.
+	# the loss check sees the sky. Then he marks a new star if the run goes on. On the final he also
+	# looses volleys (the Claws had them too, until #97): the single arrow flies first, so the mark is
+	# always settled (saved or shot) before the volley picks its victims, and the new mark comes after
+	# both: a volley never takes a marked star, and no star is hit twice. Saving the mark doesn't touch
+	# the volley's count.
 	# The lion breathes (its final): the link stokes the heat, once the Sun has rekindled (and
 	# cleared the sky) or not; the link that completes it doesn't.
 	if heat != null and scorpio != null and scorpio.map.heat_on_links and not scorpio.is_complete():
