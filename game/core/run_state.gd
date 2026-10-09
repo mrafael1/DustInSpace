@@ -580,7 +580,7 @@ func launch(target: Vector2i) -> bool:
 	# arrow is about to take.
 	if hunt != null:
 		_hunt_strike()
-		area_marked.emit(hunt.mark(sky_rect, stars), hunt.radius)
+		area_marked.emit(hunt.mark(sky_rect, stars, _unlit_positions()), hunt.radius)
 		if encounter != null and encounter.area_marked():
 			encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null and not orion.has_target():
@@ -1533,7 +1533,7 @@ func play_hunt_intro() -> void:
 		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ Hunt.SEED_SALT ^ LAYOUT_SEED_SALT
-	var centre: Vector2i = hunt.mark(sky_rect)
+	var centre: Vector2i = hunt.mark(sky_rect, [] as Array[Star], _unlit_positions())
 	var placed: Array[Star] = _hunt_intro_stars(balance.hunt_intro_stars, centre, layout)
 	hunt_intro_placed.emit(placed)
 	area_marked.emit(centre, hunt.radius)
@@ -1571,6 +1571,14 @@ func link_fires_volley(star_ids: Array[int]) -> bool:
 		if scorpio.is_landmark(id):
 			lit[Scorpio.landmark_index(id)] = true
 	return lit.has(false)
+
+
+## Where the constellation stars still to light stand (Orion's circle keeps off them where it can).
+func _unlit_positions() -> Array[Vector2i]:
+	var positions: Array[Vector2i] = []
+	for star: Star in scorpio.unlit_stars():
+		positions.append(star.position)
+	return positions
 
 
 ## Orion's hunting area: the arrow strikes the marked circle (none on the first launch) and every
