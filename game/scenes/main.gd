@@ -71,6 +71,8 @@ var _extra: int = 0
 var _paused: Dictionary[Node, Node.ProcessMode] = {}
 ## The app went to the background mid-sequence: the pause menu opens once the sequence ends.
 var _pause_pending: bool = false
+## True while the background opens the pause menu: no one is there to hear its cue.
+var _background_pause: bool = false
 
 
 func _ready() -> void:
@@ -297,7 +299,9 @@ func pause_for_background() -> void:
 	if _sequencer.is_busy():
 		_pause_pending = true
 		return
+	_background_pause = true
 	_hud.open_pause()
+	_background_pause = false
 
 
 ## A fresh run on the current run's balance (the end screen's or the pause menu's RESTART).
@@ -325,6 +329,11 @@ func _wire_sound() -> void:
 	_telescope.launch_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_telescope.planet_seated.connect(func(_kind: String) -> void: _sfx.play(&"pack_load", 1.5))
 	_sky.star_selected.connect(_sfx.on_star_selected)
+	# The pause menu and the COMBOS table answer like the options panel.
+	_hud.pause_opened.connect(_on_panel_opened)
+	_hud.table_opened.connect(_on_panel_opened)
+	_hud.pause_closed.connect(_sfx.play.bind(&"pull_cancel", 1.0))
+	_hud.table_closed.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.link_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_sky.star_exploded.connect(_on_star_exploded)
@@ -383,6 +392,11 @@ func _wire_playtest_log() -> void:
 	_telescope.launch_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("launch"))
 	_sky.link_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
 	_sky.step_refused.connect(func(..._args: Array) -> void: _playtest_log.refused("link"))
+
+
+func _on_panel_opened() -> void:
+	if not _background_pause:
+		_sfx.play(&"pack_load", 1.5)
 
 
 func _on_sequence_finished() -> void:
