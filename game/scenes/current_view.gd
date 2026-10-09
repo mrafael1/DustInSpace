@@ -86,6 +86,13 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+## Shows the water flowing by `displacement` until the events have played (the current intro's turns:
+## the core's own flow hasn't moved).
+func show_flow(displacement: Vector2i) -> void:
+	_shown_flow = displacement
+	queue_redraw()
+
+
 ## Plays a star's extinction where it crossed the drain, at `at` (the edge point it left by).
 ## `way`: the way it was flowing (a turning flow may already have turned; ZERO: the flow's now).
 func flash_drain(at: Vector2i, way: Vector2i = Vector2i.ZERO) -> void:

@@ -43,8 +43,8 @@ var volley: String = ""
 ## and destroys the loose stars inside, then he marks a new one.
 var hunt: bool = false
 ## Whether the stage opens by playing its threats' intros (the volley's, the hunting area's, Leo's
-## heat or cold's). The
-## Claws (#74) bring threats each earlier stage already introduced, so they open without one.
+## heat or cold's, Aquarius's flow). The Claws (#74) bring threats each earlier stage already
+## introduced, so they open without one; so do Aquarius's Legs (the Body's drain again).
 var intros: bool = true
 ## The chapter's boss stage (the final): Orion opens it by showing himself and fights for the sky.
 ## Presentation only; the threats above are its rules.
@@ -159,6 +159,8 @@ static func aquarius_flow(enabled: bool = true) -> StarMap:
 	map.id = "current_aquarius" if enabled else "current_aquarius_off"
 	map.title = "AQUARIUS FLOW" if enabled else "AQUARIUS OFF"
 	map.painting = PART_PAINTING % "tail"
+	# A plain trial: no opening demo of the flow.
+	map.intros = false
 	if not enabled:
 		map.current_region = Rect2i()
 		map.current_drains = false
@@ -179,7 +181,6 @@ static func aquarius_hand() -> StarMap:
 	map.sizes = [Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
 	map.starting_lit = [0]
 	map.painting = AQUARIUS_PART % "hand"
-	map.intros = false
 	map.current_region = _full_height_from(72)
 	return map
 
@@ -200,7 +201,6 @@ static func aquarius_body() -> StarMap:
 	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
 	map.starting_lit = [0]
 	map.painting = AQUARIUS_PART % "body"
-	map.intros = false
 	map.current_region = _full_height_from(48)
 	map.current_drains = true
 	return map
@@ -240,7 +240,6 @@ static func aquarius_stream() -> StarMap:
 	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
 	map.starting_lit = [0]
 	map.painting = AQUARIUS_PART % "stream"
-	map.intros = false
 	map.current_region = Rect2i(16, Scorpio.HOME_SKY.position.y, 148, 200 - Scorpio.HOME_SKY.position.y)
 	map.current_drains = true
 	map.current_direction = Vector2i.DOWN
@@ -262,7 +261,6 @@ static func aquarius_jar() -> StarMap:
 	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL]
 	map.starting_lit = [0]
 	map.painting = AQUARIUS_PART % "jar"
-	map.intros = false
 	map.current_region = Rect2i(24, Scorpio.HOME_SKY.position.y, 132, Scorpio.HOME_SKY.size.y)
 	map.current_drains = true
 	map.current_turns = [Vector2i.LEFT, Vector2i.RIGHT]
@@ -277,7 +275,6 @@ static func aquarius_jar() -> StarMap:
 static func aquarius_final() -> StarMap:
 	var map: StarMap = aquarius()
 	map.id = "aquarius_final"
-	map.intros = false
 	map.current_region = Rect2i(20, 96, 140, 132)
 	map.current_drains = true
 	map.current_turns = [Vector2i.LEFT, Vector2i.DOWN, Vector2i.RIGHT, Vector2i.UP]
