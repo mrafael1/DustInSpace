@@ -132,6 +132,10 @@ signal current_intro_cleared(stars: Array[Star])
 ## Leo's final opened: the lion arrives (it catches fire star by star, roars, and its title card
 ## shows) before play starts. Presentation only.
 signal lion_arrived
+## Virgo's final opened (#149: the only final with no entrance): the maiden's stars bind outward from
+## her lit head along the strings, then the scythe sweeps the empty sky once (harvested follows), then
+## her title card shows, before play starts. Presentation only.
+signal maiden_arrived
 ## The lion breathed (Leo's final): a successful link at `at` (its stars' centre) stoked the heat,
 ## which changed `changes` at once, loose stars and the constellation stars still to light alike
 ## (theirs have landmark ids). A lost loose star burned out; a big constellation star came back
@@ -1518,6 +1522,10 @@ static func _line_of(spots: Array[Vector2i], across: Vector2i) -> int:
 ## intros, or once the run has begun.
 func play_harvest_intro() -> void:
 	if harvest == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	if scorpio.map.arrival_epithet != "":
+		maiden_arrived.emit()
+		harvested.emit([] as Array[Star])
 		return
 	if harvest.quickens:
 		_quickening_intro()

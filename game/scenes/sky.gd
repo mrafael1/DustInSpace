@@ -106,6 +106,8 @@ var _sweep_cut: Array[int] = []
 var _swept: Dictionary[int, bool] = {}
 ## Calls waiting for the blade to reach their star (_after), dropped by a new run.
 var _waiting: Array[Tween] = []
+## Virgo's final: the sweep that comes next is its arrival's (its title card follows).
+var _arrival_sweep: bool = false
 
 @onready var _constellation: ConstellationView = $ConstellationLayer
 @onready var _halo_layer: Node2D = $HaloLayer
@@ -159,6 +161,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	for tween: Tween in _waiting:
 		tween.kill()
 	_waiting.clear()
+	_arrival_sweep = false
 	_constellation.setup(run)
 	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.sky_rect, _orion_keeps_clear_of(run))
 	if run.volley != null:
@@ -389,8 +392,15 @@ func _play_harvest_event(event: EventSequencer.RunEvent) -> bool:
 			# The sweep about to play keeps and cuts these: it shows each as the blade reaches it.
 			_sweep_kept.assign(event.args[0])
 			_sweep_cut.assign(event.args[1])
+		&"maiden_arrived":
+			_arrival_sweep = true
+			_sequencer.hold(_constellation.play_binding())
 		&"harvested":
 			_reap(event.args[0])
+			if _arrival_sweep:
+				# Virgo's final's arrival: play waits for the title card after the sweep to go too.
+				_arrival_sweep = false
+				_sequencer.hold(HarvestView.SWEEP_TIME + Hud.ARRIVAL_TIME)
 		&"landmarks_unbound":
 			_put_out(event.args[0])
 		&"harvest_intro_ended":

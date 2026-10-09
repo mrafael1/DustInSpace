@@ -933,3 +933,60 @@ func test_an_ear_reads_as_wheat_its_head_bent_and_its_grains_alternating() -> vo
 		assert_false(grains[y].has(-1) and grains[y].has(1), "row %d: no grain on both sides, they alternate" % y)
 	assert_true(grains.values().any(func(xs: Array) -> bool: return xs.has(-1)), "grains to the left")
 	assert_true(grains.values().any(func(xs: Array) -> bool: return xs.has(1)), "and to the right")
+
+
+func test_the_final_arrives_bound_from_her_head_then_swept_then_named() -> void:
+	# #149: Virgo's final was the only final with no entrance; it acts its rule out first.
+	var run: RunState = _run(StarMap.virgo_final())
+	var lit: Array[bool] = run.scorpio.lit.duplicate()
+	var clock: int = run.harvest.launches_left
+	var order: Array[String] = []
+	run.maiden_arrived.connect(func() -> void: order.append("arrived"))
+	run.harvested.connect(func(stars: Array[Star]) -> void:
+		order.append("swept")
+		assert_true(stars.is_empty(), "an empty sky"))
+	run.landmarks_unbound.connect(func(_i: Array[int]) -> void: order.append("out"))
+	run.play_harvest_intro()
+	assert_eq(order, ["arrived", "swept"] as Array[String])
+	assert_eq(run.scorpio.lit, lit, "presentation only: nothing lit or put out")
+	assert_eq(run.harvest.launches_left, clock, "the clock doesn't move")
+	assert_true(run.stars.is_empty())
+	var wing: RunState = _run(StarMap.virgo_wing())
+	var arrived: Array[bool] = [false]
+	wing.maiden_arrived.connect(func() -> void: arrived[0] = true)
+	wing.play_harvest_intro()
+	assert_false(arrived[0], "a part stage plays its own intro")
+
+
+func test_the_finals_card_comes_after_the_binding_and_the_sweep_and_play_waits_for_it() -> void:
+	var main: Main = _main("virgo_final")
+	var constellation: ConstellationView = main.get_node("Sky/ConstellationLayer")
+	var view: HarvestView = main.get_node("Sky/HarvestLayer")
+	var banner: BossBanner = (main.get_node("HUD") as Hud).boss_banner()
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	for node: Node in [constellation, view, banner, sequencer]:
+		node.set_process(false)
+	var head: int = main.run.scorpio.map.starting_lit[0]
+	var far: int = ConstellationView.blaze_order(main.run.scorpio.map)[-1]
+	var t: float = 0.0
+	var head_gold_at: float = -1.0
+	var far_gold_at: float = -1.0
+	var swept_at: float = -1.0
+	var card_at: float = -1.0
+	while t < 12.0 and (sequencer.is_busy() or t < 0.1):
+		for node: Node in [sequencer, constellation, view, banner]:
+			node.call("advance", 0.02)
+		t += 0.02
+		if head_gold_at < 0.0 and constellation.blaze_stage(head) == 2 and constellation.is_blazing():
+			head_gold_at = t
+		if far_gold_at < 0.0 and constellation.blaze_stage(far) == 2 and constellation.is_blazing():
+			far_gold_at = t
+		if swept_at < 0.0 and view.is_sweeping():
+			swept_at = t
+		if card_at < 0.0 and banner.is_showing():
+			card_at = t
+	assert_gt(head_gold_at, 0.0, "the head binds first")
+	assert_gt(far_gold_at, head_gold_at, "then outward, the far end last")
+	assert_gt(swept_at, far_gold_at, "then the scythe sweeps")
+	assert_gt(card_at, swept_at, "then her card")
+	assert_false(banner.is_showing(), "play starts once the card has gone")
