@@ -912,3 +912,24 @@ func test_the_reap_mark_on_a_small_star_is_a_solid_ring_a_pixel_out() -> void:
 	var preview: Dictionary[Vector2i, Color] = HarvestView.preview_pixels(run)
 	for p: Vector2i in small:
 		assert_eq(preview.get(star.position + p), Palette.S4, "the aim shows it")
+
+
+func test_an_ear_reads_as_wheat_its_head_bent_and_its_grains_alternating() -> void:
+	# #149: grains paired either side of a straight stalk read as '888'.
+	var clock := HarvestClock.new()
+	add_child_autofree(clock)
+	clock.setup(3, 3)
+	# The middle ear stands on x 0: its grains, row by row.
+	var grains: Dictionary[int, Array] = {}
+	var dots: Dictionary[Vector2i, Color] = clock.pixels()
+	for p: Vector2i in dots:
+		if absi(p.x) < HarvestClock.SPACING / 2 and dots[p] == HarvestClock.COOL_GRAIN:
+			if not grains.has(p.y):
+				grains[p.y] = []
+			grains[p.y].append(p.x)
+	var top: int = grains.keys().min()
+	assert_true(grains[top].all(func(x: int) -> bool: return x > 0), "the head bends a pixel off the stalk at its top")
+	for y: int in grains:
+		assert_false(grains[y].has(-1) and grains[y].has(1), "row %d: no grain on both sides, they alternate" % y)
+	assert_true(grains.values().any(func(xs: Array) -> bool: return xs.has(-1)), "grains to the left")
+	assert_true(grains.values().any(func(xs: Array) -> bool: return xs.has(1)), "and to the right")
