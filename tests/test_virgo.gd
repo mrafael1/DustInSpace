@@ -169,7 +169,7 @@ func test_virgos_links_pay_less_dust_from_the_wing_on() -> void:
 		var full: int = balance.combos[combo].dust
 		assert_eq(head.link_dust(combo), full, "the Head teaches the scythe alone")
 		assert_eq(leo.link_dust(combo), full, "other chapters pay in full")
-		assert_eq(wing.link_dust(combo), full * balance.harvest_link_dust_percent_for("virgo_wing") / 100)
+		assert_eq(wing.link_dust(combo), full - balance.harvest_link_dust_cut_for("virgo_wing"), "one dust off every link")
 	assert_lt(wing.link_dust("small_triple"), balance.combos["small_triple"].dust)
 
 
@@ -188,13 +188,13 @@ func test_a_link_pays_virgos_dust() -> void:
 
 func test_harvest_stages_read_from_balance_json() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
-	data["harvest"] = {"every": 3, "link_dust_percent": 80, "stages": {"virgo_head": {"every": 4, "link_dust_percent": 100}}}
+	data["harvest"] = {"every": 3, "link_dust_cut": 2, "stages": {"virgo_head": {"every": 4, "link_dust_cut": 0}}}
 	var balance: Balance = Balance.from_dict(data)
 	assert_true(balance.is_valid(), str(balance.errors))
 	assert_eq(balance.harvest_every_for("virgo_head"), 4)
-	assert_eq(balance.harvest_link_dust_percent_for("virgo_head"), 100)
+	assert_eq(balance.harvest_link_dust_cut_for("virgo_head"), 0)
 	assert_eq(balance.harvest_every_for("virgo_wing"), 3, "the default")
-	assert_eq(balance.harvest_link_dust_percent_for("virgo_wing"), 80)
+	assert_eq(balance.harvest_link_dust_cut_for("virgo_wing"), 2)
 	data["harvest"] = {"every": 0}
 	assert_false(Balance.from_dict(data).is_valid(), "a clock needs a launch")
 
@@ -324,6 +324,29 @@ func test_lighting_a_lone_star_says_the_scythe_cuts_it() -> void:
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
 	sequencer.event_played.emit(EventSequencer.RunEvent.new(&"landmark_lit", [3]))
 	assert_eq(hud.message(), Hud.LONE_MESSAGE)
+
+
+func test_tied_at_once_a_lone_star_says_the_next_launch_cuts_it() -> void:
+	# #149: on the Feet a lone star goes out after the next launch, harvest or not; naming the scythe
+	# made it sound like it would last until the harvest.
+	for map_id: String in ["virgo_feet", "virgo_final"]:
+		var main: Main = _main(map_id)
+		var run: RunState = main.run
+		var hud: Hud = main.get_node("HUD")
+		_settle(main)
+		hud.clear_message()
+		var lone: int = -1
+		for i: int in run.scorpio.map.count():
+			if not run.scorpio.is_lit(i) and not run.scorpio.map.neighbours(i).any(run.scorpio.is_lit):
+				lone = i
+				break
+		assert_gte(lone, 0, "%s: a star with no lit neighbour" % map_id)
+		run.scorpio.light(lone)
+		var sequencer: EventSequencer = main.get_node("EventSequencer")
+		sequencer.event_played.emit(EventSequencer.RunEvent.new(&"landmark_lit", [lone]))
+		assert_eq(hud.message(), Hud.LONE_TIE_MESSAGE, map_id)
+	assert_eq(Hud.lone_rule(StarHarvest.new(3, true)), Hud.LONE_MESSAGE, "at the harvest: the scythe's")
+	assert_eq(Hud.lone_rule(StarHarvest.new(3, true, false, true)), Hud.LONE_TIE_MESSAGE)
 
 
 func test_the_hint_grows_the_figure_where_the_harvest_binds() -> void:
@@ -498,9 +521,21 @@ func test_each_harvest_says_its_rule_in_a_line_that_fits() -> void:
 
 func test_the_table_shows_virgos_dust() -> void:
 	var balance: Balance = Balance.load_file()
-	var rows: Array[Dictionary] = PaytableView.rows_for(balance, 90)
+	var wing: RunState = _run(StarMap.virgo_wing())
+	var rows: Array[Dictionary] = PaytableView.rows_for(balance, balance.harvest_link_dust_cut_for("virgo_wing"))
 	for row: Dictionary in rows:
-		assert_eq(row["dust"], balance.combos[row["key"]].dust * 90 / 100)
+		assert_eq(row["dust"], wing.link_dust(row["key"]), "%s: the table says what the link pays" % row["key"])
+
+
+func test_the_cut_is_what_the_old_90_percent_share_paid() -> void:
+	# #149: the share was renamed to what it did. The shipped links pay exactly what 90% rounded down
+	# paid, so no win rate moves.
+	var balance: Balance = Balance.load_file()
+	var wing: RunState = _run(StarMap.virgo_wing())
+	for combo: String in balance.combos:
+		assert_eq(wing.link_dust(combo), balance.combos[combo].dust * 90 / 100, combo)
+	assert_eq(Balance.after_cut(1, 2), 0, "never below nothing")
+	assert_eq(Balance.after_cut(5, 0), 5)
 
 
 func _main(map_id: String) -> Main:
@@ -587,7 +622,7 @@ func test_a_quickening_clock_loses_an_ear_each_harvest() -> void:
 func test_the_twists_say_their_rules() -> void:
 	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, false, true)), Hud.TIE_MESSAGE)
 	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, true)), Hud.QUICKEN_MESSAGE)
-	for text: String in [Hud.TIE_MESSAGE, Hud.QUICKEN_MESSAGE, Hud.LONE_MESSAGE, Hud.BIND_MESSAGE]:
+	for text: String in [Hud.TIE_MESSAGE, Hud.QUICKEN_MESSAGE, Hud.LONE_MESSAGE, Hud.LONE_TIE_MESSAGE, Hud.BIND_MESSAGE]:
 		for line: String in text.split("\n"):
 			assert_lte(line.length(), 22, line)
 
@@ -676,3 +711,225 @@ func test_the_wheats_clock_shows_the_lost_ear_and_says_the_rule() -> void:
 			periods.append(period)
 	assert_eq(periods, [3, 2, 3] as Array[int], "the clock loses an ear, then shows as the run starts")
 	assert_eq(hud.message(), Hud.QUICKEN_MESSAGE)
+
+
+# --- #149: the binding shown at decision time ------------------------------------------------
+
+## An unlit constellation star of the Wing next to the lit figure (joined) and one with no lit
+## neighbour (alone): [joined, alone].
+func _joined_and_alone(run: RunState) -> Array[int]:
+	var joined: int = -1
+	var alone: int = -1
+	for i: int in run.scorpio.map.count():
+		if run.scorpio.is_lit(i):
+			continue
+		if run.scorpio.map.neighbours(i).any(run.scorpio.is_lit):
+			joined = i if joined < 0 else joined
+		elif alone < 0:
+			alone = i
+	return [joined, alone]
+
+
+## Two sky stars of constellation star `index`'s size beside it and its id: a valid link lighting it.
+func _link_lighting(run: RunState, index: int) -> Array[int]:
+	var at: Vector2i = run.scorpio.landmark_position(index)
+	var size: Star.Size = run.scorpio.map.sizes[index] as Star.Size
+	var a: Star = run.add_star(size, at + Vector2i(-14, 12))
+	var b: Star = run.add_star(size, at + Vector2i(14, 12))
+	return [a.id, Scorpio.landmark_id(index), b.id] as Array[int]
+
+
+func test_a_link_that_would_light_a_star_alone_says_which_before_its_made() -> void:
+	var run: RunState = _run(StarMap.virgo_wing())
+	var pair: Array[int] = _joined_and_alone(run)
+	assert_gte(pair[0], 0)
+	assert_gte(pair[1], 0)
+	var joining: Array[int] = _link_lighting(run, pair[0])
+	var lone: Array[int] = _link_lighting(run, pair[1])
+	assert_ne(run.combo_for(joining), Combos.INVALID)
+	assert_ne(run.combo_for(lone), Combos.INVALID)
+	assert_eq(run.link_lights_alone(joining), -1, "next to the lit figure: safe")
+	assert_eq(run.link_lights_alone(lone), pair[1], "with no lit neighbour: alone")
+	assert_eq(run.link_lights_alone(lone.slice(0, 2)), -1, "not a full link yet")
+	run.link(lone)
+	assert_true(run.loose_landmarks().has(pair[1]), "and lit, it is alone, as said")
+	var head: RunState = _run(StarMap.virgo_head())
+	var far: int = _joined_and_alone(head)[1]
+	if far >= 0:
+		assert_eq(head.link_lights_alone(_link_lighting(head, far)), -1, "the scythe alone doesn't bind")
+
+
+func test_tracing_a_link_that_lights_a_star_alone_rings_it_until_the_link_ends() -> void:
+	var main: Main = _main("virgo_wing")
+	_settle(main)
+	var run: RunState = main.run
+	var sky: SkyView = main.get_node("Sky")
+	var view: HarvestView = main.get_node("Sky/HarvestLayer")
+	var alone: int = _joined_and_alone(run)[1]
+	var ids: Array[int] = _link_lighting(run, alone)
+	sky.setup(run, main.get_node("EventSequencer"))
+	(main.get_node("Telescope") as Telescope).cancel_aim()
+	var points: Array[Vector2i] = []
+	for id: int in ids:
+		points.append(run.scorpio.landmark_position(Scorpio.landmark_index(id)) if run.scorpio.is_landmark(id) else run.find_star(id).position)
+	var press := InputEventScreenTouch.new()
+	press.position = Vector2(points[0])
+	press.pressed = true
+	sky.handle_pointer(press)
+	for p: Vector2i in points.slice(1):
+		var drag := InputEventScreenDrag.new()
+		drag.position = Vector2(p)
+		sky.handle_pointer(drag)
+	assert_eq(view.tracing_alone, alone, "the traced link would light it alone")
+	var ring: int = 0
+	var dots: Dictionary[Vector2i, Color] = view.pixels()
+	for p: Vector2i in HarvestView.lone_ring_pixels(run.scorpio.landmark_position(alone), run.scorpio.map.sizes[alone], 0.0):
+		ring += int(dots.get(p) in [Palette.S4, Palette.S3])
+	assert_gt(ring, 12, "its ember ring shows before the link is made")
+	var release := InputEventScreenTouch.new()
+	release.position = Vector2(points[-1])
+	release.pressed = false
+	sky.handle_pointer(release)
+	assert_eq(view.tracing_alone, -1, "the link made: the preview goes (the lit star's own ring takes over)")
+
+
+# --- #149: the sweep cuts and keeps as the blade reaches each star ---------------------------
+
+## On the Wing: [an unlit star next to the lit figure, one with no lit neighbour nor next to that
+## one, so it stays alone with both lit].
+func _one_joined_one_alone(run: RunState) -> Array[int]:
+	var joined: int = -1
+	for i: int in run.scorpio.map.count():
+		if not run.scorpio.is_lit(i) and run.scorpio.map.neighbours(i).any(run.scorpio.is_lit):
+			joined = i
+			break
+	for i: int in run.scorpio.map.count():
+		var near: Array[int] = run.scorpio.map.neighbours(i)
+		if not run.scorpio.is_lit(i) and i != joined and not near.has(joined) and not near.any(run.scorpio.is_lit):
+			return [joined, i]
+	return [joined, -1]
+
+
+func test_the_harvest_says_what_it_keeps_and_cuts_before_the_blade_sweeps() -> void:
+	var run: RunState = _run(StarMap.virgo_wing())
+	var pair: Array[int] = _one_joined_one_alone(run)
+	run.scorpio.light(pair[0])
+	run.scorpio.light(pair[1])
+	var order: Array[String] = []
+	var bound: Array = []
+	run.harvest_bound.connect(func(kept: Array[int], cut: Array[int]) -> void:
+		order.append("bound")
+		bound.append([kept, cut]))
+	run.harvested.connect(func(_stars: Array[Star]) -> void: order.append("sweep"))
+	run.landmarks_unbound.connect(func(_indices: Array[int]) -> void: order.append("out"))
+	_launch_until_harvest_next(run)
+	assert_true(order.is_empty(), "nothing before the harvest launch")
+	Fixtures.launch(run, Vector2i(90, 150))
+	assert_eq(order, ["bound", "sweep", "out"] as Array[String])
+	assert_eq(bound[0][0], [pair[0]] as Array[int], "it keeps the star joined to the figure")
+	assert_eq(bound[0][1], [pair[1]] as Array[int], "and cuts the lone one")
+	var head: RunState = _run(StarMap.virgo_head())
+	var none: Array[int] = [0]
+	head.harvest_bound.connect(func(_kept: Array[int], _cut: Array[int]) -> void: none[0] += 1)
+	for i: int in head.harvest.every:
+		Fixtures.launch(head, Vector2i(90, 150))
+	assert_eq(head.harvest.launches_left, head.harvest.every, "it harvested")
+	assert_eq(none[0], 0, "the scythe alone binds nothing")
+
+
+func test_the_blade_crops_and_glints_each_star_as_it_reaches_it() -> void:
+	var main: Main = _main("virgo_wing")
+	_settle(main)
+	var run: RunState = main.run
+	var sky: SkyView = main.get_node("Sky")
+	var view: HarvestView = main.get_node("Sky/HarvestLayer")
+	var constellation: ConstellationView = main.get_node("Sky/ConstellationLayer")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var pair: Array[int] = _one_joined_one_alone(run)
+	for index: int in pair:
+		run.scorpio.light(index)
+	sky.setup(run, sequencer)
+	run.dust = 100
+	run.owned_packs["blue"] = 20
+	_launch_until_harvest_next(run)
+	_settle(main)
+	var alone_at: Vector2i = run.scorpio.landmark_position(pair[1])
+	var kept_at: Vector2i = run.scorpio.landmark_position(pair[0])
+	var ring: Array[Vector2i] = HarvestView.lone_ring_pixels(alone_at, run.scorpio.map.sizes[pair[1]], 0.0).keys()
+	assert_true(view.pixels().has(ring[0]), "the lone star wears its ring before the launch")
+	for node: Node in [view, constellation, sequencer]:
+		node.set_process(false)
+	# The intro's sweep and crop play out first (only the sequencer was driven so far).
+	view.advance(2.0)
+	constellation.advance(2.0)
+	assert_false(view.is_sweeping())
+	Fixtures.launch(run, Vector2i(90, 150))
+	# Play the launch up to the sweep.
+	var t: float = 0.0
+	while not view.is_sweeping() and t < 5.0:
+		for node: Node in [sequencer, view, constellation]:
+			node.call("advance", 0.02)
+		t += 0.02
+	assert_true(view.is_sweeping(), "the blade sweeps")
+	var cut_at: float = view.cut_delay(alone_at.x)
+	var kept_glint: float = view.cut_delay(kept_at.x)
+	var swept: float = 0.0
+	var ring_seen_mid_launch: bool = false
+	var cropped_at: float = -1.0
+	var glinted_at: float = -1.0
+	while swept < HarvestView.SWEEP_TIME + HarvestView.CROP_TIME:
+		ring_seen_mid_launch = ring_seen_mid_launch or view.pixels().has(ring[0])
+		if cropped_at < 0.0 and constellation.is_cropping(pair[1]):
+			cropped_at = swept
+		if glinted_at < 0.0 and view.pixels().has(kept_at + Vector2i(6, 0)):
+			glinted_at = swept
+		for node: Node in [sequencer, view, constellation]:
+			node.call("advance", 0.02)
+		swept += 0.02
+	assert_true(ring_seen_mid_launch, "the ring stays on through the launch until the cut")
+	assert_almost_eq(cropped_at, cut_at, 0.05, "cut as the blade reaches its column, not after the sweep")
+	assert_almost_eq(glinted_at, kept_glint, 0.05, "the joined star glints gold as the blade passes it")
+	assert_false(constellation.shows_lit(pair[1]), "put out")
+	assert_true(constellation.shows_lit(pair[0]), "kept")
+
+
+func test_the_reap_mark_on_a_small_star_is_a_solid_ring_a_pixel_out() -> void:
+	# #149: dotted S4 right on the small's own orange vanished; smalls are the commonest draw.
+	var small: Array[Vector2i] = HarvestView.reap_pixels(Star.Size.SMALL)
+	var outline: Array[Vector2i] = StarView.outline_pixels(Star.Size.SMALL)
+	assert_gte(small.size(), outline.size(), "a whole ring, round the outline")
+	for p: Vector2i in small:
+		assert_false(outline.has(p), "a pixel's gap between it and the star")
+		assert_true(outline.any(func(o: Vector2i) -> bool: return (o - p).length_squared() == 1), "hugging the gap")
+	for size: int in [Star.Size.MEDIUM, Star.Size.BIG]:
+		var dotted: Array[Vector2i] = HarvestView.reap_pixels(size)
+		for p: Vector2i in dotted:
+			assert_true(StarView.outline_pixels(size as Star.Size).has(p), "medium and big keep their dotted outline")
+			assert_eq((p.x + p.y) % 2, 0)
+	var run: RunState = _run(StarMap.virgo_head())
+	_launch_until_harvest_next(run)
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(40, 120))
+	var preview: Dictionary[Vector2i, Color] = HarvestView.preview_pixels(run)
+	for p: Vector2i in small:
+		assert_eq(preview.get(star.position + p), Palette.S4, "the aim shows it")
+
+
+func test_an_ear_reads_as_wheat_its_head_bent_and_its_grains_alternating() -> void:
+	# #149: grains paired either side of a straight stalk read as '888'.
+	var clock := HarvestClock.new()
+	add_child_autofree(clock)
+	clock.setup(3, 3)
+	# The middle ear stands on x 0: its grains, row by row.
+	var grains: Dictionary[int, Array] = {}
+	var dots: Dictionary[Vector2i, Color] = clock.pixels()
+	for p: Vector2i in dots:
+		if absi(p.x) < HarvestClock.SPACING / 2 and dots[p] == HarvestClock.COOL_GRAIN:
+			if not grains.has(p.y):
+				grains[p.y] = []
+			grains[p.y].append(p.x)
+	var top: int = grains.keys().min()
+	assert_true(grains[top].all(func(x: int) -> bool: return x > 0), "the head bends a pixel off the stalk at its top")
+	for y: int in grains:
+		assert_false(grains[y].has(-1) and grains[y].has(1), "row %d: no grain on both sides, they alternate" % y)
+	assert_true(grains.values().any(func(xs: Array) -> bool: return xs.has(-1)), "grains to the left")
+	assert_true(grains.values().any(func(xs: Array) -> bool: return xs.has(1)), "and to the right")

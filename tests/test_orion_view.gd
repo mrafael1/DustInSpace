@@ -33,6 +33,36 @@ func before_each() -> void:
 		node.set_process(false)
 
 
+func test_a_landmarks_cue_corner_gives_way_to_the_crosshair_beside_it() -> void:
+	# #149: the crosshair's ember ticks ran into a landmark's ember brackets and read as one shape.
+	var constellation: ConstellationView = main.get_node("Sky/ConstellationLayer")
+	var index: int = 1
+	assert_false(run.scorpio.is_lit(index))
+	var at: Vector2i = run.scorpio.landmark_position(index)
+	assert_eq(constellation.shown_cue(index).size(), 12, "four corners while nothing is marked")
+	# A small star marked up-left of it: its crosshair's right tick runs into the upper-left corner.
+	var corner: int = StarView.half_extent(run.scorpio.map.sizes[index] as Star.Size) + ConstellationView.CUE_GAP
+	var star: Star = run.add_star(Star.Size.SMALL, at + Vector2i(-corner - 7, -corner))
+	run.orion.target = star.id
+	var cue: Array[Vector2i] = constellation.shown_cue(index)
+	assert_eq(cue.size(), 9, "only the corner by the crosshair gives way: it still reads as one to light")
+	for d: Vector2i in cue:
+		for lock: int in 2:
+			for r: Vector2i in OrionView.reticle_pixels(star.size, lock):
+				var gap: Vector2i = (at + d) - (star.position + r)
+				assert_gt(maxi(absi(gap.x), absi(gap.y)), ConstellationView.CUE_RETICLE_CLEAR, "a corner pixel by the crosshair")
+	run.orion.target = 0
+	assert_eq(constellation.shown_cue(index).size(), 12, "back once the mark goes")
+
+
+func test_a_cue_far_from_the_mark_keeps_every_corner() -> void:
+	var reticle: Array[Vector2i] = []
+	for r: Vector2i in OrionView.reticle_pixels(Star.Size.SMALL):
+		reticle.append(Vector2i(40, 40) + r)
+	assert_eq(ConstellationView.cue_pixels_clear_of(Star.Size.MEDIUM, Vector2i(120, 120), reticle).size(), 12)
+	assert_eq(ConstellationView.cue_pixels_clear_of(Star.Size.MEDIUM, Vector2i(120, 120), [] as Array[Vector2i]).size(), 12)
+
+
 func test_the_figure_shows_only_where_orion_hunts() -> void:
 	assert_true(orion.is_figure_shown())
 	assert_false(orion.figure_pixels().is_empty())
