@@ -79,6 +79,13 @@ const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's first hunting area of a run (#71) says what the ring means.
 const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
+## Each threat's own line above the launcher, said at its first mark or circle of a run. Left unsaid
+## while the threat's guided encounter says it at the top of the sky (#149: two lines saying one
+## thing at once split the player's attention while the hand acts).
+const THREAT_MESSAGES: Dictionary = {
+	Encounter.Threat.MARK: ORION_MESSAGE,
+	Encounter.Threat.HUNT: HUNT_MESSAGE,
+}
 ## A current's rule, said once a run as the player first aims (#128: before the first launch is
 ## committed; revisits and retries hear it again, it's short): it moves stars; where it drains,
 ## that it takes the stars it carries past its edge; a tide or box, that it turns and drains.
@@ -102,6 +109,9 @@ const BIND_MESSAGE: String = "LIGHT STARS NEXT TO\nLIT ONES OR LOSE THEM"
 const TIE_MESSAGE: String = "LONE LIT STARS GO OUT\nAFTER EVERY LAUNCH"
 ## Said when the player lights a star alone (not next to the lit figure), at most once a while.
 const LONE_MESSAGE: String = "THIS STAR IS ALONE\nTHE SCYTHE CUTS IT"
+## Tied at once (the Feet, the final), a lone star goes out after the very next launch, scythe or
+## not (#149: naming the scythe made it sound like it would last until the harvest).
+const LONE_TIE_MESSAGE: String = "THIS STAR IS ALONE\nNEXT LAUNCH CUTS IT"
 const LONE_QUIET: float = 12.0
 const QUICKEN_MESSAGE: String = "THE SCYTHE COMES\nSOONER EACH HARVEST"
 ## Virgo's clock sits this far below the Sun's centre.
@@ -350,12 +360,18 @@ func tell_current_rule() -> void:
 	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links), RULE_MESSAGE_TIME, true)
 
 
-## Bound sheaves: a constellation star just lit alone says the scythe will cut it (once a while).
+## Bound sheaves: a constellation star just lit alone says it will be cut, and when (once a while).
 func _tell_lone(index: int) -> void:
 	if _run == null or not _run.loose_landmarks().has(index) or _lone_quiet > 0.0:
 		return
 	_lone_quiet = LONE_QUIET
-	show_message(LONE_MESSAGE, RULE_MESSAGE_TIME, true)
+	show_message(lone_rule(_run.harvest), RULE_MESSAGE_TIME, true)
+
+
+## What a lone lit star's line says: the scythe cuts it at the harvest, or, tied at once, the next
+## launch does.
+static func lone_rule(harvest: StarHarvest) -> String:
+	return LONE_TIE_MESSAGE if harvest.ties else LONE_MESSAGE
 
 
 ## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,
@@ -431,7 +447,7 @@ func explain_refusal(reason: RunState.PickRefusal) -> void:
 func open_table() -> void:
 	if _run == null or _table.is_open():
 		return
-	_table.open(_run.balance, _run.balance.harvest_link_dust_percent_for(_run.scorpio.map.id) if _run.harvest != null else 100)
+	_table.open(_run.balance, _run.balance.harvest_link_dust_cut_for(_run.scorpio.map.id) if _run.harvest != null else 0)
 	_hold(_table)
 	table_opened.emit()
 
@@ -720,14 +736,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			tell_current_rule()
 			return
 		&"star_marked":
-			if not _orion_told:
-				_orion_told = true
-				show_message(ORION_MESSAGE, ORION_MESSAGE_TIME, true)
+			_tell_threat(Encounter.Threat.MARK)
 			return
 		&"area_marked":
-			if not _orion_told:
-				_orion_told = true
-				show_message(HUNT_MESSAGE, ORION_MESSAGE_TIME, true)
+			_tell_threat(Encounter.Threat.HUNT)
 			return
 		_:
 			return
@@ -851,6 +863,18 @@ func _finger_lift() -> int:
 	return launch_finger_lift.call() if launch_finger_lift.is_valid() else 0
 
 
+## Orion's first mark or circle of a run says what it means above the launcher (once a run), unless
+## the threat's guided encounter is saying it at the top of the sky right now (the Tail's first mark).
+## The Heart's intro still captions its demo: its encounter only guides from the first real circle.
+func _tell_threat(threat: Encounter.Threat) -> void:
+	if _orion_told:
+		return
+	_orion_told = true
+	if _run.encounter != null and _run.encounter.threat == threat and _run.encounter.is_guiding():
+		return
+	show_message(THREAT_MESSAGES[threat], ORION_MESSAGE_TIME, true)
+
+
 ## An Orion threat's guided encounter (#93): its line at the top of the sky and the hand at what it's
 ## about, while it guides; gone once it's done. The mark: the hand acts out a link that saves the
 ## marked star. The volley: it points at the countdown above him. The hunting circle: it points at a
@@ -859,6 +883,10 @@ func _show_encounter(threat: int, step: int) -> void:
 	if step != Encounter.Step.GUIDING:
 		_guide.hide_guide()
 		return
+	# Its line says it now: the threat's own line above the launcher (the Heart intro's caption, if
+	# it's still up) comes down rather than say it twice.
+	if THREAT_MESSAGES.has(threat) and message() == THREAT_MESSAGES[threat]:
+		clear_message()
 	var line: String = ENCOUNTER_LINES[threat] % _run.volley.interval if threat == Encounter.Threat.VOLLEY else ENCOUNTER_LINES[threat]
 	var block: Rect2i = encounter_block(line)
 	match threat:

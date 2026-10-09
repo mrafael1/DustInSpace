@@ -62,10 +62,10 @@ func _ready() -> void:
 	visible = false
 
 
-## Opens the table with `balance`'s links and rewards, links paying `dust_percent` of their dust
+## Opens the table with `balance`'s links and rewards, `dust_cut` taken off each link's dust
 ## (Virgo's pay less).
-func open(balance: Balance, dust_percent: int = 100) -> void:
-	_rows = rows_for(balance, dust_percent)
+func open(balance: Balance, dust_cut: int = 0) -> void:
+	_rows = rows_for(balance, dust_cut)
 	_open = true
 	_time = 0.0
 	visible = true
@@ -108,16 +108,16 @@ func sequence_sizes() -> Array:
 
 
 ## The table's rows for `balance`: the triples (small, medium, big), then one of each; only the
-## links balance.json pays for. Each pays `dust_percent` of its dust (rounded down, as the run does).
-static func rows_for(balance: Balance, dust_percent: int = 100) -> Array[Dictionary]:
+## links balance.json pays for. Each pays its dust less `dust_cut` (Balance.after_cut, as the run does).
+static func rows_for(balance: Balance, dust_cut: int = 0) -> Array[Dictionary]:
 	var unit: int = light_unit(balance)
 	var rows: Array[Dictionary] = []
 	for k: int in Combos.TRIPLES.size():
 		var key: String = Combos.TRIPLES[k]
 		if balance.combos.has(key):
-			rows.append(_row(key, [k, k, k], balance.combos[key], unit, dust_percent))
+			rows.append(_row(key, [k, k, k], balance.combos[key], unit, dust_cut))
 	if balance.combos.has(Combos.SEQUENCE):
-		rows.append(_row(Combos.SEQUENCE, ORDERS[0], balance.combos[Combos.SEQUENCE], unit, dust_percent))
+		rows.append(_row(Combos.SEQUENCE, ORDERS[0], balance.combos[Combos.SEQUENCE], unit, dust_cut))
 	return rows
 
 
@@ -168,8 +168,8 @@ static func row_height() -> int:
 	return StarView.half_extent(Star.Size.BIG) * 2 + 1 + ROW_GAP
 
 
-static func _row(key: String, sizes: Array, reward: Balance.ComboReward, unit: int, dust_percent: int) -> Dictionary:
-	return {"key": key, "sizes": sizes.duplicate(), "dust": reward.dust * dust_percent / 100, "marks": light_marks(reward.light, unit)}
+static func _row(key: String, sizes: Array, reward: Balance.ComboReward, unit: int, dust_cut: int) -> Dictionary:
+	return {"key": key, "sizes": sizes.duplicate(), "dust": Balance.after_cut(reward.dust, dust_cut), "marks": light_marks(reward.light, unit)}
 
 
 ## The labels: the column heads, each row's dust, TAP TO CLOSE at the bottom (small: it's a hint).
