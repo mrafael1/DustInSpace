@@ -130,7 +130,7 @@ Packs per win (constellation stars put out a run). Bound sheaves is the candidat
 
 ### Step C passes with bound sheaves and a tighter economy (2026-10-08)
 
-Links pay a percent of their dust under the harvest (`harvest.link_dust_percent`, rounded down: 90% is one dust less a link). Whole Leo (12 to light, branching), reaping for nothing, 200 paired seeds, won %:
+Links pay a percent of their dust under the harvest (`harvest.link_dust_percent`, rounded down: 90% is one dust less a link; since #149 it's `harvest.link_dust_cut`: 1, the same payouts). Whole Leo (12 to light, branching), reaping for nothing, 200 paired seeds, won %:
 
 | Clock, link dust | Careless (link at once) | Hoard | Bound (next to the figure first) | Bound-strict |
 |---|---|---|---|---|

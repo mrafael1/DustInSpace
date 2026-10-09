@@ -444,7 +444,7 @@ func explain_refusal(reason: RunState.PickRefusal) -> void:
 func open_table() -> void:
 	if _run == null or _table.is_open():
 		return
-	_table.open(_run.balance, _run.balance.harvest_link_dust_percent_for(_run.scorpio.map.id) if _run.harvest != null else 100)
+	_table.open(_run.balance, _run.balance.harvest_link_dust_cut_for(_run.scorpio.map.id) if _run.harvest != null else 0)
 	_hold(_table)
 	table_opened.emit()
 
