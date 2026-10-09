@@ -2,7 +2,7 @@ class_name TutorialView
 extends Node2D
 ## The guided first run's guide (Tutorial), on the HUD layer: a line or two of text under the Sun,
 ## at the top of the sky, saying what to do, and a pointing hand at where to do it, bobbing BOB px every BOB_STEP. The hand
-## points down at a spot in the sky, a star, a landmark, the dust counter, the telescope's window or a
+## points down at a spot in the sky, a star, a landmark, the dust counter or a
 ## planet's icon, and points right at the Sun and the buy button. Free
 ## play shows its line for a moment, the hand on the COMBOS button. Owns no rules: the HUD tells it
 ## each step as it plays, with where to point. The links themselves are taught by the table (#94),
@@ -13,7 +13,7 @@ extends Node2D
 ## works, the hand acts a drag out until a star is picked: it slides from star to star along the
 ## path, leaving a dotted trail.
 ## The goal waits for a tap and says TAP TO CONTINUE (N8) below; the showing steps (the payout's
-## dust and Sun as it lands, where the loaded planet shows, the star a full Sun lit) point at it and
+## dust and Sun as it lands, the loaded planet, the star a full Sun lit) point at it and
 ## go on by themselves after SHOW_TIME (timed_out; a tap goes on too). The HUD sends the tap and the
 ## time-out.
 
@@ -46,8 +46,7 @@ const TEXTS: Dictionary = {
 	Tutorial.Step.SUN: "LIGHT FILLS THE SUN",
 	Tutorial.Step.LAUNCH_NEAR: "LAUNCH NEXT TO THIS STAR",
 	Tutorial.Step.LIGHT: "LINK 3 OF THE SAME SIZE",
-	Tutorial.Step.SCOPE: "THE TELESCOPE SHOWS\nTHE LOADED PLANET",
-	Tutorial.Step.ICON: "THE LOADED PLANET SPINS",
+	Tutorial.Step.LOADED: "THE RED PLANET IS LOADED",
 	Tutorial.Step.RED: "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS",
 	Tutorial.Step.RED_LINK: "LINK THEM TO FILL THE SUN",
 	Tutorial.Step.SUN_FULL: "A FULL SUN LIGHTS A STAR",
