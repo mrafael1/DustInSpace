@@ -34,6 +34,11 @@ signal harvest_counted(launches_left: int, period: int)
 ## Virgo's bound sheaves: the harvest put out the constellation stars `indices`, lit since the last
 ## harvest but not joined to the figure lit before it.
 signal landmarks_unbound(indices: Array[int])
+## Virgo's bound sheaves, just before the scythe sweeps (harvested follows): of the constellation stars
+## lit since they were last bound, the harvest keeps `kept` (joined to the figure) and cuts `cut`
+## (landmarks_unbound follows with them), so the sweep can show each as the blade reaches it (#149).
+## Presentation: the binding itself is landmarks_unbound.
+signal harvest_bound(kept: Array[int], cut: Array[int])
 ## Virgo's scythe intro: the stage opened with `stars` in the sky (one of each size, as placed); the
 ## harvest reaps them next (harvested).
 signal harvest_intro_placed(stars: Array[Star])
@@ -991,6 +996,13 @@ func _shift_stars() -> void:
 func _count_harvest() -> void:
 	var due: bool = harvest.count_launch()
 	if due:
+		if harvest.binds:
+			var cut: Array[int] = StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
+			var kept: Array[int] = []
+			for i: int in scorpio.map.count():
+				if scorpio.is_lit(i) and not _bound[i] and not cut.has(i):
+					kept.append(i)
+			harvest_bound.emit(kept, cut)
 		var reaped: Array[Star] = stars.duplicate()
 		for star: Star in reaped:
 			stars.erase(star)
@@ -1434,6 +1446,7 @@ func play_harvest_intro() -> void:
 			for star: Star in pair:
 				stars.erase(star)
 			harvest_intro_lit.emit(index, demo[1], link)
+		harvest_bound.emit([near] as Array[int], [far] as Array[int])
 		harvested.emit([] as Array[Star])
 		harvest_intro_kept.emit(near)
 		landmarks_unbound.emit([far] as Array[int])

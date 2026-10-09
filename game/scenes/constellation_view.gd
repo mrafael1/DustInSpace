@@ -121,6 +121,8 @@ var _shown_sizes: Array[int] = []
 var _resizing: Dictionary[int, Array] = {}
 ## Landmarks being cropped by Virgo's scythe, and the seconds until they show again (unlit).
 var _cropping: Dictionary[int, float] = {}
+## Stars the scythe crops once its blade reaches them: [seconds until then, seconds the crop lasts].
+var _crop_due: Dictionary[int, Array] = {}
 ## Leo's final arriving: seconds into the blaze (-1: none), and the order its stars catch fire in.
 var _blaze_time: float = -1.0
 var _blaze_order: Array[int] = []
@@ -185,6 +187,7 @@ func setup(run: RunState) -> void:
 	_shown_sizes.clear()
 	_resizing.clear()
 	_cropping.clear()
+	_crop_due.clear()
 	_blaze_time = -1.0
 	if run.scorpio != null:
 		_shown_lit.assign(run.scorpio.lit)
@@ -323,8 +326,12 @@ func put_out(index: int) -> void:
 
 
 ## Virgo's scythe crops landmark `index`: it goes dark and isn't drawn for `seconds` (its cut halves
-## are drawn over it), then shows unlit.
-func crop(index: int, seconds: float) -> void:
+## are drawn over it), then shows unlit. With a `delay` (the blade reaching it, #149) it shows lit
+## until then.
+func crop(index: int, seconds: float, delay: float = 0.0) -> void:
+	if delay > 0.0:
+		_crop_due[index] = [delay, seconds]
+		return
 	put_out(index)
 	_cropping[index] = seconds
 
@@ -462,6 +469,14 @@ func advance(delta: float) -> void:
 		_cropping[index] -= delta
 		if _cropping[index] <= 0.0:
 			_cropping.erase(index)
+			queue_redraw()
+	for index: int in _crop_due.keys():
+		_crop_due[index][0] -= delta
+		if _crop_due[index][0] <= 0.0:
+			var lasts: float = _crop_due[index][1] + _crop_due[index][0]
+			_crop_due.erase(index)
+			put_out(index)
+			_cropping[index] = lasts
 			queue_redraw()
 	var step: int = glow_step()
 	var cue: int = cue_frame()
