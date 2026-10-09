@@ -58,6 +58,13 @@ var aiming: bool = false:
 		if aiming != value:
 			aiming = value
 			queue_redraw()
+## The constellation star the link being traced would light alone (RunState.link_lights_alone), which
+## wears its lone ring before the link is made (#149), or -1.
+var tracing_alone: int = -1:
+	set(value):
+		if tracing_alone != value:
+			tracing_alone = value
+			queue_redraw()
 var _run: RunState
 var _sequencer: EventSequencer
 var _sweep_time: float = -1.0
@@ -69,6 +76,9 @@ var _crops: Dictionary[Vector2i, Array] = {}
 ## The binding intro's star lit alone (presentation only: the run never lit it), by place, with the
 ## size it's drawn at.
 var _alone_shown: Dictionary[Vector2i, int] = {}
+## The lone stars' rings as they stood when the sky last went still, by place, with their size: they
+## stay on through a launch until the scythe cuts each (#149: they vanished as the launch played).
+var _lone_shown: Dictionary[Vector2i, int] = {}
 var _time: float = 0.0
 
 
@@ -80,12 +90,14 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_run = run
 	_sequencer = sequencer
 	aiming = false
+	tracing_alone = -1
 	_sweep_time = -1.0
 	_chaff.clear()
 	_put_outs.clear()
 	_kept.clear()
 	_crops.clear()
 	_alone_shown.clear()
+	_lone_shown.clear()
 	set_process(run.harvest != null)
 	queue_redraw()
 
@@ -125,11 +137,11 @@ func flash_put_out(at: Vector2i) -> void:
 	queue_redraw()
 
 
-## A constellation star of `size` at `at` is cropped by the scythe; `ends`: the far ends of the lit
-## strings that joined it, which snap.
-func flash_crop(at: Vector2i, size: int, ends: Array[Vector2i]) -> void:
-	_crops[at] = [0.0, size, ends.duplicate()]
-	_alone_shown.erase(at)
+## A constellation star of `size` at `at` is cropped by the scythe, `delay` from now (the blade
+## reaching it; its lone ring stays on until then); `ends`: the far ends of the lit strings that
+## joined it, which snap.
+func flash_crop(at: Vector2i, size: int, ends: Array[Vector2i], delay: float = 0.0) -> void:
+	_crops[at] = [-delay, size, ends.duplicate()]
 	queue_redraw()
 
 
@@ -143,9 +155,10 @@ func show_alone(at: Vector2i, size: int) -> void:
 	queue_redraw()
 
 
-## The binding intro: the star at `at`, joined to the figure, was kept.
-func flash_kept(at: Vector2i) -> void:
-	_kept[at] = 0.0
+## The star at `at`, joined to the figure, was kept by the harvest: it glints gold, `delay` from now
+## (the blade passing it).
+func flash_kept(at: Vector2i, delay: float = 0.0) -> void:
+	_kept[at] = -delay
 	queue_redraw()
 
 
@@ -156,8 +169,16 @@ func advance(delta: float) -> void:
 		_sweep_time += delta
 		if _sweep_time >= SWEEP_TIME:
 			_sweep_time = -1.0
+	if _run != null and _run.harvest != null and (_sequencer == null or not _sequencer.is_busy()):
+		_lone_shown.clear()
+		for index: int in _run.loose_landmarks():
+			_lone_shown[_run.scorpio.landmark_position(index)] = _run.scorpio.map.sizes[index]
 	for at: Vector2i in _crops.keys():
 		_crops[at][0] += delta
+		if _crops[at][0] >= 0.0:
+			# Cut: its ring goes with it.
+			_alone_shown.erase(at)
+			_lone_shown.erase(at)
 		if _crops[at][0] >= CROP_TIME:
 			_crops.erase(at)
 	for flashes: Dictionary[Vector2i, float] in [_chaff, _put_outs, _kept]:
@@ -179,11 +200,20 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _run == null or _run.harvest == null:
 		return result
 	var idle: bool = _sequencer == null or not _sequencer.is_busy()
+	# Still, the core's lone stars; while a sequence plays, those that stood alone as it began, until
+	# the scythe cuts each.
+	var rings: Dictionary[Vector2i, int] = {}
 	if idle:
 		for index: int in _run.loose_landmarks():
-			result.merge(lone_ring_pixels(_run.scorpio.landmark_position(index), _run.scorpio.map.sizes[index], _time), true)
-	for at: Vector2i in _alone_shown:
-		result.merge(lone_ring_pixels(at, _alone_shown[at], _time), true)
+			rings[_run.scorpio.landmark_position(index)] = _run.scorpio.map.sizes[index]
+	else:
+		rings = _lone_shown.duplicate()
+	rings.merge(_alone_shown)
+	for at: Vector2i in rings:
+		if not (_crops.has(at) and _crops[at][0] >= 0.0):
+			result.merge(lone_ring_pixels(at, rings[at], _time), true)
+	if tracing_alone >= 0:
+		result.merge(lone_ring_pixels(_run.scorpio.landmark_position(tracing_alone), _run.scorpio.map.sizes[tracing_alone], _time), true)
 	if aiming and idle:
 		result.merge(preview_pixels(_run), true)
 	for at: Vector2i in _kept:
@@ -200,18 +230,42 @@ func pixels() -> Dictionary[Vector2i, Color]:
 
 
 ## What the next launch's harvest takes, drawn round each star: a loose star's outline dotted
-## ember, a dotted ember ring round a constellation star it puts out. Nothing when the next launch
-## doesn't bring the harvest.
+## ember (a small one's solid, a pixel further out: reap_pixels), a dotted ember ring round a
+## constellation star it puts out. Nothing when the next launch doesn't bring the harvest.
 static func preview_pixels(run: RunState) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	for id: int in run.harvest_preview():
 		var star: Star = run.find_star(id)
-		for offset: Vector2i in StarView.outline_pixels(star.size):
-			if (offset.x + offset.y) % 2 == 0:
-				result[star.position + offset] = Palette.S4
+		for offset: Vector2i in reap_pixels(star.size):
+			result[star.position + offset] = Palette.S4
 	for index: int in run.unbound_preview():
 		result.merge(lone_ring_pixels(run.scorpio.landmark_position(index), run.scorpio.map.sizes[index], 0.0), true)
 	return result
+
+
+## The scythe's mark on a loose star of `size` it will reap, as offsets: its outline, every other
+## pixel; on a small star (warm itself, the commonest draw) a solid ring a pixel further out, so a
+## dark gap sets it apart (#149: dotted, it vanished into the small's own orange).
+static func reap_pixels(size: int) -> Array[Vector2i]:
+	var outline: Array[Vector2i] = StarView.outline_pixels(size as Star.Size)
+	if size != Star.Size.SMALL:
+		return outline.filter(func(o: Vector2i) -> bool: return (o.x + o.y) % 2 == 0)
+	# The star itself: what the outline encloses, filled from its centre.
+	var inside: Dictionary[Vector2i, bool] = {Vector2i.ZERO: true}
+	var frontier: Array[Vector2i] = [Vector2i.ZERO]
+	while not frontier.is_empty():
+		var at: Vector2i = frontier.pop_back()
+		for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			if not inside.has(at + d) and not outline.has(at + d):
+				inside[at + d] = true
+				frontier.append(at + d)
+	var ring: Array[Vector2i] = []
+	for o: Vector2i in outline:
+		for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var p: Vector2i = o + d
+			if not outline.has(p) and not inside.has(p) and not ring.has(p):
+				ring.append(p)
+	return ring
 
 
 ## A constellation star of `size` at `at` cropped `t` seconds ago, its strings to `ends` snapping:

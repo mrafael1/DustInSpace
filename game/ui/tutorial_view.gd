@@ -107,8 +107,10 @@ var _timed_out: bool = false
 ## shown early (the full Sun's, as the Sun ignites) counts only once its moment plays (#148).
 var _shown_for: float = 0.0
 var _clock_held: bool = false
-## Where the line's space starts (an encounter's line keeps clear of Orion's corner).
+## Where the line's space starts and ends (an encounter's line keeps clear of Orion's corner, and of
+## what it would cover).
 var _left: int = 0
+var _right: int = ScreenZones.SCREEN.x
 ## An encounter's own line (show_line), shown again once a link it guides is dropped.
 var _line: String = ""
 ## The near launch's zone: its centre and radius (0: none), and seconds since a launch outside it
@@ -155,6 +157,7 @@ func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = f
 	_shown_for = 0.0
 	_clock_held = false
 	_left = 0
+	_right = ScreenZones.SCREEN.x
 	_line = ""
 	_zone_radius = 0
 	_refused_for = -1.0
@@ -165,13 +168,32 @@ func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = f
 
 
 ## A line of its own, outside the guided run's steps, and the hand at `target` when `has_target`:
-## an Orion encounter's guide (#93). The line is centred between `left` and the screen's right edge
-## (clear of Orion's corner). Nothing waits for a tap; hide_guide ends it.
-func show_line(line: String, target: Vector2i = Vector2i.ZERO, has_target: bool = false, point: Point = Point.DOWN, top: int = 78 + TOP, left: int = 0) -> void:
+## an Orion encounter's guide (#93). The line is centred between `left` and `right` (by default the
+## screen's right edge; clear of Orion's corner). Nothing waits for a tap; hide_guide ends it.
+func show_line(line: String, target: Vector2i = Vector2i.ZERO, has_target: bool = false, point: Point = Point.DOWN, top: int = 78 + TOP, left: int = 0, right: int = ScreenZones.SCREEN.x) -> void:
 	show_step(-1, target, has_target, point, top)
 	_left = left
+	_right = right
 	_line = line
 	_set_text(line)
+
+
+## The size `text` takes as the guide's line (its lines LINE_STEP apart), in native px.
+func text_size(text: String) -> Vector2i:
+	var label := Label.new()
+	label.label_settings = _label.label_settings
+	label.text = text
+	var size := Vector2i(label.get_minimum_size().ceil())
+	label.free()
+	return size
+
+
+## Where the line sits on screen (its text's bounds), or an empty rect while none shows.
+func line_rect() -> Rect2i:
+	if not visible or not _label.visible or _label.text == "":
+		return Rect2i()
+	var size: Vector2i = text_size(_label.text)
+	return Rect2i(Vector2i(_label.position) + Vector2i((Vector2i(_label.size).x - size.x) / 2, 0), size)
 
 
 ## The showing step on show waits to count towards SHOW_TIME until it's shown again (show_step) or
@@ -416,7 +438,7 @@ func _set_text(value: String) -> void:
 	_label.text = value
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_lines = value.count("\n") + 1
-	_label.size = Vector2(ScreenZones.SCREEN.x - _left, _label.get_minimum_size().y)
+	_label.size = Vector2(_right - _left, _label.get_minimum_size().y)
 	_label.position = Vector2(_left, _top)
 	_label.visible = true
 	_tap.size = _tap.get_minimum_size()
