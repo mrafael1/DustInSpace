@@ -72,6 +72,8 @@ For Aquarius, the exciting result would be a rich burst followed by a readable r
 
 Evaluate the idea early with a forced debug presentation or paper sequence, separately from ordinary current/echo trials. A forced example tests readability and the feeling of the payout, not its natural frequency or balance. If it is only a bigger number and does not feel like a memorable opening, revise it before planning a full chapter. Natural non-clearing Big Bangs and their economics need separate tuning evidence before release.
 
+**Status (2026-10-09, #149):** not built, and neither is Leo's spike (below). The review of every chapter found the campaign has no jackpot moment at all; the user chose to keep the spike as its own plan rather than build one in that pass. It stays the open question in [design.md](design.md) (Later, not now).
+
 ## Cheap sequence and decision gates
 
 Only the currents experiment is next. Gemini, the non-clearing Big Bang, and chapter infrastructure do not become parallel implementation tasks.

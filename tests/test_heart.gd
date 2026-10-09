@@ -188,6 +188,63 @@ func test_a_star_hugging_orion_is_passed_over_for_one_the_circle_can_reach() -> 
 		assert_true(hunt.contains(open.position), "seed %d" % seed_value)
 
 
+func test_a_circle_takes_the_side_of_its_star_away_from_the_figure() -> void:
+	# #149: a loose star beside constellation stars still to light: the circle still covers it, from
+	# a side where it covers none of them.
+	var prey := Star.new(1, Star.Size.SMALL, Vector2i(100, 160))
+	var figure: Array[Vector2i] = [Vector2i(110, 160), Vector2i(100, 172)]
+	for seed_value: int in range(1, 21):
+		var hunt := Hunt.new(38, seed_value)
+		var centre: Vector2i = hunt.mark(Fixtures.SKY, [prey] as Array[Star], figure)
+		assert_true(hunt.contains(prey.position), "seed %d: its star is inside" % seed_value)
+		assert_eq(_covering(centre, figure, 38), 0, "seed %d: none of the figure under it" % seed_value)
+
+
+func test_a_star_inside_the_figure_gets_the_circle_covering_the_fewest() -> void:
+	# Hemmed in on four sides 8 px away: any circle round it covers at least one; it covers no more.
+	var prey := Star.new(1, Star.Size.SMALL, Vector2i(100, 160))
+	var figure: Array[Vector2i] = [Vector2i(92, 160), Vector2i(108, 160), Vector2i(100, 152), Vector2i(100, 168)]
+	for seed_value: int in range(1, 21):
+		var hunt := Hunt.new(38, seed_value)
+		var centre: Vector2i = hunt.mark(Fixtures.SKY, [prey] as Array[Star], figure)
+		assert_true(hunt.contains(prey.position))
+		assert_eq(_covering(centre, figure, 38), 1, "seed %d: the fewest a circle round it can cover" % seed_value)
+
+
+func test_with_no_star_to_circle_it_still_keeps_off_the_figure() -> void:
+	var figure: Array[Vector2i] = [Vector2i(90, 150), Vector2i(120, 180), Vector2i(70, 200)]
+	for seed_value: int in range(1, 21):
+		var hunt := Hunt.new(38, seed_value)
+		var centre: Vector2i = hunt.mark(Fixtures.SKY, [] as Array[Star], figure)
+		assert_true(Fixtures.SKY.grow(-38).has_point(centre))
+		assert_eq(_covering(centre, figure, 38), 0, "seed %d" % seed_value)
+
+
+func test_on_the_heart_every_circle_covers_the_fewest_constellation_stars_round_its_star() -> void:
+	# Through the real run: each new circle holds a loose star, and covers no more of the stars still
+	# to light than the best circle round that star could.
+	var marks: Array[int] = [0]
+	for seed_value: int in range(1, 13):
+		var data: Dictionary = _balance_dict()
+		data["start_packs"] = {"blue": 5, "red": 0}
+		data["hunt"] = {"radius": 38}
+		var run := RunState.new(Balance.from_dict(data), Fixtures.rng(seed_value), Fixtures.SKY, StarMap.heart())
+		run.area_marked.connect(func(centre: Vector2i, radius: int) -> void:
+			var figure: Array[Vector2i] = []
+			for star: Star in run.scorpio.unlit_stars():
+				figure.append(star.position)
+			var inside: Array[Star] = run.stars.filter(func(star: Star) -> bool: return run.hunt.contains(star.position))
+			if inside.is_empty():
+				return
+			marks[0] += 1
+			var covered: int = _covering(centre, figure, radius)
+			var best: bool = inside.any(func(star: Star) -> bool: return covered == _fewest_round(star.position, figure, radius))
+			assert_true(best, "seed %d: the circle at %s covers %d of the figure; a circle round its star could cover fewer" % [seed_value, centre, covered]))
+		for launch: int in 5:
+			Fixtures.launch(run, Vector2i(60 + 15 * launch, 130 + 12 * launch))
+	assert_gt(marks[0], 30)
+
+
 func test_an_empty_sky_still_gets_a_circle() -> void:
 	var hunt := Hunt.new(40, 7)
 	var centre: Vector2i = hunt.mark(Fixtures.SKY)
@@ -412,6 +469,26 @@ func _balance_dict() -> Dictionary:
 
 func _balance() -> Balance:
 	return Balance.from_dict(_balance_dict())
+
+
+## How many of `points` a circle of `radius` at `centre` covers.
+func _covering(centre: Vector2i, points: Array[Vector2i], radius: int) -> int:
+	return points.filter(func(p: Vector2i) -> bool: return (p - centre).length_squared() <= radius * radius).size()
+
+
+## The fewest of `points` any circle of `radius` round `at` can cover: every centre within the
+## radius of it, wholly in the sky and clear of Orion's corner (as Hunt places them).
+func _fewest_round(at: Vector2i, points: Array[Vector2i], radius: int) -> int:
+	var corner := Rect2i(Fixtures.SKY.position + Volley.ORION_CORNER.position, Volley.ORION_CORNER.size).grow(radius)
+	var room: Rect2i = Fixtures.SKY.grow(-radius)
+	var near: Array[Vector2i] = points.filter(func(p: Vector2i) -> bool: return (p - at).length_squared() <= 4 * radius * radius)
+	var fewest: int = near.size()
+	for y: int in range(at.y - radius, at.y + radius + 1):
+		for x: int in range(at.x - radius, at.x + radius + 1):
+			var spot := Vector2i(x, y)
+			if (spot - at).length_squared() <= radius * radius and room.has_point(spot) and not corner.has_point(spot):
+				fewest = mini(fewest, _covering(spot, near, radius))
+	return fewest
 
 
 ## Whether a circle of `radius` could be marked round `star` on its own.
