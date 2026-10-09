@@ -311,6 +311,23 @@ func _intro_run(map: StarMap, seed_value: int = 7) -> RunState:
 	return RunState.new(Balance.load_file(), Fixtures.rng(seed_value), SKY, map)
 
 
+func test_the_demo_stars_keep_clear_of_the_figures_stars_and_strings() -> void:
+	# #149: a demo star 10 px from a Tail string looked like one of the figure's; strings count too.
+	for map: StarMap in [StarMap.leo_tail(), StarMap.leo_haunch(), StarMap.leo_heart(), StarMap.leo_mane()]:
+		for seed_value: int in range(1, 21):
+			var run: RunState = _intro_run(map, seed_value)
+			var placed: Array[Star] = []
+			run.heat_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append_array(stars))
+			run.play_heat_intro()
+			assert_eq(placed.size(), 3)
+			for star: Star in placed:
+				var at := Vector2(star.position)
+				for segment: int in run.scorpio.map.segment_count():
+					var ends: Array[int] = run.scorpio.map.segment_landmarks(segment)
+					var closest: Vector2 = Geometry2D.get_closest_point_to_segment(at, Vector2(run.scorpio.landmark_position(ends[0])), Vector2(run.scorpio.landmark_position(ends[1])))
+					assert_gte(closest.distance_to(at), 20.0, "%s seed %d: demo star %s clear of string %d" % [map.id, seed_value, star.position, segment])
+
+
 func test_the_tail_opens_by_showing_the_heat_grow_three_stars() -> void:
 	var run: RunState = _intro_run(StarMap.leo_tail())
 	var packs: Dictionary = run.owned_packs.duplicate()
