@@ -276,6 +276,44 @@ func test_the_scripted_packs_fit_any_pack_size() -> void:
 	assert_eq(tutorial.pack_sizes(3, Star.Size.SMALL), [] as Array[int], "no script outside the launch steps")
 
 
+func test_the_first_launch_lands_its_stars_in_open_sky() -> void:
+	var run: RunState = _run()
+	run.tutorial_continue()
+	var top: int = run.sky_rect.position.y + 30
+	var spot: Vector2i = run.open_launch_spot(top)
+	for at: Vector2i in run.scorpio.landmark_positions():
+		assert_gte(Vector2(spot).distance_to(Vector2(at)), float(RunState.OPEN_CLEARANCE), "clear of the figure")
+	var reach_y: int = ceili(StarScatter.RING_MAX * StarScatter.RING_SQUASH)
+	assert_gte(spot.y - reach_y, top, "its stars land below the guide's line")
+	assert_true(run.launch(spot))
+	for star: Star in run.stars:
+		for at: Vector2i in run.scorpio.landmark_positions():
+			assert_gt(Vector2(star.position).distance_to(Vector2(at)), float(StarScatter.LANDMARK_SPACING), "each new star stands apart from the figure")
+	assert_ne(run.link(_order(run, _ids(run.stars))), Combos.INVALID, "and they link")
+
+
+func test_the_red_launch_keeps_both_bursts_clear_of_the_stars_out() -> void:
+	var run: RunState = _run()
+	run.loaded_pack = "red"
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(50, 130))
+	var spot: Vector2i = run.open_launch_spot(run.sky_rect.position.y)
+	var pack: Balance.PackDef = run.balance.packs["red"]
+	var inner: Rect2i = StarScatter.inner_rect(run.sky_rect)
+	for point: Vector2i in StarScatter.split_points(spot, pack.burst_spread, pack.bursts, run.sky_rect):
+		assert_gte(point.x - StarScatter.RING_MAX, inner.position.x, "each ring inside the sky")
+		assert_lt(point.x + StarScatter.RING_MAX, inner.end.x)
+		assert_gt(Vector2(point).distance_to(Vector2(star.position)), float(StarScatter.RING_MAX), "clear of the star out")
+
+
+func test_a_sky_with_no_open_spot_takes_the_clearest() -> void:
+	var run: RunState = _run()
+	for y: int in range(run.sky_rect.position.y + 10, run.sky_rect.end.y - 10, 20):
+		for x: int in range(10, 180, 20):
+			run.add_star(Star.Size.SMALL, Vector2i(x, y))
+	var spot: Vector2i = run.open_launch_spot(run.sky_rect.position.y)
+	assert_true(StarScatter.inner_rect(run.sky_rect).has_point(spot), "still a spot in the sky")
+
+
 func _run(with_tutorial: bool = true) -> RunState:
 	var run := RunState.new(Balance.from_dict(_data()), Fixtures.rng(), Fixtures.SKY, StarMap.stinger())
 	run.tutorial_step.connect(func(step: int) -> void: steps.append(step))
