@@ -2,7 +2,7 @@ extends SceneTree
 ## Paired seeded runs of Virgo's harvest through the spatial core, harvest off and on. Bots are
 ## deliberately simple; this is pressure evidence, not a prediction of human difficulty.
 ## --map=virgo_wing (default; any StarMap id: a borrowed layout has its heat, current and threats
-## switched off and the harvest switched on), --runs=N, --every=N and --link-dust=P (else
+## switched off and the harvest switched on), --runs=N, --every=N and --link-dust-cut=N (else
 ## balance.json's for that stage), --binds or --no-binds (else the map's), --policies=a,b.
 ## Policies: link-first links every link before launching (careless about binding); launch-first
 ## launches every owned pack before linking (hoards); bound links like link-first but lights the
@@ -26,7 +26,7 @@ var _policy: String = ""
 func _initialize() -> void:
 	_balance = Balance.load_file()
 	var every: int = -1
-	var link_dust: int = -1
+	var link_dust_cut: int = -1
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
 			_runs = maxi(1, argument.trim_prefix("--runs=").to_int())
@@ -34,8 +34,8 @@ func _initialize() -> void:
 			_map = argument.trim_prefix("--map=")
 		elif argument.begins_with("--every="):
 			every = maxi(1, argument.trim_prefix("--every=").to_int())
-		elif argument.begins_with("--link-dust="):
-			link_dust = argument.trim_prefix("--link-dust=").to_int()
+		elif argument.begins_with("--link-dust-cut="):
+			link_dust_cut = argument.trim_prefix("--link-dust-cut=").to_int()
 		elif argument == "--binds":
 			_binds = 1
 		elif argument == "--no-binds":
@@ -47,8 +47,8 @@ func _initialize() -> void:
 	var stage: Dictionary = _balance.harvest_stages.get(_map, {}).duplicate()
 	if every > 0:
 		stage["every"] = every
-	if link_dust >= 0:
-		stage["link_dust_percent"] = link_dust
+	if link_dust_cut >= 0:
+		stage["link_dust_cut"] = link_dust_cut
 	if _balance.harvest_every_for(_map) <= 0 and not stage.has("every"):
 		stage["every"] = 3
 	_balance.harvest_stages[_map] = stage
@@ -57,7 +57,7 @@ func _initialize() -> void:
 
 func _simulate() -> void:
 	var probe: StarMap = _layout(true)
-	print("Paired seeds 1..%d; %s; every %d; link dust %d%%; binds %s; twists %s" % [_runs, _map, _balance.harvest_every_for(_map), _balance.harvest_link_dust_percent_for(_map), probe.harvest_binds, _twists])
+	print("Paired seeds 1..%d; %s; every %d; link dust cut %d; binds %s; twists %s" % [_runs, _map, _balance.harvest_every_for(_map), _balance.harvest_link_dust_cut_for(_map), probe.harvest_binds, _twists])
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
 		for enabled: bool in [false, true]:

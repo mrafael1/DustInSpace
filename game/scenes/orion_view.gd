@@ -67,6 +67,14 @@ const CHARGE_BLINK: float = 0.3
 ## onto its star in RAIN_TIME.
 const OVERHEAD_X: Array[int] = [56, 83, 110, 137, 164]
 const OVERHEAD_Y: int = 12
+## A hanging arrow (its shaft, head and shiver) keeps OVERHEAD_CLEAR px off every constellation star's
+## halo: one that wouldn't slides along its row to the nearest spot that does, at most OVERHEAD_SLIDE
+## px and OVERHEAD_GAP px from its neighbours (#149: on the final the fourth hung on lit beta's halo).
+const OVERHEAD_CLEAR: int = 3
+const OVERHEAD_SLIDE: int = 13
+const OVERHEAD_GAP: int = 10
+## How far a hanging arrow reaches either side of its shaft: its head, and a pixel's shiver.
+const OVERHEAD_HALF_WIDTH: int = 2
 const ABOVE: int = 24
 const UP_TIME: float = 0.25
 const SETTLE_TIME: float = 0.15
@@ -83,13 +91,17 @@ const ROAR_TIME: float = 0.3
 const SHAKE_STEP: float = 0.05
 const HEALTH_STEP: float = 0.04
 const ENTER_HOLD: float = 0.9
-## His health: a pip per landmark to light, HEALTH_PIP px square, HEALTH_GAP px apart, this far below
-## the figure's top-left; colours: whole (top row, bottom row), and the empty slot.
+## His health: a pip per landmark to light, HEALTH_PIP px (wide, tall), HEALTH_GAP px apart, this far
+## below the figure's top-left; colours: whole (a row each), and the empty slot. The row sits on a
+## plate a pixel bigger than it, rimmed in his lines' ember (#149: bare 2 px pips read as a dashed
+## line, not as health); the plate shows from the roar, as the pips fill.
 const HEALTH_AT := Vector2i(0, 41)
-const HEALTH_PIP: int = 2
+const HEALTH_PIP := Vector2i(2, 3)
 const HEALTH_GAP: int = 1
-const HEALTH_WHOLE: Array[Color] = [Palette.S4, Palette.S3]
+const HEALTH_WHOLE: Array[Color] = [Palette.S4, Palette.S4, Palette.S3]
 const HEALTH_EMPTY: Color = Palette.N3
+const HEALTH_PLATE: Color = Palette.N0
+const HEALTH_RIM: Color = Palette.S2
 ## A landmark lit hurts him: C0 and a pixel's flinch for HURT_TIME.
 const HURT_TIME: float = 0.25
 ## His fall: a FALL_FLASH flash and shake, then a star bursts every FALL_STEP (the entrance in
@@ -141,6 +153,8 @@ var _volley_to: Array[Vector2i] = []
 var _volley_age: float = -1.0
 ## The staged volley: seconds since Orion shot it up (-1: no arrows overhead).
 var _overhead_age: float = -1.0
+## Where each arrow hangs along the row (OVERHEAD_X, slid clear of the constellation).
+var _overhead_x: Array[int] = OVERHEAD_X.duplicate()
 var _sky: Rect2i = Rect2i()
 ## The hunting area: its centre and radius (0: none), and how long since it was marked.
 var _area_centre: Vector2i = Vector2i.ZERO
@@ -168,11 +182,13 @@ func _process(delta: float) -> void:
 	advance(delta)
 
 
-## Shows the figure for a run Orion hunts (in `sky`'s top-left), hides everything otherwise.
-func setup(hunts: bool, sky: Rect2i) -> void:
+## Shows the figure for a run Orion hunts (in `sky`'s top-left), hides everything otherwise. The
+## arrows hang clear of `clear_of`: each constellation star as (x, y, its halo's radius).
+func setup(hunts: bool, sky: Rect2i, clear_of: Array[Vector3i] = []) -> void:
 	_figure_shown = hunts
 	_figure_at = sky.position + FIGURE_AT
 	_sky = sky
+	_place_overhead(clear_of)
 	_overhead_age = -1.0
 	_volley_from.clear()
 	_marked = null
@@ -290,11 +306,20 @@ func health_pixels() -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	if not _boss or _fall_age >= 0.0:
 		return dots
+	var filled: int = health_filled()
+	if filled == 0:
+		return dots
 	var breaking: bool = _hurt_age >= 0.0 and _hurt_age < HURT_TIME
-	for i: int in health_filled():
-		var at: Vector2i = _figure_at + HEALTH_AT + Vector2i(i * (HEALTH_PIP + HEALTH_GAP), 0)
-		for y: int in HEALTH_PIP:
-			for x: int in HEALTH_PIP:
+	var row := Rect2i(_figure_at + HEALTH_AT, Vector2i(_health_max * (HEALTH_PIP.x + HEALTH_GAP) - HEALTH_GAP, HEALTH_PIP.y))
+	var rim: Rect2i = row.grow(2)
+	for y: int in range(rim.position.y, rim.end.y):
+		for x: int in range(rim.position.x, rim.end.x):
+			var edge: bool = x == rim.position.x or x == rim.end.x - 1 or y == rim.position.y or y == rim.end.y - 1
+			dots[Vector2i(x, y)] = HEALTH_RIM if edge else HEALTH_PLATE
+	for i: int in filled:
+		var at: Vector2i = row.position + Vector2i(i * (HEALTH_PIP.x + HEALTH_GAP), 0)
+		for y: int in HEALTH_PIP.y:
+			for x: int in HEALTH_PIP.x:
 				var colour: Color = HEALTH_WHOLE[y]
 				if i >= _health:
 					colour = Palette.C0 if breaking and i == _health else HEALTH_EMPTY
@@ -453,9 +478,36 @@ func clear_overhead() -> void:
 ## Where each hanging arrow's tip is.
 func overhead_spots() -> Array[Vector2i]:
 	var spots: Array[Vector2i] = []
-	for x: int in OVERHEAD_X:
+	for x: int in _overhead_x:
 		spots.append(_sky.position + Vector2i(x, OVERHEAD_Y))
 	return spots
+
+
+## Each arrow at its OVERHEAD_X, or slid the least it takes to keep clear of `clear_of`.
+func _place_overhead(clear_of: Array[Vector3i]) -> void:
+	_overhead_x.assign(OVERHEAD_X)
+	for i: int in _overhead_x.size():
+		var base: int = OVERHEAD_X[i]
+		var placed: bool = false
+		for slide: int in OVERHEAD_SLIDE + 1:
+			for x: int in ([base] if slide == 0 else [base - slide, base + slide]):
+				var spaced: bool = (i == 0 or x - _overhead_x[i - 1] >= OVERHEAD_GAP) 						and (i == OVERHEAD_X.size() - 1 or OVERHEAD_X[i + 1] - x >= OVERHEAD_GAP)
+				if spaced and _hangs_clear(x, clear_of):
+					_overhead_x[i] = x
+					placed = true
+					break
+			if placed:
+				break
+
+
+## Whether an arrow hanging at `x` along the row keeps OVERHEAD_CLEAR off every one of `clear_of`.
+func _hangs_clear(x: int, clear_of: Array[Vector3i]) -> bool:
+	var tip: Vector2i = _sky.position + Vector2i(x, OVERHEAD_Y)
+	for c: Vector3i in clear_of:
+		var nearest := Vector2(tip.x, clampi(c.y, tip.y - SHAFT, tip.y))
+		if nearest.distance_to(Vector2(c.x, c.y)) - OVERHEAD_HALF_WIDTH - c.z < OVERHEAD_CLEAR:
+			return false
+	return true
 
 
 ## The staged arrows now, each one's pixels tip last: flying straight up from the bow hand out of the
