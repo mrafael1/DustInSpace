@@ -136,6 +136,10 @@ enum PickRefusal { NONE, SECOND_LANDMARK }
 const ENCOUNTER_CLEARANCE: int = 10
 ## Candidate launch spots are tried on a grid this many px apart when no constellation star is safe.
 const SAFE_SPOT_GRID: int = 8
+## The guided run's launches (open_launch_spot): a burst point this far from every constellation
+## star and every star out is open sky, so its stars (up to StarScatter.RING_MAX out) land clear of
+## the figure and read as new. Guide layout, not balance.
+const OPEN_CLEARANCE: int = 48
 ## XOR'd into the seed so star layout has its own RNG stream and can't shift pack contents.
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
 ## Leo's heat intro: the stars it shows (one of each size), and how many times at most the heat acts
@@ -628,6 +632,55 @@ func safe_launch_spot() -> Vector2i:
 			if is_safe_launch(spot) and (best.x < 0 or (spot - goal).length_squared() < (best - goal).length_squared()):
 				best = spot
 	return best if best.x >= 0 else furthest
+
+
+## The guided run's launch spot (#148): an aim whose stars land in open sky, away from the
+## constellation and the stars already out, so the new ones read as new. Every point the loaded
+## pack bursts at keeps its scatter ring inside the inner sky and below `top` (the guide's line).
+## Of the spots OPEN_CLEARANCE clear, the one nearest the sky's centre; else the clearest.
+func open_launch_spot(top: int) -> Vector2i:
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	var pack: Balance.PackDef = balance.packs[kind]
+	var reach := Vector2i(StarScatter.RING_MAX, ceili(StarScatter.RING_MAX * StarScatter.RING_SQUASH))
+	var area := Rect2i()
+	area.position = Vector2i(inner.position.x, maxi(inner.position.y, top)) + reach
+	area.end = inner.end - reach
+	var taken: Array[Vector2i] = []
+	if scorpio != null:
+		taken.append_array(scorpio.landmark_positions())
+	for star: Star in stars:
+		taken.append(star.position)
+	var centre: Vector2i = inner.get_center()
+	var best: Vector2i = Vector2i(-1, -1)
+	var best_clear: int = -1
+	var clearest: Vector2i = centre
+	var clearest_clear: int = -1
+	for y: int in range(area.position.y, area.end.y, SAFE_SPOT_GRID / 2):
+		for x: int in range(area.position.x, area.end.x, SAFE_SPOT_GRID / 2):
+			var spot := Vector2i(x, y)
+			var points: Array[Vector2i] = [spot]
+			if pack.bursts > 1:
+				points = StarScatter.split_points(spot, pack.burst_spread, pack.bursts, sky_rect)
+			if not points.all(func(p: Vector2i) -> bool: return area.has_point(p)):
+				continue
+			var clear: int = _clearance(points, taken)
+			if clear > clearest_clear:
+				clearest = spot
+				clearest_clear = clear
+			if clear >= OPEN_CLEARANCE and (best.x < 0 or (spot - centre).length_squared() < (best - centre).length_squared()):
+				best = spot
+	return best if best.x >= 0 else clearest
+
+
+## How far the nearest of `taken` is from the nearest of `points`, in whole px (a large number when
+## nothing is taken).
+static func _clearance(points: Array[Vector2i], taken: Array[Vector2i]) -> int:
+	var nearest: int = 1 << 20
+	for p: Vector2i in points:
+		for t: Vector2i in taken:
+			nearest = mini(nearest, floori(Vector2(p).distance_to(Vector2(t))))
+	return nearest
 
 
 ## Whether launching the loaded pack at `aim` keeps its stars out of the hunting circle: every point
