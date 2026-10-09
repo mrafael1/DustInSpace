@@ -29,6 +29,32 @@ func before_each() -> void:
 		node.set_process(false)
 
 
+func test_the_hanging_arrows_keep_off_the_constellations_halos() -> void:
+	# #149: on the final the fourth arrow hung on lit beta's halo.
+	for map: String in ["body", "final"]:
+		main.star_map = map
+		assert_true(main.start_run(Balance.from_dict(_balance_dict())))
+		var spots: Array[Vector2i] = orion.overhead_spots()
+		assert_eq(spots.size(), OrionView.OVERHEAD_X.size(), "%s: five arrows" % map)
+		for i: int in spots.size():
+			if i > 0:
+				assert_gte(spots[i].x - spots[i - 1].x, OrionView.OVERHEAD_GAP, "%s: spaced" % map)
+			for k: int in main.run.scorpio.map.count():
+				var at: Vector2i = main.run.scorpio.landmark_position(k)
+				var halo: int = StarView.HALO_RADIUS[main.run.scorpio.map.sizes[k]]
+				var nearest := Vector2(spots[i].x, clampi(at.y, spots[i].y - OrionView.SHAFT, spots[i].y))
+				var gap: float = nearest.distance_to(Vector2(at)) - OrionView.OVERHEAD_HALF_WIDTH - halo
+				assert_gte(gap, float(OrionView.OVERHEAD_CLEAR), "%s: arrow %d clear of star %d's halo" % [map, i, k])
+	var moved: int = 0
+	for i: int in OrionView.OVERHEAD_X.size():
+		moved += int(orion.overhead_spots()[i].x != run.sky_rect.position.x + OrionView.OVERHEAD_X[i])
+	assert_eq(moved, 1, "on the final only the arrow by beta slides")
+	main.star_map = "body"
+	main.start_run(Balance.from_dict(_balance_dict()))
+	for i: int in OrionView.OVERHEAD_X.size():
+		assert_eq(orion.overhead_spots()[i].x, main.run.sky_rect.position.x + OrionView.OVERHEAD_X[i], "the Body's row is already clear")
+
+
 func test_the_body_shows_orion_and_the_countdown() -> void:
 	assert_true(orion.is_figure_shown())
 	assert_eq(hud.volley_countdown(), "3", "three links left")
