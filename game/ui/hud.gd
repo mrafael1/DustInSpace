@@ -83,7 +83,7 @@ const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
 ## committed; revisits and retries hear it again, it's short): it moves stars; where it drains,
 ## that it takes the stars it carries past its edge; a tide or box, that it turns and drains.
 ## At most 22 characters a line (132 px).
-const FLOW_MESSAGE: String = "EACH LAUNCH, THE FLOW\nMOVES THE STARS"
+const FLOW_MESSAGE: String = "EACH LAUNCH THE FLOW\nMOVES THE STARS"
 const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
 const TIDE_MESSAGE: String = "TIDE TURNS EACH LAUNCH\nBOTH SIDES DRAIN STARS"
 const BOX_MESSAGE: String = "FLOW TURNS EACH LAUNCH\nEVERY SIDE DRAINS"
@@ -160,9 +160,6 @@ var _message_held: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
 var _current_told: bool = false
-## Where the loaded planet shows on the launcher (the telescope's window), for the tutorial's hand.
-## Main wires it: `func() -> Vector2i`.
-var loaded_window_at: Callable
 ## Main sets it: how far below the burst point the player's finger goes to launch there (the
 ## telescope aims above a finger, #152), so the guided run's hand points where the finger goes.
 var launch_finger_lift: Callable
@@ -322,6 +319,10 @@ func advance(delta: float) -> void:
 		_table.advance(delta)
 		return
 	_lone_quiet = maxf(_lone_quiet - delta, 0.0)
+	# A guide step shown ahead of its moment (the full Sun's) counts once the events have played,
+	# even if its own step never comes (a full Sun outside the red link).
+	if _sequencer != null and not _sequencer.is_busy():
+		_guide.release_clock()
 	for label: Label in _hops:
 		_hops[label] = maxf(_hops[label] - delta, 0.0)
 		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
@@ -692,15 +693,17 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			return
 		&"sun_rekindled":
 			# The guided run's full Sun: the hand goes to the star it lights as the Sun ignites, so the
-			# lighting is seen (the step itself comes once the sky has cleared).
+			# lighting is seen. Its clock waits for the step itself, once the sky has cleared and the
+			# star is lit, so the line stays SHOW_TIME on the lit star (#148).
 			if _run.tutorial != null and not _run.tutorial.is_done() and event.args[0] >= 0:
 				_guide.show_step(Tutorial.Step.SUN_FULL, _landmark_top(event.args[0]), true, TutorialView.Point.DOWN, _run.sky_rect.position.y + TutorialView.TOP)
+				_guide.hold_clock()
 			return
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed":
-			# Virgo's intros say their rule as the effect shows.
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed":
+			# Virgo's and the current's intros say their rule as the effect shows.
 			tell_current_rule()
 			return
 		&"stars_shifted", &"stars_resized":
@@ -764,8 +767,8 @@ func dust_icon_top() -> Vector2i:
 
 ## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
 ## launch at, the stars to link, the dust counter and the Sun as the payout lands, the
-## constellation star to launch by and light, where the loaded planet shows (the telescope's
-## window, its spinning icon), the star a full Sun lit, the buy button.
+## constellation star to launch by and light, the loaded planet's icon, the star a full Sun lit, the
+## buy button.
 func _show_tutorial_step(step: int) -> void:
 	var top: int = _run.sky_rect.position.y + TutorialView.TOP
 	match step:
@@ -778,7 +781,10 @@ func _show_tutorial_step(step: int) -> void:
 			# From the left: the Sun sits at the top of the screen, with no room above it.
 			_guide.show_step(step, sun_at - Vector2i(SunView.RADIUS + 2, 0), true, TutorialView.Point.RIGHT, top)
 		Tutorial.Step.LAUNCH, Tutorial.Step.RED:
-			_guide.show_step(step, _run.sky_rect.get_center() + Vector2i(0, 12 + _finger_lift()), true, TutorialView.Point.DOWN, top)
+			# Open sky, clear of the figure and below the next step's two lines, so the new stars
+			# read as new (#148).
+			var spot: Vector2i = _run.open_launch_spot(top + 2 * TutorialView.LINE_STEP)
+			_guide.show_step(step, spot + Vector2i(0, _finger_lift()), true, TutorialView.Point.DOWN, top)
 		Tutorial.Step.LINK:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
 			var ids: Array[int] = []
@@ -796,19 +802,19 @@ func _show_tutorial_step(step: int) -> void:
 			# The near launch: the hand points where the finger goes, so the aim lands on the star.
 			var lift: int = _finger_lift() if step == Tutorial.Step.LAUNCH_NEAR else 0
 			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size) - lift), true, TutorialView.Point.DOWN, top)
+			if step == Tutorial.Step.LAUNCH_NEAR:
+				# What counts as next to it: the ring a launch must land in (#148).
+				_guide.show_zone(at, Tutorial.NEAR)
 			if step == Tutorial.Step.LIGHT:
 				var pair: Array[int] = []
 				for star: Star in _run.stars:
 					if star.size == size and pair.size() < 2:
 						pair.append(star.id)
 				if pair.size() == 2:
-					var path: Array[int] = _reachable_order([pair[0], Scorpio.landmark_id(index), pair[1]])
+					# The hand starts on the constellation star, the one this link lights (#148).
+					var path: Array[int] = _reachable_order([Scorpio.landmark_id(index), pair[0], pair[1]])
 					_guide.follow_path(path, _link_positions(path))
-		Tutorial.Step.SCOPE:
-			var window: Vector2i = loaded_window_at.call() if loaded_window_at.is_valid() else Vector2i(90, 290)
-			# From the left: the barrel rises above its window, so the hand can't come down onto it.
-			_guide.show_step(step, window - Vector2i(Telescope.BARREL_HALF + 1, 0), true, TutorialView.Point.RIGHT, top)
-		Tutorial.Step.ICON:
+		Tutorial.Step.LOADED:
 			_guide.show_step(step, pack_icon_top(_run.loaded_pack), _run.loaded_pack != "", TutorialView.Point.DOWN, top)
 		Tutorial.Step.RED_LINK:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)
@@ -854,6 +860,12 @@ func _show_encounter(threat: int, step: int) -> void:
 			_guide.show_line(ENCOUNTER_LINES[threat] % _run.volley.interval, Vector2i(_volley.position), true, TutorialView.Point.DOWN, top, left)
 		Encounter.Threat.HUNT:
 			_guide.show_line(ENCOUNTER_LINES[threat], _run.safe_launch_spot(), true, TutorialView.Point.DOWN, top, left)
+
+
+## The run refused a launch (the guided near launch, too far): the guide's ring flashes and its line
+## says to aim inside it.
+func explain_launch_refusal() -> void:
+	_guide.refuse_launch()
 
 
 ## The link being traced changed: the tutorial's hand moves on to the next star to pick.

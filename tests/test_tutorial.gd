@@ -61,11 +61,9 @@ func test_the_whole_tutorial() -> void:
 	assert_true(run.scorpio.is_lit(landmark))
 	assert_gt(run.dust, dust)
 	# The red planet the run started with drops in: where the loaded planet shows, then its launch.
-	assert_eq(steps.back(), Tutorial.Step.SCOPE)
+	assert_eq(steps.back(), Tutorial.Step.LOADED)
 	assert_eq(run.loaded_pack, "red", "in the slingshot")
-	assert_false(run.launch(Vector2i(90, 120)), "the showing steps only show")
-	assert_true(run.tutorial_continue())
-	assert_eq(steps.back(), Tutorial.Step.ICON)
+	assert_false(run.launch(Vector2i(90, 120)), "the showing step only shows")
 	assert_true(run.tutorial_continue())
 	assert_eq(steps.back(), Tutorial.Step.RED)
 	assert_false(run.load_pack("blue"), "the red planet stays loaded")
@@ -138,13 +136,13 @@ func test_without_a_red_planet_the_red_launch_is_skipped() -> void:
 func test_a_buy_goes_through_at_any_step_without_moving_it_on() -> void:
 	var run: RunState = _run()
 	_play_to_light(run)
-	assert_eq(run.tutorial.step, Tutorial.Step.SCOPE)
+	assert_eq(run.tutorial.step, Tutorial.Step.LOADED)
 	var blue: int = run.owned_packs["blue"]
 	var dust: int = run.dust
 	assert_true(run.buy("blue"), "a showing step lets a buy through")
 	assert_eq(run.dust, dust - run.balance.packs["blue"].cost)
 	assert_eq(run.owned_packs["blue"], blue + 1)
-	assert_eq(run.tutorial.step, Tutorial.Step.SCOPE, "only the buy step moves on")
+	assert_eq(run.tutorial.step, Tutorial.Step.LOADED, "only the buy step moves on")
 	assert_eq(run.loaded_pack, "red", "the scripted red launch keeps its planet")
 	run.tutorial_continue()
 	run.tutorial_continue()
@@ -161,7 +159,7 @@ func test_a_sky_link_that_fills_the_sun_at_the_light_step_moves_on() -> void:
 	run.light = run.light_target() - 1
 	assert_ne(run.link(three), Combos.INVALID)
 	assert_true(run.stars.is_empty(), "the full Sun cleared the sky")
-	assert_eq(run.tutorial.step, Tutorial.Step.SCOPE, "a star was lit by the full Sun: on to the red planet")
+	assert_eq(run.tutorial.step, Tutorial.Step.LOADED, "a star was lit by the full Sun: on to the red planet")
 	run.tutorial_continue()
 	run.tutorial_continue()
 	assert_true(run.launch(Vector2i(90, 120)), "and the red launch goes")
@@ -210,7 +208,7 @@ func test_a_link_that_strands_the_light_step_moves_on() -> void:
 	run.light = 0
 	assert_ne(run.link(_order(run, [pair[0], pair[1], third.id])), Combos.INVALID, "a sky triple of its size")
 	assert_false(run.has_remaining_combo())
-	assert_eq(run.tutorial.step, Tutorial.Step.SCOPE, "nothing left to light it with: on")
+	assert_eq(run.tutorial.step, Tutorial.Step.LOADED, "nothing left to light it with: on")
 
 
 func test_a_sky_link_that_leaves_the_lesson_keeps_the_light_step() -> void:
@@ -223,7 +221,7 @@ func test_a_sky_link_that_leaves_the_lesson_keeps_the_light_step() -> void:
 
 func test_only_the_buy_step_moves_on_by_a_buy() -> void:
 	var tutorial := Tutorial.new()
-	for step: Tutorial.Step in [Tutorial.Step.GOAL, Tutorial.Step.LAUNCH, Tutorial.Step.LINK, Tutorial.Step.DUST, Tutorial.Step.SCOPE, Tutorial.Step.RED, Tutorial.Step.SUN_FULL]:
+	for step: Tutorial.Step in [Tutorial.Step.GOAL, Tutorial.Step.LAUNCH, Tutorial.Step.LINK, Tutorial.Step.DUST, Tutorial.Step.LOADED, Tutorial.Step.RED, Tutorial.Step.SUN_FULL]:
 		tutorial.step = step
 		assert_false(tutorial.bought(), "step %d" % step)
 		assert_eq(tutorial.step, step)
@@ -243,12 +241,12 @@ func test_a_link_goes_through_at_a_showing_step_without_moving_it_on() -> void:
 
 
 func test_only_the_showing_steps_wait() -> void:
-	for step: int in [Tutorial.Step.GOAL, Tutorial.Step.DUST, Tutorial.Step.SUN, Tutorial.Step.SCOPE, Tutorial.Step.ICON, Tutorial.Step.SUN_FULL]:
+	for step: int in [Tutorial.Step.GOAL, Tutorial.Step.DUST, Tutorial.Step.SUN, Tutorial.Step.LOADED, Tutorial.Step.SUN_FULL]:
 		assert_true(Tutorial.is_info(step))
 		assert_false(Tutorial.aims(step), "no aiming while it shows")
 	assert_false(Tutorial.is_timed(Tutorial.Step.GOAL), "the goal waits for a tap")
 	assert_true(Tutorial.is_timed(Tutorial.Step.DUST), "the payout goes on by itself")
-	for step: int in [Tutorial.Step.SUN, Tutorial.Step.SCOPE, Tutorial.Step.ICON, Tutorial.Step.SUN_FULL]:
+	for step: int in [Tutorial.Step.SUN, Tutorial.Step.LOADED, Tutorial.Step.SUN_FULL]:
 		assert_true(Tutorial.is_timed(step))
 	for step: int in [Tutorial.Step.LAUNCH, Tutorial.Step.LINK, Tutorial.Step.LIGHT, Tutorial.Step.RED, Tutorial.Step.RED_LINK, Tutorial.Step.BUY, Tutorial.Step.DONE]:
 		assert_false(Tutorial.is_info(step))
@@ -274,6 +272,44 @@ func test_the_scripted_packs_fit_any_pack_size() -> void:
 	assert_eq(tutorial.pack_sizes(4, Star.Size.SMALL).size(), 4)
 	tutorial.step = Tutorial.Step.LINK
 	assert_eq(tutorial.pack_sizes(3, Star.Size.SMALL), [] as Array[int], "no script outside the launch steps")
+
+
+func test_the_first_launch_lands_its_stars_in_open_sky() -> void:
+	var run: RunState = _run()
+	run.tutorial_continue()
+	var top: int = run.sky_rect.position.y + 30
+	var spot: Vector2i = run.open_launch_spot(top)
+	for at: Vector2i in run.scorpio.landmark_positions():
+		assert_gte(Vector2(spot).distance_to(Vector2(at)), float(RunState.OPEN_CLEARANCE), "clear of the figure")
+	var reach_y: int = ceili(StarScatter.RING_MAX * StarScatter.RING_SQUASH)
+	assert_gte(spot.y - reach_y, top, "its stars land below the guide's line")
+	assert_true(run.launch(spot))
+	for star: Star in run.stars:
+		for at: Vector2i in run.scorpio.landmark_positions():
+			assert_gt(Vector2(star.position).distance_to(Vector2(at)), float(StarScatter.LANDMARK_SPACING), "each new star stands apart from the figure")
+	assert_ne(run.link(_order(run, _ids(run.stars))), Combos.INVALID, "and they link")
+
+
+func test_the_red_launch_keeps_both_bursts_clear_of_the_stars_out() -> void:
+	var run: RunState = _run()
+	run.loaded_pack = "red"
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(50, 130))
+	var spot: Vector2i = run.open_launch_spot(run.sky_rect.position.y)
+	var pack: Balance.PackDef = run.balance.packs["red"]
+	var inner: Rect2i = StarScatter.inner_rect(run.sky_rect)
+	for point: Vector2i in StarScatter.split_points(spot, pack.burst_spread, pack.bursts, run.sky_rect):
+		assert_gte(point.x - StarScatter.RING_MAX, inner.position.x, "each ring inside the sky")
+		assert_lt(point.x + StarScatter.RING_MAX, inner.end.x)
+		assert_gt(Vector2(point).distance_to(Vector2(star.position)), float(StarScatter.RING_MAX), "clear of the star out")
+
+
+func test_a_sky_with_no_open_spot_takes_the_clearest() -> void:
+	var run: RunState = _run()
+	for y: int in range(run.sky_rect.position.y + 10, run.sky_rect.end.y - 10, 20):
+		for x: int in range(10, 180, 20):
+			run.add_star(Star.Size.SMALL, Vector2i(x, y))
+	var spot: Vector2i = run.open_launch_spot(run.sky_rect.position.y)
+	assert_true(StarScatter.inner_rect(run.sky_rect).has_point(spot), "still a spot in the sky")
 
 
 func _run(with_tutorial: bool = true) -> RunState:

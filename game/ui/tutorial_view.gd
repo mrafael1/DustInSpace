@@ -2,7 +2,7 @@ class_name TutorialView
 extends Node2D
 ## The guided first run's guide (Tutorial), on the HUD layer: a line or two of text under the Sun,
 ## at the top of the sky, saying what to do, and a pointing hand at where to do it, bobbing BOB px every BOB_STEP. The hand
-## points down at a spot in the sky, a star, a landmark, the dust counter, the telescope's window or a
+## points down at a spot in the sky, a star, a landmark, the dust counter or a
 ## planet's icon, and points right at the Sun and the buy button. Free
 ## play shows its line for a moment, the hand on the COMBOS button. Owns no rules: the HUD tells it
 ## each step as it plays, with where to point. The links themselves are taught by the table (#94),
@@ -13,7 +13,7 @@ extends Node2D
 ## works, the hand acts a drag out until a star is picked: it slides from star to star along the
 ## path, leaving a dotted trail.
 ## The goal waits for a tap and says TAP TO CONTINUE (N8) below; the showing steps (the payout's
-## dust and Sun as it lands, where the loaded planet shows, the star a full Sun lit) point at it and
+## dust and Sun as it lands, the loaded planet, the star a full Sun lit) point at it and
 ## go on by themselves after SHOW_TIME (timed_out; a tap goes on too). The HUD sends the tap and the
 ## time-out.
 
@@ -37,17 +37,24 @@ const SHOW_TIME: float = 3.0
 const DRAG_STEP: float = 0.6
 const DRAG_REST: float = 0.5
 const TRAIL_GAP: int = 3
+## The near launch's zone (#148): a dotted ring (C1, the hand's colour) round the star, as far out as
+## a launch may land, ZONE_DOTS dots. A refused launch flashes it C0 every ZONE_FLASH_STEP for
+## ZONE_FLASH, and the line says REFUSED_TEXT for REFUSED_TIME.
+const ZONE_DOTS: int = 28
+const ZONE_FLASH: float = 0.48
+const ZONE_FLASH_STEP: float = 0.08
+const REFUSED_TEXT: String = "AIM INSIDE THE RING"
+const REFUSED_TIME: float = 2.0
 ## Each step's line (the 5x7 font has letters, digits and + - / only: no punctuation).
 const TEXTS: Dictionary = {
 	Tutorial.Step.GOAL: "LIGHT EVERY STAR OF THE\nCONSTELLATION TO WIN",
 	Tutorial.Step.LAUNCH: "TAP THE SKY TO LAUNCH\nA CHEAP BLUE PLANET",
-	Tutorial.Step.LINK: "TAP OR DRAG THROUGH THEM",
+	Tutorial.Step.LINK: "LINK THE 3 NEW STARS\nTAP OR DRAG THROUGH THEM",
 	Tutorial.Step.DUST: "DUST BUYS PLANETS",
 	Tutorial.Step.SUN: "LIGHT FILLS THE SUN",
 	Tutorial.Step.LAUNCH_NEAR: "LAUNCH NEXT TO THIS STAR",
-	Tutorial.Step.LIGHT: "LINK 3 OF THE SAME SIZE",
-	Tutorial.Step.SCOPE: "THE TELESCOPE SHOWS\nTHE LOADED PLANET",
-	Tutorial.Step.ICON: "THE LOADED PLANET SPINS",
+	Tutorial.Step.LIGHT: "LINK THIS STAR WITH\n2 OF ITS SIZE TO LIGHT IT",
+	Tutorial.Step.LOADED: "THE RED PLANET IS LOADED",
 	Tutorial.Step.RED: "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS",
 	Tutorial.Step.RED_LINK: "LINK THEM TO FILL THE SUN",
 	Tutorial.Step.SUN_FULL: "A FULL SUN LIGHTS A STAR",
@@ -96,10 +103,19 @@ var _demo: Array[Vector2i] = []
 var _picked: int = 0
 ## Whether the payout step's time-out was sent already.
 var _timed_out: bool = false
+## How long the showing step has counted towards SHOW_TIME, and whether its clock waits: a step
+## shown early (the full Sun's, as the Sun ignites) counts only once its moment plays (#148).
+var _shown_for: float = 0.0
+var _clock_held: bool = false
 ## Where the line's space starts (an encounter's line keeps clear of Orion's corner).
 var _left: int = 0
 ## An encounter's own line (show_line), shown again once a link it guides is dropped.
 var _line: String = ""
+## The near launch's zone: its centre and radius (0: none), and seconds since a launch outside it
+## was refused (-1: none).
+var _zone_centre: Vector2i = Vector2i.ZERO
+var _zone_radius: int = 0
+var _refused_for: float = -1.0
 
 
 func _ready() -> void:
@@ -136,8 +152,12 @@ func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = f
 	_demo.clear()
 	_picked = 0
 	_timed_out = false
+	_shown_for = 0.0
+	_clock_held = false
 	_left = 0
 	_line = ""
+	_zone_radius = 0
+	_refused_for = -1.0
 	_tap.visible = Tutorial.is_info(step) and not Tutorial.is_timed(step)
 	_set_text(TEXTS.get(step, ""))
 	visible = true
@@ -152,6 +172,53 @@ func show_line(line: String, target: Vector2i = Vector2i.ZERO, has_target: bool 
 	_left = left
 	_line = line
 	_set_text(line)
+
+
+## The showing step on show waits to count towards SHOW_TIME until it's shown again (show_step) or
+## the clock is let go (release_clock): it was shown ahead of its moment, while the run's events
+## still play.
+func hold_clock() -> void:
+	_clock_held = true
+
+
+## A held clock counts again (the run's events have all played).
+func release_clock() -> void:
+	_clock_held = false
+
+
+## Shows the zone a launch must land in: a dotted ring of `radius` round `centre`.
+func show_zone(centre: Vector2i, radius: int) -> void:
+	_zone_centre = centre
+	_zone_radius = radius
+	queue_redraw()
+
+
+## A launch outside the zone was refused: the ring flashes and the line says to aim inside it, for a
+## moment.
+func refuse_launch() -> void:
+	if _zone_radius <= 0 or not visible:
+		return
+	_refused_for = 0.0
+	_set_text(REFUSED_TEXT)
+	queue_redraw()
+
+
+## The ring's dots: ZONE_DOTS whole pixels round the zone (none without one).
+func zone_pixels() -> Array[Vector2i]:
+	var dots: Array[Vector2i] = []
+	if _zone_radius <= 0:
+		return dots
+	for i: int in ZONE_DOTS:
+		var angle: float = i * TAU / ZONE_DOTS
+		var dot: Vector2i = _zone_centre + Vector2i((Vector2(cos(angle), sin(angle)) * _zone_radius).round())
+		if not dots.has(dot):
+			dots.append(dot)
+	return dots
+
+
+## Whether the zone is flashing now (a refused launch, every other step).
+func is_zone_flashing() -> bool:
+	return _refused_for >= 0.0 and _refused_for < ZONE_FLASH and int(_refused_for / ZONE_FLASH_STEP) % 2 == 0
 
 
 func hide_guide() -> void:
@@ -268,7 +335,15 @@ func advance(delta: float) -> void:
 	if _step == Tutorial.Step.DONE and _time >= DONE_TIME:
 		hide_guide()
 		return
-	if _step >= 0 and Tutorial.is_timed(_step) and _time >= SHOW_TIME and not _timed_out:
+	if _refused_for >= 0.0:
+		_refused_for += delta
+		queue_redraw()
+		if _refused_for >= REFUSED_TIME:
+			_refused_for = -1.0
+			_set_text(TEXTS.get(_step, ""))
+	if not _clock_held:
+		_shown_for += delta
+	if _step >= 0 and Tutorial.is_timed(_step) and _shown_for >= SHOW_TIME and not _timed_out:
 		_timed_out = true
 		timed_out.emit()
 	if is_demoing_drag() or int(_time / BOB_STEP) % 2 != bob:
@@ -294,6 +369,9 @@ static func hand_pixels(tip: Vector2i, point: Point) -> Dictionary[Vector2i, Col
 
 
 func _draw() -> void:
+	var zone: Color = Palette.C0 if is_zone_flashing() else Palette.C1
+	for p: Vector2i in zone_pixels():
+		draw_rect(Rect2(Vector2(p), Vector2.ONE), zone)
 	if not _has_target:
 		return
 	if is_demoing_drag():

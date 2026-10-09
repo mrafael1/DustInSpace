@@ -116,12 +116,11 @@ func _ready() -> void:
 	_idle_hint.shows_aim_preview = func() -> bool:
 		return run != null and (run.current != null or run.heat != null or run.harvest != null)
 	_telescope.aim_started.connect(_idle_hint.reset)
-	_hud.loaded_window_at = func() -> Vector2i:
-		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()
 	_hud.launch_finger_lift = func() -> int:
 		return _telescope.finger_lift() if use_telescope else 0
 	_telescope.message_shown.connect(_hud.show_message)
 	_telescope.message_withdrawn.connect(_hud.withdraw_message)
+	_telescope.launch_refused.connect(_hud.explain_launch_refusal)
 	_hud.table_opened.connect(_pause_world.bind(true))
 	_hud.table_closed.connect(_pause_world.bind(false))
 	($DebugKeys as DebugKeys).launcher_switch_requested.connect(func() -> void: switch_launcher(not use_telescope))
@@ -172,6 +171,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_heat_intro()
 	# And a stage bringing Virgo's scythe or its binding: shown once as it opens.
 	run.play_harvest_intro()
+	# And an Aquarius stage bringing its flow, drain, tide or box: the flow shown on a few stars.
+	run.play_current_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)

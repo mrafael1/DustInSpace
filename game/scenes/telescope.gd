@@ -82,6 +82,10 @@ const RETICLE: int = 6
 ## A finger (not a mouse) aims this many px above where it touches (#152): input ergonomics, not
 ## balance. The reticle, its scatter ring and the at-risk previews stay clear of the fingertip.
 const TOUCH_LIFT: int = 28
+## A launch the run refused (#148): the reticle shakes side to side, a whole pixel a step, like a
+## refused buy's icon.
+const REFUSED_SHAKE: Array[int] = [1, -1, 1, -1, 0]
+const REFUSED_SHAKE_STEP: float = 0.04
 
 var _aiming: bool = false
 ## The burst point being aimed at (clamped into the sky), on the 180x320 grid.
@@ -109,6 +113,8 @@ var _seated_kind: String = ""
 var _load_time: float = -1.0
 ## The message the telescope showed itself (the HUD may since show another), "" for none.
 var _said: String = ""
+## Seconds into the reticle's refused shake, or -1 when it isn't shaking.
+var _refused_time: float = -1.0
 
 
 func _ready() -> void:
@@ -281,6 +287,10 @@ func advance(delta: float) -> void:
 		_load_time += delta
 		if _load_time >= LOAD_TIME:
 			_seat(shown_pack(), true)
+	if _refused_time >= 0.0:
+		_refused_time += delta
+		if _refused_time >= REFUSED_SHAKE_STEP * REFUSED_SHAKE.size():
+			_refused_time = -1.0
 	if _aim_requested and not _encounter_hold and _sequencer != null and not _sequencer.is_busy() and not is_loading():
 		_aim_requested = false
 		if shown_pack() != "":
@@ -378,6 +388,13 @@ func _release_sky() -> void:
 	queue_redraw()
 
 
+## How far the reticle is shaken sideways now (a refused launch), in whole px.
+func refused_shake() -> int:
+	if _refused_time < 0.0:
+		return 0
+	return REFUSED_SHAKE[mini(int(_refused_time / REFUSED_SHAKE_STEP), REFUSED_SHAKE.size() - 1)]
+
+
 ## True if `point` (this node's coordinates) presses the telescope: its tripod or its barrel.
 func on_scope(point: Vector2i) -> bool:
 	if (point - PIVOT).length_squared() <= SCOPE_RADIUS * SCOPE_RADIUS:
@@ -393,6 +410,7 @@ func _fire() -> void:
 	if _run.launch(target):
 		_aim_requested = true
 	else:
+		_refused_time = 0.0
 		launch_refused.emit()
 		start_aim()
 
@@ -599,9 +617,10 @@ func _draw_sight() -> void:
 
 
 ## The reticle at the burst point and a dotted ring where the stars will scatter: one ring per
-## burst point for a pack that splits (the red pack's twin burst), each with a small C2 core.
+## burst point for a pack that splits (the red pack's twin burst), each with a small C2 core. A
+## refused launch shakes the reticle.
 func _draw_burst_preview() -> void:
-	var at: Vector2i = burst_preview() - origin()
+	var at: Vector2i = burst_preview() - origin() + Vector2i(refused_shake(), 0)
 	# Let go (a finger out at the telescope): only cold brackets, no ring, core or sight line.
 	var points: Array[Vector2i] = []
 	if not _letting_go:
