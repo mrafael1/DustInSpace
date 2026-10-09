@@ -129,6 +129,9 @@ const MESSAGE_LINE_STEP: int = 10
 ## ENCOUNTER_LINE_LEFT so it clears Orion's corner (two lines at most, 5x7, no punctuation). The
 ## volley's says its interval.
 const ENCOUNTER_LINE_LEFT: int = 42
+## An encounter's line keeps this far clear of the constellation's stars and of the arrows hanging
+## under the sky's top (#149).
+const ENCOUNTER_CLEAR: int = 3
 const ENCOUNTER_LINES: Dictionary = {
 	Encounter.Threat.MARK: "LINK THE MARKED STAR\nOR HIS ARROW TAKES IT",
 	Encounter.Threat.VOLLEY: "EVERY %d LINKS\nHIS ARROWS FALL",
@@ -856,21 +859,56 @@ func _show_encounter(threat: int, step: int) -> void:
 	if step != Encounter.Step.GUIDING:
 		_guide.hide_guide()
 		return
-	var top: int = _run.sky_rect.position.y + TutorialView.TOP
-	var left: int = _run.sky_rect.position.x + ENCOUNTER_LINE_LEFT
+	var line: String = ENCOUNTER_LINES[threat] % _run.volley.interval if threat == Encounter.Threat.VOLLEY else ENCOUNTER_LINES[threat]
+	var block: Rect2i = encounter_block(line)
 	match threat:
 		Encounter.Threat.MARK:
 			var link: Array[int] = _run.encounter_link()
 			var target: Star = _run.marked_star()
 			var at: Vector2i = target.position - Vector2i(0, StarView.half_extent(target.size)) if target != null else Vector2i.ZERO
-			_guide.show_line(ENCOUNTER_LINES[threat], at, target != null, TutorialView.Point.DOWN, top, left)
+			_guide.show_line(line, at, target != null, TutorialView.Point.DOWN, block.position.y, block.position.x, block.end.x)
 			if not link.is_empty():
 				_guide.follow_path(link, _link_positions(link), _link_centres(link))
 		Encounter.Threat.VOLLEY:
 			# Down onto the countdown above his head (its row's top is the node's origin).
-			_guide.show_line(ENCOUNTER_LINES[threat] % _run.volley.interval, Vector2i(_volley.position), true, TutorialView.Point.DOWN, top, left)
+			_guide.show_line(line, Vector2i(_volley.position), true, TutorialView.Point.DOWN, block.position.y, block.position.x, block.end.x)
 		Encounter.Threat.HUNT:
-			_guide.show_line(ENCOUNTER_LINES[threat], _run.safe_launch_spot(), true, TutorialView.Point.DOWN, top, left)
+			_guide.show_line(line, _run.safe_launch_spot(), true, TutorialView.Point.DOWN, block.position.y, block.position.x, block.end.x)
+
+
+## Where an encounter's `line` goes: right of Orion's corner, under the sky's top as the tutorial's
+## line, centred. If that would cover a constellation star, or the arrows hanging under the sky's top
+## on a volley stage (#149: on the Body it hid three of the five arrows and ran into the lit spine
+## top), the nearest spot below that keeps ENCOUNTER_CLEAR px clear of both (and of the screen's
+## edge): at each height it's tried centred, then slid a pixel at a time either way. Where no spot is
+## clear, the usual one.
+func encounter_block(line: String) -> Rect2i:
+	var sky: Rect2i = _run.sky_rect
+	var left: int = sky.position.x + ENCOUNTER_LINE_LEFT
+	var size: Vector2i = _guide.text_size(line)
+	var usual := Rect2i(Vector2i(left + (sky.end.x - left - size.x) / 2, sky.position.y + TutorialView.TOP), size)
+	var taken: Array[Rect2i] = []
+	if _run.scorpio != null:
+		for i: int in _run.scorpio.map.count():
+			var half: int = StarView.half_extent(_run.scorpio.map.sizes[i] as Star.Size)
+			taken.append(Rect2i(_run.scorpio.landmark_position(i) - Vector2i(half, half), Vector2i(half, half) * 2 + Vector2i.ONE))
+	if _run.volley != null:
+		var arrows_top: int = sky.position.y + OrionView.OVERHEAD_Y - OrionView.SHAFT
+		var xs: Array[int] = OrionView.OVERHEAD_X
+		# Each shaft, its head a pixel either side and its shiver a pixel more.
+		taken.append(Rect2i(sky.position.x + xs.front() - 2, arrows_top, xs.back() - xs.front() + 5, OrionView.SHAFT + 1))
+	var right: int = sky.end.x - ENCOUNTER_CLEAR
+	var widest: int = maxi(usual.position.x - left, right - size.x - usual.position.x)
+	for y: int in range(usual.position.y, sky.end.y - size.y + 1):
+		for slide: int in widest + 1:
+			for x: int in ([usual.position.x] if slide == 0 else [usual.position.x - slide, usual.position.x + slide]):
+				var block := Rect2i(Vector2i(x, y), size)
+				if x < left or block.end.x > right:
+					continue
+				var grown: Rect2i = block.grow(ENCOUNTER_CLEAR)
+				if not taken.any(func(r: Rect2i) -> bool: return r.intersects(grown)):
+					return block
+	return usual
 
 
 ## The run refused a launch (the guided near launch, too far): the guide's ring flashes and its line
