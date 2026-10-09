@@ -85,6 +85,8 @@ Teach the gain first, then the cost, then twists:
 
 The harvest is the chapter's spike, on a clock the player can see coming. A rare **golden harvest** (all reaped stars pay double) is the slot-machine jackpot on top.
 
+**Status (2026-10-09, #149):** the paying harvest failed its stakes gate (step C below), so the scythe reaps for nothing and the golden harvest has nothing to double: it needs rethinking (paying for something that rewards the binding, not for standing stars, so the failed farm economy doesn't come back). Open, with the other chapters' spikes ([design.md](design.md), Later, not now).
+
 ### Step C: the harvest fails the stakes gate (2026-10-08)
 
 Built in the core, off by default (`StarHarvest`, the `harvest` block in balance.json, `StarMap.harvest`), and measured with bots (`tools/harvest/playtest.gd`) on Leo's Haunch layout with its heat off: 200-300 paired seeds, a harvest every 3 launches. Policies: link at once; launch every pack first (hoard); link only for the constellation; glean (let the field stand and link for the constellation just before the harvest); sheaf (leave same-size triples standing for the harvest).
