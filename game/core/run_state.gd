@@ -106,6 +106,10 @@ signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
 signal heat_intro_placed(stars: Array[Star])
 ## Leo's heat intro paused a beat between two of its steps (the heat acting again, or the end).
 signal heat_intro_paused
+## Leo's heat intro on the Mane (#148): day and night swapped between its two steps; the heat now
+## changes stars by `change` (+1 the heat, -1 the cold). Presentation only: the run's own heat
+## starts as it was.
+signal heat_intro_turned(change: int)
 ## Leo's heat intro is over: `stars`, what the heat left of it, leave the sky. No reward.
 signal heat_intro_cleared(stars: Array[Star])
 ## Leo's final opened: the lion arrives (it catches fire star by star, roars, and its title card
@@ -149,7 +153,7 @@ const HEAT_INTRO_PULSES: int = 3
 const HEAT_INTRO_SEED_SALT: int = 0x4EA7
 ## Leo's heat intro: its stars gather this far at least from every constellation star (the scatter
 ## ring and a margin), so they don't read as part of the figure (the Haunch's runs through the middle).
-const HEAT_INTRO_CLEARANCE: int = 40
+const HEAT_INTRO_CLEARANCE: int = 48
 ## Virgo's scythe intro: its layout's own RNG stream (XOR'd into the run seed).
 const HARVEST_INTRO_SEED_SALT: int = 0x5C7E
 ## Virgo's scythe intro: where its standing stars and its demo planet's burst sit from the sky's
@@ -1147,7 +1151,8 @@ func play_volley_intro() -> void:
 ## the middle of the sky (playtest: easier to see there than off in a corner), then the heat acts on them as a launch would, without one, while it changes any (at
 ## most HEAT_INTRO_PULSES times): the heat grows them, the cold shrinks them and fades the small one,
 ## until none are left. What's left (the heat's bigs, where nothing burns) leaves the sky. It pays
-## nothing, uses no pack, doesn't turn day and night, and its layout has its own RNG stream, so packs
+## nothing, uses no pack, leaves day and night as they were (the Mane's demo turns them once, by
+## day then by night, #148), and its layout has its own RNG stream, so packs
 ## and layout never shift. Does nothing without heat, on a map without intros, or once the run has
 ## begun.
 func play_heat_intro() -> void:
@@ -1168,13 +1173,21 @@ func play_heat_intro() -> void:
 		var star: Star = add_star(HEAT_INTRO_SIZES[i], spots[i])
 		shown.append(Star.new(star.id, star.size, star.position))
 	heat_intro_placed.emit(shown)
-	for pulse: int in HEAT_INTRO_PULSES:
+	# Day and night (the Mane, #148): the heat acts by day, then the night falls and the cold acts.
+	var start: int = heat.change
+	for pulse: int in (2 if heat.turns else HEAT_INTRO_PULSES):
 		var changes: Array[StarHeat.Change] = heat.preview(stars)
 		if changes.is_empty():
 			break
 		if pulse > 0:
 			heat_intro_paused.emit()
+			if heat.turns:
+				heat.turn()
+				heat_intro_turned.emit(heat.change)
+				changes = heat.preview(stars)
 		_apply_heat(changes)
+	if heat.change != start:
+		heat.turn()
 	if not stars.is_empty():
 		heat_intro_paused.emit()
 		var left: Array[Star] = stars.duplicate()
@@ -1183,23 +1196,32 @@ func play_heat_intro() -> void:
 
 
 ## The spot nearest the sky's middle at least HEAT_INTRO_CLEARANCE from every constellation star (the
-## middle itself when it's clear, or when no spot is).
+## middle itself when it's clear); where no spot is (the Mane's figure fills the sky), the spot
+## furthest from them. Its scatter ring stays inside the sky.
 func _open_middle() -> Vector2i:
-	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect).grow(-StarScatter.RING_MAX)
 	var middle: Vector2i = inner.get_center()
 	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
-	var best: Vector2i = middle
+	var best: Vector2i = Vector2i(-1, -1)
 	var best_far: int = -1
+	var clearest: Vector2i = middle
+	var clearest_near: int = -1
 	for y: int in range(inner.position.y, inner.end.y, SAFE_SPOT_GRID / 2):
 		for x: int in range(inner.position.x, inner.end.x, SAFE_SPOT_GRID / 2):
 			var spot := Vector2i(x, y)
-			if landmarks.any(func(at: Vector2i) -> bool: return (at - spot).length_squared() < HEAT_INTRO_CLEARANCE * HEAT_INTRO_CLEARANCE):
+			var near: int = 1 << 30
+			for at: Vector2i in landmarks:
+				near = mini(near, (at - spot).length_squared())
+			if near > clearest_near:
+				clearest = spot
+				clearest_near = near
+			if near < HEAT_INTRO_CLEARANCE * HEAT_INTRO_CLEARANCE:
 				continue
 			var far: int = (spot - middle).length_squared()
 			if best_far < 0 or far < best_far:
 				best = spot
 				best_far = far
-	return best
+	return best if best.x >= 0 else clearest
 
 
 ## Virgo's intro, as a harvest stage opens (the scene calls it once its views are bound). Where the

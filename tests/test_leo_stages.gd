@@ -116,7 +116,8 @@ func _main(map_id: String) -> Main:
 	return main
 
 
-## A stage that opens by showing its heat (the Haunch's burning, #148): plays it out first.
+## A stage that opens by showing its heat (the Haunch's burning, the Mane's day and night, #148):
+## plays it out first.
 func _main_after_intro(map_id: String) -> Main:
 	var main: Main = _main(map_id)
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
@@ -124,6 +125,8 @@ func _main_after_intro(map_id: String) -> Main:
 		if not sequencer.is_busy():
 			break
 		sequencer.advance(1.0 / 60.0)
+	# The views catch up with the run once it's played (the Mane's demo showed the night).
+	(main.get_node("Sky/HeatLayer") as HeatView).advance(0.0)
 	return main
 
 
@@ -268,7 +271,7 @@ func test_frost_falls_in_the_cold() -> void:
 
 
 func test_the_sky_turns_to_night_once_the_launch_has_played_out() -> void:
-	var main: Main = _main("leo_mane")
+	var main: Main = _main_after_intro("leo_mane")
 	var run: RunState = main.run
 	var view: HeatView = main.get_node("Sky/HeatLayer")
 	var sequencer: EventSequencer = main.get_node("EventSequencer")
@@ -375,8 +378,25 @@ func test_the_haunch_opens_by_burning_its_demo_bigs() -> void:
 	assert_eq(run.dust, 0)
 
 
+func test_the_mane_opens_by_showing_day_then_night() -> void:
+	var run: RunState = _intro_run(StarMap.leo_mane())
+	var start: int = run.heat.change
+	watch_signals(run)
+	run.play_heat_intro()
+	assert_signal_emitted(run, "heat_intro_placed", "day and night: shown as it opens (#148)")
+	assert_signal_emit_count(run, "heat_intro_turned", 1, "night falls once")
+	assert_eq(get_signal_parameters(run, "heat_intro_turned")[0], -start)
+	assert_eq(get_signal_emit_count(run, "stars_resized"), 2, "the heat acts by day, then the cold by night")
+	var day: Array = get_signal_parameters(run, "stars_resized", 0)[0]
+	var night: Array = get_signal_parameters(run, "stars_resized", 1)[0]
+	assert_true(day.any(func(c: StarHeat.Change) -> bool: return c.lost), "by day a big burns")
+	assert_true(night.all(func(c: StarHeat.Change) -> bool: return c.lost or c.to < c.from), "by night they shrink")
+	assert_eq(run.heat.change, start, "the run's first launch is still by day")
+	assert_true(run.stars.is_empty())
+
+
 func test_only_the_stages_that_bring_the_heat_or_the_cold_show_it_once_as_they_open() -> void:
-	for id: String in ["leo_mane", "aquarius_hand"]:
+	for id: String in ["aquarius_hand"]:
 		var run: RunState = _intro_run(StarMap.by_id(id))
 		watch_signals(run)
 		run.play_heat_intro()

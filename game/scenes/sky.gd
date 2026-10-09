@@ -310,6 +310,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_sequencer.hold(StarView.RESIZE_TIME)
 		&"heat_intro_paused":
 			_sequencer.hold(HEAT_INTRO_BEAT)
+		&"heat_intro_turned":
+			# The Mane's demo: night falls (or day breaks) before the cold acts.
+			_heat.show_change(event.args[0])
+			_sequencer.hold(HEAT_INTRO_BEAT)
 		&"heat_intro_cleared":
 			# What the heat left fades out once it has been seen: no reward, nothing burst.
 			_sequencer.hold(StarView.DISSOLVE_TIME)

@@ -120,6 +120,13 @@ func advance(delta: float) -> void:
 		_shown_change = _run.heat.change
 
 
+## Shows the heat (+1) or the cold (-1) until the events have played (the Mane's demo turning day
+## and night; the core's own heat hasn't turned).
+func show_change(change: int) -> void:
+	_shown_change = change
+	queue_redraw()
+
+
 ## Plays a star burning out at `at`.
 func flash_burn(at: Vector2i) -> void:
 	_burns[at] = 0.0
