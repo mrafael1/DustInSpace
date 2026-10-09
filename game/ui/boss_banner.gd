@@ -69,6 +69,11 @@ func is_showing() -> bool:
 	return _age >= _wait and _age < _wait + _show
 
 
+## Whether a card is playing: waiting for its moment, or showing.
+func is_playing() -> bool:
+	return _age >= 0.0 and _age < _wait + _show
+
+
 ## Whether the name shows C0 (just stamped).
 func is_stamping() -> bool:
 	return is_showing() and _age < _wait + STAMP_TIME
