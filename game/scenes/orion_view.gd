@@ -67,6 +67,14 @@ const CHARGE_BLINK: float = 0.3
 ## onto its star in RAIN_TIME.
 const OVERHEAD_X: Array[int] = [56, 83, 110, 137, 164]
 const OVERHEAD_Y: int = 12
+## A hanging arrow (its shaft, head and shiver) keeps OVERHEAD_CLEAR px off every constellation star's
+## halo: one that wouldn't slides along its row to the nearest spot that does, at most OVERHEAD_SLIDE
+## px and OVERHEAD_GAP px from its neighbours (#149: on the final the fourth hung on lit beta's halo).
+const OVERHEAD_CLEAR: int = 3
+const OVERHEAD_SLIDE: int = 13
+const OVERHEAD_GAP: int = 10
+## How far a hanging arrow reaches either side of its shaft: its head, and a pixel's shiver.
+const OVERHEAD_HALF_WIDTH: int = 2
 const ABOVE: int = 24
 const UP_TIME: float = 0.25
 const SETTLE_TIME: float = 0.15
@@ -141,6 +149,8 @@ var _volley_to: Array[Vector2i] = []
 var _volley_age: float = -1.0
 ## The staged volley: seconds since Orion shot it up (-1: no arrows overhead).
 var _overhead_age: float = -1.0
+## Where each arrow hangs along the row (OVERHEAD_X, slid clear of the constellation).
+var _overhead_x: Array[int] = OVERHEAD_X.duplicate()
 var _sky: Rect2i = Rect2i()
 ## The hunting area: its centre and radius (0: none), and how long since it was marked.
 var _area_centre: Vector2i = Vector2i.ZERO
@@ -168,11 +178,13 @@ func _process(delta: float) -> void:
 	advance(delta)
 
 
-## Shows the figure for a run Orion hunts (in `sky`'s top-left), hides everything otherwise.
-func setup(hunts: bool, sky: Rect2i) -> void:
+## Shows the figure for a run Orion hunts (in `sky`'s top-left), hides everything otherwise. The
+## arrows hang clear of `clear_of`: each constellation star as (x, y, its halo's radius).
+func setup(hunts: bool, sky: Rect2i, clear_of: Array[Vector3i] = []) -> void:
 	_figure_shown = hunts
 	_figure_at = sky.position + FIGURE_AT
 	_sky = sky
+	_place_overhead(clear_of)
 	_overhead_age = -1.0
 	_volley_from.clear()
 	_marked = null
@@ -453,9 +465,36 @@ func clear_overhead() -> void:
 ## Where each hanging arrow's tip is.
 func overhead_spots() -> Array[Vector2i]:
 	var spots: Array[Vector2i] = []
-	for x: int in OVERHEAD_X:
+	for x: int in _overhead_x:
 		spots.append(_sky.position + Vector2i(x, OVERHEAD_Y))
 	return spots
+
+
+## Each arrow at its OVERHEAD_X, or slid the least it takes to keep clear of `clear_of`.
+func _place_overhead(clear_of: Array[Vector3i]) -> void:
+	_overhead_x.assign(OVERHEAD_X)
+	for i: int in _overhead_x.size():
+		var base: int = OVERHEAD_X[i]
+		var placed: bool = false
+		for slide: int in OVERHEAD_SLIDE + 1:
+			for x: int in ([base] if slide == 0 else [base - slide, base + slide]):
+				var spaced: bool = (i == 0 or x - _overhead_x[i - 1] >= OVERHEAD_GAP) 						and (i == OVERHEAD_X.size() - 1 or OVERHEAD_X[i + 1] - x >= OVERHEAD_GAP)
+				if spaced and _hangs_clear(x, clear_of):
+					_overhead_x[i] = x
+					placed = true
+					break
+			if placed:
+				break
+
+
+## Whether an arrow hanging at `x` along the row keeps OVERHEAD_CLEAR off every one of `clear_of`.
+func _hangs_clear(x: int, clear_of: Array[Vector3i]) -> bool:
+	var tip: Vector2i = _sky.position + Vector2i(x, OVERHEAD_Y)
+	for c: Vector3i in clear_of:
+		var nearest := Vector2(tip.x, clampi(c.y, tip.y - SHAFT, tip.y))
+		if nearest.distance_to(Vector2(c.x, c.y)) - OVERHEAD_HALF_WIDTH - c.z < OVERHEAD_CLEAR:
+			return false
+	return true
 
 
 ## The staged arrows now, each one's pixels tip last: flying straight up from the bow hand out of the
