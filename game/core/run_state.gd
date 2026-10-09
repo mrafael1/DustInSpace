@@ -164,8 +164,9 @@ const LAYOUT_SEED_SALT: int = 0x5CA77E4
 const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
 const HEAT_INTRO_PULSES: int = 3
 const HEAT_INTRO_SEED_SALT: int = 0x4EA7
-## Leo's heat intro: its stars gather this far at least from every constellation star (the scatter
-## ring and a margin), so they don't read as part of the figure (the Haunch's runs through the middle).
+## Leo's heat intro: its stars gather this far at least from every constellation star and string (the
+## scatter ring and a margin), so they don't read as part of the figure (the Haunch's runs through the
+## middle).
 const HEAT_INTRO_CLEARANCE: int = 48
 ## Aquarius's current intro: how many times the flow moves its stars (a tide or a box turns between
 ## them), and the demo stars' offsets across the flow (so they don't stand in a ruled line).
@@ -1269,13 +1270,17 @@ func play_heat_intro() -> void:
 		heat_intro_cleared.emit(left)
 
 
-## The spot nearest the sky's middle at least HEAT_INTRO_CLEARANCE from every constellation star (the
-## middle itself when it's clear); where no spot is (the Mane's figure fills the sky), the spot
-## furthest from them. Its scatter ring stays inside the sky.
+## The spot nearest the sky's middle at least HEAT_INTRO_CLEARANCE from every constellation star and
+## string (the middle itself when it's clear); where no spot is (the Mane's figure fills the sky),
+## the spot furthest from them. Its scatter ring stays inside the sky.
 func _open_middle() -> Vector2i:
 	var inner: Rect2i = StarScatter.inner_rect(sky_rect).grow(-StarScatter.RING_MAX)
 	var middle: Vector2i = inner.get_center()
 	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
+	var strings: Array[Array] = []
+	for segment: int in scorpio.map.segment_count():
+		var ends: Array[int] = scorpio.map.segment_landmarks(segment)
+		strings.append([Vector2(landmarks[ends[0]]), Vector2(landmarks[ends[1]])])
 	var best: Vector2i = Vector2i(-1, -1)
 	var best_far: int = -1
 	var clearest: Vector2i = middle
@@ -1286,6 +1291,10 @@ func _open_middle() -> Vector2i:
 			var near: int = 1 << 30
 			for at: Vector2i in landmarks:
 				near = mini(near, (at - spot).length_squared())
+			# Its strings too (#149: a demo star beside a string read as one of the figure's).
+			for ends: Array in strings:
+				var closest: Vector2 = Geometry2D.get_closest_point_to_segment(Vector2(spot), ends[0], ends[1])
+				near = mini(near, int(closest.distance_squared_to(Vector2(spot))))
 			if near > clearest_near:
 				clearest = spot
 				clearest_near = near
