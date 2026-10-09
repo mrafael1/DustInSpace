@@ -160,9 +160,6 @@ var _message_held: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
 var _current_told: bool = false
-## Where the loaded planet shows on the launcher (the telescope's window), for the tutorial's hand.
-## Main wires it: `func() -> Vector2i`.
-var loaded_window_at: Callable
 ## Main sets it: how far below the burst point the player's finger goes to launch there (the
 ## telescope aims above a finger, #152), so the guided run's hand points where the finger goes.
 var launch_finger_lift: Callable
@@ -765,8 +762,8 @@ func dust_icon_top() -> Vector2i:
 
 ## The guided first run's step: its line, and the hand at what it's about: a spot in the sky to
 ## launch at, the stars to link, the dust counter and the Sun as the payout lands, the
-## constellation star to launch by and light, where the loaded planet shows (the telescope's
-## window, its spinning icon), the star a full Sun lit, the buy button.
+## constellation star to launch by and light, the loaded planet's icon, the star a full Sun lit, the
+## buy button.
 func _show_tutorial_step(step: int) -> void:
 	var top: int = _run.sky_rect.position.y + TutorialView.TOP
 	match step:
@@ -812,11 +809,7 @@ func _show_tutorial_step(step: int) -> void:
 					# The hand starts on the constellation star, the one this link lights (#148).
 					var path: Array[int] = _reachable_order([Scorpio.landmark_id(index), pair[0], pair[1]])
 					_guide.follow_path(path, _link_positions(path))
-		Tutorial.Step.SCOPE:
-			var window: Vector2i = loaded_window_at.call() if loaded_window_at.is_valid() else Vector2i(90, 290)
-			# From the left: the barrel rises above its window, so the hand can't come down onto it.
-			_guide.show_step(step, window - Vector2i(Telescope.BARREL_HALF + 1, 0), true, TutorialView.Point.RIGHT, top)
-		Tutorial.Step.ICON:
+		Tutorial.Step.LOADED:
 			_guide.show_step(step, pack_icon_top(_run.loaded_pack), _run.loaded_pack != "", TutorialView.Point.DOWN, top)
 		Tutorial.Step.RED_LINK:
 			_guide.show_step(step, Vector2i.ZERO, false, TutorialView.Point.DOWN, top)

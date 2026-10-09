@@ -8,15 +8,15 @@ extends RefCounted
 ## through them. Then the payout is shown as it lands: the dust it gave (dust buys planets), the
 ## light (it fills the Sun); each moves on by itself (or with a tap). Launch next to the
 ## constellation star to light next (scripted: two stars of its size and one other) and link it with
-## two of them. The red planet the run started with drops into the telescope: the guide shows where
-## the loaded planet shows (the telescope's window, then its spinning icon). Launch it (scripted: it
+## two of them. The red planet the run started with drops into the telescope: the guide points at
+## its icon, the loaded planet (one step, #148). Launch it (scripted: it
 ## splits in two with more big stars) and link its stars: the guided run's Sun fills sooner the
 ## first time (scorpio.tutorial_sun_target), so this link fills it and the guide shows the star it
 ## lights. Spend dust on a planet, then play freely. The showing steps go on by themselves (or with
 ## a tap). Pure rules; RunState asks it what's allowed and tells it what happened, and announces
 ## each new step (tutorial_step).
 
-enum Step { GOAL, LAUNCH, LINK, DUST, SUN, LAUNCH_NEAR, LIGHT, SCOPE, ICON, RED, RED_LINK, SUN_FULL, BUY, DONE }
+enum Step { GOAL, LAUNCH, LINK, DUST, SUN, LAUNCH_NEAR, LIGHT, LOADED, RED, RED_LINK, SUN_FULL, BUY, DONE }
 
 ## The near launch must be aimed within this many px of the landmark to light, so its stars land in
 ## reach of it. Tutorial layout, not balance.
@@ -47,7 +47,7 @@ static func is_info(at_step: Step) -> bool:
 
 ## Whether `at_step` shows the payout as it lands and goes on by itself (the guide's timer).
 static func is_timed(at_step: Step) -> bool:
-	return at_step in [Step.DUST, Step.SUN, Step.SCOPE, Step.ICON, Step.SUN_FULL]
+	return at_step in [Step.DUST, Step.SUN, Step.LOADED, Step.SUN_FULL]
 
 
 func is_done() -> bool:
@@ -64,9 +64,7 @@ func continue_info() -> bool:
 			step = Step.SUN
 		Step.SUN:
 			step = Step.LAUNCH_NEAR
-		Step.SCOPE:
-			step = Step.ICON
-		Step.ICON:
+		Step.LOADED:
 			step = Step.RED
 		Step.SUN_FULL:
 			step = Step.BUY if _can_buy else Step.DONE
@@ -139,7 +137,7 @@ func linked(lit: bool, next_landmark: int, has_red: bool, can_buy: bool, rekindl
 			if not lit and rekindled < 0 and not stranded:
 				return false
 			if has_red:
-				step = Step.SCOPE
+				step = Step.LOADED
 			else:
 				step = Step.BUY if can_buy else Step.DONE
 		Step.RED_LINK:

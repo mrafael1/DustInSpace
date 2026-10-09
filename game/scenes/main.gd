@@ -116,8 +116,6 @@ func _ready() -> void:
 	_idle_hint.shows_aim_preview = func() -> bool:
 		return run != null and (run.current != null or run.heat != null or run.harvest != null)
 	_telescope.aim_started.connect(_idle_hint.reset)
-	_hud.loaded_window_at = func() -> Vector2i:
-		return _telescope.origin() + _telescope.window() if use_telescope else _launcher.origin()
 	_hud.launch_finger_lift = func() -> int:
 		return _telescope.finger_lift() if use_telescope else 0
 	_telescope.message_shown.connect(_hud.show_message)

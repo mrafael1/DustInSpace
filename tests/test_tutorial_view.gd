@@ -249,28 +249,23 @@ func test_the_demo_point_loops_through_the_path() -> void:
 	assert_eq(TutorialView.demo_point(points, loop + 0.01), points[0], "then again")
 
 
-func test_the_loaded_planet_is_shown_on_the_telescope_then_its_icon() -> void:
+func test_the_loaded_planet_is_shown_on_its_icon() -> void:
 	_start()
 	_settle()
-	run.tutorial.step = Tutorial.Step.SCOPE
+	run.tutorial.step = Tutorial.Step.LOADED
 	run.loaded_pack = "red"
 	run.pack_loaded.emit("red")
-	run.tutorial_step.emit(Tutorial.Step.SCOPE)
+	run.tutorial_step.emit(Tutorial.Step.LOADED)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "THE TELESCOPE SHOWS\nTHE LOADED PLANET")
+	assert_eq(guide.text(), "THE RED PLANET IS LOADED")
 	assert_false(guide.shows_tap_hint(), "it goes on by itself")
-	var window: Vector2i = scope.origin() + scope.window()
-	assert_eq(guide.fingertip().y, window.y, "the hand at the telescope's window")
-	assert_lt(guide.fingertip().x, window.x, "from the left")
-	assert_eq(scope.loaded_pack(), "red", "the window shows the red planet")
-	guide.advance(TutorialView.SHOW_TIME + 0.1)
-	_settle()
-	assert_eq(guide.text(), "THE LOADED PLANET SPINS")
 	assert_eq(guide.fingertip().x, hud.pack_icon_top("red").x, "the hand over the red planet's icon")
+	assert_lt(guide.fingertip().y, hud.pack_icon_top("red").y, "from above")
+	assert_eq(scope.loaded_pack(), "red", "the telescope holds the red planet")
 	guide.advance(TutorialView.SHOW_TIME + 0.1)
 	_settle()
-	assert_eq(guide.text(), "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS")
+	assert_eq(guide.text(), "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS", "one step, then the launch (#148)")
 
 
 func test_the_full_sun_points_at_the_star_it_lit() -> void:
@@ -622,11 +617,11 @@ func test_the_full_suns_clock_waits_for_the_star_to_light() -> void:
 func test_a_held_clock_counts_once_the_events_have_played() -> void:
 	_start()
 	_settle()
-	run.tutorial.step = Tutorial.Step.SCOPE
+	run.tutorial.step = Tutorial.Step.LOADED
 	run.sun_rekindled.emit(2)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
 	assert_eq(guide.text(), "A FULL SUN LIGHTS A STAR", "a full Sun outside the red link")
 	hud.advance(STEP)
 	guide.advance(TutorialView.SHOW_TIME + 0.1)
-	assert_eq(run.tutorial.step, Tutorial.Step.ICON, "nothing left to play: it goes on by itself")
+	assert_eq(run.tutorial.step, Tutorial.Step.RED, "nothing left to play: it goes on by itself")
