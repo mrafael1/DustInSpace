@@ -1041,6 +1041,22 @@ func loose_landmarks() -> Array[int]:
 	return StarHarvest.unbound(scorpio.lit, _bound, scorpio.map.neighbours)
 
 
+## Bound sheaves, for the link being traced: the constellation star a link of `star_ids` would light
+## alone (no path of lit stars joining it to the bound figure once it's lit), or -1: an invalid link,
+## one that lights a star next to the figure or none, or a stage where the harvest doesn't bind
+## (#149: the risk showed only once the star was lit, too late to choose another link).
+func link_lights_alone(star_ids: Array[int]) -> int:
+	if harvest == null or not harvest.binds or combo_for(star_ids) == Combos.INVALID:
+		return -1
+	for id: int in star_ids:
+		if scorpio.is_landmark(id):
+			var index: int = Scorpio.landmark_index(id)
+			var lit: Array[bool] = scorpio.lit.duplicate()
+			lit[index] = true
+			return index if StarHarvest.unbound(lit, _bound, scorpio.map.neighbours).has(index) else -1
+	return -1
+
+
 ## Pure preview: the constellation stars the next launch's harvest puts out (bound sheaves), or none
 ## when the next launch doesn't bring one.
 func unbound_preview() -> Array[int]:

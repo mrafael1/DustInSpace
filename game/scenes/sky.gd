@@ -540,6 +540,8 @@ func _show_link() -> void:
 		var full: bool = _gesture.selected.size() == Combos.LINK_LENGTH and _run.combo_for(_gesture.selected) != Combos.INVALID
 		var breathes: bool = _run.scorpio != null and _run.scorpio.map.heat_on_links
 		_heat.tracing = _gesture.selected if full and breathes else ([] as Array[int])
+		# Virgo's binding: a full, valid link that would light a star alone shows its ring now.
+		_harvest.tracing_alone = _run.link_lights_alone(_gesture.selected) if full else -1
 
 
 ## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it

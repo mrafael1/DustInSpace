@@ -676,3 +676,83 @@ func test_the_wheats_clock_shows_the_lost_ear_and_says_the_rule() -> void:
 			periods.append(period)
 	assert_eq(periods, [3, 2, 3] as Array[int], "the clock loses an ear, then shows as the run starts")
 	assert_eq(hud.message(), Hud.QUICKEN_MESSAGE)
+
+
+# --- #149: the binding shown at decision time ------------------------------------------------
+
+## An unlit constellation star of the Wing next to the lit figure (joined) and one with no lit
+## neighbour (alone): [joined, alone].
+func _joined_and_alone(run: RunState) -> Array[int]:
+	var joined: int = -1
+	var alone: int = -1
+	for i: int in run.scorpio.map.count():
+		if run.scorpio.is_lit(i):
+			continue
+		if run.scorpio.map.neighbours(i).any(run.scorpio.is_lit):
+			joined = i if joined < 0 else joined
+		elif alone < 0:
+			alone = i
+	return [joined, alone]
+
+
+## Two sky stars of constellation star `index`'s size beside it and its id: a valid link lighting it.
+func _link_lighting(run: RunState, index: int) -> Array[int]:
+	var at: Vector2i = run.scorpio.landmark_position(index)
+	var size: Star.Size = run.scorpio.map.sizes[index] as Star.Size
+	var a: Star = run.add_star(size, at + Vector2i(-14, 12))
+	var b: Star = run.add_star(size, at + Vector2i(14, 12))
+	return [a.id, Scorpio.landmark_id(index), b.id] as Array[int]
+
+
+func test_a_link_that_would_light_a_star_alone_says_which_before_its_made() -> void:
+	var run: RunState = _run(StarMap.virgo_wing())
+	var pair: Array[int] = _joined_and_alone(run)
+	assert_gte(pair[0], 0)
+	assert_gte(pair[1], 0)
+	var joining: Array[int] = _link_lighting(run, pair[0])
+	var lone: Array[int] = _link_lighting(run, pair[1])
+	assert_ne(run.combo_for(joining), Combos.INVALID)
+	assert_ne(run.combo_for(lone), Combos.INVALID)
+	assert_eq(run.link_lights_alone(joining), -1, "next to the lit figure: safe")
+	assert_eq(run.link_lights_alone(lone), pair[1], "with no lit neighbour: alone")
+	assert_eq(run.link_lights_alone(lone.slice(0, 2)), -1, "not a full link yet")
+	run.link(lone)
+	assert_true(run.loose_landmarks().has(pair[1]), "and lit, it is alone, as said")
+	var head: RunState = _run(StarMap.virgo_head())
+	var far: int = _joined_and_alone(head)[1]
+	if far >= 0:
+		assert_eq(head.link_lights_alone(_link_lighting(head, far)), -1, "the scythe alone doesn't bind")
+
+
+func test_tracing_a_link_that_lights_a_star_alone_rings_it_until_the_link_ends() -> void:
+	var main: Main = _main("virgo_wing")
+	_settle(main)
+	var run: RunState = main.run
+	var sky: SkyView = main.get_node("Sky")
+	var view: HarvestView = main.get_node("Sky/HarvestLayer")
+	var alone: int = _joined_and_alone(run)[1]
+	var ids: Array[int] = _link_lighting(run, alone)
+	sky.setup(run, main.get_node("EventSequencer"))
+	(main.get_node("Telescope") as Telescope).cancel_aim()
+	var points: Array[Vector2i] = []
+	for id: int in ids:
+		points.append(run.scorpio.landmark_position(Scorpio.landmark_index(id)) if run.scorpio.is_landmark(id) else run.find_star(id).position)
+	var press := InputEventScreenTouch.new()
+	press.position = Vector2(points[0])
+	press.pressed = true
+	sky.handle_pointer(press)
+	for p: Vector2i in points.slice(1):
+		var drag := InputEventScreenDrag.new()
+		drag.position = Vector2(p)
+		sky.handle_pointer(drag)
+	assert_eq(view.tracing_alone, alone, "the traced link would light it alone")
+	var ring: int = 0
+	var dots: Dictionary[Vector2i, Color] = view.pixels()
+	for p: Vector2i in HarvestView.lone_ring_pixels(run.scorpio.landmark_position(alone), run.scorpio.map.sizes[alone], 0.0):
+		ring += int(dots.get(p) in [Palette.S4, Palette.S3])
+	assert_gt(ring, 12, "its ember ring shows before the link is made")
+	var release := InputEventScreenTouch.new()
+	release.position = Vector2(points[-1])
+	release.pressed = false
+	sky.handle_pointer(release)
+	assert_eq(view.tracing_alone, -1, "the link made: the preview goes (the lit star's own ring takes over)")
