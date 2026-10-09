@@ -708,8 +708,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed":
-			# Virgo's and the current's intros say their rule as the effect shows.
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked":
+			# Virgo's, the current's and the breath's intros say their rule as the effect shows.
 			tell_current_rule()
 			return
 		&"stars_shifted", &"stars_resized":

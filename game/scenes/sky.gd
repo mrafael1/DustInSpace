@@ -325,7 +325,13 @@ func _play_heat_event(event: EventSequencer.RunEvent) -> bool:
 		&"heat_breathed":
 			_breathe(event.args[0], event.args[1])
 		&"lion_arrived":
-			_sequencer.hold(_constellation.play_blaze())
+			# Play (and the breath's demo after it) waits for the lion's title card to go too.
+			var card_ends: float = ConstellationView.roar_at(_run.scorpio.map) + Hud.ARRIVAL_TIME
+			_sequencer.hold(maxf(_constellation.play_blaze(), card_ends))
+		&"heat_intro_linked":
+			# The final's breath demo: its link is traced and collected, and the breath follows at
+			# once, as it does a player's link.
+			_sequencer.hold(_trace_intro_link(event.args[0], -1, false))
 		&"landmarks_resized":
 			_constellation.resize_landmarks(event.args[0])
 			_sequencer.hold(StarView.RESIZE_TIME)
@@ -806,10 +812,10 @@ func _reap(stars: Array[Star]) -> void:
 	_sequencer.hold(lasts)
 
 
-## Virgo's binding intro: the demo combo `link` (two demo stars, then constellation star `index`) is
-## traced as a player would, the line running from star to star at INTRO_TRACE_STEP a step (each
-## star selected as it's reached, chiming its note), then it collects (the line flares, the demo stars
-## dissolve) and the constellation star lights, its lone ring on if it's `alone`. Returns how long.
+## An intro's demo combo `link` is traced as a player would, the line running from star to star at
+## INTRO_TRACE_STEP a step (each star selected as it's reached, chiming its note), then it collects
+## (the line flares, the demo stars dissolve). Virgo's binding intro: constellation star `index` (in
+## the link) lights, its lone ring on if it's `alone`; -1 (Leo's breath intro): none. Returns how long.
 func _trace_intro_link(link: Array[int], index: int, alone: bool) -> float:
 	var points: Array[Vector2i] = []
 	for id: int in link:
@@ -847,8 +853,9 @@ func _collect_intro_link(link: Array[int], points: Array[Vector2i], index: int, 
 		if view != null:
 			_views.erase(id)
 			view.dissolve()
-	_constellation.flash_landmark(index)
-	if alone:
+	if index >= 0:
+		_constellation.flash_landmark(index)
+	if alone and index >= 0:
 		_harvest.show_alone(_run.scorpio.landmark_position(index), _run.scorpio.map.sizes[index])
 	intro_link_collected.emit()
 

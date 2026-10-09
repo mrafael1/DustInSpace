@@ -106,6 +106,9 @@ signal hunt_intro_burst(burst: Vector2i, stars: Array[Star])
 signal heat_intro_placed(stars: Array[Star])
 ## Leo's heat intro paused a beat between two of its steps (the heat acting again, or the end).
 signal heat_intro_paused
+## Leo's final's breath intro (#149): the demo stars `link` (from heat_intro_placed, in the order
+## they link) are linked, traced and collected for nothing; the breath follows (heat_breathed).
+signal heat_intro_linked(link: Array[int])
 ## Leo's heat intro on the Mane (#148): day and night swapped between its two steps; the heat now
 ## changes stars by `change` (+1 the heat, -1 the cold). Presentation only: the run's own heat
 ## starts as it was.
@@ -162,6 +165,8 @@ const LAYOUT_SEED_SALT: int = 0x5CA77E4
 ## Leo's heat intro: the stars it shows (one of each size), and how many times at most the heat acts
 ## on them. Its layout's own RNG stream (XOR'd into the run seed).
 const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
+## Leo's final's breath intro: the demo link's stars (a small triple), before the stars it heats.
+const BREATH_INTRO_LINK: Array[Star.Size] = [Star.Size.SMALL, Star.Size.SMALL, Star.Size.SMALL]
 const HEAT_INTRO_PULSES: int = 3
 const HEAT_INTRO_SEED_SALT: int = 0x4EA7
 ## Leo's heat intro: its stars gather this far at least from every constellation star (the scatter
@@ -1228,6 +1233,7 @@ func play_heat_intro() -> void:
 		return
 	if scorpio.map.heat_on_links:
 		lion_arrived.emit()
+		_breath_intro()
 		return
 	if scorpio.map.heat_landmarks:
 		_landmark_heat_intro()
@@ -1258,6 +1264,45 @@ func play_heat_intro() -> void:
 		heat.turn()
 	if not stars.is_empty():
 		heat_intro_paused.emit()
+		var left: Array[Star] = stars.duplicate()
+		stars.clear()
+		heat_intro_cleared.emit(left)
+
+
+## Leo's final, once the lion has arrived (#149: the breath, the final's own rule, was the one Leo
+## rule with no demo): a small triple and a small, a medium and a big appear in open sky; the triple
+## links (traced and collected, for nothing), and its breath rolls out over the others as a link's
+## would: the small and the medium grow, the big burns out. What's left leaves. The lion's own stars
+## don't change, and the run's heat is left as it was; its layout has its own RNG stream.
+func _breath_intro() -> void:
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ HEAT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	var sizes: Array[Star.Size] = BREATH_INTRO_LINK.duplicate()
+	sizes.append_array(HEAT_INTRO_SIZES)
+	var spots: Array[Vector2i] = StarScatter.place(sizes.size(), _open_middle(), sky_rect, [], layout, scorpio.landmark_positions())
+	var shown: Array[Star] = []
+	for i: int in spots.size():
+		var star: Star = add_star(sizes[i], spots[i])
+		shown.append(Star.new(star.id, star.size, star.position))
+	heat_intro_placed.emit(shown)
+	var linked: Array[Star] = stars.slice(0, BREATH_INTRO_LINK.size())
+	var ordered: Array[Star] = _chain_order(linked)
+	if ordered.is_empty():
+		ordered = linked
+	var ids: Array[int] = []
+	for star: Star in ordered:
+		ids.append(star.id)
+		stars.erase(star)
+	heat_intro_linked.emit(ids)
+	var changes: Array[StarHeat.Change] = heat.preview(stars)
+	for change: StarHeat.Change in changes:
+		if change.lost:
+			stars.erase(find_star(change.star_id))
+		else:
+			find_star(change.star_id).size = change.to
+	heat_breathed.emit(_centre_of(ordered), changes)
+	heat_intro_paused.emit()
+	if not stars.is_empty():
 		var left: Array[Star] = stars.duplicate()
 		stars.clear()
 		heat_intro_cleared.emit(left)
