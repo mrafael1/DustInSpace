@@ -455,7 +455,6 @@ static func leo_haunch() -> StarMap:
 	map.sizes = [Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
 	map.starting_lit = [0]
 	map.painting = LEO_PART % "haunch"
-	map.intros = false
 	map.heat_change = 1
 	map.heat_burns = true
 	return map
@@ -663,7 +662,6 @@ static func virgo_wheat() -> StarMap:
 	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL, Star.Size.SMALL]
 	map.starting_lit = [0]
 	map.painting = VIRGO_PART % "wheat"
-	map.intros = false
 	map.harvest = true
 	map.harvest_binds = true
 	map.harvest_quickens = true

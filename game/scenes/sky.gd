@@ -333,6 +333,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 				if view != null:
 					_views.erase(star.id)
 					view.dissolve()
+		&"harvest_intro_quickened":
+			# A beat to see the clock: ripe, then one ear fewer, then as the run starts.
+			_sequencer.hold(INTRO_HOLD)
 		&"harvest_intro_placed":
 			for star: Star in event.args[0]:
 				_spawn(star)

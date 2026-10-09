@@ -644,3 +644,35 @@ func test_the_head_opens_with_the_clock_on_its_last_ear() -> void:
 	assert_false(cut, "a jump, not a cut")
 	_settle(main)
 	assert_eq(clock.standing(), main.run.harvest.every, "back to full for play")
+
+
+func test_the_wheat_opens_by_showing_the_clock_lose_an_ear() -> void:
+	var run: RunState = _run(StarMap.virgo_wheat())
+	var period: int = run.harvest.period
+	watch_signals(run)
+	run.play_harvest_intro()
+	assert_eq(get_signal_emit_count(run, "harvest_intro_quickened"), 3, "ripe, one fewer, then as it starts (#148)")
+	assert_eq(get_signal_parameters(run, "harvest_intro_quickened", 0), [1, period], "the last ear ripe")
+	assert_signal_emit_count(run, "harvested", 1, "the scythe sweeps")
+	assert_true((get_signal_parameters(run, "harvested")[0] as Array).is_empty(), "the empty sky")
+	assert_eq(get_signal_parameters(run, "harvest_intro_quickened", 1), [period - 1, period - 1], "one ear fewer grows back")
+	assert_eq(get_signal_parameters(run, "harvest_intro_quickened", 2), [period, period], "then the run's own clock")
+	assert_eq(run.harvest.period, period, "the run's clock didn't move")
+	assert_eq(run.harvest.launches_left, period)
+	assert_signal_not_emitted(run, "harvest_intro_placed", "no binding demo: the Wing showed it")
+
+
+func test_the_wheats_clock_shows_the_lost_ear_and_says_the_rule() -> void:
+	var main: Main = _main("virgo_wheat")
+	var hud: Hud = main.get_node("HUD")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var periods: Array[int] = []
+	for tick: int in 2000:
+		if not sequencer.is_busy():
+			break
+		sequencer.advance(1.0 / 60.0)
+		var period: int = (hud.get_node("HarvestClock") as HarvestClock).period()
+		if periods.is_empty() or periods.back() != period:
+			periods.append(period)
+	assert_eq(periods, [3, 2, 3] as Array[int], "the clock loses an ear, then shows as the run starts")
+	assert_eq(hud.message(), Hud.QUICKEN_MESSAGE)

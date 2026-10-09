@@ -40,6 +40,10 @@ signal harvest_intro_placed(stars: Array[Star])
 ## Virgo's scythe intro: the wheat clock jumps to `launches_left` (presentation only: the run's own
 ## clock doesn't move): to its last ear as the stage opens, then back to full after the harvest.
 signal harvest_intro_clock(launches_left: int)
+## Virgo's quickening intro (#148): the wheat clock shows `launches_left` of `period` ears
+## (presentation only: the run's own clock doesn't move): ripe on its last ear, then grown back one
+## fewer after the scythe, then as the run starts.
+signal harvest_intro_quickened(launches_left: int, period: int)
 ## Virgo's scythe intro is over: the demo planet's `stars` leave the sky. No reward.
 signal harvest_intro_ended(stars: Array[Star])
 ## Virgo's binding intro: the stage opened by showing constellation star `index` lit by a combo,
@@ -143,6 +147,9 @@ const LAYOUT_SEED_SALT: int = 0x5CA77E4
 const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
 const HEAT_INTRO_PULSES: int = 3
 const HEAT_INTRO_SEED_SALT: int = 0x4EA7
+## Leo's heat intro: its stars gather this far at least from every constellation star (the scatter
+## ring and a margin), so they don't read as part of the figure (the Haunch's runs through the middle).
+const HEAT_INTRO_CLEARANCE: int = 40
 ## Virgo's scythe intro: its layout's own RNG stream (XOR'd into the run seed).
 const HARVEST_INTRO_SEED_SALT: int = 0x5C7E
 ## Virgo's scythe intro: where its standing stars and its demo planet's burst sit from the sky's
@@ -1154,7 +1161,7 @@ func play_heat_intro() -> void:
 		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ HEAT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
-	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), StarScatter.inner_rect(sky_rect).get_center(), sky_rect, [], layout, scorpio.landmark_positions())
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), _open_middle(), sky_rect, [], layout, scorpio.landmark_positions())
 	# As they were placed: the heat changes the stars themselves before the views show them.
 	var shown: Array[Star] = []
 	for i: int in spots.size():
@@ -1175,6 +1182,26 @@ func play_heat_intro() -> void:
 		heat_intro_cleared.emit(left)
 
 
+## The spot nearest the sky's middle at least HEAT_INTRO_CLEARANCE from every constellation star (the
+## middle itself when it's clear, or when no spot is).
+func _open_middle() -> Vector2i:
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var middle: Vector2i = inner.get_center()
+	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
+	var best: Vector2i = middle
+	var best_far: int = -1
+	for y: int in range(inner.position.y, inner.end.y, SAFE_SPOT_GRID / 2):
+		for x: int in range(inner.position.x, inner.end.x, SAFE_SPOT_GRID / 2):
+			var spot := Vector2i(x, y)
+			if landmarks.any(func(at: Vector2i) -> bool: return (at - spot).length_squared() < HEAT_INTRO_CLEARANCE * HEAT_INTRO_CLEARANCE):
+				continue
+			var far: int = (spot - middle).length_squared()
+			if best_far < 0 or far < best_far:
+				best = spot
+				best_far = far
+	return best
+
+
 ## Virgo's intro, as a harvest stage opens (the scene calls it once its views are bound). Where the
 ## harvest binds (bound sheaves), the contrast: a constellation star next to the lit figure is lit
 ## by a combo (two demo stars of its size appear beside it and link into it; its string joins it),
@@ -1186,6 +1213,9 @@ func play_heat_intro() -> void:
 ## intros, or once the run has begun.
 func play_harvest_intro() -> void:
 	if harvest == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	if harvest.quickens:
+		_quickening_intro()
 		return
 	if harvest.binds:
 		var far: int = _furthest_unlit()
@@ -1241,6 +1271,16 @@ func play_harvest_intro() -> void:
 	for star: Star in landed:
 		stars.erase(star)
 	harvest_intro_ended.emit(landed)
+
+
+## The Wheat's intro (#148): the clock ripens to its last ear, the scythe sweeps the empty sky, and
+## the ears grow back one fewer (the quickening); then the clock shows as the run starts. Nothing in
+## the run moves.
+func _quickening_intro() -> void:
+	harvest_intro_quickened.emit(1, harvest.period)
+	harvested.emit([] as Array[Star])
+	harvest_intro_quickened.emit(maxi(1, harvest.period - 1), maxi(1, harvest.period - 1))
+	harvest_intro_quickened.emit(harvest.launches_left, harvest.period)
 
 
 ## An unlit constellation star next to a lit one, the furthest such from landmark `away` (-1: none).
