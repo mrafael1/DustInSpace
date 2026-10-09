@@ -791,6 +791,9 @@ func _show_tutorial_step(step: int) -> void:
 			# The near launch: the hand points where the finger goes, so the aim lands on the star.
 			var lift: int = _finger_lift() if step == Tutorial.Step.LAUNCH_NEAR else 0
 			_guide.show_step(step, at - Vector2i(0, StarView.half_extent(size as Star.Size) - lift), true, TutorialView.Point.DOWN, top)
+			if step == Tutorial.Step.LAUNCH_NEAR:
+				# What counts as next to it: the ring a launch must land in (#148).
+				_guide.show_zone(at, Tutorial.NEAR)
 			if step == Tutorial.Step.LIGHT:
 				var pair: Array[int] = []
 				for star: Star in _run.stars:
@@ -849,6 +852,12 @@ func _show_encounter(threat: int, step: int) -> void:
 			_guide.show_line(ENCOUNTER_LINES[threat] % _run.volley.interval, Vector2i(_volley.position), true, TutorialView.Point.DOWN, top, left)
 		Encounter.Threat.HUNT:
 			_guide.show_line(ENCOUNTER_LINES[threat], _run.safe_launch_spot(), true, TutorialView.Point.DOWN, top, left)
+
+
+## The run refused a launch (the guided near launch, too far): the guide's ring flashes and its line
+## says to aim inside it.
+func explain_launch_refusal() -> void:
+	_guide.refuse_launch()
 
 
 ## The link being traced changed: the tutorial's hand moves on to the next star to pick.

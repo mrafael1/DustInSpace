@@ -115,6 +115,37 @@ CONSTELLATION TO WIN", "the goal first")
 	scope.call("_fire")
 	assert_signal_emitted(scope, "launch_refused", "too far: refused")
 	assert_true(scope.is_aiming(), "and still aiming")
+	# Seen, not only heard (#148): the reticle shakes, the zone flashes and the line says why.
+	assert_ne(scope.refused_shake(), 0, "the reticle shakes")
+	assert_eq(guide.text(), TutorialView.REFUSED_TEXT)
+	assert_true(guide.is_zone_flashing())
+	guide.advance(TutorialView.REFUSED_TIME + 0.1)
+	scope.advance(1.0)
+	assert_eq(scope.refused_shake(), 0, "then the reticle settles")
+	assert_false(guide.is_zone_flashing())
+	assert_eq(guide.text(), "LAUNCH NEXT TO THIS STAR", "and the step's line is back")
+
+
+func test_the_near_launch_shows_the_zone_it_must_land_in() -> void:
+	_start()
+	_settle()
+	run.tutorial.step = Tutorial.Step.LAUNCH_NEAR
+	run.tutorial.landmark = 2
+	run.tutorial_step.emit(Tutorial.Step.LAUNCH_NEAR)
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	var at: Vector2i = run.scorpio.landmark_position(2)
+	var dots: Array[Vector2i] = guide.zone_pixels()
+	assert_gt(dots.size(), 20, "a dotted ring")
+	for dot: Vector2i in dots:
+		assert_almost_eq(Vector2(dot).distance_to(Vector2(at)), float(Tutorial.NEAR), 0.75, "as far out as a launch may land")
+	assert_false(guide.is_zone_flashing())
+	run.tutorial.step = Tutorial.Step.LIGHT
+	run.tutorial_step.emit(Tutorial.Step.LIGHT)
+	_settle()
+	assert_true(guide.zone_pixels().is_empty(), "gone once the launch is made")
+	guide.refuse_launch()
+	assert_ne(guide.text(), TutorialView.REFUSED_TEXT, "no zone, nothing to refuse")
 
 
 func test_with_a_finger_the_launch_hands_point_where_the_finger_goes() -> void:
