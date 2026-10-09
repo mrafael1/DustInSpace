@@ -555,6 +555,12 @@ func sound_target() -> Rect2i:
 	return Rect2i(SoundIcon.TARGET.position + Vector2i(_sound.position), SoundIcon.TARGET.size)
 
 
+## A lost run's beat: every planet's slot gives a refused tap's S4 nudge, once.
+func nudge_packs() -> void:
+	for kind: String in _slots:
+		_slots[kind].nudge()
+
+
 func slot(kind: String) -> PackSlot:
 	return _slots.get(kind)
 

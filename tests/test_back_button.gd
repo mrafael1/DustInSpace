@@ -56,6 +56,7 @@ func _end_run(main: Main) -> void:
 	main.run.outcome = RunState.Outcome.LOST
 	main.run.run_lost.emit()
 	_finish_sequence(main)
+	(main.get_node("EndScreen") as EndScreen).advance(EndScreen.LOSS_BEAT)
 	assert_true((main.get_node("EndScreen") as EndScreen).is_showing())
 
 
