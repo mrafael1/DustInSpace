@@ -106,6 +106,21 @@ func test_halos_match_their_star() -> void:
 		assert_true(medium[dot] == Palette.C5 or medium[dot] == Palette.N6, "the mauve star: a C5-N6 halo")
 
 
+## #150: a burst's star lands with a flash, so it pops out from the landmarks' warm hints; a star
+## already there (setup) or drifting on a current doesn't.
+func test_a_landing_star_flashes_once_as_it_settles() -> void:
+	var view: StarView = _view(Star.new(1, Star.Size.SMALL, Vector2i(120, 200)))
+	assert_false(view.is_arriving(), "a star set up in place doesn't flash")
+	view.fly_from(Vector2i(90, 160))
+	while view.state == StarView.State.SETTLING:
+		assert_false(view.is_arriving())
+		view.advance(STEP)
+	assert_true(view.is_arriving(), "the flash, the moment it lands")
+	view.advance(StarView.ARRIVAL_FLASH)
+	assert_false(view.is_arriving(), "then it's an ordinary star")
+	assert_lte(StarView.ARRIVAL_FLASH, 0.07, "a frame or two: frequent effects stay quiet")
+
+
 func test_halo_shows_when_settled_and_on_the_dissolve_flare_only() -> void:
 	var view: StarView = _view(Star.new(1, Star.Size.BIG, Vector2i(100, 150)))
 	var dots: Dictionary[Vector2i, Color] = view.halo_dots()

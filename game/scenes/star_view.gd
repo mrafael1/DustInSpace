@@ -38,6 +38,9 @@ const RESIZE_RING_COLOURS: Array[Color] = [Palette.C3, Palette.N8, Palette.M5]
 const SETTLE_TIME: float = 0.65
 ## Share of the flight drawn as a bare core, so the star "grows" without scaling.
 const SPARK_PART: float = 0.3
+## A burst's star lands with a flash of its flare frame this long (about a frame or two), so the
+## sky's new stars pop out from the landmarks' warm hints around them (#150).
+const ARRIVAL_FLASH: float = 0.05
 ## Valid-link timing from the game-feel skill: flare white, hold, dissolve.
 const DISSOLVE_TIME: float = 0.38
 const DISSOLVE_FRAMES: int = 4
@@ -139,6 +142,8 @@ var _resize_from: int = -1
 var _resize_shrinks: bool = false
 ## Seconds before a delayed resize starts (the lion's heatwave reaching it), or 0.
 var _resize_wait: float = 0.0
+## Landed from a burst's flight just now: the arrival flash plays (is_arriving).
+var _arriving: bool = false
 
 
 func _process(delta: float) -> void:
@@ -420,6 +425,7 @@ func _burst() -> void:
 
 
 func _enter(next: State) -> void:
+	_arriving = false
 	state = next
 	_time = 0.0
 	_frame_key = -1
@@ -434,6 +440,7 @@ func _advance_flight() -> void:
 	position = Vector2(flight_point(_from, _to, k, _bounds))
 	if k >= 1.0:
 		_enter(State.IDLE)
+		_arriving = true
 		settled.emit(self)
 
 
@@ -455,7 +462,12 @@ func _current_frame_key() -> int:
 			return _redshift()
 	# Every resize step redraws (the tremble, the rings and sparks move in RESIZE_STEPs).
 	var resizing: int = 0 if _resize_time < 0.0 else 1 + floori(_resize_time / RESIZE_STEP * 2.0)
-	return int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (shine_stage(_hint_time) + 2 if shows_hint() else 0) + 64 * resizing
+	return 4096 * int(is_arriving()) + int(_is_glinting()) + 2 * (_ring_frame() if selected else 0) + 4 * (shine_stage(_hint_time) + 2 if shows_hint() else 0) + 64 * resizing
+
+
+## True for the moment a burst's star has just landed (its arrival flash).
+func is_arriving() -> bool:
+	return _arriving and state == State.IDLE and _time < ARRIVAL_FLASH
 
 
 func _is_spark() -> bool:
@@ -530,6 +542,8 @@ func _draw_idle() -> void:
 		var extra: Dictionary[Vector2i, Color] = resize_pixels(_resize_from as Star.Size, size if _resize_to < 0 else _resize_to as Star.Size, _resize_time, _resize_shrinks)
 		for p: Vector2i in extra:
 			draw_rect(Rect2(Vector2(p), Vector2.ONE), extra[p])
+	elif is_arriving():
+		_draw_frame(&"flare")
 	elif dimmed:
 		_draw_frame(&"dim")
 	else:
