@@ -118,6 +118,9 @@ const LONE_MESSAGE: String = "THIS STAR IS ALONE\nTHE SCYTHE CUTS IT"
 ## not (#149: naming the scythe made it sound like it would last until the harvest).
 const LONE_TIE_MESSAGE: String = "THIS STAR IS ALONE\nNEXT LAUNCH CUTS IT"
 const LONE_QUIET: float = 12.0
+## A split planet aimed on the launch that brings the harvest: its first burst lands before the
+## scythe and is reaped with the sky (#149), said once a run.
+const FIRST_BURST_MESSAGE: String = "THE SCYTHE REAPS ITS\nFIRST BURST TOO"
 const QUICKEN_MESSAGE: String = "THE SCYTHE COMES\nSOONER EACH HARVEST"
 ## Virgo's clock sits this far below the Sun's centre.
 const HARVEST_CLOCK_BELOW: int = 30
@@ -184,6 +187,8 @@ var _launch_shown: bool = false
 var _losses_told: Dictionary[String, bool] = {}
 ## The stage's rule is due but waits for the final's title card to go (#149).
 var _rule_waiting: bool = false
+## The harvest launch's first burst has been pointed out this run.
+var _first_burst_told: bool = false
 ## Main sets it: how far below the burst point the player's finger goes to launch there (the
 ## telescope aims above a finger, #152), so the guided run's hand points where the finger goes.
 var launch_finger_lift: Callable
@@ -293,6 +298,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_launch_shown = false
 	_losses_told.clear()
 	_rule_waiting = false
+	_first_burst_told = false
 	_lone_quiet = 0.0
 	clear_message()
 	_volley.visible = run.volley != null
@@ -394,6 +400,15 @@ func _stage_rule() -> String:
 	if _run.heat != null:
 		return heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links)
 	return ""
+
+
+## The telescope aims a `kind` planet: on the launch that brings the harvest, a split planet's first
+## burst is reaped as it lands, which its ember ring shows; said once a run.
+func tell_aim(kind: String) -> void:
+	if _run == null or _first_burst_told or not _run.harvest_reaps_bursts(kind).has(true):
+		return
+	_first_burst_told = true
+	show_message(FIRST_BURST_MESSAGE, RULE_MESSAGE_TIME, true)
 
 
 ## Bound sheaves: a constellation star just lit alone says it will be cut, and when (once a while).

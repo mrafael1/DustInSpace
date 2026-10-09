@@ -461,6 +461,28 @@ func launch_drains() -> Array[int]:
 	return result
 
 
+## Pure: whether a star the next launch brings, landing at `point`, is carried out of its draining
+## flow on that same launch (the new stars flow too; #149: the aim only showed the stars already out).
+func burst_drains_at(point: Vector2i) -> bool:
+	if current == null or not current.drains or is_over():
+		return false
+	return current.leaves(point, StarScatter.clamp_to_sky(point + current.displacement, sky_rect))
+
+
+## Pure: for each burst of a `kind` pack in order (the red's twin burst: both), whether the next
+## launch's harvest reaps that burst's stars as they land: a split planet's bursts before its last,
+## when the launch brings the harvest (#149: the aim never showed a red's first burst going).
+func harvest_reaps_bursts(kind: String) -> Array[bool]:
+	var reaped: Array[bool] = []
+	if not balance.packs.has(kind):
+		return reaped
+	var bursts: int = balance.packs[kind].bursts
+	var due: bool = harvest != null and harvest.is_next() and not is_over()
+	for i: int in bursts:
+		reaped.append(due and i < bursts - 1)
+	return reaped
+
+
 ## Pure: the stars in the sky now that the next launch's heat burns out (a big in the heat), wherever
 ## it's aimed. A star the current drains first isn't counted; the constellation stars (the Head's)
 ## burn back instead of out, so they're never in it.
