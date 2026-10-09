@@ -711,18 +711,23 @@ static func _clearance(points: Array[Vector2i], taken: Array[Vector2i]) -> int:
 
 ## Whether launching the loaded pack at `aim` keeps its stars out of the hunting circle: every point
 ## it bursts at (a split pack's every one) keeps its whole scatter ring, and a margin, outside it.
+## With the telescope empty (a launch just left it so, and the guide shows its spot then), every
+## planet must keep clear: the player picks one after (#149: the red's twin burst reached in).
 func is_safe_launch(aim: Vector2i) -> bool:
 	if hunt == null or not hunt.has_area():
 		return true
-	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
-	var pack: Balance.PackDef = balance.packs[kind]
-	var points: Array[Vector2i] = [StarScatter.clamp_to_sky(aim, sky_rect)]
-	if pack.bursts > 1:
-		points = StarScatter.split_points(aim, pack.burst_spread, pack.bursts, sky_rect)
-	var clear: int = hunt.radius + StarScatter.RING_MAX + ENCOUNTER_CLEARANCE
-	for point: Vector2i in points:
-		if (point - hunt.centre).length_squared() <= clear * clear:
-			return false
+	var kinds: Array[String] = balance.pack_kinds()
+	if loaded_pack != "":
+		kinds = [loaded_pack]
+	for kind: String in kinds:
+		var pack: Balance.PackDef = balance.packs[kind]
+		var points: Array[Vector2i] = [StarScatter.clamp_to_sky(aim, sky_rect)]
+		if pack.bursts > 1:
+			points = StarScatter.split_points(aim, pack.burst_spread, pack.bursts, sky_rect)
+		var clear: int = hunt.radius + StarScatter.RING_MAX + ENCOUNTER_CLEARANCE
+		for point: Vector2i in points:
+			if (point - hunt.centre).length_squared() <= clear * clear:
+				return false
 	return true
 
 

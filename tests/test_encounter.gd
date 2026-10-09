@@ -187,6 +187,49 @@ func test_a_split_pack_is_safe_only_if_both_its_bursts_are() -> void:
 	assert_false(run.is_safe_launch(centre))
 
 
+func test_the_guides_spot_holds_for_whichever_planet_is_picked_next() -> void:
+	# The guide shows its spot as the circle is marked, once a launch has left the telescope empty:
+	# the player picks the planet after, so the spot has to hold for either (#149: it was blue's).
+	var balance: Balance = Balance.load_file()
+	var checked: int = 0
+	for seed_value: int in range(1, 41):
+		var run := RunState.new(balance, Fixtures.rng(seed_value), Fixtures.SKY, StarMap.heart())
+		run.owned_packs["red"] = 2
+		Fixtures.launch(run, Vector2i(100, 190))
+		if run.is_over() or not run.hunt.has_area():
+			continue
+		assert_eq(run.loaded_pack, "", "a launch leaves the telescope empty")
+		var spot: Vector2i = run.safe_launch_spot()
+		if not run.is_safe_launch(spot):
+			continue
+		checked += 1
+		for kind: String in ["blue", "red"]:
+			assert_true(run.load_pack(kind))
+			assert_true(run.is_safe_launch(spot), "seed %d: the guide's spot is safe for %s too" % [seed_value, kind])
+	assert_gt(checked, 30, "a spot safe for both almost always exists")
+
+
+func test_with_the_telescope_empty_a_launch_is_safe_only_if_every_planet_would_be() -> void:
+	var run: RunState = RunState.new(Balance.load_file(), Fixtures.rng(), Fixtures.SKY, StarMap.heart())
+	run.owned_packs["red"] = 2
+	Fixtures.launch(run, Vector2i(100, 190))
+	assert_eq(run.loaded_pack, "")
+	var inner: Rect2i = StarScatter.inner_rect(run.sky_rect)
+	var compared: int = 0
+	for y: int in range(inner.position.y, inner.end.y, 8):
+		for x: int in range(inner.position.x, inner.end.x, 8):
+			var spot := Vector2i(x, y)
+			var empty: bool = run.is_safe_launch(spot)
+			run.load_pack("blue")
+			var blue: bool = run.is_safe_launch(spot)
+			run.load_pack("red")
+			var red: bool = run.is_safe_launch(spot)
+			run.loaded_pack = ""
+			assert_eq(empty, blue and red, "%s: empty is safe only where both are" % spot)
+			compared += 1 if blue != red else 0
+	assert_gt(compared, 0, "somewhere one planet is safe and the other isn't")
+
+
 # --- The scenes -----------------------------------------------------------------------------
 
 func test_main_plays_it_only_when_asked_and_the_guide_shows_then_goes() -> void:
