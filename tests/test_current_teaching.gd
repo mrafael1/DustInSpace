@@ -173,3 +173,84 @@ func test_a_finger_letting_the_launch_go_hides_the_drift_preview() -> void:
 	assert_true(telescope.is_letting_go())
 	main._process(0.0)
 	assert_false(current.aiming, "let go: the preview goes with the scatter ring")
+
+
+
+func test_the_first_star_a_run_loses_says_what_took_it_and_what_to_do() -> void:
+	# #149: a loss went unexplained; Virgo's lone line is the model. Once a run each.
+	var main: Main = _main("aquarius_body")
+	var hud: Hud = main.get_node("HUD")
+	_play_intro(main)
+	assert_ne(hud.message(), Hud.DRAIN_LOSS_MESSAGE, "the intro's demo drain is no loss of the player's")
+	hud.clear_message()
+	var drained := StarCurrent.Move.new(90, Vector2i(60, 150), Vector2i(40, 150), true)
+	var carried := StarCurrent.Move.new(91, Vector2i(80, 150), Vector2i(56, 150))
+	_hud_plays(hud, &"stars_shifted", [[drained]])
+	assert_ne(hud.message(), Hud.DRAIN_LOSS_MESSAGE, "nor is a drain before the run's first launch")
+	hud.clear_message()
+	_hud_plays(hud, &"pack_launched", ["blue", Vector2i(60, 150)])
+	_hud_plays(hud, &"stars_shifted", [[carried]])
+	hud.clear_message()
+	_hud_plays(hud, &"stars_shifted", [[carried]])
+	assert_eq(hud.message(), "", "a star carried but kept says nothing")
+	_hud_plays(hud, &"stars_shifted", [[carried, drained]])
+	assert_eq(hud.message(), Hud.DRAIN_LOSS_MESSAGE, "the first drained star says it")
+	hud.clear_message()
+	_hud_plays(hud, &"stars_shifted", [[drained]])
+	assert_eq(hud.message(), "", "once a run")
+	main.start_run(Balance.load_file())
+	_play_intro(main)
+	hud.clear_message()
+	hud.tell_current_rule()
+	hud.clear_message()
+	_hud_plays(hud, &"pack_launched", ["blue", Vector2i(60, 150)])
+	_hud_plays(hud, &"stars_shifted", [[drained]])
+	assert_eq(hud.message(), Hud.DRAIN_LOSS_MESSAGE, "a new run says it again")
+
+
+func test_a_loss_while_the_stages_rule_still_shows_waits_for_the_next() -> void:
+	var main: Main = _main("aquarius_body")
+	var hud: Hud = main.get_node("HUD")
+	_play_intro(main)
+	hud.clear_message()
+	# The stage's rule on show (as at the first aim, held a moment).
+	var rule: String = Hud.DRAIN_MESSAGE
+	hud.show_message(rule, Hud.RULE_MESSAGE_TIME, true)
+	var drained := StarCurrent.Move.new(90, Vector2i(60, 150), Vector2i(40, 150), true)
+	_hud_plays(hud, &"pack_launched", ["blue", Vector2i(60, 150)])
+	_hud_plays(hud, &"stars_shifted", [[drained]])
+	assert_eq(hud.message(), rule, "the rule says as much already: it stays")
+	hud.clear_message()
+	_hud_plays(hud, &"stars_shifted", [[drained]])
+	assert_eq(hud.message(), Hud.DRAIN_LOSS_MESSAGE, "the next loss, once it's gone, says it")
+
+
+func test_a_burn_and_a_fade_each_say_theirs_and_a_lions_star_isnt_lost() -> void:
+	var main: Main = _main("leo_mane")
+	var hud: Hud = main.get_node("HUD")
+	_play_intro(main)
+	hud.tell_current_rule()
+	hud.clear_message()
+	_hud_plays(hud, &"pack_launched", ["blue", Vector2i(60, 150)])
+	var burned := StarHeat.Change.new(70, Star.Size.BIG, Star.Size.BIG, true)
+	_hud_plays(hud, &"stars_resized", [[burned]])
+	assert_eq(hud.message(), Hud.BURN_LOSS_MESSAGE)
+	hud.clear_message()
+	var faded := StarHeat.Change.new(71, Star.Size.SMALL, Star.Size.SMALL, true)
+	_hud_plays(hud, &"stars_resized", [[faded]])
+	assert_eq(hud.message(), Hud.FADE_LOSS_MESSAGE, "the cold's first loss says its own")
+	hud.clear_message()
+	var rekindled := StarHeat.Change.new(-1003, Star.Size.BIG, Star.Size.SMALL, false, true)
+	_hud_plays(hud, &"heat_breathed", [Vector2i(90, 150), [rekindled]])
+	assert_eq(hud.message(), "", "a lion's star burning back isn't a loss")
+
+
+func test_every_new_line_fits() -> void:
+	for text: String in [Hud.DRAIN_LOSS_MESSAGE, Hud.BURN_LOSS_MESSAGE, Hud.FADE_LOSS_MESSAGE, Hud.FLOW_MESSAGE, Hud.BREATH_MESSAGE]:
+		for line: String in text.split("\n"):
+			assert_lte(line.length(), 22, line)
+
+
+## The HUD plays one run event (as the sequencer would), on its own.
+func _hud_plays(hud: Hud, type: StringName, args: Array) -> void:
+	hud.call("_on_event_played", EventSequencer.RunEvent.new(type, args))
