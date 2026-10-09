@@ -381,6 +381,9 @@ func open_stage(point: int, guided: bool = false) -> void:
 	_stage.map_requested.connect(back_to_chart)
 	_show_chart(false)
 	add_child(_stage)
+	# PLAY answers like leaving the title (which, from the title, has just played the same cues).
+	_sfx.play(&"pack_ready", 1.0)
+	_sfx.play(&"launch", 1.2)
 	stage_opened.emit(point)
 
 
@@ -391,8 +394,9 @@ func back_to_chart() -> void:
 	remove_child(_stage)
 	_stage.queue_free()
 	_stage = null
-	# The stage's speaker may have changed the sound level.
+	# The stage's speaker may have changed the sound level. MAP answers like a tap.
 	_sfx.reload_level()
+	_sfx.play(&"star_select", 1.3)
 	_show_chart(true)
 	fit_screen()
 	_chart.show_progress(_won_point, _unlocked, _opens_chapter)
