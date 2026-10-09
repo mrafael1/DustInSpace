@@ -109,6 +109,9 @@ const BIND_MESSAGE: String = "LIGHT STARS NEXT TO\nLIT ONES OR LOSE THEM"
 const TIE_MESSAGE: String = "LONE LIT STARS GO OUT\nAFTER EVERY LAUNCH"
 ## Said when the player lights a star alone (not next to the lit figure), at most once a while.
 const LONE_MESSAGE: String = "THIS STAR IS ALONE\nTHE SCYTHE CUTS IT"
+## Tied at once (the Feet, the final), a lone star goes out after the very next launch, scythe or
+## not (#149: naming the scythe made it sound like it would last until the harvest).
+const LONE_TIE_MESSAGE: String = "THIS STAR IS ALONE\nNEXT LAUNCH CUTS IT"
 const LONE_QUIET: float = 12.0
 const QUICKEN_MESSAGE: String = "THE SCYTHE COMES\nSOONER EACH HARVEST"
 ## Virgo's clock sits this far below the Sun's centre.
@@ -354,12 +357,18 @@ func tell_current_rule() -> void:
 	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links), RULE_MESSAGE_TIME, true)
 
 
-## Bound sheaves: a constellation star just lit alone says the scythe will cut it (once a while).
+## Bound sheaves: a constellation star just lit alone says it will be cut, and when (once a while).
 func _tell_lone(index: int) -> void:
 	if _run == null or not _run.loose_landmarks().has(index) or _lone_quiet > 0.0:
 		return
 	_lone_quiet = LONE_QUIET
-	show_message(LONE_MESSAGE, RULE_MESSAGE_TIME, true)
+	show_message(lone_rule(_run.harvest), RULE_MESSAGE_TIME, true)
+
+
+## What a lone lit star's line says: the scythe cuts it at the harvest, or, tied at once, the next
+## launch does.
+static func lone_rule(harvest: StarHarvest) -> String:
+	return LONE_TIE_MESSAGE if harvest.ties else LONE_MESSAGE
 
 
 ## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,

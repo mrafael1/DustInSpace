@@ -326,6 +326,29 @@ func test_lighting_a_lone_star_says_the_scythe_cuts_it() -> void:
 	assert_eq(hud.message(), Hud.LONE_MESSAGE)
 
 
+func test_tied_at_once_a_lone_star_says_the_next_launch_cuts_it() -> void:
+	# #149: on the Feet a lone star goes out after the next launch, harvest or not; naming the scythe
+	# made it sound like it would last until the harvest.
+	for map_id: String in ["virgo_feet", "virgo_final"]:
+		var main: Main = _main(map_id)
+		var run: RunState = main.run
+		var hud: Hud = main.get_node("HUD")
+		_settle(main)
+		hud.clear_message()
+		var lone: int = -1
+		for i: int in run.scorpio.map.count():
+			if not run.scorpio.is_lit(i) and not run.scorpio.map.neighbours(i).any(run.scorpio.is_lit):
+				lone = i
+				break
+		assert_gte(lone, 0, "%s: a star with no lit neighbour" % map_id)
+		run.scorpio.light(lone)
+		var sequencer: EventSequencer = main.get_node("EventSequencer")
+		sequencer.event_played.emit(EventSequencer.RunEvent.new(&"landmark_lit", [lone]))
+		assert_eq(hud.message(), Hud.LONE_TIE_MESSAGE, map_id)
+	assert_eq(Hud.lone_rule(StarHarvest.new(3, true)), Hud.LONE_MESSAGE, "at the harvest: the scythe's")
+	assert_eq(Hud.lone_rule(StarHarvest.new(3, true, false, true)), Hud.LONE_TIE_MESSAGE)
+
+
 func test_the_hint_grows_the_figure_where_the_harvest_binds() -> void:
 	var run: RunState = _run(StarMap.virgo_wing())
 	# Bigs that can light the joined star 1, and mediums that could light star 2 alone.
@@ -587,7 +610,7 @@ func test_a_quickening_clock_loses_an_ear_each_harvest() -> void:
 func test_the_twists_say_their_rules() -> void:
 	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, false, true)), Hud.TIE_MESSAGE)
 	assert_eq(Hud.harvest_rule(StarHarvest.new(3, true, true)), Hud.QUICKEN_MESSAGE)
-	for text: String in [Hud.TIE_MESSAGE, Hud.QUICKEN_MESSAGE, Hud.LONE_MESSAGE, Hud.BIND_MESSAGE]:
+	for text: String in [Hud.TIE_MESSAGE, Hud.QUICKEN_MESSAGE, Hud.LONE_MESSAGE, Hud.LONE_TIE_MESSAGE, Hud.BIND_MESSAGE]:
 		for line: String in text.split("\n"):
 			assert_lte(line.length(), 22, line)
 
