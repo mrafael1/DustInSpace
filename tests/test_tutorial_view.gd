@@ -70,13 +70,17 @@ CONSTELLATION TO WIN", "the goal first")
 	assert_eq(guide.text(), "TAP THE SKY TO LAUNCH\nA CHEAP BLUE PLANET")
 	assert_false(guide.shows_tap_hint())
 	assert_true(guide.has_hand())
+	# Where the finger under the hand aims: open sky, clear of the figure.
+	var aim: Vector2i = guide.target() - Vector2i(0, scope.finger_lift())
+	for at: Vector2i in run.scorpio.landmark_positions():
+		assert_gte(Vector2(aim).distance_to(Vector2(at)), float(RunState.OPEN_CLEARANCE), "the hand at open sky, clear of the figure")
 	assert_true(scope.is_aiming(), "the launch step aims")
 	assert_true(Fixtures.launch(run, Vector2i(90, 170)))
 	_settle()
 	assert_true(hud.table().is_open(), "the table teaches the links first")
 	_tap_hud(Vector2i(90, 150))
 	assert_false(hud.table().is_open(), "a tap closes it")
-	assert_eq(guide.text(), "TAP OR DRAG THROUGH THEM")
+	assert_eq(guide.text(), "LINK THE 3 NEW STARS\nTAP OR DRAG THROUGH THEM")
 	assert_false(scope.is_aiming(), "touches reach the stars")
 	assert_false(scope.start_aim(), "the telescope waits for the next launch step")
 	var path: Array[int] = guide.get("_path")
@@ -89,7 +93,7 @@ CONSTELLATION TO WIN", "the goal first")
 	hud.follow_link([path[0], path[1]])
 	assert_eq(guide.target().x, run.find_star(path[2]).position.x, "then the third")
 	hud.follow_link([])
-	assert_eq(guide.text(), "TAP OR DRAG THROUGH THEM", "a dropped link starts over")
+	assert_eq(guide.text(), "LINK THE 3 NEW STARS\nTAP OR DRAG THROUGH THEM", "a dropped link starts over")
 	assert_eq(guide.target().x, run.find_star(path[0]).position.x)
 	run.link(path)
 	_settle()
@@ -115,6 +119,37 @@ CONSTELLATION TO WIN", "the goal first")
 	scope.call("_fire")
 	assert_signal_emitted(scope, "launch_refused", "too far: refused")
 	assert_true(scope.is_aiming(), "and still aiming")
+	# Seen, not only heard (#148): the reticle shakes, the zone flashes and the line says why.
+	assert_ne(scope.refused_shake(), 0, "the reticle shakes")
+	assert_eq(guide.text(), TutorialView.REFUSED_TEXT)
+	assert_true(guide.is_zone_flashing())
+	guide.advance(TutorialView.REFUSED_TIME + 0.1)
+	scope.advance(1.0)
+	assert_eq(scope.refused_shake(), 0, "then the reticle settles")
+	assert_false(guide.is_zone_flashing())
+	assert_eq(guide.text(), "LAUNCH NEXT TO THIS STAR", "and the step's line is back")
+
+
+func test_the_near_launch_shows_the_zone_it_must_land_in() -> void:
+	_start()
+	_settle()
+	run.tutorial.step = Tutorial.Step.LAUNCH_NEAR
+	run.tutorial.landmark = 2
+	run.tutorial_step.emit(Tutorial.Step.LAUNCH_NEAR)
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	var at: Vector2i = run.scorpio.landmark_position(2)
+	var dots: Array[Vector2i] = guide.zone_pixels()
+	assert_gt(dots.size(), 20, "a dotted ring")
+	for dot: Vector2i in dots:
+		assert_almost_eq(Vector2(dot).distance_to(Vector2(at)), float(Tutorial.NEAR), 0.75, "as far out as a launch may land")
+	assert_false(guide.is_zone_flashing())
+	run.tutorial.step = Tutorial.Step.LIGHT
+	run.tutorial_step.emit(Tutorial.Step.LIGHT)
+	_settle()
+	assert_true(guide.zone_pixels().is_empty(), "gone once the launch is made")
+	guide.refuse_launch()
+	assert_ne(guide.text(), TutorialView.REFUSED_TEXT, "no zone, nothing to refuse")
 
 
 func test_with_a_finger_the_launch_hands_point_where_the_finger_goes() -> void:
@@ -214,28 +249,23 @@ func test_the_demo_point_loops_through_the_path() -> void:
 	assert_eq(TutorialView.demo_point(points, loop + 0.01), points[0], "then again")
 
 
-func test_the_loaded_planet_is_shown_on_the_telescope_then_its_icon() -> void:
+func test_the_loaded_planet_is_shown_on_its_icon() -> void:
 	_start()
 	_settle()
-	run.tutorial.step = Tutorial.Step.SCOPE
+	run.tutorial.step = Tutorial.Step.LOADED
 	run.loaded_pack = "red"
 	run.pack_loaded.emit("red")
-	run.tutorial_step.emit(Tutorial.Step.SCOPE)
+	run.tutorial_step.emit(Tutorial.Step.LOADED)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "THE TELESCOPE SHOWS\nTHE LOADED PLANET")
+	assert_eq(guide.text(), "THE RED PLANET IS LOADED")
 	assert_false(guide.shows_tap_hint(), "it goes on by itself")
-	var window: Vector2i = scope.origin() + scope.window()
-	assert_eq(guide.fingertip().y, window.y, "the hand at the telescope's window")
-	assert_lt(guide.fingertip().x, window.x, "from the left")
-	assert_eq(scope.loaded_pack(), "red", "the window shows the red planet")
-	guide.advance(TutorialView.SHOW_TIME + 0.1)
-	_settle()
-	assert_eq(guide.text(), "THE LOADED PLANET SPINS")
 	assert_eq(guide.fingertip().x, hud.pack_icon_top("red").x, "the hand over the red planet's icon")
+	assert_lt(guide.fingertip().y, hud.pack_icon_top("red").y, "from above")
+	assert_eq(scope.loaded_pack(), "red", "the telescope holds the red planet")
 	guide.advance(TutorialView.SHOW_TIME + 0.1)
 	_settle()
-	assert_eq(guide.text(), "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS")
+	assert_eq(guide.text(), "LAUNCH THE RED PLANET\nIT SPLITS IN TWO\nWITH MORE BIG STARS", "one step, then the launch (#148)")
 
 
 func test_the_full_sun_points_at_the_star_it_lit() -> void:
@@ -399,7 +429,7 @@ func test_the_constellation_stars_link_points_star_by_star() -> void:
 	_settle()
 	_light_step()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE")
+	assert_eq(guide.text(), "LINK THIS STAR WITH\n2 OF ITS SIZE TO LIGHT IT")
 	assert_true(guide.has_hand())
 	assert_false(guide.is_demoing_drag(), "the drag was acted out on the first link")
 
@@ -439,10 +469,10 @@ func test_lighting_the_star_teaches_three_of_its_size() -> void:
 	run.tutorial_step.emit(Tutorial.Step.LIGHT)
 	_settle()
 	var guide: TutorialView = hud.tutorial_guide()
-	assert_eq(guide.text(), "LINK 3 OF THE SAME SIZE")
+	assert_eq(guide.text(), "LINK THIS STAR WITH\n2 OF ITS SIZE TO LIGHT IT")
 	var path: Array[int] = guide.get("_path")
 	assert_eq(path.size(), 3)
-	assert_true(path.has(Scorpio.landmark_id(1)), "the constellation star is on the hand's path")
+	assert_eq(path[0], Scorpio.landmark_id(1), "the hand starts on the constellation star")
 	assert_true(run.link_in_reach(path))
 
 
@@ -546,3 +576,52 @@ func test_the_text_sits_under_the_sun() -> void:
 	assert_eq(int(label.position.y), top, "at the top of the sky, under the Sun")
 	assert_gt(top, hud.sun_at.y + SunView.RADIUS, "below the Sun's disc")
 	assert_eq(int(tap.position.y), top + 2 * TutorialView.LINE_STEP, "TAP TO CONTINUE under the goal's two lines")
+
+
+func test_the_full_suns_clock_waits_for_the_star_to_light() -> void:
+	_start()
+	_settle()
+	var bigs: Array[int] = []
+	for at: Vector2i in [Vector2i(60, 120), Vector2i(90, 125), Vector2i(120, 120)]:
+		bigs.append(run.add_star(Star.Size.BIG, at).id)
+	run.tutorial.step = Tutorial.Step.RED_LINK
+	run.tutorial_step.emit(Tutorial.Step.RED_LINK)
+	_settle()
+	run.light = run.light_target() - 1
+	assert_ne(run.link(_order(bigs)), Combos.INVALID)
+	assert_eq(run.tutorial.step, Tutorial.Step.SUN_FULL)
+	var guide: TutorialView = hud.tutorial_guide()
+	var shown: bool = false
+	# Play the Sun's ignition and the sky clearing frame by frame. In the game they outlast the
+	# step's time (about 4 s): once shown, the guide's clock runs past it while they still play.
+	for frame: int in 1200:
+		sequencer.advance(STEP)
+		hud.advance(STEP)
+		if not shown and guide.text() == "A FULL SUN LIGHTS A STAR" and sequencer.is_busy():
+			shown = true
+			guide.advance(TutorialView.SHOW_TIME + 0.5)
+			assert_eq(run.tutorial.step, Tutorial.Step.SUN_FULL, "no time-out while the Sun ignites")
+		guide.advance(STEP)
+		if not sequencer.is_busy():
+			break
+	assert_true(shown, "shown as the Sun ignites")
+	assert_eq(run.tutorial.step, Tutorial.Step.SUN_FULL, "no time-out before the star is lit")
+	assert_true(run.scorpio.is_lit(run.tutorial.landmark))
+	assert_eq(guide.text(), "A FULL SUN LIGHTS A STAR")
+	guide.advance(TutorialView.SHOW_TIME - 0.1)
+	assert_eq(run.tutorial.step, Tutorial.Step.SUN_FULL, "shown SHOW_TIME on the lit star")
+	guide.advance(0.2)
+	assert_ne(run.tutorial.step, Tutorial.Step.SUN_FULL, "then it goes on")
+
+
+func test_a_held_clock_counts_once_the_events_have_played() -> void:
+	_start()
+	_settle()
+	run.tutorial.step = Tutorial.Step.LOADED
+	run.sun_rekindled.emit(2)
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_eq(guide.text(), "A FULL SUN LIGHTS A STAR", "a full Sun outside the red link")
+	hud.advance(STEP)
+	guide.advance(TutorialView.SHOW_TIME + 0.1)
+	assert_eq(run.tutorial.step, Tutorial.Step.RED, "nothing left to play: it goes on by itself")

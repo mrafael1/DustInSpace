@@ -32,7 +32,7 @@ Read before any gameplay work: `docs/design.md`. Read before any visual work: `d
 
 - Packs, star drawing, linking, rewards, purchases, and win/loss.
 - Slingshot launch, star scatter, link tracing.
-- Feedback: particles to the counters, Sun brightening, the normal opening and the Big Bang.
+- Feedback: particles to the counters, Sun brightening and the normal opening. The Big Bang sequence exists but is off in every chapter stage (`scorpio.big_bang: false`), so players don't see it; it stays reachable through the debug trigger.
 - A debug overlay to edit balance values and force a Big Bang.
 
 Anything outside this list needs the user's approval first.
