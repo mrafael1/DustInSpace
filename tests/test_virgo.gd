@@ -676,3 +676,24 @@ func test_the_wheats_clock_shows_the_lost_ear_and_says_the_rule() -> void:
 			periods.append(period)
 	assert_eq(periods, [3, 2, 3] as Array[int], "the clock loses an ear, then shows as the run starts")
 	assert_eq(hud.message(), Hud.QUICKEN_MESSAGE)
+
+
+func test_the_reap_mark_on_a_small_star_is_a_solid_ring_a_pixel_out() -> void:
+	# #149: dotted S4 right on the small's own orange vanished; smalls are the commonest draw.
+	var small: Array[Vector2i] = HarvestView.reap_pixels(Star.Size.SMALL)
+	var outline: Array[Vector2i] = StarView.outline_pixels(Star.Size.SMALL)
+	assert_gte(small.size(), outline.size(), "a whole ring, round the outline")
+	for p: Vector2i in small:
+		assert_false(outline.has(p), "a pixel's gap between it and the star")
+		assert_true(outline.any(func(o: Vector2i) -> bool: return (o - p).length_squared() == 1), "hugging the gap")
+	for size: int in [Star.Size.MEDIUM, Star.Size.BIG]:
+		var dotted: Array[Vector2i] = HarvestView.reap_pixels(size)
+		for p: Vector2i in dotted:
+			assert_true(StarView.outline_pixels(size as Star.Size).has(p), "medium and big keep their dotted outline")
+			assert_eq((p.x + p.y) % 2, 0)
+	var run: RunState = _run(StarMap.virgo_head())
+	_launch_until_harvest_next(run)
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(40, 120))
+	var preview: Dictionary[Vector2i, Color] = HarvestView.preview_pixels(run)
+	for p: Vector2i in small:
+		assert_eq(preview.get(star.position + p), Palette.S4, "the aim shows it")
