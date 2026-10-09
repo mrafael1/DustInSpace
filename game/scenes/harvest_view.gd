@@ -230,18 +230,42 @@ func pixels() -> Dictionary[Vector2i, Color]:
 
 
 ## What the next launch's harvest takes, drawn round each star: a loose star's outline dotted
-## ember, a dotted ember ring round a constellation star it puts out. Nothing when the next launch
-## doesn't bring the harvest.
+## ember (a small one's solid, a pixel further out: reap_pixels), a dotted ember ring round a
+## constellation star it puts out. Nothing when the next launch doesn't bring the harvest.
 static func preview_pixels(run: RunState) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	for id: int in run.harvest_preview():
 		var star: Star = run.find_star(id)
-		for offset: Vector2i in StarView.outline_pixels(star.size):
-			if (offset.x + offset.y) % 2 == 0:
-				result[star.position + offset] = Palette.S4
+		for offset: Vector2i in reap_pixels(star.size):
+			result[star.position + offset] = Palette.S4
 	for index: int in run.unbound_preview():
 		result.merge(lone_ring_pixels(run.scorpio.landmark_position(index), run.scorpio.map.sizes[index], 0.0), true)
 	return result
+
+
+## The scythe's mark on a loose star of `size` it will reap, as offsets: its outline, every other
+## pixel; on a small star (warm itself, the commonest draw) a solid ring a pixel further out, so a
+## dark gap sets it apart (#149: dotted, it vanished into the small's own orange).
+static func reap_pixels(size: int) -> Array[Vector2i]:
+	var outline: Array[Vector2i] = StarView.outline_pixels(size as Star.Size)
+	if size != Star.Size.SMALL:
+		return outline.filter(func(o: Vector2i) -> bool: return (o.x + o.y) % 2 == 0)
+	# The star itself: what the outline encloses, filled from its centre.
+	var inside: Dictionary[Vector2i, bool] = {Vector2i.ZERO: true}
+	var frontier: Array[Vector2i] = [Vector2i.ZERO]
+	while not frontier.is_empty():
+		var at: Vector2i = frontier.pop_back()
+		for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			if not inside.has(at + d) and not outline.has(at + d):
+				inside[at + d] = true
+				frontier.append(at + d)
+	var ring: Array[Vector2i] = []
+	for o: Vector2i in outline:
+		for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var p: Vector2i = o + d
+			if not outline.has(p) and not inside.has(p) and not ring.has(p):
+				ring.append(p)
+	return ring
 
 
 ## A constellation star of `size` at `at` cropped `t` seconds ago, its strings to `ends` snapping:
