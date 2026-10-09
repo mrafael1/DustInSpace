@@ -323,6 +323,39 @@ func test_the_volley_guide_points_at_the_countdown_and_says_the_interval() -> vo
 	assert_eq(guide.target(), Vector2i(hud.get_node("VolleyCountdown").position))
 
 
+func test_each_encounters_line_keeps_clear_of_the_figure_and_the_hanging_arrows() -> void:
+	# #149: the Body's line hid three of the five hanging arrows and ran into the lit spine top.
+	for map: String in ["tail", "body", "heart"]:
+		var main: Main = _main(map, true)
+		var hud: Hud = main.get_node("HUD")
+		_play(main)
+		if main.run.encounter.step == Encounter.Step.WAITING:
+			Fixtures.launch(main.run, Vector2i(100, 190))
+			_play(main)
+		var line: Rect2i = hud.tutorial_guide().line_rect()
+		assert_true(line.has_area(), "%s: the guide's line shows" % map)
+		var sky: Rect2i = main.run.sky_rect
+		assert_gte(line.position.x, sky.position.x + Hud.ENCOUNTER_LINE_LEFT - 1, "%s: right of Orion's corner" % map)
+		assert_lte(line.end.x, sky.end.x + 1, map)
+		for i: int in main.run.scorpio.map.count():
+			var half: int = StarView.half_extent(main.run.scorpio.map.sizes[i] as Star.Size)
+			var star := Rect2i(main.run.scorpio.landmark_position(i) - Vector2i(half, half), Vector2i(half, half) * 2 + Vector2i.ONE)
+			assert_false(star.intersects(line.grow(Hud.ENCOUNTER_CLEAR - 1)), "%s: the line clears constellation star %d at %s" % [map, i, star])
+		if main.run.volley != null:
+			var orion: OrionView = main.get_node("Sky/OrionLayer")
+			for tip: Vector2i in orion.overhead_spots():
+				# The shaft above its tip, the head a pixel either side, a pixel's shiver.
+				var arrow := Rect2i(tip - Vector2i(2, OrionView.SHAFT), Vector2i(5, OrionView.SHAFT + 1))
+				assert_false(arrow.intersects(line.grow(Hud.ENCOUNTER_CLEAR - 1)), "%s: the line clears the arrow hanging at %s" % [map, tip])
+
+
+func test_a_line_with_room_at_the_top_stays_there() -> void:
+	var main: Main = _main("tail", true)
+	var hud: Hud = main.get_node("HUD")
+	var block: Rect2i = hud.encounter_block(Hud.ENCOUNTER_LINES[Encounter.Threat.MARK])
+	assert_eq(block.position.y, main.run.sky_rect.position.y + TutorialView.TOP, "the Tail's top is open: the usual spot")
+
+
 func test_the_lines_fit_beside_orions_corner() -> void:
 	var main: Main = _main("heart", true)
 	var label := Label.new()
