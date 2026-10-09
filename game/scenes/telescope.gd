@@ -392,7 +392,7 @@ func _release_sky() -> void:
 func refused_shake() -> int:
 	if _refused_time < 0.0:
 		return 0
-	return REFUSED_SHAKE[mini(int(_refused_time / REFUSED_SHAKE_STEP), REFUSED_SHAKE.size() - 1)]
+	return Motion.shake_x(REFUSED_SHAKE[mini(int(_refused_time / REFUSED_SHAKE_STEP), REFUSED_SHAKE.size() - 1)])
 
 
 ## True if `point` (this node's coordinates) presses the telescope: its tripod or its barrel.

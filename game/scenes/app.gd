@@ -324,6 +324,9 @@ func _add_options() -> void:
 	_options.offer_haptics(Haptics.is_supported())
 	_options.show_haptics(_sfx.haptics.enabled)
 	_options.haptics_toggle_requested.connect(toggle_haptics)
+	Motion.load_setting(settings_path)
+	_options.show_motion(Motion.reduced)
+	_options.motion_toggle_requested.connect(toggle_reduced_motion)
 	_sfx.level_changed.connect(_options.show_sound_level)
 	_options.sound_cycle_requested.connect(_sfx.cycle_level)
 	_options.tutorial_requested.connect(replay_tutorial)
@@ -343,6 +346,12 @@ func toggle_haptics() -> void:
 	if _sfx.haptics.enabled:
 		var tick: Array = Haptics.PATTERNS[&"star_select"][0]
 		_sfx.haptics.vibrate.call(tick[1], tick[2])
+
+
+## The options' MOTION: reduced motion on or off, saved with the sound level.
+func toggle_reduced_motion() -> void:
+	Motion.set_reduced(not Motion.reduced, settings_path)
+	_options.show_motion(Motion.reduced)
 
 
 func options() -> OptionsMenu:

@@ -1786,7 +1786,7 @@ func _draw_navigation() -> void:
 			if _open_time < OPEN_SHAKE:
 				var k: float = maxf(_open_time, 0.0) / OPEN_SHAKE
 				var rate: float = lerpf(0.06, 0.025, k)
-				var shake: int = [1, 0, -1, 0][int(maxf(_open_time, 0.0) / rate) % 4] if _open_time >= 0.0 else 0
+				var shake: int = Motion.shake_x([1, 0, -1, 0][int(maxf(_open_time, 0.0) / rate) % 4] if _open_time >= 0.0 else 0)
 				var heat: Color = Palette.N7 if k < 0.4 else (Palette.C3 if k < 0.75 else Palette.C2)
 				_draw_padlock(at + Vector2i(shake, 0), heat)
 				if _open_time >= 0.0:
@@ -1802,7 +1802,7 @@ func _draw_navigation() -> void:
 			continue
 		var shift: int = 0
 		if side == _refuse_side and _refuse_time >= 0.0 and _refuse_time < REFUSE_SHAKE:
-			shift = [1, 0, -1, 0][int(_refuse_time / 0.03) % 4]
+			shift = Motion.shake_x([1, 0, -1, 0][int(_refuse_time / 0.03) % 4])
 		if state == Nav.LOCKED:
 			_draw_padlock(at + Vector2i(shift, 0), Palette.N7)
 		else:

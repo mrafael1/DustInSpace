@@ -106,7 +106,7 @@ func is_shaking() -> bool:
 ## The row's offset from its rest now, in whole pixels.
 func offset() -> Vector2i:
 	if _shake_age >= 0.0:
-		return Vector2i(1 if int(_shake_age / SHAKE_STEP) % 2 == 0 else -1, 0)
+		return Motion.shake(Vector2i(1 if int(_shake_age / SHAKE_STEP) % 2 == 0 else -1, 0))
 	if _drop_age >= 0.0:
 		return Vector2i(0, -DROP + mini(int(_drop_age / DROP_TIME * DROP), DROP))
 	if _hop_age >= 0.0:

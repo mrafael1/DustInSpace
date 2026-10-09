@@ -203,7 +203,8 @@ func is_flashing() -> bool:
 ## The flash core's radius `t` seconds after the bang: FLASH_CORE_RADIUS once the full-screen
 ## flash cuts, easing in to nothing over FLASH_CORE_TIME. 0 means no core.
 static func flash_core_radius(t: float) -> int:
-	var u: float = (t - FLASH_HOLD) / FLASH_CORE_TIME
+	# Without the full-screen flash (reduced motion), the core is there from the bang.
+	var u: float = (t - (0.0 if Motion.reduced else FLASH_HOLD)) / FLASH_CORE_TIME
 	if u < 0.0 or u >= 1.0:
 		return 0
 	return roundi(FLASH_CORE_RADIUS * (1.0 - u) * (1.0 - u))
@@ -222,7 +223,7 @@ func advance(delta: float) -> void:
 		_stop()
 		return
 	_banner.visible = _time >= BANNER_AT and _time < BANNER_AT + BANNER_TIME
-	_shake.offset = Vector2(shake_offset(_time - BANG_AT))
+	_shake.offset = Vector2(Motion.shake(shake_offset(_time - BANG_AT)))
 	_show_banner(_time - BANNER_AT)
 	queue_redraw()
 	_front.queue_redraw()
@@ -442,7 +443,8 @@ func _draw_flash() -> void:
 	if _time < BANG_AT:
 		return
 	var since: float = _time - BANG_AT
-	if is_flashing():
+	# Reduced motion leaves out the full-screen flash; the core still marks the bang.
+	if is_flashing() and not Motion.reduced:
 		_front.draw_rect(_visible_rect(), Palette.C0)
 	var core: int = flash_core_radius(since)
 	for dy: int in range(-core, core + 1):

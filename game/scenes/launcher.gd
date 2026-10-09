@@ -182,7 +182,7 @@ func advance(delta: float) -> void:
 ## whole-pixel shake after.
 func flight_offset() -> Vector2i:
 	if _flight == Flight.TREMBLING:
-		return _flight_to + TREMBLE_SHAKE[int(_flight_time / TREMBLE_STEP) % TREMBLE_SHAKE.size()]
+		return _flight_to + Motion.shake(TREMBLE_SHAKE[int(_flight_time / TREMBLE_STEP) % TREMBLE_SHAKE.size()])
 	var k: float = clampf(_flight_time / FLIGHT_TIME, 0.0, 1.0)
 	var eased: float = 1.0 - (1.0 - k) * (1.0 - k)
 	var point: Vector2 = Vector2(_flight_from()).lerp(Vector2(_flight_to), eased)
