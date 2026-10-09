@@ -2,11 +2,12 @@ class_name OptionsMenu
 extends CanvasLayer
 ## The options, over the title and the chart: a gear button (the plaque style, C1 gear) in the
 ## screen's top-right corner opens a MenuPanel: SOUND (the speaker's on, low, mute, with the
-## speaker drawn on it), TUTORIAL (the guided first run again, once it's been finished) and RESET
+## speaker drawn on it), HAPTICS (on or off, on a phone that can vibrate: Haptics), TUTORIAL (the guided first run again, once it's been finished) and RESET
 ## PROGRESS (held, since it can't be undone). Tap off the panel or CLOSE to close it. Owns no
 ## rules: App acts on its signals. Works in game coordinates (App sets the screen like Main's UI).
 
 signal sound_cycle_requested
+signal haptics_toggle_requested
 signal tutorial_requested
 signal reset_requested
 ## Feedback only (sound): the panel opened, closed, a button was tapped, a hold began.
@@ -20,6 +21,8 @@ const MapButtonScene := preload("res://game/ui/map_button.tscn")
 const INSET: int = 10
 const HEADING: String = "OPTIONS"
 const SOUND_TEXT: Array[String] = ["SOUND ON", "SOUND LOW", "SOUND OFF"]
+## HAPTICS's text: on, then off.
+const HAPTICS_TEXT: Array[String] = ["HAPTICS ON", "HAPTICS OFF"]
 const RESET_NOTE: String = "PROGRESS RESET"
 
 var _gear: MapButton
@@ -27,6 +30,9 @@ var _panel := MenuPanel.new()
 var _pressed_gear: bool = false
 var _level: int = 0
 var _tutorial_shown: bool = false
+## HAPTICS is offered (a phone) and whether it shows on.
+var _haptics_shown: bool = false
+var _haptics_on: bool = true
 var _screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
 
 
@@ -68,6 +74,20 @@ func show_sound_level(level: int) -> void:
 	if _panel.ids().has(&"sound"):
 		_panel.set_item_text(&"sound", SOUND_TEXT[level])
 		_panel.set_item_level(&"sound", level)
+
+
+## Whether HAPTICS is offered (the device can vibrate).
+func offer_haptics(offered: bool) -> void:
+	if offered != _haptics_shown:
+		_haptics_shown = offered
+		_build()
+
+
+## Whether HAPTICS shows on.
+func show_haptics(on: bool) -> void:
+	_haptics_on = on
+	if _panel.ids().has(&"haptics"):
+		_panel.set_item_text(&"haptics", HAPTICS_TEXT[0 if on else 1])
 
 
 ## Whether TUTORIAL is offered (once the guided first run has been finished).
@@ -132,6 +152,8 @@ func handle_pointer(event: InputEvent) -> bool:
 
 func _build() -> void:
 	var items: Array[Dictionary] = [{"id": &"sound", "text": SOUND_TEXT[_level], "level": _level}]
+	if _haptics_shown:
+		items.append({"id": &"haptics", "text": HAPTICS_TEXT[0 if _haptics_on else 1]})
 	if _tutorial_shown:
 		items.append({"id": &"tutorial", "text": "TUTORIAL"})
 	items.append({"id": &"reset", "text": "RESET PROGRESS", "hold": true})
@@ -144,6 +166,8 @@ func _on_chosen(id: StringName) -> void:
 	match id:
 		&"sound":
 			sound_cycle_requested.emit()
+		&"haptics":
+			haptics_toggle_requested.emit()
 		&"tutorial":
 			close()
 			tutorial_requested.emit()
