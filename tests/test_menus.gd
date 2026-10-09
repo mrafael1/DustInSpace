@@ -315,3 +315,44 @@ func test_map_from_the_pause_menu_asks_for_the_chart() -> void:
 	hud.open_pause()
 	_tap(hud, hud.pause_menu().item_rect(&"map").get_center())
 	assert_signal_emitted(main, "map_requested")
+
+
+## #150: every interaction answers. The pause menu and the COMBOS table sound as they open and
+## close, like the options panel.
+func test_the_pause_menu_and_the_table_sound_as_they_open_and_close() -> void:
+	var main: Main = _main()
+	var hud: Hud = main.get_node("HUD")
+	var played: Array[StringName] = []
+	var sfx: Sfx = main.get_node("Sfx")
+	sfx.cue_played.connect(func(cue: StringName, _pitch: float) -> void: played.append(cue))
+	hud.open_pause()
+	sfx.advance(0.5)
+	_tap(hud, hud.pause_menu().item_rect(&"resume").get_center())
+	sfx.advance(0.5)
+	hud.open_table()
+	sfx.advance(0.5)
+	hud.close_table()
+	assert_eq(played, [&"pack_load", &"pull_cancel", &"pack_load", &"pull_cancel"] as Array[StringName])
+
+
+## Nobody hears the pause the background opened.
+func test_a_pause_for_the_background_is_quiet() -> void:
+	var main: Main = _main()
+	var played: Array[StringName] = []
+	(main.get_node("Sfx") as Sfx).cue_played.connect(func(cue: StringName, _pitch: float) -> void: played.append(cue))
+	main.pause_for_background()
+	assert_true((main.get_node("HUD") as Hud).pause_menu().is_open())
+	assert_eq(played, [] as Array[StringName])
+
+
+## PLAY on the chart and MAP back from a stage answer too.
+func test_play_and_map_sound_on_the_chart() -> void:
+	var app: App = _app()
+	var played: Array[StringName] = []
+	(app.get_node("ChartSfx") as Sfx).cue_played.connect(func(cue: StringName, _pitch: float) -> void: played.append(cue))
+	app.open_stage(0)
+	assert_has(played, &"pack_ready")
+	assert_has(played, &"launch")
+	played.clear()
+	app.back_to_chart()
+	assert_has(played, &"star_select")

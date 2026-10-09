@@ -9,6 +9,7 @@ extends Node
 ## between starts; a cue over its limit is skipped, and a full pool steals its oldest voice.
 ## The Big Bang's silence ducks everything: voices are cut and new cues refused until the bang.
 ## The player's level (on, low, mute) lives on the SFX bus and is saved in user://settings.cfg.
+## Each cue also starts its vibration (Haptics), even muted: not while ducked.
 ## setup() (every new run, restart included) cuts every voice and lifts any duck.
 
 signal cue_played(cue: StringName, pitch: float)
@@ -49,6 +50,8 @@ const SELECT_PITCH: Array[float] = [1.0, 1.26, 1.5]
 const DUCK_SAFETY: float = 2.0
 
 var level: Level = Level.ON
+## The cues' vibrations, on phones.
+var haptics := Haptics.new()
 ## Tests point this elsewhere before the node enters the tree.
 var settings_path: String = SETTINGS_PATH
 
@@ -103,11 +106,15 @@ func reset() -> void:
 	_dust_climb = 0
 	_last_dust = -INF
 	_last_start.clear()
+	haptics.reset()
 
 
 ## Plays `cue` at `pitch` unless muted, ducked or over its voice limit. True if it played.
 func play(cue: StringName, pitch: float = 1.0) -> bool:
-	if level == Level.MUTE or is_ducked() or not _streams.has(cue):
+	if is_ducked() or not _streams.has(cue):
+		return false
+	haptics.cue(cue, _clock)
+	if level == Level.MUTE:
 		return false
 	var limit: Vector2 = LIMITS.get(cue, DEFAULT_LIMIT)
 	if _clock - _last_start.get(cue, -INF) < limit.y or voices_of(cue) >= int(limit.x):
@@ -182,6 +189,7 @@ func reload_level() -> void:
 ## Moves the clock, the duck and the voices on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	_clock += delta
+	haptics.advance(_clock)
 	if _duck_left > 0.0:
 		_duck_left = maxf(_duck_left - delta, 0.0)
 
@@ -302,6 +310,7 @@ func _load_level() -> void:
 		saved = config.get_value("audio", "sfx_level", Level.ON)
 	level = clampi(saved, 0, Level.size() - 1) as Level
 	_apply_level()
+	haptics.load_setting(settings_path)
 
 
 func _apply_level() -> void:

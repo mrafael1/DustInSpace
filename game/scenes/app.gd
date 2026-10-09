@@ -321,6 +321,9 @@ func _add_options() -> void:
 	_options.name = "Options"
 	add_child(_options)
 	_options.show_sound_level(_sfx.level)
+	_options.offer_haptics(Haptics.is_supported())
+	_options.show_haptics(_sfx.haptics.enabled)
+	_options.haptics_toggle_requested.connect(toggle_haptics)
 	_sfx.level_changed.connect(_options.show_sound_level)
 	_options.sound_cycle_requested.connect(_sfx.cycle_level)
 	_options.tutorial_requested.connect(replay_tutorial)
@@ -330,6 +333,16 @@ func _add_options() -> void:
 	_options.closed.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_options.tapped.connect(_sfx.play.bind(&"star_select", 1.3))
 	_options.hold_started.connect(_sfx.play.bind(&"tremble", 1.3))
+
+
+## The options' HAPTICS: vibrations on or off, saved with the sound level.
+func toggle_haptics() -> void:
+	_sfx.haptics.set_enabled(not _sfx.haptics.enabled, settings_path)
+	_options.show_haptics(_sfx.haptics.enabled)
+	# Turned on, it answers with a pick's tick (the tap's own cue came while they were off).
+	if _sfx.haptics.enabled:
+		var tick: Array = Haptics.PATTERNS[&"star_select"][0]
+		_sfx.haptics.vibrate.call(tick[1], tick[2])
 
 
 func options() -> OptionsMenu:
@@ -381,6 +394,9 @@ func open_stage(point: int, guided: bool = false) -> void:
 	_stage.map_requested.connect(back_to_chart)
 	_show_chart(false)
 	add_child(_stage)
+	# PLAY answers like leaving the title (which, from the title, has just played the same cues).
+	_sfx.play(&"pack_ready", 1.0)
+	_sfx.play(&"launch", 1.2)
 	stage_opened.emit(point)
 
 
@@ -391,8 +407,9 @@ func back_to_chart() -> void:
 	remove_child(_stage)
 	_stage.queue_free()
 	_stage = null
-	# The stage's speaker may have changed the sound level.
+	# The stage's speaker may have changed the sound level. MAP answers like a tap.
 	_sfx.reload_level()
+	_sfx.play(&"star_select", 1.3)
 	_show_chart(true)
 	fit_screen()
 	_chart.show_progress(_won_point, _unlocked, _opens_chapter)

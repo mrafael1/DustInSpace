@@ -80,12 +80,44 @@ func test_a_particle_flies_from_its_star_to_its_counter_on_whole_pixels() -> voi
 	assert_true(p.point_at(0.5) is Vector2i)
 
 
+## #150: the particle leaves its star at once rather than lingering there for half its flight.
+func test_a_particle_leaves_its_star_early_in_its_flight() -> void:
+	var p := CollectParticles.Particle.new()
+	p.from = Vector2(90, 100)
+	p.bend = Vector2(90, 200)
+	p.to = Vector2(90, 300)
+	assert_gte(p.point_at(0.25).y - 100, 30, "a quarter in, it's well on its way")
+	assert_lt(p.point_at(0.5).y, 200, "and still speeds into the counter")
+
+
+## #150: a 2x2 head and a trail stepping down its ramp read apart from the 1 px sky stars.
+func test_a_particle_is_a_two_pixel_head_with_a_ramp_trail() -> void:
+	assert_eq(CollectParticles.head_size(0.0), Vector2i(2, 2))
+	assert_eq(CollectParticles.head_size(0.5), Vector2i(2, 2))
+	assert_eq(CollectParticles.head_size(0.95), Vector2i.ONE, "taken in as it lands")
+	assert_eq(CollectParticles.COLOURS[CollectParticles.Kind.DUST], [Palette.D0, Palette.N8, Palette.N7])
+	assert_eq(CollectParticles.COLOURS[CollectParticles.Kind.LIGHT], [Palette.C0, Palette.C1, Palette.C2])
+	for colours: Array in CollectParticles.COLOURS.values():
+		assert_eq(colours.size(), CollectParticles.TRAIL_LAG.size() + 1, "a colour per trail pixel")
+
+
 func test_targets_are_the_dust_icon_and_the_sun() -> void:
 	var main: Main = preload("res://game/scenes/main.tscn").instantiate()
 	add_child_autofree(main)
 	var fx: CollectParticles = main.get_node("CollectParticles")
 	assert_eq(Vector2(fx.dust_target), (main.get_node("HUD/DustIcon") as Node2D).position)
 	assert_eq(Vector2(fx.light_target), (main.get_node("Sun") as Node2D).position)
+
+
+## On a screen wider than the game the HUD moves the dust icon out; the dust follows it (#150).
+func test_dust_lands_on_the_icon_on_a_wide_screen() -> void:
+	var main: Main = preload("res://game/scenes/main.tscn").instantiate()
+	add_child_autofree(main)
+	main.fit_visible(Vector2(240, 320))
+	var fx: CollectParticles = main.get_node("CollectParticles")
+	var icon: Vector2 = (main.get_node("HUD/DustIcon") as Node2D).position
+	assert_ne(icon, Vector2(Hud.DUST_ICON_AT), "the icon moved out")
+	assert_eq(Vector2(fx.dust_target), icon)
 
 
 func test_a_new_run_drops_the_particles_in_the_air() -> void:

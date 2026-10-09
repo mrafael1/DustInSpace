@@ -71,6 +71,8 @@ var _extra: int = 0
 var _paused: Dictionary[Node, Node.ProcessMode] = {}
 ## The app went to the background mid-sequence: the pause menu opens once the sequence ends.
 var _pause_pending: bool = false
+## True while the background opens the pause menu: no one is there to hear its cue.
+var _background_pause: bool = false
 
 
 func _ready() -> void:
@@ -212,7 +214,11 @@ func fit_screen() -> void:
 	var window: Window = get_window()
 	if window == get_tree().root:
 		window.content_scale_size = ScreenZones.fill_size(window.size)
-	var visible: Vector2 = get_viewport().get_visible_rect().size
+	fit_visible(get_viewport().get_visible_rect().size)
+
+
+## Places the game's screen in a visible area of `visible` game pixels (fit_screen's second half).
+func fit_visible(visible: Vector2) -> void:
 	var offset: Vector2i = ScreenZones.game_offset(visible)
 	($BigBang/Shake as Camera2D).position = Vector2(-offset)
 	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front, $CurrentTrialControls] as Array[CanvasLayer]:
@@ -233,6 +239,8 @@ func fit_screen() -> void:
 	_sun.position = Vector2(ScreenZones.sun_centre(_extra))
 	_hud.sun_at = ScreenZones.sun_centre(_extra)
 	_collect.light_target = ScreenZones.sun_centre(_extra)
+	# Dust lands on the icon wherever the HUD put it (a wide screen moves it out to the left).
+	_collect.dust_target = _hud.dust_icon_centre()
 
 
 ## Shows the telescope (true) or the slingshot and hands it the input; the other one hides and
@@ -292,7 +300,9 @@ func pause_for_background() -> void:
 	if _sequencer.is_busy():
 		_pause_pending = true
 		return
+	_background_pause = true
 	_hud.open_pause()
+	_background_pause = false
 
 
 ## A fresh run on the current run's balance (the end screen's or the pause menu's RESTART).
@@ -320,6 +330,11 @@ func _wire_sound() -> void:
 	_telescope.launch_refused.connect(_sfx.play.bind(&"tap_refused", 1.0))
 	_telescope.planet_seated.connect(func(_kind: String) -> void: _sfx.play(&"pack_load", 1.5))
 	_sky.star_selected.connect(_sfx.on_star_selected)
+	# The pause menu and the COMBOS table answer like the options panel.
+	_hud.pause_opened.connect(_on_panel_opened)
+	_hud.table_opened.connect(_on_panel_opened)
+	_hud.pause_closed.connect(_sfx.play.bind(&"pull_cancel", 1.0))
+	_hud.table_closed.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_sky.step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
 	_sky.link_cancelled.connect(_sfx.play.bind(&"pull_cancel", 1.0))
 	_sky.star_exploded.connect(_on_star_exploded)
@@ -386,6 +401,11 @@ func _on_loss_beat() -> void:
 	_sky.cool_down()
 	_sun.fade()
 	_hud.nudge_packs()
+
+
+func _on_panel_opened() -> void:
+	if not _background_pause:
+		_sfx.play(&"pack_load", 1.5)
 
 
 func _on_sequence_finished() -> void:

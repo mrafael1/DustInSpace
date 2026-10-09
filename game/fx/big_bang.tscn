@@ -29,13 +29,14 @@ horizontal_alignment = 1
 
 [node name="Amount" type="Label" parent="Front/Banner"]
 offset_left = -16.0
-offset_top = 22.0
+offset_top = 20.0
 offset_right = 6.0
-offset_bottom = 30.0
+offset_bottom = 28.0
+scale = Vector2(2, 2)
 mouse_filter = 2
 text = "+0"
-horizontal_alignment = 2
 
 [node name="DustIcon" type="Node2D" parent="Front/Banner"]
-position = Vector2(12, 25)
+position = Vector2(12, 28)
+scale = Vector2(2, 2)
 script = ExtResource("2_dust_icon")
