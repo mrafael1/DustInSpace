@@ -2,10 +2,11 @@ class_name HeatView
 extends Node2D
 ## Leo's heat, over the whole stage: embers rising slowly through the sky (the cold: frost motes
 ## drifting down; day and night turn from one to the other once a launch has played out). While
-## aiming, each star the next launch changes shows it: a dotted outline of the size it will grow
-## to, in that size's own colour, or a dotted ember outline crowned with flames on a star that
-## will burn out; in the cold, its own outline dotted in the colour of the size it shrinks to, or
-## dotted frost crowned with a snowflake on a small one that will fade. Drawn above the halos and below the links and stars.
+## aiming, each star the next launch changes shows it: a sparse dotted outline of the size it will
+## grow to, in that size's own colour, or a solid ember outline crowned with flames on a star that
+## will burn out; in the cold, its own outline sparsely dotted in the colour of the size it shrinks
+## to, or solid frost crowned with a snowflake on a small one that will fade (losses stand out
+## first, #149). Drawn above the halos and below the links and stars.
 ## The core supplies every change; pack contents stay hidden.
 ## At-risk marks, always (#149: the aim's preview went unseen, since the player can't link while
 ## aiming): while not aiming, a star the next launch burns out wears the crown of flames alone, and
@@ -235,11 +236,11 @@ static func preview_pixels(run: RunState, link: Array[int] = []) -> Dictionary[V
 		if star == null:
 			continue
 		if change.is_cold() or change.rekindled:
-			# Its own outline (the smaller size would hide under the star), dotted in the colour
-			# of the size it shrinks to (or a big constellation star burns back to); dotted frost
+			# Its own outline (the smaller size would hide under the star), sparse in the colour
+			# of the size it shrinks to (or a big constellation star burns back to); solid frost
 			# and a snowflake over a small one that fades.
 			for offset: Vector2i in StarView.outline_pixels(star.size):
-				if (offset.x + offset.y) % 2 == 0:
+				if change.lost or _sparse(offset):
 					result[star.position + offset] = FROST if change.lost else NEXT_COLOURS[change.to]
 			if change.lost:
 				var over := Vector2i(0, -StarView.half_extent(star.size) - 2)
@@ -247,19 +248,24 @@ static func preview_pixels(run: RunState, link: Array[int] = []) -> Dictionary[V
 					result[star.position + over + offset] = SNOWFLAKE[offset]
 			continue
 		if change.lost:
-			# Its own outline, dotted ember (it's going), crowned with flames.
+			# Its own outline, solid ember (it's going), crowned with flames.
 			for offset: Vector2i in StarView.outline_pixels(star.size):
-				if (offset.x + offset.y) % 2 == 0:
-					result[star.position + offset] = Palette.S4
+				result[star.position + offset] = Palette.S4
 			var top := Vector2i(0, -StarView.half_extent(star.size) - 2)
 			for offset: Vector2i in FLAMES:
 				result[star.position + top + offset] = FLAMES[offset]
 			continue
 		for offset: Vector2i in StarView.outline_pixels(change.to):
-			# Dotted, one pixel in two, so it never reads as the selection ring.
-			if (offset.x + offset.y) % 2 == 0:
+			# Sparse, so it never reads as the selection ring and stays quieter than a loss.
+			if _sparse(offset):
 				result[star.position + offset] = NEXT_COLOURS[change.to]
 	return result
+
+
+## A routine change's outline keeps one pixel in four (#149: with nearly every star outlined while
+## aiming, the stars about to burn or fade didn't stand out; their outlines are solid now).
+static func _sparse(offset: Vector2i) -> bool:
+	return posmod(offset.x + offset.y, 4) == 0
 
 
 ## The motes at `time` seconds: rising through `area` in the heat (`change` +1), falling in the
