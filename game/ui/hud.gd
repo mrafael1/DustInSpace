@@ -79,21 +79,33 @@ const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's first hunting area of a run (#71) says what the ring means.
 const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
+## Each threat's own line above the launcher, said at its first mark or circle of a run. Left unsaid
+## while the threat's guided encounter says it at the top of the sky (#149: two lines saying one
+## thing at once split the player's attention while the hand acts).
+const THREAT_MESSAGES: Dictionary = {
+	Encounter.Threat.MARK: ORION_MESSAGE,
+	Encounter.Threat.HUNT: HUNT_MESSAGE,
+}
 ## A current's rule, said once a run as the player first aims (#128: before the first launch is
-## committed; revisits and retries hear it again, it's short): it moves stars; where it drains,
-## that it takes the stars it carries past its edge; a tide or box, that it turns and drains.
-## At most 22 characters a line (132 px).
-const FLOW_MESSAGE: String = "EACH LAUNCH THE FLOW\nMOVES THE STARS"
-const DRAIN_MESSAGE: String = "STARS PAST THE EMBER\nLINE ARE LOST"
-const TIDE_MESSAGE: String = "TIDE TURNS EACH LAUNCH\nBOTH SIDES DRAIN STARS"
-const BOX_MESSAGE: String = "FLOW TURNS EACH LAUNCH\nEVERY SIDE DRAINS"
-## Leo's heat (chapter 3), said the same way: what it does, and what it takes when it burns.
+## committed; revisits and retries hear it again, it's short). Said as what to do where it takes
+## stars (#149, as Virgo's: what the flow does, then to link the stars its marks show first); the
+## plain flow, where to aim. At most 22 characters a line (132 px).
+const FLOW_MESSAGE: String = "THE FLOW CARRIES STARS\nSO AIM UPSTREAM"
+const DRAIN_MESSAGE: String = "THE FLOW DRAINS STARS\nLINK MARKED ONES FIRST"
+const TIDE_MESSAGE: String = "BOTH SIDES DRAIN STARS\nLINK MARKED ONES FIRST"
+const BOX_MESSAGE: String = "EVERY SIDE DRAINS\nLINK MARKED ONES FIRST"
+## Leo's heat (chapter 3), said the same way: what it does; where it takes stars, which to link.
 const HEAT_MESSAGE: String = "THE HEAT GROWS STARS\nEACH LAUNCH"
-const BURN_MESSAGE: String = "THE HEAT GROWS STARS\nBIG ONES BURN OUT"
+const BURN_MESSAGE: String = "LINK BIG STARS BEFORE\nA LAUNCH BURNS THEM"
 const COLD_MESSAGE: String = "THE COLD SHRINKS STARS\nEACH LAUNCH"
-const FADE_MESSAGE: String = "THE COLD SHRINKS STARS\nSMALL ONES FADE"
+const FADE_MESSAGE: String = "LINK SMALL STARS FIRST\nTHE COLD FADES THEM"
 ## Day and night (the Mane): heat and cold take turns, and each takes its own stars.
-const DAY_NIGHT_MESSAGE: String = "HEAT AND COLD SWAP\nBIGS BURN SMALLS FADE"
+const DAY_NIGHT_MESSAGE: String = "BY DAY LINK THE BIGS\nBY NIGHT THE SMALLS"
+## A run's first star lost to the flow, the heat or the cold says what took it and what to do, once
+## a run each (#149: a loss was never explained; Virgo's lone line is the model).
+const DRAIN_LOSS_MESSAGE: String = "THE FLOW TOOK A STAR\nLINK MARKED ONES FIRST"
+const BURN_LOSS_MESSAGE: String = "THE HEAT BURNED A STAR\nLINK MARKED ONES FIRST"
+const FADE_LOSS_MESSAGE: String = "THE COLD FADED A STAR\nLINK MARKED ONES FIRST"
 ## Virgo's harvest: the scythe's clock (said with its number of launches), and the bound sheaves.
 const SCYTHE_MESSAGE: String = "EVERY %d LAUNCHES THE\nSCYTHE REAPS THE SKY"
 ## Said as what to do (playtest: "lit stars must join the figure" wasn't understood).
@@ -102,14 +114,20 @@ const BIND_MESSAGE: String = "LIGHT STARS NEXT TO\nLIT ONES OR LOSE THEM"
 const TIE_MESSAGE: String = "LONE LIT STARS GO OUT\nAFTER EVERY LAUNCH"
 ## Said when the player lights a star alone (not next to the lit figure), at most once a while.
 const LONE_MESSAGE: String = "THIS STAR IS ALONE\nTHE SCYTHE CUTS IT"
+## Tied at once (the Feet, the final), a lone star goes out after the very next launch, scythe or
+## not (#149: naming the scythe made it sound like it would last until the harvest).
+const LONE_TIE_MESSAGE: String = "THIS STAR IS ALONE\nNEXT LAUNCH CUTS IT"
 const LONE_QUIET: float = 12.0
+## A split planet aimed on the launch that brings the harvest: its first burst lands before the
+## scythe and is reaped with the sky (#149), said once a run.
+const FIRST_BURST_MESSAGE: String = "THE SCYTHE REAPS ITS\nFIRST BURST TOO"
 const QUICKEN_MESSAGE: String = "THE SCYTHE COMES\nSOONER EACH HARVEST"
 ## Virgo's clock sits this far below the Sun's centre.
 const HARVEST_CLOCK_BELOW: int = 30
-## Leo's final: the lion breathes, on every link as well as every launch.
-const BREATH_MESSAGE: String = "EVERY LINK AND LAUNCH\nFEEDS THE HEAT"
+## Leo's final: the lion breathes, on every link as well as every launch: link the bigs first.
+const BREATH_MESSAGE: String = "EVERY LINK HEATS TOO\nLINK BIG STARS FIRST"
 ## The Head: the constellation stars grow too (a big one comes back small); loose bigs burn.
-const LION_MESSAGE: String = "THE LION GROWS TOO\nBIG STARS BURN OUT"
+const LION_MESSAGE: String = "THE LION GROWS TOO\nLINK BIG STARS FIRST"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
 ## no launch, other message or clear cuts it before it can be read; only another teaching line can.
@@ -129,6 +147,9 @@ const MESSAGE_LINE_STEP: int = 10
 ## ENCOUNTER_LINE_LEFT so it clears Orion's corner (two lines at most, 5x7, no punctuation). The
 ## volley's says its interval.
 const ENCOUNTER_LINE_LEFT: int = 42
+## An encounter's line keeps this far clear of the constellation's stars and of the arrows hanging
+## under the sky's top (#149).
+const ENCOUNTER_CLEAR: int = 3
 const ENCOUNTER_LINES: Dictionary = {
 	Encounter.Threat.MARK: "LINK THE MARKED STAR\nOR HIS ARROW TAKES IT",
 	Encounter.Threat.VOLLEY: "EVERY %d LINKS\nHIS ARROWS FALL",
@@ -160,6 +181,14 @@ var _message_held: float = 0.0
 ## Orion's first mark has been explained this run.
 var _orion_told: bool = false
 var _current_told: bool = false
+## A launch has played this run (an intro's demo losses come before it and say nothing), and the
+## loss lines said this run.
+var _launch_shown: bool = false
+var _losses_told: Dictionary[String, bool] = {}
+## The stage's rule is due but waits for the final's title card to go (#149).
+var _rule_waiting: bool = false
+## The harvest launch's first burst has been pointed out this run.
+var _first_burst_told: bool = false
 ## Main sets it: how far below the burst point the player's finger goes to launch there (the
 ## telescope aims above a finger, #152), so the guided run's hand points where the finger goes.
 var launch_finger_lift: Callable
@@ -266,6 +295,10 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_build_slots(run.balance.pack_kinds())
 	_orion_told = false
 	_current_told = false
+	_launch_shown = false
+	_losses_told.clear()
+	_rule_waiting = false
+	_first_burst_told = false
 	_lone_quiet = 0.0
 	clear_message()
 	_volley.visible = run.volley != null
@@ -276,8 +309,10 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_banner.hide_card()
 	if run.scorpio != null and run.scorpio.map.arrival_epithet != "":
 		if run.harvest != null:
-			# Virgo's: harvest gold over the wheat's ripe gold.
-			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.C1, Palette.C3)
+			# Virgo's: harvest gold over the wheat's ripe gold, once the maiden is bound and the scythe
+			# has swept (#149).
+			var wait: float = ConstellationView.binding_time(run.scorpio.map) + HarvestView.SWEEP_TIME
+			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.C1, Palette.C3, wait)
 		elif run.scorpio.map.heat_on_links:
 			# Leo's: summer gold over ember, once the lion has caught fire and roars.
 			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.C2, Palette.S4, ConstellationView.roar_at(run.scorpio.map))
@@ -327,6 +362,9 @@ func advance(delta: float) -> void:
 		_hops[label] = maxf(_hops[label] - delta, 0.0)
 		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
 	_message_held = maxf(_message_held - delta, 0.0)
+	if _rule_waiting and not _banner.is_playing():
+		_rule_waiting = false
+		_say_rule()
 	if _message_left > 0.0:
 		_message_left -= delta
 		_message.visible = _message_left > 0.0
@@ -341,18 +379,73 @@ func tell_current_rule() -> void:
 	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null):
 		return
 	_current_told = true
-	if _run.harvest != null:
-		show_message(harvest_rule(_run.harvest), RULE_MESSAGE_TIME, true)
+	# A final's title card is up, or about to be: the rule waits for it to go, so the two don't
+	# speak at once (#149).
+	if _banner.is_playing():
+		_rule_waiting = true
 		return
-	show_message(current_rule(_run.current) if _run.current != null else heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links), RULE_MESSAGE_TIME, true)
+	_say_rule()
 
 
-## Bound sheaves: a constellation star just lit alone says the scythe will cut it (once a while).
+func _say_rule() -> void:
+	show_message(_stage_rule(), RULE_MESSAGE_TIME, true)
+
+
+## The stage's rule line: its harvest's, current's or heat's ("" without any).
+func _stage_rule() -> String:
+	if _run == null:
+		return ""
+	if _run.harvest != null:
+		return harvest_rule(_run.harvest)
+	if _run.current != null:
+		return current_rule(_run.current)
+	if _run.heat != null:
+		return heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links)
+	return ""
+
+
+## The telescope aims a `kind` planet: on the launch that brings the harvest, a split planet's first
+## burst is reaped as it lands, which its ember ring shows; said once a run.
+func tell_aim(kind: String) -> void:
+	if _run == null or _first_burst_told or not _run.harvest_reaps_bursts(kind).has(true):
+		return
+	_first_burst_told = true
+	show_message(FIRST_BURST_MESSAGE, RULE_MESSAGE_TIME, true)
+
+
+## Bound sheaves: a constellation star just lit alone says it will be cut, and when (once a while).
 func _tell_lone(index: int) -> void:
 	if _run == null or not _run.loose_landmarks().has(index) or _lone_quiet > 0.0:
 		return
 	_lone_quiet = LONE_QUIET
-	show_message(LONE_MESSAGE, RULE_MESSAGE_TIME, true)
+	show_message(lone_rule(_run.harvest), RULE_MESSAGE_TIME, true)
+
+
+## What a lone lit star's line says: the scythe cuts it at the harvest, or, tied at once, the next
+## launch does.
+static func lone_rule(harvest: StarHarvest) -> String:
+	return LONE_TIE_MESSAGE if harvest.ties else LONE_MESSAGE
+
+
+## A run's first star drained, burned or faded says so, and what to do, once a run each (`changes`:
+## a shift's moves or the heat's changes). Never for an intro's demo stars, which go before any
+## launch; and not over the stage's own rule while it's still on show (it says as much already):
+## the next loss once it's gone says it.
+func _tell_loss(changes: Array) -> void:
+	if not _launch_shown or (message() != "" and message() == _stage_rule()):
+		return
+	var said: String = ""
+	for change: Variant in changes:
+		if change is StarCurrent.Move and (change as StarCurrent.Move).drained:
+			said = DRAIN_LOSS_MESSAGE
+		elif change is StarHeat.Change and (change as StarHeat.Change).lost and (change as StarHeat.Change).star_id >= 0:
+			said = FADE_LOSS_MESSAGE if (change as StarHeat.Change).is_cold() else BURN_LOSS_MESSAGE
+		if said != "":
+			break
+	if said == "" or _losses_told.has(said):
+		return
+	_losses_told[said] = true
+	show_message(said, RULE_MESSAGE_TIME, true)
 
 
 ## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,
@@ -428,7 +521,7 @@ func explain_refusal(reason: RunState.PickRefusal) -> void:
 func open_table() -> void:
 	if _run == null or _table.is_open():
 		return
-	_table.open(_run.balance, _run.balance.harvest_link_dust_percent_for(_run.scorpio.map.id) if _run.harvest != null else 100)
+	_table.open(_run.balance, _run.balance.harvest_link_dust_cut_for(_run.scorpio.map.id) if _run.harvest != null else 0)
 	_hold(_table)
 	table_opened.emit()
 
@@ -661,6 +754,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_shown_loaded = event.args[0]
 		&"pack_launched":
 			_shown_packs[event.args[0]] = _shown_packs.get(event.args[0], 0) - 1
+			_launch_shown = true
 		&"big_bang_started":
 			# Streams to the counter once it bangs, like a combo's dust.
 			_dust_in_flight += event.args[2]
@@ -708,23 +802,23 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed":
-			# Virgo's and the current's intros say their rule as the effect shows.
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked":
+			# Virgo's, the current's and the breath's intros say their rule as the effect shows.
 			tell_current_rule()
 			return
 		&"stars_shifted", &"stars_resized":
 			# Normally said when the player first aimed; a launch made without aiming says it here.
 			tell_current_rule()
+			_tell_loss(event.args[0])
+			return
+		&"heat_breathed":
+			_tell_loss(event.args[1])
 			return
 		&"star_marked":
-			if not _orion_told:
-				_orion_told = true
-				show_message(ORION_MESSAGE, ORION_MESSAGE_TIME, true)
+			_tell_threat(Encounter.Threat.MARK)
 			return
 		&"area_marked":
-			if not _orion_told:
-				_orion_told = true
-				show_message(HUNT_MESSAGE, ORION_MESSAGE_TIME, true)
+			_tell_threat(Encounter.Threat.HUNT)
 			return
 		_:
 			return
@@ -848,6 +942,18 @@ func _finger_lift() -> int:
 	return launch_finger_lift.call() if launch_finger_lift.is_valid() else 0
 
 
+## Orion's first mark or circle of a run says what it means above the launcher (once a run), unless
+## the threat's guided encounter is saying it at the top of the sky right now (the Tail's first mark).
+## The Heart's intro still captions its demo: its encounter only guides from the first real circle.
+func _tell_threat(threat: Encounter.Threat) -> void:
+	if _orion_told:
+		return
+	_orion_told = true
+	if _run.encounter != null and _run.encounter.threat == threat and _run.encounter.is_guiding():
+		return
+	show_message(THREAT_MESSAGES[threat], ORION_MESSAGE_TIME, true)
+
+
 ## An Orion threat's guided encounter (#93): its line at the top of the sky and the hand at what it's
 ## about, while it guides; gone once it's done. The mark: the hand acts out a link that saves the
 ## marked star. The volley: it points at the countdown above him. The hunting circle: it points at a
@@ -856,21 +962,60 @@ func _show_encounter(threat: int, step: int) -> void:
 	if step != Encounter.Step.GUIDING:
 		_guide.hide_guide()
 		return
-	var top: int = _run.sky_rect.position.y + TutorialView.TOP
-	var left: int = _run.sky_rect.position.x + ENCOUNTER_LINE_LEFT
+	# Its line says it now: the threat's own line above the launcher (the Heart intro's caption, if
+	# it's still up) comes down rather than say it twice.
+	if THREAT_MESSAGES.has(threat) and message() == THREAT_MESSAGES[threat]:
+		clear_message()
+	var line: String = ENCOUNTER_LINES[threat] % _run.volley.interval if threat == Encounter.Threat.VOLLEY else ENCOUNTER_LINES[threat]
+	var block: Rect2i = encounter_block(line)
 	match threat:
 		Encounter.Threat.MARK:
 			var link: Array[int] = _run.encounter_link()
 			var target: Star = _run.marked_star()
 			var at: Vector2i = target.position - Vector2i(0, StarView.half_extent(target.size)) if target != null else Vector2i.ZERO
-			_guide.show_line(ENCOUNTER_LINES[threat], at, target != null, TutorialView.Point.DOWN, top, left)
+			_guide.show_line(line, at, target != null, TutorialView.Point.DOWN, block.position.y, block.position.x, block.end.x)
 			if not link.is_empty():
 				_guide.follow_path(link, _link_positions(link), _link_centres(link))
 		Encounter.Threat.VOLLEY:
 			# Down onto the countdown above his head (its row's top is the node's origin).
-			_guide.show_line(ENCOUNTER_LINES[threat] % _run.volley.interval, Vector2i(_volley.position), true, TutorialView.Point.DOWN, top, left)
+			_guide.show_line(line, Vector2i(_volley.position), true, TutorialView.Point.DOWN, block.position.y, block.position.x, block.end.x)
 		Encounter.Threat.HUNT:
-			_guide.show_line(ENCOUNTER_LINES[threat], _run.safe_launch_spot(), true, TutorialView.Point.DOWN, top, left)
+			_guide.show_line(line, _run.safe_launch_spot(), true, TutorialView.Point.DOWN, block.position.y, block.position.x, block.end.x)
+
+
+## Where an encounter's `line` goes: right of Orion's corner, under the sky's top as the tutorial's
+## line, centred. If that would cover a constellation star, or the arrows hanging under the sky's top
+## on a volley stage (#149: on the Body it hid three of the five arrows and ran into the lit spine
+## top), the nearest spot below that keeps ENCOUNTER_CLEAR px clear of both (and of the screen's
+## edge): at each height it's tried centred, then slid a pixel at a time either way. Where no spot is
+## clear, the usual one.
+func encounter_block(line: String) -> Rect2i:
+	var sky: Rect2i = _run.sky_rect
+	var left: int = sky.position.x + ENCOUNTER_LINE_LEFT
+	var size: Vector2i = _guide.text_size(line)
+	var usual := Rect2i(Vector2i(left + (sky.end.x - left - size.x) / 2, sky.position.y + TutorialView.TOP), size)
+	var taken: Array[Rect2i] = []
+	if _run.scorpio != null:
+		for i: int in _run.scorpio.map.count():
+			var half: int = StarView.half_extent(_run.scorpio.map.sizes[i] as Star.Size)
+			taken.append(Rect2i(_run.scorpio.landmark_position(i) - Vector2i(half, half), Vector2i(half, half) * 2 + Vector2i.ONE))
+	if _run.volley != null:
+		var arrows_top: int = sky.position.y + OrionView.OVERHEAD_Y - OrionView.SHAFT
+		var xs: Array[int] = OrionView.OVERHEAD_X
+		# Each shaft, its head a pixel either side and its shiver a pixel more.
+		taken.append(Rect2i(sky.position.x + xs.front() - 2, arrows_top, xs.back() - xs.front() + 5, OrionView.SHAFT + 1))
+	var right: int = sky.end.x - ENCOUNTER_CLEAR
+	var widest: int = maxi(usual.position.x - left, right - size.x - usual.position.x)
+	for y: int in range(usual.position.y, sky.end.y - size.y + 1):
+		for slide: int in widest + 1:
+			for x: int in ([usual.position.x] if slide == 0 else [usual.position.x - slide, usual.position.x + slide]):
+				var block := Rect2i(Vector2i(x, y), size)
+				if x < left or block.end.x > right:
+					continue
+				var grown: Rect2i = block.grow(ENCOUNTER_CLEAR)
+				if not taken.any(func(r: Rect2i) -> bool: return r.intersects(grown)):
+					return block
+	return usual
 
 
 ## The run refused a launch (the guided near launch, too far): the guide's ring flashes and its line

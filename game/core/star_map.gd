@@ -600,9 +600,9 @@ static func virgo_wing() -> StarMap:
 	return map
 
 
-## Virgo, stage 3: the Robe. A quicker scythe (a 2-launch clock) on a figure that branches: from the
-## waist (lit, top) the robe falls three ways, the near folds big, the hems small and far. Seven to
-## light. Strings are 32-36 px.
+## Virgo, stage 3: the Robe. The binding on a figure that branches (the clock stays 3 launches: a
+## 2-launch clock was a cliff): from the waist (lit, top) the robe falls three ways, the near folds
+## big, the hems small and far. Seven to light. Strings are 32-36 px.
 static func virgo_robe() -> StarMap:
 	var map := StarMap.new()
 	map.id = "virgo_robe"
@@ -674,8 +674,9 @@ static func virgo_wheat() -> StarMap:
 static func virgo_final() -> StarMap:
 	var map: StarMap = virgo()
 	map.id = "virgo_final"
-	# Its arrival is its intro: the binding was shown on the Wing and the Feet.
-	map.intros = false
+	# Its arrival is its intro (RunState.maiden_arrived): the binding was shown on the Wing and the
+	# Feet, so it acts the rule out in a few beats instead.
+	map.intros = true
 	map.harvest = true
 	map.harvest_binds = true
 	map.harvest_ties = true
