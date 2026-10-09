@@ -156,6 +156,9 @@ func test_each_stage_says_its_rule_as_it_opens_before_any_launch() -> void:
 				break
 			sequencer.advance(0.03)
 			telescope.advance(0.03)
+			# The final's title card plays out too: its rule waits for it (#149).
+			hud.boss_banner().advance(0.03)
+			hud.advance(0.03)
 		assert_eq(main.run.total_packs(), 3, "%s: nothing launched" % map_id)
 		assert_eq(hud.message(), rules[map_id], map_id)
 
