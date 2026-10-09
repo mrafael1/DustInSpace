@@ -237,6 +237,40 @@ func test_following_the_mark_guide_links_instead_of_launching() -> void:
 	assert_true(telescope.is_aiming() or main.run.loaded_pack == "", "and aims again as usual")
 
 
+func test_the_tails_first_mark_is_said_once_by_its_guide_not_twice() -> void:
+	# #149: the guide's line at the top and the mark's own line above the launcher said one thing.
+	var main: Main = _main("tail", true)
+	var hud: Hud = main.get_node("HUD")
+	_play(main)
+	Fixtures.launch(main.run, Vector2i(100, 190))
+	_play(main)
+	assert_eq(hud.tutorial_guide().text(), Hud.ENCOUNTER_LINES[Encounter.Threat.MARK], "the guide says it")
+	assert_ne(hud.message(), Hud.ORION_MESSAGE, "the launcher's line stays unsaid")
+	main.run.link(_corner_trio(main.run))
+	_play(main)
+	assert_ne(hud.message(), Hud.ORION_MESSAGE, "and isn't said at the next mark either: once a run")
+
+
+func test_a_replayed_tail_still_says_its_mark_above_the_launcher() -> void:
+	var main: Main = _main("tail", false)
+	var hud: Hud = main.get_node("HUD")
+	_play(main)
+	Fixtures.launch(main.run, Vector2i(100, 190))
+	_play(main)
+	assert_eq(hud.message(), Hud.ORION_MESSAGE, "no guide: the line says it")
+
+
+func test_the_hearts_intro_caption_comes_down_once_its_guide_says_it() -> void:
+	var main: Main = _main("heart", true)
+	var hud: Hud = main.get_node("HUD")
+	_play(main)
+	assert_eq(hud.message(), Hud.HUNT_MESSAGE, "the intro's demo is captioned")
+	Fixtures.launch(main.run, Vector2i(100, 190))
+	_play(main)
+	assert_eq(hud.tutorial_guide().text(), Hud.ENCOUNTER_LINES[Encounter.Threat.HUNT])
+	assert_ne(hud.message(), Hud.HUNT_MESSAGE, "the guide's line replaces it")
+
+
 func test_the_volley_guide_points_at_the_countdown_and_says_the_interval() -> void:
 	var main: Main = _main("body", true)
 	_play(main)

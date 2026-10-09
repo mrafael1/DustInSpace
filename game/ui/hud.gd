@@ -79,6 +79,13 @@ const ORION_MESSAGE: String = "LINK IT NEXT OR ORION SHOOTS"
 const ORION_MESSAGE_TIME: float = 3.0
 ## Orion's first hunting area of a run (#71) says what the ring means.
 const HUNT_MESSAGE: String = "LAUNCH AND ORION SHOOTS HERE"
+## Each threat's own line above the launcher, said at its first mark or circle of a run. Left unsaid
+## while the threat's guided encounter says it at the top of the sky (#149: two lines saying one
+## thing at once split the player's attention while the hand acts).
+const THREAT_MESSAGES: Dictionary = {
+	Encounter.Threat.MARK: ORION_MESSAGE,
+	Encounter.Threat.HUNT: HUNT_MESSAGE,
+}
 ## A current's rule, said once a run as the player first aims (#128: before the first launch is
 ## committed; revisits and retries hear it again, it's short): it moves stars; where it drains,
 ## that it takes the stars it carries past its edge; a tide or box, that it turns and drains.
@@ -717,14 +724,10 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			tell_current_rule()
 			return
 		&"star_marked":
-			if not _orion_told:
-				_orion_told = true
-				show_message(ORION_MESSAGE, ORION_MESSAGE_TIME, true)
+			_tell_threat(Encounter.Threat.MARK)
 			return
 		&"area_marked":
-			if not _orion_told:
-				_orion_told = true
-				show_message(HUNT_MESSAGE, ORION_MESSAGE_TIME, true)
+			_tell_threat(Encounter.Threat.HUNT)
 			return
 		_:
 			return
@@ -848,6 +851,18 @@ func _finger_lift() -> int:
 	return launch_finger_lift.call() if launch_finger_lift.is_valid() else 0
 
 
+## Orion's first mark or circle of a run says what it means above the launcher (once a run), unless
+## the threat's guided encounter is saying it at the top of the sky right now (the Tail's first mark).
+## The Heart's intro still captions its demo: its encounter only guides from the first real circle.
+func _tell_threat(threat: Encounter.Threat) -> void:
+	if _orion_told:
+		return
+	_orion_told = true
+	if _run.encounter != null and _run.encounter.threat == threat and _run.encounter.is_guiding():
+		return
+	show_message(THREAT_MESSAGES[threat], ORION_MESSAGE_TIME, true)
+
+
 ## An Orion threat's guided encounter (#93): its line at the top of the sky and the hand at what it's
 ## about, while it guides; gone once it's done. The mark: the hand acts out a link that saves the
 ## marked star. The volley: it points at the countdown above him. The hunting circle: it points at a
@@ -856,6 +871,10 @@ func _show_encounter(threat: int, step: int) -> void:
 	if step != Encounter.Step.GUIDING:
 		_guide.hide_guide()
 		return
+	# Its line says it now: the threat's own line above the launcher (the Heart intro's caption, if
+	# it's still up) comes down rather than say it twice.
+	if THREAT_MESSAGES.has(threat) and message() == THREAT_MESSAGES[threat]:
+		clear_message()
 	var top: int = _run.sky_rect.position.y + TutorialView.TOP
 	var left: int = _run.sky_rect.position.x + ENCOUNTER_LINE_LEFT
 	match threat:
