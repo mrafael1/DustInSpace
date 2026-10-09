@@ -676,3 +676,20 @@ func test_the_wheats_clock_shows_the_lost_ear_and_says_the_rule() -> void:
 			periods.append(period)
 	assert_eq(periods, [3, 2, 3] as Array[int], "the clock loses an ear, then shows as the run starts")
 	assert_eq(hud.message(), Hud.QUICKEN_MESSAGE)
+
+
+func test_the_wheat_ties_at_once_as_the_feet_do_before_the_final() -> void:
+	# #149: the step from the Wheat to the final was the sharpest; the tie is felt again there.
+	assert_true(StarMap.virgo_wheat().harvest_ties)
+	assert_true(StarMap.virgo_wheat().harvest_quickens, "and keeps its quickening")
+	var run: RunState = _run(StarMap.virgo_wheat())
+	var lone: int = -1
+	for i: int in run.scorpio.map.count():
+		if not run.scorpio.is_lit(i) and not run.scorpio.map.neighbours(i).any(run.scorpio.is_lit):
+			lone = i
+			break
+	run.scorpio.light(lone)
+	assert_false(run.harvest.is_next(), "a launch that doesn't bring the harvest")
+	Fixtures.launch(run, Vector2i(150, 110))
+	assert_false(run.scorpio.is_lit(lone), "a lone star goes out after any launch")
+	assert_eq(Hud.harvest_rule(run.harvest), Hud.QUICKEN_MESSAGE, "its own twist is still the one said")
