@@ -104,6 +104,15 @@ signal heat_intro_placed(stars: Array[Star])
 signal heat_intro_paused
 ## Leo's heat intro is over: `stars`, what the heat left of it, leave the sky. No reward.
 signal heat_intro_cleared(stars: Array[Star])
+## Aquarius's current intro (#148): the stage opened with `stars` upstream in the flow (one of each
+## size, copies as placed); the flow moves them next, each time a current_intro_flowed then a
+## stars_shifted.
+signal current_intro_placed(stars: Array[Star])
+## Aquarius's current intro: the flow is about to move the demo stars by `displacement` (a tide or a
+## box shows its turn here).
+signal current_intro_flowed(displacement: Vector2i)
+## Aquarius's current intro is over: `stars`, what the flow left of it, leave the sky. No reward.
+signal current_intro_cleared(stars: Array[Star])
 ## Leo's final opened: the lion arrives (it catches fire star by star, roars, and its title card
 ## shows) before play starts. Presentation only.
 signal lion_arrived
@@ -143,6 +152,12 @@ const LAYOUT_SEED_SALT: int = 0x5CA77E4
 const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
 const HEAT_INTRO_PULSES: int = 3
 const HEAT_INTRO_SEED_SALT: int = 0x4EA7
+## Aquarius's current intro: how many times the flow moves its stars (a tide or a box turns between
+## them), and the demo stars' offsets across the flow (so they don't stand in a ruled line).
+const CURRENT_INTRO_PULSES: int = 2
+const CURRENT_INTRO_ACROSS: Array[int] = [0, 6, -6]
+## The furthest one keeps this far inside the upstream edge of the field.
+const CURRENT_INTRO_EDGE: int = 4
 ## Virgo's scythe intro: its layout's own RNG stream (XOR'd into the run seed).
 const HARVEST_INTRO_SEED_SALT: int = 0x5C7E
 ## Virgo's scythe intro: where its standing stars and its demo planet's burst sit from the sky's
@@ -1173,6 +1188,111 @@ func play_heat_intro() -> void:
 		var left: Array[Star] = stars.duplicate()
 		stars.clear()
 		heat_intro_cleared.emit(left)
+
+
+## Aquarius's current intro (#148), as a current stage opens (the scene calls it once its views are
+## bound): it shows the effect, not a tutorial. A small, a medium and a big star stand upstream in
+## a row along the flow, half a step, a step and a half and two and a half from its far edge (closer
+## where the field is short); then
+## the flow moves them as a launch would, without one, CURRENT_INTRO_PULSES times (a tide or a box
+## turns between them): a draining flow carries the nearest out at once and, flowing one way, the
+## next after it. What's left leaves the sky. It pays nothing, uses no pack, doesn't turn the run's
+## own flow and places its stars by rule (no RNG), so packs and layout never shift. Does nothing
+## without a current, on a map without intros, or once the run has begun.
+func play_current_intro() -> void:
+	if current == null or scorpio == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	# A copy as the run starts: the demo turns it, never the run's own flow.
+	var flow := StarCurrent.new(current.region, current.displacement, current.drains, current.turns)
+	var spots: Array[Vector2i] = current_intro_spots()
+	if spots.is_empty():
+		return
+	# As they were placed: the flow moves the stars themselves before the views show them.
+	var shown: Array[Star] = []
+	for i: int in spots.size():
+		var star: Star = add_star(HEAT_INTRO_SIZES[i], spots[i])
+		shown.append(Star.new(star.id, star.size, star.position))
+	current_intro_placed.emit(shown)
+	for pulse: int in CURRENT_INTRO_PULSES:
+		if stars.is_empty():
+			break
+		current_intro_flowed.emit(flow.displacement)
+		var destinations: Dictionary[int, Vector2i] = flow.preview(stars, sky_rect, scorpio.landmark_positions())
+		var moves: Array[StarCurrent.Move] = flow.moves(stars, destinations)
+		for star: Star in stars:
+			star.position = destinations[star.id]
+		for move: StarCurrent.Move in moves:
+			if move.drained:
+				stars.erase(find_star(move.star_id))
+		if not moves.is_empty():
+			stars_shifted.emit(moves)
+		flow.turn()
+	if not stars.is_empty():
+		var left: Array[Star] = stars.duplicate()
+		stars.clear()
+		current_intro_cleared.emit(left)
+
+
+## Where the current intro's stars stand (small, medium, big), or [] without a current: along the
+## flow's first way, half a step, a step and a half and two and a half upstream of its far edge (closer
+## together where the field is too short for that), on the line across the flow that keeps them and the steps
+## they'll take furthest from the constellation (playtest: demo stars away from the figure don't
+## read as part of it); the middle of the field on a tie.
+func current_intro_spots() -> Array[Vector2i]:
+	var spots: Array[Vector2i] = []
+	if current == null:
+		return spots
+	var area: Rect2i = current.region.intersection(StarScatter.inner_rect(sky_rect))
+	var way := Vector2i(signi(current.displacement.x), signi(current.displacement.y))
+	var step: int = maxi(absi(current.displacement.x), absi(current.displacement.y))
+	if not area.has_area() or step <= 0:
+		return spots
+	var across := Vector2i(absi(way.y), absi(way.x))
+	# The far edge's last pixel inside the field, and how far upstream the field reaches from it.
+	var edge: Vector2i = Vector2i(area.end.x - 1 if way.x > 0 else area.position.x, area.end.y - 1 if way.y > 0 else area.position.y)
+	var reach: int = area.size.x if way.x != 0 else area.size.y
+	var landmarks: Array[Vector2i] = scorpio.landmark_positions() if scorpio != null else [] as Array[Vector2i]
+	var from: int = area.position.x if across.x != 0 else area.position.y
+	var to: int = area.end.x if across.x != 0 else area.end.y
+	var middle: int = (from + to) / 2
+	# A step at a time apart, closer where the field is too short for that (the tide's long step).
+	var apart: int = mini(step, (reach - 1 - step / 2 - CURRENT_INTRO_EDGE) / (HEAT_INTRO_SIZES.size() - 1))
+	var best_clear: int = -1
+	for line: int in range(from + StarScatter.EDGE_MARGIN, to - StarScatter.EDGE_MARGIN, 4):
+		var row: Array[Vector2i] = []
+		for k: int in HEAT_INTRO_SIZES.size():
+			var upstream: int = step / 2 + k * apart
+			if upstream >= reach or apart <= 0:
+				break
+			var at: Vector2i = edge - way * upstream
+			at = at - at * across + across * (line + CURRENT_INTRO_ACROSS[k])
+			row.append(StarScatter.clamp_to_sky(at, sky_rect))
+		var path: Array[Vector2i] = []
+		for at: Vector2i in row:
+			for pulse: int in CURRENT_INTRO_PULSES + 1:
+				path.append(at + way * step * pulse)
+		var clear: int = _nearest_apart(path, landmarks)
+		if clear > best_clear or (clear == best_clear and absi(line - middle) < absi(_line_of(spots, across) - middle)):
+			best_clear = clear
+			spots = row
+	return spots
+
+
+## How far apart the nearest of `points` and of `others` are, in whole px (a large number when
+## either is empty).
+static func _nearest_apart(points: Array[Vector2i], others: Array[Vector2i]) -> int:
+	var nearest: int = 1 << 20
+	for p: Vector2i in points:
+		for o: Vector2i in others:
+			nearest = mini(nearest, floori(Vector2(p).distance_to(Vector2(o))))
+	return nearest
+
+
+## The across-the-flow coordinate the first of `spots` stands on (0 for none).
+static func _line_of(spots: Array[Vector2i], across: Vector2i) -> int:
+	if spots.is_empty():
+		return 0
+	return spots[0].x if across.x != 0 else spots[0].y
 
 
 ## Virgo's intro, as a harvest stage opens (the scene calls it once its views are bound). Where the
