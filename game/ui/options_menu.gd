@@ -2,8 +2,9 @@ class_name OptionsMenu
 extends CanvasLayer
 ## The options, over the title and the chart: a gear button (the plaque style, C1 gear) in the
 ## screen's top-right corner opens a MenuPanel: SOUND (the speaker's on, low, mute, with the
-## speaker drawn on it), HAPTICS (on or off, on a phone that can vibrate: Haptics), TUTORIAL (the guided first run again, once it's been finished) and RESET
-## PROGRESS (held, since it can't be undone). Tap off the panel or CLOSE to close it. Owns no
+## speaker drawn on it), HAPTICS (on or off, on a phone that can vibrate: Haptics), TUTORIAL (the
+## guided first run again, once it's been finished) and RESET PROGRESS (held, since it can't be
+## undone). Tap off the panel or CLOSE to close it. Owns no
 ## rules: App acts on its signals. Works in game coordinates (App sets the screen like Main's UI).
 
 signal sound_cycle_requested
