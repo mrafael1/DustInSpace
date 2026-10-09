@@ -104,6 +104,10 @@ var _demo: Array[Vector2i] = []
 var _picked: int = 0
 ## Whether the payout step's time-out was sent already.
 var _timed_out: bool = false
+## How long the showing step has counted towards SHOW_TIME, and whether its clock waits: a step
+## shown early (the full Sun's, as the Sun ignites) counts only once its moment plays (#148).
+var _shown_for: float = 0.0
+var _clock_held: bool = false
 ## Where the line's space starts (an encounter's line keeps clear of Orion's corner).
 var _left: int = 0
 ## An encounter's own line (show_line), shown again once a link it guides is dropped.
@@ -149,6 +153,8 @@ func show_step(step: int, target: Vector2i = Vector2i.ZERO, has_target: bool = f
 	_demo.clear()
 	_picked = 0
 	_timed_out = false
+	_shown_for = 0.0
+	_clock_held = false
 	_left = 0
 	_line = ""
 	_zone_radius = 0
@@ -167,6 +173,18 @@ func show_line(line: String, target: Vector2i = Vector2i.ZERO, has_target: bool 
 	_left = left
 	_line = line
 	_set_text(line)
+
+
+## The showing step on show waits to count towards SHOW_TIME until it's shown again (show_step) or
+## the clock is let go (release_clock): it was shown ahead of its moment, while the run's events
+## still play.
+func hold_clock() -> void:
+	_clock_held = true
+
+
+## A held clock counts again (the run's events have all played).
+func release_clock() -> void:
+	_clock_held = false
 
 
 ## Shows the zone a launch must land in: a dotted ring of `radius` round `centre`.
@@ -324,7 +342,9 @@ func advance(delta: float) -> void:
 		if _refused_for >= REFUSED_TIME:
 			_refused_for = -1.0
 			_set_text(TEXTS.get(_step, ""))
-	if _step >= 0 and Tutorial.is_timed(_step) and _time >= SHOW_TIME and not _timed_out:
+	if not _clock_held:
+		_shown_for += delta
+	if _step >= 0 and Tutorial.is_timed(_step) and _shown_for >= SHOW_TIME and not _timed_out:
 		_timed_out = true
 		timed_out.emit()
 	if is_demoing_drag() or int(_time / BOB_STEP) % 2 != bob:

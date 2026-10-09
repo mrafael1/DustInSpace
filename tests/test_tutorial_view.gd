@@ -581,3 +581,52 @@ func test_the_text_sits_under_the_sun() -> void:
 	assert_eq(int(label.position.y), top, "at the top of the sky, under the Sun")
 	assert_gt(top, hud.sun_at.y + SunView.RADIUS, "below the Sun's disc")
 	assert_eq(int(tap.position.y), top + 2 * TutorialView.LINE_STEP, "TAP TO CONTINUE under the goal's two lines")
+
+
+func test_the_full_suns_clock_waits_for_the_star_to_light() -> void:
+	_start()
+	_settle()
+	var bigs: Array[int] = []
+	for at: Vector2i in [Vector2i(60, 120), Vector2i(90, 125), Vector2i(120, 120)]:
+		bigs.append(run.add_star(Star.Size.BIG, at).id)
+	run.tutorial.step = Tutorial.Step.RED_LINK
+	run.tutorial_step.emit(Tutorial.Step.RED_LINK)
+	_settle()
+	run.light = run.light_target() - 1
+	assert_ne(run.link(_order(bigs)), Combos.INVALID)
+	assert_eq(run.tutorial.step, Tutorial.Step.SUN_FULL)
+	var guide: TutorialView = hud.tutorial_guide()
+	var shown: bool = false
+	# Play the Sun's ignition and the sky clearing frame by frame. In the game they outlast the
+	# step's time (about 4 s): once shown, the guide's clock runs past it while they still play.
+	for frame: int in 1200:
+		sequencer.advance(STEP)
+		hud.advance(STEP)
+		if not shown and guide.text() == "A FULL SUN LIGHTS A STAR" and sequencer.is_busy():
+			shown = true
+			guide.advance(TutorialView.SHOW_TIME + 0.5)
+			assert_eq(run.tutorial.step, Tutorial.Step.SUN_FULL, "no time-out while the Sun ignites")
+		guide.advance(STEP)
+		if not sequencer.is_busy():
+			break
+	assert_true(shown, "shown as the Sun ignites")
+	assert_eq(run.tutorial.step, Tutorial.Step.SUN_FULL, "no time-out before the star is lit")
+	assert_true(run.scorpio.is_lit(run.tutorial.landmark))
+	assert_eq(guide.text(), "A FULL SUN LIGHTS A STAR")
+	guide.advance(TutorialView.SHOW_TIME - 0.1)
+	assert_eq(run.tutorial.step, Tutorial.Step.SUN_FULL, "shown SHOW_TIME on the lit star")
+	guide.advance(0.2)
+	assert_ne(run.tutorial.step, Tutorial.Step.SUN_FULL, "then it goes on")
+
+
+func test_a_held_clock_counts_once_the_events_have_played() -> void:
+	_start()
+	_settle()
+	run.tutorial.step = Tutorial.Step.SCOPE
+	run.sun_rekindled.emit(2)
+	_settle()
+	var guide: TutorialView = hud.tutorial_guide()
+	assert_eq(guide.text(), "A FULL SUN LIGHTS A STAR", "a full Sun outside the red link")
+	hud.advance(STEP)
+	guide.advance(TutorialView.SHOW_TIME + 0.1)
+	assert_eq(run.tutorial.step, Tutorial.Step.ICON, "nothing left to play: it goes on by itself")

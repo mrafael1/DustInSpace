@@ -322,6 +322,10 @@ func advance(delta: float) -> void:
 		_table.advance(delta)
 		return
 	_lone_quiet = maxf(_lone_quiet - delta, 0.0)
+	# A guide step shown ahead of its moment (the full Sun's) counts once the events have played,
+	# even if its own step never comes (a full Sun outside the red link).
+	if _sequencer != null and not _sequencer.is_busy():
+		_guide.release_clock()
 	for label: Label in _hops:
 		_hops[label] = maxf(_hops[label] - delta, 0.0)
 		label.position = _rest[label] + (Vector2.UP if _hops[label] > 0.0 else Vector2.ZERO)
@@ -687,9 +691,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			return
 		&"sun_rekindled":
 			# The guided run's full Sun: the hand goes to the star it lights as the Sun ignites, so the
-			# lighting is seen (the step itself comes once the sky has cleared).
+			# lighting is seen. Its clock waits for the step itself, once the sky has cleared and the
+			# star is lit, so the line stays SHOW_TIME on the lit star (#148).
 			if _run.tutorial != null and not _run.tutorial.is_done() and event.args[0] >= 0:
 				_guide.show_step(Tutorial.Step.SUN_FULL, _landmark_top(event.args[0]), true, TutorialView.Point.DOWN, _run.sky_rect.position.y + TutorialView.TOP)
+				_guide.hold_clock()
 			return
 		&"landmark_lit":
 			_tell_lone(event.args[0])
