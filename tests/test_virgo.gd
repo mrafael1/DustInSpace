@@ -791,3 +791,103 @@ func test_tracing_a_link_that_lights_a_star_alone_rings_it_until_the_link_ends()
 	release.pressed = false
 	sky.handle_pointer(release)
 	assert_eq(view.tracing_alone, -1, "the link made: the preview goes (the lit star's own ring takes over)")
+
+
+# --- #149: the sweep cuts and keeps as the blade reaches each star ---------------------------
+
+## On the Wing: [an unlit star next to the lit figure, one with no lit neighbour nor next to that
+## one, so it stays alone with both lit].
+func _one_joined_one_alone(run: RunState) -> Array[int]:
+	var joined: int = -1
+	for i: int in run.scorpio.map.count():
+		if not run.scorpio.is_lit(i) and run.scorpio.map.neighbours(i).any(run.scorpio.is_lit):
+			joined = i
+			break
+	for i: int in run.scorpio.map.count():
+		var near: Array[int] = run.scorpio.map.neighbours(i)
+		if not run.scorpio.is_lit(i) and i != joined and not near.has(joined) and not near.any(run.scorpio.is_lit):
+			return [joined, i]
+	return [joined, -1]
+
+
+func test_the_harvest_says_what_it_keeps_and_cuts_before_the_blade_sweeps() -> void:
+	var run: RunState = _run(StarMap.virgo_wing())
+	var pair: Array[int] = _one_joined_one_alone(run)
+	run.scorpio.light(pair[0])
+	run.scorpio.light(pair[1])
+	var order: Array[String] = []
+	var bound: Array = []
+	run.harvest_bound.connect(func(kept: Array[int], cut: Array[int]) -> void:
+		order.append("bound")
+		bound.append([kept, cut]))
+	run.harvested.connect(func(_stars: Array[Star]) -> void: order.append("sweep"))
+	run.landmarks_unbound.connect(func(_indices: Array[int]) -> void: order.append("out"))
+	_launch_until_harvest_next(run)
+	assert_true(order.is_empty(), "nothing before the harvest launch")
+	Fixtures.launch(run, Vector2i(90, 150))
+	assert_eq(order, ["bound", "sweep", "out"] as Array[String])
+	assert_eq(bound[0][0], [pair[0]] as Array[int], "it keeps the star joined to the figure")
+	assert_eq(bound[0][1], [pair[1]] as Array[int], "and cuts the lone one")
+	var head: RunState = _run(StarMap.virgo_head())
+	var none: Array[int] = [0]
+	head.harvest_bound.connect(func(_kept: Array[int], _cut: Array[int]) -> void: none[0] += 1)
+	for i: int in head.harvest.every:
+		Fixtures.launch(head, Vector2i(90, 150))
+	assert_eq(head.harvest.launches_left, head.harvest.every, "it harvested")
+	assert_eq(none[0], 0, "the scythe alone binds nothing")
+
+
+func test_the_blade_crops_and_glints_each_star_as_it_reaches_it() -> void:
+	var main: Main = _main("virgo_wing")
+	_settle(main)
+	var run: RunState = main.run
+	var sky: SkyView = main.get_node("Sky")
+	var view: HarvestView = main.get_node("Sky/HarvestLayer")
+	var constellation: ConstellationView = main.get_node("Sky/ConstellationLayer")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var pair: Array[int] = _one_joined_one_alone(run)
+	for index: int in pair:
+		run.scorpio.light(index)
+	sky.setup(run, sequencer)
+	run.dust = 100
+	run.owned_packs["blue"] = 20
+	_launch_until_harvest_next(run)
+	_settle(main)
+	var alone_at: Vector2i = run.scorpio.landmark_position(pair[1])
+	var kept_at: Vector2i = run.scorpio.landmark_position(pair[0])
+	var ring: Array[Vector2i] = HarvestView.lone_ring_pixels(alone_at, run.scorpio.map.sizes[pair[1]], 0.0).keys()
+	assert_true(view.pixels().has(ring[0]), "the lone star wears its ring before the launch")
+	for node: Node in [view, constellation, sequencer]:
+		node.set_process(false)
+	# The intro's sweep and crop play out first (only the sequencer was driven so far).
+	view.advance(2.0)
+	constellation.advance(2.0)
+	assert_false(view.is_sweeping())
+	Fixtures.launch(run, Vector2i(90, 150))
+	# Play the launch up to the sweep.
+	var t: float = 0.0
+	while not view.is_sweeping() and t < 5.0:
+		for node: Node in [sequencer, view, constellation]:
+			node.call("advance", 0.02)
+		t += 0.02
+	assert_true(view.is_sweeping(), "the blade sweeps")
+	var cut_at: float = view.cut_delay(alone_at.x)
+	var kept_glint: float = view.cut_delay(kept_at.x)
+	var swept: float = 0.0
+	var ring_seen_mid_launch: bool = false
+	var cropped_at: float = -1.0
+	var glinted_at: float = -1.0
+	while swept < HarvestView.SWEEP_TIME + HarvestView.CROP_TIME:
+		ring_seen_mid_launch = ring_seen_mid_launch or view.pixels().has(ring[0])
+		if cropped_at < 0.0 and constellation.is_cropping(pair[1]):
+			cropped_at = swept
+		if glinted_at < 0.0 and view.pixels().has(kept_at + Vector2i(6, 0)):
+			glinted_at = swept
+		for node: Node in [sequencer, view, constellation]:
+			node.call("advance", 0.02)
+		swept += 0.02
+	assert_true(ring_seen_mid_launch, "the ring stays on through the launch until the cut")
+	assert_almost_eq(cropped_at, cut_at, 0.05, "cut as the blade reaches its column, not after the sweep")
+	assert_almost_eq(glinted_at, kept_glint, 0.05, "the joined star glints gold as the blade passes it")
+	assert_false(constellation.shows_lit(pair[1]), "put out")
+	assert_true(constellation.shows_lit(pair[0]), "kept")

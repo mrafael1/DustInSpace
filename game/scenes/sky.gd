@@ -99,6 +99,13 @@ var _rekindle_landmark: int = -1
 ## Scorpio: the completion tune waits for the payouts still flying.
 var _payouts: CollectParticles
 var _completion_waiting: bool = false
+## Virgo's bound sheaves (#149): what the coming sweep keeps and cuts (harvest_bound), and the
+## constellation stars the blade has already glinted or cut, which their later events skip.
+var _sweep_kept: Array[int] = []
+var _sweep_cut: Array[int] = []
+var _swept: Dictionary[int, bool] = {}
+## Calls waiting for the blade to reach their star (_after), dropped by a new run.
+var _waiting: Array[Tween] = []
 
 @onready var _constellation: ConstellationView = $ConstellationLayer
 @onready var _halo_layer: Node2D = $HaloLayer
@@ -146,6 +153,12 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_clear()
 	_completion_waiting = false
 	_rekindle_landmark = -1
+	_sweep_kept.clear()
+	_sweep_cut.clear()
+	_swept.clear()
+	for tween: Tween in _waiting:
+		tween.kill()
+	_waiting.clear()
 	_constellation.setup(run)
 	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.sky_rect, _orion_keeps_clear_of(run))
 	if run.volley != null:
@@ -366,6 +379,10 @@ func _play_current_event(event: EventSequencer.RunEvent) -> bool:
 ## Virgo's events: the harvest, the binding and their intro. True if `event` was one.
 func _play_harvest_event(event: EventSequencer.RunEvent) -> bool:
 	match event.type:
+		&"harvest_bound":
+			# The sweep about to play keeps and cuts these: it shows each as the blade reaches it.
+			_sweep_kept.assign(event.args[0])
+			_sweep_cut.assign(event.args[1])
 		&"harvested":
 			_reap(event.args[0])
 		&"landmarks_unbound":
@@ -384,6 +401,9 @@ func _play_harvest_event(event: EventSequencer.RunEvent) -> bool:
 			# lit, joined or alone, before the next.
 			_sequencer.hold(_trace_intro_link(event.args[2], event.args[0], event.args[1]) + INTRO_HOLD)
 		&"harvest_intro_kept":
+			# Glinted already as the blade passed it.
+			if _swept.erase(event.args[0]):
+				return true
 			var at: Vector2i = _run.scorpio.landmark_position(event.args[0])
 			_harvest.flash_kept(at)
 			landmark_kept.emit(at)
@@ -792,7 +812,9 @@ func _burst_star(star: Star, landing: float) -> void:
 	view.explode(landing)
 
 
-## Virgo's harvest: the scythe's blade sweeps the sky, cutting each reaped star as it passes.
+## Virgo's harvest: the scythe's blade sweeps the sky, cutting each reaped star as it passes; where
+## it binds, it also crops each constellation star it cuts and glints each it keeps as it reaches
+## them (#149: the crops came after the whole sweep, with no blade on screen).
 func _reap(stars: Array[Star]) -> void:
 	var lasts: float = _harvest.sweep()
 	harvest_swept.emit()
@@ -805,7 +827,32 @@ func _reap(stars: Array[Star]) -> void:
 		view.exploded.connect(func(v: StarView) -> void: _harvest.flash_chaff(Vector2i(v.position)))
 		view.explode(delay)
 		lasts = maxf(lasts, delay + StarView.DISSOLVE_TIME)
+	for index: int in _sweep_cut:
+		var delay: float = _harvest.cut_delay(_run.scorpio.landmark_position(index).x)
+		_crop(index, delay)
+		_swept[index] = true
+		lasts = maxf(lasts, delay + HarvestView.CROP_TIME)
+	for index: int in _sweep_kept:
+		var at: Vector2i = _run.scorpio.landmark_position(index)
+		var delay: float = _harvest.cut_delay(at.x)
+		_harvest.flash_kept(at, delay)
+		_after(delay, landmark_kept.emit.bind(at))
+		_swept[index] = true
+		lasts = maxf(lasts, delay + HarvestView.KEPT_TIME)
+	_sweep_kept.clear()
+	_sweep_cut.clear()
 	_sequencer.hold(lasts)
+
+
+## Calls `callable` `seconds` from now (at once for none), in the sequence's time.
+func _after(seconds: float, callable: Callable) -> void:
+	if seconds <= 0.0:
+		callable.call()
+		return
+	var tween: Tween = create_tween()
+	tween.tween_callback(callable).set_delay(seconds)
+	_waiting = _waiting.filter(func(t: Tween) -> bool: return t.is_valid())
+	_waiting.append(tween)
 
 
 ## Virgo's binding intro: the demo combo `link` (two demo stars, then constellation star `index`) is
@@ -855,19 +902,29 @@ func _collect_intro_link(link: Array[int], points: Array[Vector2i], index: int, 
 	intro_link_collected.emit()
 
 
-## Virgo's bound sheaves: the constellation stars the harvest put out go dark, one after another.
+## Virgo's bound sheaves: the constellation stars put out go dark, cropped (those the blade already
+## cut as it passed are done).
 func _put_out(indices: Array[int]) -> void:
+	var cropped: bool = false
 	for index: int in indices:
-		var at: Vector2i = _run.scorpio.landmark_position(index)
-		# The lit strings that joined it snap with it.
-		var ends: Array[Vector2i] = []
-		for n: int in _run.scorpio.map.neighbours(index):
-			if _constellation.shows_lit(n):
-				ends.append(_run.scorpio.landmark_position(n))
-		_constellation.crop(index, HarvestView.CROP_TIME)
-		_harvest.flash_crop(at, _constellation.shown_size(index), ends)
-		landmark_put_out.emit(at)
-	_sequencer.hold(HarvestView.CROP_TIME)
+		if _swept.erase(index):
+			continue
+		_crop(index, 0.0)
+		cropped = true
+	if cropped:
+		_sequencer.hold(HarvestView.CROP_TIME)
+
+
+## Crops constellation star `index` `delay` from now: the lit strings that joined it snap with it.
+func _crop(index: int, delay: float) -> void:
+	var at: Vector2i = _run.scorpio.landmark_position(index)
+	var ends: Array[Vector2i] = []
+	for n: int in _run.scorpio.map.neighbours(index):
+		if _constellation.shows_lit(n):
+			ends.append(_run.scorpio.landmark_position(n))
+	_constellation.crop(index, HarvestView.CROP_TIME, delay)
+	_harvest.flash_crop(at, _constellation.shown_size(index), ends, delay)
+	_after(delay, landmark_put_out.emit.bind(at))
 
 
 func _dissolve(stars: Array[Star]) -> void:
