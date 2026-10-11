@@ -1,44 +1,62 @@
 """Builds the painted Aquarius (chapter 2's reward) and its pieces, in assets/art/:
 
-  aquarius_figure.png         the whole water carrier, the final's reward and the chart's
+  aquarius_figure.png         the whole water carrier, the final's reward, as a Stardust Myth vision
   aquarius_piece_<part>.png   the same painting cut into the chapter's five parts (hand, body, legs,
                               stream, jar), in the same full-screen home layout: the chapter chart
-                              assembles them as parts are won
+                              shows the won ones dormant, then the whole figure once the final is won
   aquarius_part_<part>.png    each part stage's own painting, the same body part fitted to that
                               stage's own landmarks (game/core/star_map.gd, read from the source),
                               shown when the stage is complete
 
-The figure is drawn as smooth outlines at native size, like vector art: each part (the tunic, a
-limb, the head in profile, the amphora's profile) is an outline, given roundness from its own
-shape (its height grows with the distance to its edge), then lit and shaded exactly as the
-Scorpio is (tools/art/build_scorpio_figure.py: light from the top left, a stepped ramp with a Bayer
-checker only along each seam, dark creases where one part lies over another, a rose rim on lit
-edges, stardust specks, a thin aura). Spheres and capsules suit a segmented scorpion; a person
-drawn with them reads as a mannequin.
+The whole Aquarius is painted in the Stardust Myth style (tools/art/stardust.py): Ganymede, the
+youth who pours the gods' water, suggested, not drawn. His form is modelled as outlined shapes
+anchored to the 14 landmarks of StarMap.aquarius, keeping human proportions and kneeling: the
+shoulders on Sadalmelik and Sadalsuud, the head in profile on a neck above them facing the jar, the
+right arm out to the open hand on epsilon, the left arm holding up the tipped amphora (Sadachbia on
+the forearm, zeta on its belly, pi by its foot, eta at its neck), the tunic belted at theta, the
+near knee on lambda and the shin down through tau to a flat foot, the far knee on the ground at
+Skat, its shin tapering back along the ground to a foot with its toes tucked under. The shapes are
+never shaded: they give the stardust a mask, normals and joints. Over them go a broken contour on
+the lit edges (brighter than the shared default, to match the Scorpio), joint strokes, a thin
+hollow nebula (thinner still on the broad jar, torso and head), an outer haze, specks thickest at
+the contour and rose glints. What must read at native size is redrawn as strokes over that: the
+head (the face's profile, the skull to the nape, open below to a throat line, the eye forward, the
+hair a dithered cap), the amphora (a flat foot disc, the belly and neck, one clear lip ellipse, two
+ear handles, a faint painted band) and the hand gripping it, the open hand on epsilon, the legs'
+bends and feet (the far thigh's back edge into the shin, the heels, the near ankle's notch), the
+torso's back and the tunic's hem. The water is not a form but flowing dust: three wavering strands
+over a sparse dithered ribbon from the jar's mouth through phi, psi and 98. The mythic flourish:
+Piscis Austrinus, the southern fish, drinking the poured water at its end, a broken stardust
+contour low in the sky. Every pixel is a palette N step above the sky behind it, or a speck (N7,
+N8, D0) or glint (N9); opaque or empty; nothing in the Sun's zone (y < 78); each landmark star in
+a small clear gap (nothing within 2 px, no speck within its size's gap, no lone speck just past
+it), its own pixel painted one faint step (hidden under it) so its piece holds it.
 
-The stars are points on the body, not its joints, so it keeps human proportions (about seven heads,
-kneeling): the shoulders on Sadalmelik and Sadalsuud, the head on a neck above them in profile
-facing the jar, the right arm out to the open hand on epsilon, the left arm holding up a Greek
-amphora (Sadachbia on the forearm, zeta on its belly, pi by its foot, eta at its mouth), the hand
-round its belly, tipped to pour, the tunic belted at theta with a short skirt, the near thigh
-forward to the knee on lambda and the shin down through tau to a foot flat on the same ground as
-the far knee at Skat, and the water pouring from the jar's mouth down the left through phi, psi
-and 98 to a splash. The torso is one smooth piece of cloth: overlapping drapes on it read as
-cracks.
-The water is its own material on the cool M ramp (M3-M6, a D0 rim, sparse glints).
-No colour outside the Stellar Sun palette; every pixel opaque or empty.
+The pieces partition the whole: each pixel goes with the part of the shape under it (ChapterDef
+aquarius; the head with the body, the jar arm with the jar, a shape under a star with that star's
+part), else the stream's (its strands and the fish), else the nearest tagged pixel's.
 
-Run: python tools/art/build_aquarius_figure.py   (needs Pillow and numpy)
+The part stages keep the shaded-solid style: each part drawn as smooth outlines, given roundness
+from its own shape and shaded as the Scorpio's stages are (tools/art/build_scorpio_figure.py: a
+stepped ramp lit from the top left, dark creases, a rose rim, stardust specks, a thin aura), the
+water on the cool M ramp.
+
+Run: python tools/art/build_aquarius_figure.py [--preview out.png]   (needs Pillow and numpy)
 """
 
+import argparse
 import importlib.util
 import re
+import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools" / "art"))
+import stardust as sd  # noqa: E402
+
 _spec = importlib.util.spec_from_file_location("scorpio_art", ROOT / "tools" / "art" / "build_scorpio_figure.py")
 sc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sc)
@@ -157,7 +175,7 @@ class Shapes(sc.Solids):
 
 # --- parts ---------------------------------------------------------------------------------
 
-def amphora(S, foot, rim, through=None, depth=12.0, lift=17.0):
+def amphora(S, foot, rim, through=None, depth=12.0, lift=17.0, handles=True):
     """A Greek amphora from its ring foot to its flared rim: an egg-shaped belly broadest at the
     shoulder, a narrow neck, two looped ear handles from the shoulder to the neck (through the two
     `through` points, if given) and a painted band round the belly."""
@@ -168,7 +186,7 @@ def amphora(S, foot, rim, through=None, depth=12.0, lift=17.0):
     s = length / 54.0
     widths = [(0.0, 7.0), (0.05, 7.0), (0.08, 3.4), (0.12, 4.0), (0.2, 8.0), (0.35, 12.0), (0.5, 14.0),
               (0.6, 14.5), (0.66, 13.0), (0.72, 8.0), (0.76, 4.4), (0.9, 4.0), (0.93, 6.5), (1.0, 6.5)]
-    for k, side in enumerate((1.0, -1.0)):
+    for k, side in enumerate((1.0, -1.0) if handles else ()):
         start = F + a * 0.63 * length + n * side * 13.0 * s
         end = F + a * 0.86 * length + n * side * 4.6 * s
         if through is not None:
@@ -248,61 +266,7 @@ def head_in_profile(S, head, lift, eye=True):
         S.eyes.append(tuple(np.round(P(-5, 0)).astype(int)))
 
 
-def build_figure(S):
-    hand, sadalsuud, sadalmelik, sadachbia, zeta, eta, pi, theta, knee, tau, skat, phi, psi, s98 = map(v, L)
-    up = np.array([0.45, -0.89])
-    mid = (sadalmelik + sadalsuud) / 2
-    ground = 210.0
-
-    # The far leg, behind: the thigh from under the tunic down to the knee on the ground (Skat),
-    # the shin lying back along the ground, the toes curled under.
-    S.tag = "legs"
-    S.shape(limb([(100, 164), (95, 186), skat], [8.0, 7.0, 5.6]), depth=7, lift=-12)
-    S.shape(limb([skat, (106, 207), (120, 206)], [5.2, 4.4, 3.4]), depth=5, lift=-12.5)
-    S.shape([(118, 202), (126, 203), (129, ground), (118, ground)], depth=3, lift=-11.5)
-    # The near leg: the thigh forward to the knee (lambda), the shin down through tau to the ankle,
-    # the foot flat on the same ground as the far knee.
-    S.shape(limb([(96, 160), (80, 158), knee], [8.0, 7.0, 6.0]), depth=7, lift=-4)
-    S.shape(limb([knee, tau, (72, ground - 6)], [5.6, 4.6, 3.6]), depth=6, lift=-6)
-    S.shape([(76, ground - 9), (77, ground), (56, ground), (57, ground - 3), (66, ground - 6)], depth=3, lift=-5)
-
-    # The tunic: the torso from the shoulders to the waist (theta), a belt, a short skirt over the
-    # hips ending above the knees.
-    S.tag = "body"
-    torso = [sadalmelik + v((-4, 1)), sadalmelik + v((-7, 10)), (84, 146), (86, 156), (104, 160),
-             (114, 154), (120, 147), sadalsuud + v((3, 2)), sadalsuud + v((1, -5)), mid + up * 7 + v((5, 0)),
-             mid + up * 7 + v((-6, -1)), sadalmelik + v((1, -4))]
-    S.shape(torso, depth=18, lift=0)
-    skirt = [(84, 151), (106, 157), (110, 165), (104, 172), (92, 171), (82, 166), (78, 158)]
-    S.shape(skirt, depth=6, lift=3)
-    S.shape(limb([(84, 152), (108, 159)], [1.3, 1.3]), depth=1.0, lift=4)
-    neck_base = mid + up * 4
-    head = mid + up * 19.0
-    S.shape(limb([neck_base, lerp(neck_base, head, 0.8)], [4.2, 3.6]), depth=4, lift=1)
-    head_in_profile(S, head, lift=6)
-
-    # The right arm: a short sleeve, the bare arm out and down to the open hand on epsilon.
-    S.tag = "hand"
-    elbow = v((137, 150))
-    wrist = v((145, 154))
-    S.shape(limb([sadalsuud + v((-2, -3)), lerp(sadalsuud, elbow, 0.4)], [6.2, 5.6]), depth=5, lift=5)
-    S.shape(limb([sadalsuud, elbow, wrist], [4.8, 3.9, 3.0]), depth=5, lift=4)
-    open_hand(S, wrist, wrist - elbow + v((0, 1)), lift=4.5)
-
-    # The left arm from the shoulder up to the amphora (Sadachbia on the forearm), the hand round
-    # its belly; the amphora tipped about 45 degrees, its foot up by pi, its mouth down at eta.
-    S.tag = "jar"
-    S.shape(limb([sadalmelik + v((-7, 1)), (84, 122), sadachbia, (60, 108)], [5.2, 4.6, 4.0, 3.6]), depth=5, lift=20)
-    S.shape(limb([(61, 109), (55, 104)], [3.6, 3.4]), depth=3, lift=21)
-    for k in range(3):
-        S.shape(limb([(58 - k * 2, 111 - k), (54 - k * 2, 108 - k)], [1.2, 1.1]), depth=1.2, lift=21.5)
-    amphora(S, foot=(60, 82), rim=(24, 124))
-
-    # The water: from the mouth down the left through phi, psi and 98, drops breaking off, a splash.
-    S.tag = "stream"
-    path = water(S, [(25, 121), (22, 138), (32, 156), phi, psi, s98, s98 + v((4, 12))], 3.2, 7.5)
-    droplets(S, path)
-    splash(S, s98 + v((6, 12)))
+# (the whole figure is built in the Stardust Myth section below)
 
 
 # --- the stages' own paintings -------------------------------------------------------------
@@ -449,45 +413,448 @@ def eyes(S, img):
         img[y, x, :3] = RGB["N1"]
 
 
-def pieces(S, img):
-    """The whole cut by part, as the Scorpio's: each pixel with its part's solid, each aura pixel
-    with the body pixel beside it. Every star must lie on a part of its own part."""
-    for star, part in STAR_PARTS.items():
-        x, y = L[star]
-        owner = S.owner[y, x]
-        assert owner >= 0, f"landmark {star} sits on nothing"
-        assert S.tags[owner] == part, f"landmark {star} ({part}) sits on the {S.tags[owner]}"
-    tags = np.full((H, W), "", dtype=object)
-    inside = S.z >= 0.0
-    for y, x in zip(*np.nonzero(inside)):
-        tags[y, x] = S.tags[S.owner[y, x]]
-    for y, x in zip(*np.nonzero(img[..., 3] > 0)):
-        if tags[y, x]:
-            continue
-        for dy, dx in ((0, 1), (1, 0), (0, -1), (-1, 0)):
-            ny, nx = (y + dy) % H, (x + dx) % W
-            if tags[ny, nx] and inside[ny, nx]:
-                tags[y, x] = tags[ny, nx]
-                break
-    assert all(tags[y, x] for y, x in zip(*np.nonzero(img[..., 3] > 0))), "every pixel has a part"
-    out = {}
-    for part in PARTS:
-        piece = img.copy()
-        piece[tags != part] = 0
-        out[part] = piece
+# --- the whole Aquarius, in the Stardust Myth style (tools/art/stardust.py) -------------
+
+SEED = 11
+# Each landmark's size (StarMap.aquarius sizes): the stars' gaps and the preview's stars.
+SIZES = ["S", "B", "B", "M", "M", "S", "S", "S", "M", "S", "B", "S", "S", "M"]
+# Aquarius's strings, for the preview.
+SEGMENTS = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (4, 6), (2, 7), (7, 8), (8, 9), (9, 10),
+            (8, 11), (11, 12), (12, 13)]
+# The solid tags that go with another part's piece.
+TAG_PARTS = {"head": "body", "arm": "jar"}
+# Features that must read keep more of their outline (contour bias per tag).
+BIAS = {"head": 0.70, "jar": 0.55, "hand": 0.40, "arm": 0.22, "legs": 0.14}
+# The amphora's foot and rim (tipped to pour: the foot up by pi, the mouth down at eta).
+JAR_FOOT, JAR_RIM = (60, 84), (24, 124)
+# The stream's path, from the jar's mouth through phi, psi and 98.
+STREAM = [(25, 121), (22, 138), (32, 156), L[11], L[12], L[13]]
+# The mythic flourish: Piscis Austrinus, the southern fish, drinking the poured water at its end.
+FISH_MOUTH = (26, 224)
+FISH_TILT, FISH_SCALE = -0.16, 0.8  # rising to its tail, clear of the near foot
+# The feet (outlines): the far one's toes tucked under, its heel up; the near one flat, its heel
+# behind an ankle notch.
+FAR_FOOT = [(114, 205), (117, 202), (120, 201), (123, 202), (125, 206), (128, 209), (128, 211), (116, 211)]
+NEAR_FOOT = [(68, 199), (75, 199), (75, 202), (79, 205), (80, 208), (79, 211), (56, 211), (55, 208),
+             (61, 205), (67, 202)]
+# Where the jar hand grips the amphora's belly (its knuckles on the outline), and the fist's
+# solid round it.
+GRIP = (57, 106)
+FIST = [(63, 105), (60, 101), (55, 101), (53, 104), (54, 108), (57, 110), (61, 110)]
+
+
+def build_vision(S):
+    """The youth's form (a mask, normals and joints for the stardust; never shaded): kneeling,
+    facing left, the far leg behind, the near leg forward, the tunic, the head in profile, the right
+    arm out to the open hand on epsilon, the left arm up holding the tipped amphora, the stream.
+    Returns the stream's path."""
+    hand, sadalsuud, sadalmelik, sadachbia, zeta, eta, pi, theta, knee, tau, skat, phi, psi, s98 = map(v, L)
+    up = np.array([0.45, -0.89])
+    mid = (sadalmelik + sadalsuud) / 2
+    ground = 210.0
+
+    S.tag = "legs"
+    # The far leg kneels: the thigh down to the knee on the ground at Skat, the shin back along
+    # the ground tapering to the ankle, the foot's toes tucked under, its heel up.
+    S.shape(limb([(100, 164), (95, 186), skat], [8.0, 7.0, 5.6]), depth=7, lift=-12)
+    S.shape(limb([skat + v((1, 0)), (103, 206.8), (116, 207.8)], [3.7, 2.9, 2.1]), depth=5, lift=-12.5)
+    S.shape(FAR_FOOT, depth=3, lift=-11.5)
+    # The near leg forward: the thigh to the knee on lambda, the shin down through tau to the
+    # ankle, the foot flat on the ground, its heel behind.
+    S.shape(limb([(96, 160), (80, 158), knee], [8.0, 7.0, 6.0]), depth=7, lift=-4)
+    S.shape(limb([knee, tau, (72, 199)], [5.6, 4.6, 3.4]), depth=6, lift=-6)
+    S.shape(NEAR_FOOT, depth=3, lift=-5)
+
+    S.tag = "body"
+    torso = [sadalmelik + v((-4, 1)), sadalmelik + v((-7, 10)), (84, 146), (86, 156), (104, 160),
+             (114, 154), (120, 147), sadalsuud + v((3, 2)), sadalsuud + v((1, -5)), mid + up * 7 + v((5, 0)),
+             mid + up * 7 + v((-6, -1)), sadalmelik + v((1, -4))]
+    S.shape(torso, depth=18, lift=0)
+    skirt = [(84, 151), (106, 157), (110, 165), (104, 172), (92, 171), (82, 166), (78, 158)]
+    S.shape(skirt, depth=6, lift=3)
+    S.shape(limb([(84, 152), (108, 159)], [1.3, 1.3]), depth=1.0, lift=4)
+    neck_base = mid + up * 4
+    head = mid + up * 19.0
+    S.tag = "head"
+    S.shape(limb([neck_base, lerp(neck_base, head, 0.8)], [4.2, 3.6]), depth=4, lift=1)
+    S.marks = {"head": S.count - 1}
+    head_in_profile(S, head, lift=6)
+    S.marks["head_end"] = S.count
+
+    S.tag = "hand"
+    elbow = v((137, 150))
+    wrist = v((145, 154))
+    S.shape(limb([sadalsuud + v((-2, -3)), lerp(sadalsuud, elbow, 0.4)], [6.2, 5.6]), depth=5, lift=5)
+    S.shape(limb([sadalsuud, elbow, wrist], [4.8, 3.9, 3.0]), depth=5, lift=4)
+    first = S.count
+    open_hand(S, wrist, wrist - elbow + v((0, 1)), lift=4.5)
+    S.marks["hand"] = (first, S.count, wrist, wrist - elbow + v((0, 1)))
+
+    S.tag = "arm"
+    S.shape(limb([sadalmelik + v((-7, 1)), (84, 122), sadachbia, (60, 108)], [5.2, 4.6, 4.0, 3.6]), depth=5, lift=20)
+    S.shape(FIST, depth=3, lift=21)
+    S.tag = "jar"
+    amphora(S, foot=JAR_FOOT, rim=JAR_RIM, handles=False)
+    S.marks["jar"] = S.count - 2
+
+    S.tag = "stream"
+    return water(S, STREAM + [FISH_MOUTH], 3.2, 7.5)
+
+
+def line_px(a, b):
+    """The pixels of a 1 px line from a to b."""
+    (x0, y0), (x1, y1) = np.round(v(a)).astype(int), np.round(v(b)).astype(int)
+    n = max(abs(x1 - x0), abs(y1 - y0), 1)
+    return [(int(round(x0 + (x1 - x0) * k / n)), int(round(y0 + (y1 - y0) * k / n))) for k in range(n + 1)]
+
+
+def polyline_px(points):
+    """The pixels of a 1 px line through the points, in order, each once."""
+    out = []
+    for a, b in zip(points[:-1], points[1:]):
+        for p in line_px(a, b):
+            if not out or out[-1] != p:
+                out.append(p)
     return out
 
 
-def main():
-    ART.mkdir(parents=True, exist_ok=True)
+def stroke(dust, points, steps, broken=0.0, salt=71, mine=None):
+    """A drawn line of dust through the points, `steps` above the sky; with `broken` > 0 about that
+    share of its pixels left out (in short gaps), so it stays a broken contour. Marks `mine`."""
+    for k, (x, y) in enumerate(polyline_px(points)):
+        if not (0 <= x < W and 0 <= y < H) or sd.hsh(k // 2, salt, 72) < broken:
+            continue
+        dust.put_px(x, y, steps)
+        if mine is not None:
+            mine[y, x] = True
+
+
+def ellipse_pts(centre, major, a, b, start=0.0, end=2 * np.pi, n=40):
+    """Points round an ellipse (semi-axes a along `major`, b across it) from `start` to `end`."""
+    c, u = v(centre), unit(major)
+    w = np.array([-u[1], u[0]])
+    return [tuple(c + u * a * np.cos(t) + w * b * np.sin(t)) for t in np.linspace(start, end, n)]
+
+
+def nebula_fill():
+    """How full the nebula is, per pixel: thin over the whole figure (the sky shows through, as on
+    the Scorpio), thinner where the form is broad (the jar's belly, the torso's front, the head)."""
+    fill = np.full((H, W), 0.85)
+    for (x0, y0, x1, y1), f in (((26, 86, 58, 118), 0.3), ((84, 118, 100, 152), 0.4),
+                                ((104, 100, 132, 129), 0.0), ((98, 150, 122, 205), 0.6)):
+        fill[y0:y1, x0:x1] = f
+    return fill
+
+
+def head_marks(dust, S):
+    """The head in profile, drawn as strokes (the solids' outline closed it into a ball): the
+    face's profile brightest (brow, nose, lips, chin), the skull round the back to the nape, which
+    runs on into the back's line, a throat line from the chin down to the shoulder (the head joins
+    the body, open below), an ear, the eye forward under the brow and the curled hair a denser
+    dithered cap over the back and top of the skull."""
+    zone = (S.owner >= S.marks["head"]) & (S.owner < S.marks["head_end"])
+    box = (sd.xs >= 104) & (sd.xs <= 132) & (sd.ys >= 98) & (sd.ys <= 127)
+    dust.clear(sd.grow(zone, 1) & box & ~((S.owner >= 0) & (S.owner < S.marks["head"])))
+    stroke(dust, [(117, 104), (115, 105), (113, 106), (112, 108), (111, 110), (111, 112), (110, 113),
+                  (109, 114), (108, 115), (107, 116), (108, 117), (110, 118), (109, 119), (110, 120),
+                  (109, 121), (110, 122), (110, 123), (111, 124), (113, 125)], 4)
+    stroke(dust, [(113, 125), (112, 126), (111, 127), (110, 128)], 3)
+    stroke(dust, [(117, 104), (119, 103), (122, 103), (124, 104), (126, 105), (127, 106), (128, 108),
+                  (129, 110), (129, 115), (128, 118), (127, 121), (125, 124), (123, 126), (122, 128)], 3)
+    stroke(dust, [(114, 123), (116, 122)], 2)
+    stroke(dust, [(123, 115), (124, 116), (124, 118), (123, 119)], 2)
+    hair = mask_of([(117, 104), (122, 103), (126, 105), (129, 110), (129, 116), (127, 121), (125, 121),
+                    (123, 117), (121, 112), (119, 108)], smooth=False)
+    dust.put(hair & (sd.BAY < 0.6), 2)
+    dust.put(hair & (sd.BAY < 0.22), 3)
+    stroke(dust, [(117, 105), (119, 108), (121, 112), (123, 116)], 3, broken=0.3, salt=73)
+    stroke(dust, [(112, 113), (114, 113)], 2)
+    dust.put_px(114, 115, 4)
+
+
+def open_spline(points, steps=6):
+    """A smooth open line through the points (Catmull-Rom, the ends held)."""
+    pts = [v(p) for p in points]
+    pts = [pts[0]] + pts + [pts[-1]]
+    out = []
+    for i in range(1, len(pts) - 2):
+        p0, p1, p2, p3 = pts[i - 1], pts[i], pts[i + 1], pts[i + 2]
+        for t in np.linspace(0, 1, steps, endpoint=False):
+            out.append(tuple(0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
+                                    + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t)))
+    out.append(tuple(pts[-2]))
+    return out
+
+
+# The amphora's half-width along its axis (fractions of foot to rim, px): a short stem under the
+# foot disc, the egg belly broadest at the shoulder, the narrow neck flaring to the lip.
+JAR_PROFILE = [(0.08, 2.8), (0.13, 5.0), (0.22, 8.8), (0.35, 12.2), (0.5, 13.8), (0.62, 13.4),
+               (0.7, 10.6), (0.75, 6.6), (0.78, 4.6), (0.86, 4.3), (0.93, 4.8), (0.96, 6.0)]
+
+
+def jar_marks(dust, S, tags):
+    """The amphora, redrawn as strokes over a sparse nebula (the solids' contour tangled at its
+    ends): a short flat foot disc across its axis at the top, a short stem, the belly's outline
+    (the lit side brighter, a few breaks), the painted band's two rings and the shoulder ring, the
+    neck flaring to one clear lip ellipse at the mouth (the stream's strands leave it), two ear
+    handles from the shoulder to the neck, and the fist gripping the belly over its outline."""
+    jar = tags == "jar"
+    foot, rim = v(JAR_FOOT), v(JAR_RIM)
+    length = float(np.linalg.norm(rim - foot))
+    a = (rim - foot) / length
+    n = np.array([-a[1], a[0]])
+    along = ((sd.xs + 0.5 - foot[0]) * a[0] + (sd.ys + 0.5 - foot[1]) * a[1]) / length
+    across = (sd.xs + 0.5 - foot[0]) * n[0] + (sd.ys + 0.5 - foot[1]) * n[1]
+    # Clear the solids' contour on the jar; keep a thin wisp of its nebula inside.
+    zone = sd.grow(jar, 1) & (tags != "arm") & (tags != "stream") & ~(sd.grow(tags == "arm", 0))
+    keep = dust.level.copy()
+    dust.clear(zone)
+    inner = jar & (keep == 1) & (sd.BAY < 0.5)
+    dust.put(inner, 1)
+
+    def P(t, w):
+        return tuple(foot + a * t * length + n * w)
+
+    # The foot: a flat disc across the axis, then the short stem down to the belly.
+    stroke(dust, [P(-0.03, 6.2), P(-0.03, -6.2)], 5)
+    stroke(dust, [P(-0.03, 6.2), P(0.025, 6.2), P(0.025, 2.8)], 4)
+    stroke(dust, [P(-0.03, -6.2), P(0.025, -6.2), P(0.025, -2.8)], 4)
+    # The belly and neck, each side: the lit (upper) side brightest.
+    for side, steps in ((1, 5), (-1, 4)):
+        line = open_spline([P(0.025, side * 2.8)] + [P(t, side * w) for t, w in JAR_PROFILE])
+        stroke(dust, line, steps, broken=0.04 if side > 0 else 0.1, salt=82 + side)
+    # The lip: one clear ellipse across the mouth.
+    stroke(dust, ellipse_pts(P(0.97, 0), n, 6.2, 2.3), 5)
+    # The painted band: only a faint dither (rings across a jar this tipped read as folds).
+    band = (along > 0.40) & (along < 0.47) & (np.abs(across) < 11.0) & (sd.BAY < 0.25)
+    dust.put(band, 2)
+    # The handles: loops from the shoulder out and up to the neck, below the lip.
+    for side, steps in ((1, 4), (-1, 3)):
+        loop = bezier(v(P(0.62, side * 13.0)), v(P(0.79, side * 20.0)), v(P(0.81, side * 4.4)), 12)
+        stroke(dust, loop, steps)
+    # The hand gripping the belly: the forearm runs into it, the back of the hand to the knuckles
+    # on the jar's edge, four fingers wrapping over it (the outline cleared under them).
+    grip = v(GRIP)
+    fingers = ((-3.0, 3.0), (-1.0, 4.5), (1.0, 4.5), (3.0, 3.5))  # (across the grip, length)
+    under = np.zeros((H, W), bool)
+    for s, k in fingers:
+        for x, y in line_px(grip + a * s, grip + a * s + n * (k + 1)):
+            under[y, x] = True
+    dust.clear(sd.grow(under, 1))
+    for s, k in fingers:
+        stroke(dust, [grip + a * s - n * 0.5, grip + a * s + n * k], 4)
+    stroke(dust, [grip - a * 3.4 - n * 0.5, grip - a * 3.8 - n * 4.0], 4)
+    stroke(dust, [grip + a * 3.4 - n * 0.5, grip + a * 3.8 - n * 4.0], 3)
+
+
+def leg_marks(dust):
+    """The legs' bends and feet, drawn over the broken contour so the kneel reads: the far
+    thigh's back edge turning into the shin's top edge at the knee (Skat's gap kept clear), the
+    far foot's heel up and toes tucked on the ground, the near foot's ankle notch and heel, the
+    near thigh's underside."""
+    stroke(dust, [(107, 165), (105, 174), (103, 184), (101, 192), (99, 197), (100, 200), (104, 202),
+                  (110, 203), (115, 204)], 3, broken=0.22, salt=74)
+    stroke(dust, [(115, 204), (117, 202), (119, 201), (121, 201), (123, 202), (124, 204), (125, 206),
+                  (127, 208), (128, 209), (128, 211)], 3)
+    stroke(dust, [(123, 209), (125, 210)], 2)
+    stroke(dust, [(75, 194), (75, 201), (74, 203), (77, 204), (79, 206), (80, 208), (79, 210)], 3)
+    stroke(dust, [(68, 199), (66, 202), (62, 204), (58, 206), (55, 208), (55, 210)], 3)
+    stroke(dust, [(75, 167), (82, 168), (90, 167)], 2, broken=0.25, salt=75)
+
+
+def body_marks(dust):
+    """The torso's back from the armpit down to the hip, and the tunic's hem: broken strokes, so
+    the torso, the tunic and the far thigh stay apart."""
+    stroke(dust, [(122, 148), (119, 153), (116, 158), (113, 162), (110, 166)], 3, broken=0.2, salt=76)
+    stroke(dust, [(80, 165), (86, 169), (93, 171), (100, 172), (105, 171), (110, 167)], 3, broken=0.18, salt=77)
+
+
+def fish_marks(dust):
+    """The mythic flourish: Piscis Austrinus, the southern fish, drinking the poured water from
+    its upturned mouth (the stream's end), drawn as a broken contour of stardust low in the sky:
+    a back and belly arc, a forked tail, a dorsal fin, a gill, an eye, a few scales. Returns its
+    pixels (its piece is the stream's)."""
+    mine = np.zeros((H, W), bool)
+    m = v(FISH_MOUTH)
+
+    c, k = np.cos(FISH_TILT), np.sin(FISH_TILT)
+
+    def P(x, y):
+        x, y = x * FISH_SCALE, y * FISH_SCALE
+        return tuple(m + v((x * c - y * k, x * k + y * c)))
+
+    stroke(dust, [P(-1, -2), P(3, -5), P(8, -7), P(15, -7), P(22, -5), P(27, -2)], 4, broken=0.08, salt=78, mine=mine)
+    stroke(dust, [P(0, 1), P(3, 4), P(8, 6), P(15, 6), P(22, 4), P(27, 1)], 3, broken=0.1, salt=79, mine=mine)
+    stroke(dust, [P(-1, -2), P(1, 0), P(0, 1)], 3, mine=mine)
+    stroke(dust, [P(27, -2), P(33, -8), P(31, -1), P(33, 6), P(27, 1)], 4, broken=0.06, salt=80, mine=mine)
+    stroke(dust, [P(11, -7), P(14, -11), P(19, -10), P(21, -6)], 3, broken=0.15, salt=81, mine=mine)
+    stroke(dust, [P(7, -5), P(9, -1), P(7, 4)], 2, mine=mine)
+    ex, ey = (int(c) for c in P(4, -2))
+    dust.put_px(ex, ey, 4)
+    mine[ey, ex] = True
+    for dx, dy in ((12, -2), (16, 0), (20, -2), (14, 3), (19, 2)):
+        x, y = (int(c) for c in P(dx, dy))
+        dust.put_px(x, y, 1)
+        mine[y, x] = True
+    return mine
+
+
+def hand_marks(dust, S):
+    """The open hand on epsilon: solids this thin merge into a blob of contour, so the hand is
+    redrawn as strokes: the palm's outline, four spread fingers and the thumb (as open_hand
+    builds them), each a 1 px line of dust at the outline's strength."""
+    first, end, wrist, out = S.marks["hand"]
+    zone = (S.owner >= first) & (S.owner < end)
+    dust.clear(sd.grow(zone, 1) & (zone | (S.owner < 0)))
+    out = unit(out)
+    side = np.array([-out[1], out[0]])
+    palm = v(wrist) + out * 5.0
+    dust.put(sd.edge_of(mask_of(limb([v(wrist), palm + out * 1.5], [3.0, 4.0]))), 3)
+    for spread in (-0.45, -0.15, 0.15, 0.45):
+        base = palm + out * 2.0 + side * spread * 7.0
+        tip = base + out * (7.0 - abs(spread) * 3.0) + side * spread * 2.5
+        for x, y in line_px(base, tip):
+            dust.put_px(x, y, 4)
+    for x, y in line_px(palm - side * 3.5, palm - side * 7.5 + out * 2.0):
+        dust.put_px(x, y, 4)
+
+
+def paint_stream(dust, path, r0=2.4, r1=6.5):
+    """The poured water as flowing stardust, not a tube: three wavering strands down the stream
+    (the middle one brightest, each broken into dashes) over a sparse dithered ribbon, widening as
+    it falls, with specks of spray glinting on it. Returns the pixels it painted."""
+    mine = np.zeros((H, W), bool)
+    pts = []
+    for a, b in zip(path[:-1], path[1:]):
+        a, b = v(a), v(b)
+        steps = max(int(np.ceil(np.linalg.norm(b - a))), 1)
+        pts += [a + (b - a) * i / steps for i in range(steps)]
+    pts.append(v(path[-1]))
+    n = len(pts)
+    for k in range(n):
+        t = k / (n - 1)
+        a, b = pts[max(k - 1, 0)], pts[min(k + 1, n - 1)]
+        d = unit(b - a)
+        side = np.array([-d[1], d[0]])
+        width = r0 + (r1 - r0) * t
+        for c in np.linspace(-1.0, 1.0, 9):
+            q = pts[k] + side * c * width
+            x, y = int(round(q[0])), int(round(q[1]))
+            if 0 <= x < W and 0 <= y < H and sd.BAY[y, x] < 0.22 - 0.12 * abs(c):
+                dust.put_px(x, y, 1)
+                mine[y, x] = True
+    for k in range(n):
+        t = k / (n - 1)
+        a, b = pts[max(k - 1, 0)], pts[min(k + 1, n - 1)]
+        d = unit(b - a)
+        side = np.array([-d[1], d[0]])
+        width = r0 + (r1 - r0) * t
+        for j, (across, step) in enumerate(((-0.75, 2), (0.0, 3), (0.75, 2))):
+            wave = 0.9 * np.sin(k * 0.45 + j * 2.1)
+            q = pts[k] + side * (across * width + wave)
+            x, y = int(round(q[0])), int(round(q[1]))
+            if not (0 <= x < W and 0 <= y < H) or sd.hsh(k, j, 51) < 0.12 + 0.25 * t * (j != 1):
+                continue
+            dust.put_px(x, y, step + (1 if j == 1 else 0) + (1 if j != 1 and t < 0.2 else 0))
+            mine[y, x] = True
+            if sd.hsh(x, y, 52) < 0.10:
+                dust.fixed[y, x] = "D0" if sd.hsh(x, y, 53) < 0.4 else "N8"
+    return mine
+
+
+def lone_specks_near_stars(dust, landmarks, sizes, reach=5):
+    """Clears specks just past a star's gap (within its gap + `reach`) that stand alone (at most
+    one painted neighbour): a pale dot there could pass for a star."""
+    painted = (dust.level >= 1) | (dust.fixed != "")
+    nb = sum(sd.shift(painted, dy, dx).astype(int) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+             if dy or dx)
+    for (lx, ly), s in zip(landmarks, sizes):
+        r2 = (sd.xs - lx) ** 2 + (sd.ys - ly) ** 2
+        near = r2 <= (sd.STAR_GAP[s] + reach) ** 2
+        dust.clear(near & (dust.fixed != "") & (nb <= 1))
+
+
+def paint_vision(S, stream):
+    """The stardust over the form. Returns the painting and the marks its pieces need."""
+    rng = np.random.default_rng(SEED)
+    tags = np.array(S.tags + [""], dtype=object)[S.owner]
+    # The water is painted as flowing dust (paint_stream), not as a form.
+    inside = (S.z >= 0.0) & (tags != "stream")
+    lit = np.clip(S.n @ sc.LIGHT, 0.0, 1.0)
+    facing = S.n[..., 0] * sc.LIGHT[0] + S.n[..., 1] * sc.LIGHT[1]
+    dust = sd.Dust()
+    edge = sd.edge_of(inside)
+    crease = sd.creases_of(inside, S.owner, S.z, edge)
+    dist = sd.distance_inside(inside)
+
+    bias = sd.contour_bias(facing, BIAS, tags)
+    contour = sd.broken_contour(dust, rng, edge, facing, lit, bias)
+    # Brighter strokes than the shared default, as on the Scorpio: the lit side two steps more.
+    dust.put(contour & (facing > -0.2), 3)
+    dust.put(contour & (lit > 0.4), 4)
+    dust.put(contour & (lit > 0.75), 5)
+    sd.joint_strokes(dust, rng, crease)
+    sd.nebula(dust, rng, inside, dist, lit, fill=nebula_fill())
+    out_d = sd.outer_haze(dust, rng, inside)
+    water_px = paint_stream(dust, stream)
+    sd.specks(dust, inside, dist, out_d, lit)
+    sd.rose_glints(dust, contour, lit)
+    jar_marks(dust, S, tags)
+    head_marks(dust, S)
+    leg_marks(dust)
+    body_marks(dust)
+    fish_px = fish_marks(dust)
+    hand_marks(dust, S)
+    sd.star_gaps(dust, L, SIZES)
+    lone_specks_near_stars(dust, L, SIZES)
+    # Each star sits in a small clear gap (nothing within 2 px but its own pixel, which is painted
+    # one faint step, hidden under the star: the piece the star belongs to holds it, so the chart
+    # can grow that piece from its stars).
+    for x, y in L:
+        dust.clear((sd.xs - x) ** 2 + (sd.ys - y) ** 2 <= 4)
+        dust.level[y, x] = 1
+    img = sd.sun_clamp(sd.resolve(dust, sd.sky_index()))
+    return img, {"trail": water_px | fish_px}
+
+
+def part_tags(S, img, marks):
+    """Each painted pixel's part: the part of the solid under it (a joint under a star goes with
+    that star's part), else the stream's (the flourish), else the nearest tagged pixel's."""
+    for star, part in STAR_PARTS.items():
+        x, y = L[star]
+        assert S.owner[y, x] >= 0, f"landmark {star} sits on nothing"
+        S.tags[S.owner[y, x]] = part
+    names = [TAG_PARTS.get(t, t) for t in S.tags]
+    for star, part in STAR_PARTS.items():
+        x, y = L[star]
+        assert names[S.owner[y, x]] == part, f"landmark {star} sits on a solid of two parts"
+    tags = np.array(names + [""], dtype=object)[S.owner]
+    tags[marks["trail"] & (tags == "")] = "stream"
+    return sd.spread_tags(tags, img[..., 3] > 0)
+
+
+def paint_aquarius():
+    """The whole Aquarius. Returns the painting, its form and its marks (for the pieces)."""
     S = Shapes()
-    build_figure(S)
-    img = shade(S)
-    stardust(img)
-    eyes(S, img)
-    sc.save(img, ART / "aquarius_figure.png")
-    for part, piece in pieces(S, img).items():
-        sc.save(piece, ART / f"aquarius_piece_{part}.png")
+    stream = build_vision(S)
+    img, marks = paint_vision(S, stream)
+    return img, S, marks
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--preview", type=Path, help="also write the figure over the sky, x3, here")
+    args = parser.parse_args()
+    ART.mkdir(parents=True, exist_ok=True)
+    img, S, marks = paint_aquarius()
+    used = sd.check(img)
+    print(f"figure: {sum(used.values())} px, {used}")
+    sd.save(img, ART / "aquarius_figure.png")
+    for part, piece in sd.pieces(img, part_tags(S, img, marks), PARTS).items():
+        sd.save(piece, ART / f"aquarius_piece_{part}.png")
+    if args.preview:
+        sd.preview(img, L, SIZES, SEGMENTS).save(args.preview)
+        print(f"wrote {args.preview}")
     for part, landmarks in stage_landmarks().items():
         stage = Shapes()
         STAGE_BUILDERS[part](stage, landmarks)
