@@ -427,3 +427,27 @@ func test_the_gauge_fills_in_gold_and_blinks_ember_when_a_link_would_fill_it() -
 	var warning: Dictionary[Vector2i, Color] = GravityView.gauge_pixels(Vector2i(92, 158), 14, 0.5, true, 0.0)
 	assert_true(warning.values().has(Palette.S4))
 	assert_true(warning.values().has(Palette.S3))
+
+
+func test_a_full_gauges_big_bang_plays_the_void_not_the_reward() -> void:
+	var main: Main = _main("sagittarius_head")
+	_settle(main)
+	var played: Array[StringName] = []
+	(main.get_node("Sfx") as Sfx).cue_played.connect(func(cue: StringName, _pitch: float) -> void: played.append(cue))
+	var run: RunState = main.run
+	run.gravity.absorbed = run.gravity.capacity - 1
+	var ids: Array[int] = []
+	var made: Array[Star] = []
+	for k: int in 3:
+		var star: Star = run.add_star(Star.Size.BIG, Vector2i(20 + k * 18, 100))
+		made.append(star)
+		ids.append(star.id)
+	run.pack_burst.emit("blue", Vector2i(38, 100), made)
+	run.link(ids)
+	var big_bang: BigBangSequence = main.get_node("BigBang")
+	var start: int = Time.get_ticks_msec()
+	while not played.has(&"big_bang_void") and Time.get_ticks_msec() - start < 10000:
+		await get_tree().process_frame
+	assert_true(big_bang.is_losing())
+	assert_has(played, &"big_bang_void")
+	assert_does_not_have(played, &"big_bang_bang")
