@@ -4,7 +4,7 @@ extends SceneTree
 ## difficulty.
 ## --map=<StarMap id> (default black_hole_trial, the trial's own map; any other is a borrowed layout
 ## with its heat, current, harvest and threats switched off), --hole=x,y (home layout; else the map's own, else 90,164), --runs=N,
-## --pull=N, --max-step=N, --horizon=N, --hunger=N, --drift=N, --merge-horizon=N (what-ifs over the stage's black_hole tuning in
+## --pull=N, --max-step=N, --horizon=N, --hunger=N, --drift=N, --merge-horizon=N, --gauge=N, --gauge-share=N (what-ifs over the stage's black_hole tuning in
 ## balance.json, in memory only), --policies=a,b.
 ## Policies: link-first links every link before launching, aiming at the first unlit landmark;
 ## launch-first launches every owned pack before linking (hoards); archer links like link-first but
@@ -43,6 +43,10 @@ func _initialize() -> void:
 			what_if["hunger"] = argument.trim_prefix("--hunger=").to_int()
 		elif argument.begins_with("--drift="):
 			what_if["drift"] = argument.trim_prefix("--drift=").to_int()
+		elif argument.begins_with("--gauge="):
+			what_if["gauge"] = argument.trim_prefix("--gauge=").to_int()
+		elif argument.begins_with("--gauge-share="):
+			what_if["gauge_share"] = argument.trim_prefix("--gauge-share=").to_int()
 		elif argument.begins_with("--merge-horizon="):
 			what_if["merge_horizon"] = argument.trim_prefix("--merge-horizon=").to_int()
 		elif argument.begins_with("--policies="):
@@ -63,7 +67,7 @@ func _simulate() -> void:
 		for enabled: bool in [false, true]:
 			if policy.begins_with("archer") and not enabled:
 				continue
-			var row: Dictionary = {"policy": policy, "hole": enabled, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "swallowed": 0, "landed_in": 0, "merged": 0, "wiped": 0}
+			var row: Dictionary = {"policy": policy, "hole": enabled, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "swallowed": 0, "landed_in": 0, "merged": 0, "wiped": 0, "bangs": 0}
 			for seed_value: int in range(1, _runs + 1):
 				_play(seed_value, enabled, policy, row)
 				if seed_value % 20 == 0:
@@ -74,10 +78,13 @@ func _simulate() -> void:
 			row["landed_in_per_run"] = snappedf(float(row.landed_in) / _runs, 0.01)
 			row["merged_rate"] = snappedf(100.0 * row.merged / _runs, 0.1)
 			row["wiped_per_run"] = snappedf(float(row.wiped) / _runs, 0.01)
-			for key: String in ["swallowed", "landed_in", "packs_in_wins", "merged", "wiped"]:
+			row["bangs_per_run"] = snappedf(float(row.bangs) / _runs, 0.01)
+			for key: String in ["swallowed", "landed_in", "packs_in_wins", "merged", "wiped", "bangs"]:
 				row.erase(key)
 			rows.append(row)
 			var merges: String = "  merged %5.1f%% (wiped/run %4.2f)" % [row.merged_rate, row.wiped_per_run] if probe.black_hole_twins else ""
+			if probe.black_hole_gauge:
+				merges = "  bangs/run %4.2f (wiped/run %4.2f)" % [row.bangs_per_run, row.wiped_per_run]
 			print("%-13s hole=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  swallowed/run %5.2f (on landing %4.2f)%s" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.swallowed_per_run, row.landed_in_per_run, merges])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/gravity/out"))
 	var file: FileAccess = FileAccess.open("res://tools/gravity/out/results-%s-%d-%d.json" % [_map, probe.black_hole_center.x, probe.black_hole_center.y], FileAccess.WRITE)
@@ -125,7 +132,9 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	run.holes_drifted.connect(func(_from: Array[Vector2i], _to: Array[Vector2i], merged: bool) -> void:
 		if merged:
 			row.merged += 1)
-	run.big_bang_started.connect(func(_at: Vector2i, cleared: Array[Star], _dust: int) -> void: row.wiped += cleared.size())
+	run.big_bang_started.connect(func(_at: Vector2i, cleared: Array[Star], _dust: int) -> void:
+		row.wiped += cleared.size()
+		row.bangs += 1)
 	for action: int in 400:
 		if run.is_over():
 			break
