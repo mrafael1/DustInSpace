@@ -5,7 +5,7 @@ extends GutTest
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
 const SKY := Rect2i(0, 78, 180, 172)
-const BUILT: Array[String] = ["sagittarius_arrow", "sagittarius_bow", "sagittarius_body", "sagittarius_legs"]
+const BUILT: Array[String] = ["sagittarius_arrow", "sagittarius_bow", "sagittarius_body", "sagittarius_legs", "sagittarius_head"]
 
 
 func _run(map: StarMap, seed_value: int = 7) -> RunState:
@@ -44,7 +44,7 @@ func test_sagittarius_is_chapter_5_after_virgo_on_the_ring() -> void:
 		assert_eq(chapter.map_id(stage), BUILT[stage])
 		assert_true(chapter.has_stage(stage))
 	for stage: int in range(BUILT.size(), Chapter.stage_count()):
-		assert_false(chapter.has_stage(stage), "the Head and the final aren't built yet")
+		assert_false(chapter.has_stage(stage), "the final isn't built yet")
 	assert_eq(ChapterSelect.sky_x("sagittarius") - ChapterSelect.sky_x("virgo"), 3 * ChapterSelect.SKY_SPAN, "three signs on, round the ring")
 
 
@@ -310,3 +310,103 @@ func test_the_path_shows_where_the_twins_go_and_turns_ember_on_the_last_step() -
 	assert_true(last.values().has(Palette.S4), "the meeting point warns in ember")
 	for color: Color in last.values():
 		assert_has([Palette.S3, Palette.S4], color)
+
+
+func test_the_gauge_drinks_a_share_of_light_and_empties_when_full() -> void:
+	var hole := StarGravity.new(Vector2i(92, 158), 8, 800, 24)
+	hole.set_gauge(25, 50)
+	assert_eq(hole.drinks(25), 12, "half, rounded down")
+	assert_eq(hole.drinks(5), 2)
+	assert_false(hole.absorb(12))
+	assert_eq(hole.absorbed, 12)
+	assert_true(hole.fills_with(13))
+	assert_false(hole.fills_with(12))
+	assert_true(hole.absorb(13), "full")
+	assert_eq(hole.absorbed, 0, "and it empties")
+	var plain := StarGravity.new(Vector2i(92, 158), 8, 800, 24)
+	assert_eq(plain.drinks(25), 0, "a hole without a gauge drinks nothing")
+
+
+func _head_link(run: RunState, size: Star.Size, at: Vector2i) -> Array[int]:
+	var ids: Array[int] = []
+	for k: int in 3:
+		ids.append(run.add_star(size, at + Vector2i(k * 18, 0)).id)
+	return ids
+
+
+func test_a_link_sends_half_its_light_to_the_hole_and_the_rest_to_the_sun() -> void:
+	var run: RunState = _run(StarMap.sagittarius_head())
+	var absorbed: Array = []
+	var collected: Array = []
+	run.light_absorbed.connect(func(_from: Vector2i, amount: int, now: int, capacity: int) -> void: absorbed.append([amount, now, capacity]))
+	run.combo_collected.connect(func(_combo: String, _stars: Array[Star], _dust: int, light: int) -> void: collected.append(light))
+	var light: int = run.light
+	assert_eq(run.link(_head_link(run, Star.Size.MEDIUM, Vector2i(20, 100))), "medium_triple")
+	var full: int = run.balance.combos["medium_triple"].light
+	assert_eq(absorbed, [[full / 2, full / 2, 25]])
+	assert_eq(collected, [full - full / 2], "only the Sun's share flies to the Sun")
+	assert_eq(run.light, light + full - full / 2)
+
+
+func test_the_link_that_fills_the_gauge_bangs_the_sky_for_no_dust() -> void:
+	var run: RunState = _run(StarMap.sagittarius_head())
+	var banged: Array = []
+	run.big_bang_started.connect(func(at: Vector2i, cleared: Array[Star], dust: int) -> void: banged.append([at, cleared.size(), dust]))
+	run.gravity.absorbed = 20
+	var bystander: Star = run.add_star(Star.Size.SMALL, Vector2i(150, 230))
+	var ids: Array[int] = _head_link(run, Star.Size.BIG, Vector2i(20, 100))
+	assert_true(run.link_fills_gauge(ids), "the trace can warn before the release")
+	var dust: int = run.dust
+	run.scorpio.light(2)
+	var lit: Array[bool] = run.scorpio.lit.duplicate()
+	run.link(ids)
+	assert_eq(banged.size(), 1)
+	assert_eq(banged[0][0], run.gravity.center, "it bangs at the hole")
+	assert_eq(banged[0][2], 0, "for no dust")
+	assert_null(run.find_star(bystander.id), "the sky is cleared")
+	assert_eq(run.dust, dust + run.link_dust("big_triple"), "the link still pays its own dust")
+	assert_eq(run.scorpio.lit, lit, "lit stars stay lit")
+	assert_eq(run.gravity.absorbed, 0, "the gauge empties")
+
+
+func test_a_small_link_doesnt_fill_the_gauge_and_other_stages_have_none() -> void:
+	var run: RunState = _run(StarMap.sagittarius_head())
+	assert_false(run.link_fills_gauge(_head_link(run, Star.Size.SMALL, Vector2i(20, 100))))
+	var arrow: RunState = _run(StarMap.sagittarius_arrow())
+	assert_false(arrow.gravity.has_gauge())
+	assert_false(arrow.link_fills_gauge(_head_link(arrow, Star.Size.BIG, Vector2i(20, 100))))
+
+
+func test_the_head_opens_by_streaming_a_links_light_into_the_hole_and_changes_nothing() -> void:
+	var run: RunState = _run(StarMap.sagittarius_head())
+	var shown: Array = []
+	run.gauge_intro_shown.connect(func(from: Vector2i, amount: int) -> void: shown.append([from, amount]))
+	run.play_gauge_intro()
+	assert_eq(shown.size(), 1)
+	assert_eq(shown[0][1], run.gravity.drinks(run.balance.combos[Combos.SEQUENCE].light))
+	assert_eq(run.gravity.absorbed, 0, "the run's gauge is empty")
+	assert_true(run.stars.is_empty())
+	assert_eq(Hud.hole_rule(run.gravity), Hud.GAUGE_MESSAGE)
+	var falling: Array = []
+	run.hole_intro_placed.connect(func(stars: Array[Star]) -> void: falling.append(stars))
+	run.play_hole_intro()
+	assert_true(falling.is_empty(), "the Head shows its gauge, not the falling stars")
+
+
+func test_a_holes_big_bang_throws_no_decoys_a_planets_does() -> void:
+	var main: Main = _main("sagittarius_head")
+	_settle(main)
+	var sky: SkyView = main.get_node("Sky")
+	assert_eq(sky.call("_decoys", Vector2i(92, 158)).size(), 0, "no planet opened into it")
+	sky.set("_launched_kind", "blue")
+	assert_eq(sky.call("_decoys", Vector2i(92, 158)).size(), main.run.balance.packs["blue"].stars, "a planet's Big Bang keeps its decoys")
+
+
+func test_the_gauge_fills_in_gold_and_blinks_ember_when_a_link_would_fill_it() -> void:
+	var half: Dictionary[Vector2i, Color] = GravityView.gauge_pixels(Vector2i(92, 158), 14, 0.5, false, 0.0)
+	var gold: int = half.values().filter(func(c: Color) -> bool: return c == Palette.C1 or c == Palette.C0).size()
+	assert_eq(gold, GravityView.GAUGE_DOTS / 2)
+	assert_eq(half[Vector2i(92, 144)], Palette.C0, "it fills from the top")
+	var warning: Dictionary[Vector2i, Color] = GravityView.gauge_pixels(Vector2i(92, 158), 14, 0.5, true, 0.0)
+	assert_true(warning.values().has(Palette.S4))
+	assert_true(warning.values().has(Palette.S3))
