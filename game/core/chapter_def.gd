@@ -115,8 +115,8 @@ static func virgo() -> ChapterDef:
 
 ## Chapter 5: Sagittarius, the archer, who aims at the black hole at the heart of the galaxy. Opens
 ## once Virgo's final is won; on the sky, the zodiac's second lap. Travelled from the arrow: the
-## arrow, the bow, the body, the legs, the head, then the whole Sagittarius (stages 5 and 6 aren't
-## built yet).
+## arrow, the bow, the body, the legs, the head, then the whole Sagittarius (the final isn't built
+## yet).
 static func sagittarius() -> ChapterDef:
 	var def := ChapterDef.new()
 	def.id = "sagittarius"
@@ -127,7 +127,7 @@ static func sagittarius() -> ChapterDef:
 		{"name": "BOW", "map": "sagittarius_bow", "piece": "bow", "stars": [2, 3, 8, 9]},
 		{"name": "BODY", "map": "sagittarius_body", "piece": "body", "stars": [4, 5]},
 		{"name": "LEGS", "map": "sagittarius_legs", "piece": "legs", "stars": [7, 6, 12]},
-		{"name": "HEAD", "map": "", "piece": "head", "stars": [10, 11]},
+		{"name": "HEAD", "map": "sagittarius_head", "piece": "head", "stars": [10, 11]},
 		{"name": "SAGITTARIUS", "map": "", "stars": []},
 	]
 	def.figure = StarMap.sagittarius()

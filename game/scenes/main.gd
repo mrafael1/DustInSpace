@@ -192,6 +192,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_hole_intro()
 	# And the Legs' twin holes: their path to where they meet, as a forecast.
 	run.play_twins_intro()
+	# And the Head's light gauge: a link's light streaming into the hole.
+	run.play_gauge_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
