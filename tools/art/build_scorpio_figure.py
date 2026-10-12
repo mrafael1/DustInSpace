@@ -1,40 +1,50 @@
-"""Builds the painted Scorpio (the chapter's reward) and its pieces, in assets/art/:
+"""Builds the Scorpio's paintings (the chapter's rewards), in assets/art/:
 
   scorpio_figure.png         the whole scorpion, the final stage's reward
   scorpio_piece_<part>.png   the same painting cut into the chapter's five parts (stinger, tail,
                              body, heart, claws), in the same full-screen home layout: the chapter
-                             chart assembles them as parts are won
+                             chart shows the won ones dormant, then the whole figure once the final
+                             is won
   scorpio_part_<map>.png     each part stage's own painting, the same body part fitted to that
                              stage's own landmarks (game/core/star_map.gd, read from the source),
                              shown when the stage is complete
 
-Completing the final (stage 6) no longer traces a line drawing round the stars: the scorpion itself
-rises behind them, painted. Every body part is anchored to the 14 landmarks of Scorpius's figure
-(game/core/scorpio.gd LANDMARKS), so the gold stars sit on its body as the real stars sit on the
-constellation: Dschubba on the head, beta and pi in the claws, Antares at the heart, the tail
-curling down through zeta, eta and theta and back up to Shaula, the sting.
+The whole Scorpio is a clean line, semi-hollow with stardust. Its form is a stack of shapes
+(tools/art/clean_line.py) round the 14 landmarks of Scorpius (game/core/scorpio.gd LANDMARKS): a
+carapace with two arms and heavy pincers reaching to beta and pi, eight thin legs, six body plates
+from sigma through Antares, and a tail of six segments curling down through zeta, eta and theta and
+back up to the telson and its sting at Shaula. clean_line draws one unbroken 1 px line round each
+plate and segment, hidden where a later shape lies over it. The line is four N steps above the sky
+behind it (five on its lit, upper-left side) with a few N9 rose glints. Inside, each segment holds
+Bayer-dithered stardust (tools/art/stardust.py) one or two steps up, thick along its edge and thin
+in its middle so the sky shows through, plus N7/N8/D0 specks off the line. Opaque palette pixels
+only; nothing in the Sun's zone (y < 78) or at or below the end panel; each landmark star in a gap
+clear of specks, on a faint pixel of its own part.
 
-The body is modelled as overlapping solids (spheroids and capsules: the carapace, seven plates of
-the abdomen, five tail joints, the telson, the curved sting, two jointed arms with heavy pincers,
-four pairs of legs). Each pixel takes the solid nearest the viewer, is lit from the top left, and
-is shaded on a stepped palette ramp (flat bands, a Bayer 4x4 checker only along each seam). Where
-one solid meets another a dark crease shows the joint, the lit edges catch a rose rim (N9/N10),
-small glints mark the highlights, and a thin 1 px aura (N3) lifts the silhouette off the sky.
-No colour outside the Stellar Sun palette; no partial alpha (each pixel is opaque or empty).
+The pieces partition the whole: each pixel goes with the part of the segment under it, else with
+the nearest tagged pixel; each star's own pixel goes with its part.
+
+The part stages keep the shaded-solid style: each part as solids lit from the top left on a stepped
+N ramp, N1 creases, an N9/N10 rose rim, N8/D0 stardust specks and a checkered N3 aura.
 
 Every image is the full 180x320 game screen (transparent outside the figure), in home layout: the
 chapter chart draws it as is, and a stage draws it where its sky shifts the map.
-The pieces partition the whole: every solid is tagged with the part whose stars it carries
-(Chapter.STAGES), and the aura follows the body pixel beside it.
 
-Run: python tools/art/build_scorpio_figure.py   (needs Pillow and numpy)
+Run: python tools/art/build_scorpio_figure.py [--preview out.png]   (needs Pillow and numpy)
 """
 
+import argparse
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import clean_line  # noqa: E402
+from clean_line import Axis, cubic, path_of, placed, segment, tube  # noqa: E402
+import stardust as sd  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ART = ROOT / "assets" / "art"
@@ -156,72 +166,110 @@ def unit(p):
     return p / np.linalg.norm(p)
 
 
-def build_body(S: Solids):
-    head, sigma, antares, tau, eps, mu = L[1], L[3], L[4], L[5], L[6], L[7]
 
-    # Legs first (under everything): four pairs off the front of the body, each three joints that
-    # reach out, then bend back towards the tail.
-    spine_dir = unit(v(mu) - v(sigma))
-    side = np.array([-spine_dir[1], spine_dir[0]])
-    roots = [lerp(head, sigma, 0.55), lerp(head, sigma, 0.95), lerp(sigma, antares, 0.4), lerp(sigma, antares, 0.85)]
-    reach = [15.0, 17.0, 18.0, 18.0]
-    for k, root in enumerate(roots):
-        S.tag = "heart" if k < 2 else "body"
-        for sign in (-1.0, 1.0):
-            out = side * sign
-            knee = root + out * reach[k] * 0.55 - spine_dir * (3.0 - k * 1.5)
-            ankle = knee + out * reach[k] * 0.35 + spine_dir * (2.0 + k * 1.2)
-            foot = ankle + spine_dir * (5.0 + k) + out * 2.0
-            S.chain([root, knee, ankle, foot], [2.1, 1.8, 1.4, 0.9], lift=-4.0)
+# ---- The whole Scorpio: a clean line, semi-hollow with stardust (tools/art/clean_line.py). ----
 
-    # The mesosoma: seven plates from just behind the carapace to mu, widest round Antares.
-    plates = 7
-    widths = [11.0, 12.5, 13.5, 13.5, 12.5, 11.0, 9.0]
-    track = [lerp(sigma, antares, 0.45), lerp(sigma, antares, 0.95), lerp(antares, tau, 0.45),
-             lerp(antares, tau, 0.95), lerp(tau, eps, 0.5), lerp(eps, mu, 0.1), lerp(eps, mu, 0.55)]
-    for k in range(plates):
-        S.tag = "heart" if k < 3 else "body"
-        prev = track[max(k - 1, 0)]
-        nxt = track[min(k + 1, plates - 1)]
-        S.ellipsoid(track[k], v(nxt) - v(prev), 9.0, widths[k], depth=7.0, lift=-k * 0.6, along_flat=0.35)
+SEED = 7
+# Each landmark's size (game/core/scorpio.gd SIZES): the stars' gaps and the preview's stars.
+SIZES = ["M", "M", "S", "S", "B", "S", "M", "S", "S", "S", "B", "S", "M", "B"]
+# Scorpius's strings, for the preview.
+SEGMENTS = [(0, 1), (1, 2), (1, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10),
+            (10, 11), (11, 12), (12, 13)]
 
-    # The carapace (prosoma): a broad shield from Dschubba back to sigma, over the plates' front.
-    S.tag = "claws"
-    S.ellipsoid(lerp(head, sigma, 0.45), v(head) - v(sigma), 15.0, 11.0, depth=8.0, lift=1.5)
+# The figure is drawn in clean_line's 4x space (game pixel (x, y) covers 4x..4x+3).
+# The centre line of the body and tail, from the carapace's front to the telson's root.
+AXIS = [(668, 458), (610, 468), (555, 480), (500, 503), (458, 545), (428, 602), (405, 670),
+        (390, 740), (374, 822), (356, 902), (305, 932), (220, 934), (140, 916), (80, 870), (72, 820)]
+# The carapace: from CARA_S0 to CARA_S1 along the axis, half-widths at its front and back.
+CARA_S0, CARA_S1, CARA_W = 6, 118, (36, 52)
+# The mesosoma's half-width along the axis: (arclength, half-width), linear between.
+BODY_WIDTH = [(100, 48), (150, 60), (205, 70), (250, 72), (300, 67), (345, 56), (392, 42)]
+# The six plates' edges along the axis (each overlaps the next) and their parts.
+PLATE_EDGES = [108, 152, 198, 244, 290, 338, 392]
+PLATE_PARTS = ["heart", "heart", "heart", "heart", "body", "body"]
+# The six tail segments, from TAIL_S0 to the axis's end: half-widths and parts.
+TAIL_S0 = 386
+TAIL_WIDTHS = [29, 28, 27, 26, 25, 24]
+TAIL_PARTS = ["body", "body", "tail", "tail", "tail", "stinger"]
+# The telson: a round vesicle at kappa and a slim sting arcing over to Shaula, its tip turned down.
+TELSON = ("M 52 818 C 54 780 88 750 124 746 C 150 736 182 722 206 726 "
+          "C 221 729 229 739 226 752 C 220 745 211 741 200 743 "
+          "C 182 746 166 756 158 774 C 150 798 122 814 96 822 Z")
+# The legs, four a side, each arching out and forward to the knee, then out and back to the foot:
+# (arclength of the root, knee angle (+: toward the head), femur length, foot angle, tibia length).
+LEGS_UP = [(124, 36, 44, -14, 44), (148, 8, 48, -44, 50), (172, -20, 50, -70, 52), (196, -48, 48, -96, 52)]
+LEGS_DOWN = [(170, 62, 44, 20, 46), (196, 30, 50, -14, 54), (222, -2, 52, -46, 56), (248, -34, 50, -80, 54)]
+LEG_WIDTH = (3.4, 2.8)
+# The pedipalps: femur and patella (spines and half-widths), then the pincer at the wrist.
+ARMS = [
+    {"femur": [(612, 430), (575, 412), (536, 404)], "fw": (11, 10),
+     "patella": [(536, 404), (546, 382), (574, 368)], "pw": (11, 13)},
+    {"femur": [(606, 512), (624, 548), (642, 574)], "fw": (13, 12),
+     "patella": [(642, 574), (662, 590), (670, 614)], "pw": (12, 14)},
+]
+CHELAE = [
+    {"wrist": (562, 365), "ang": 8, "L": 154, "h": 44, "g": 0.0, "fb": 0.62},
+    {"wrist": (670, 604), "ang": 112, "L": 164, "h": 46, "g": 0.04, "fb": 0.58},
+]
 
-    # The metasoma: five tail joints from mu to kappa, each a bulb, thinning towards the sting.
-    tail = [lerp(eps, mu, 0.92), L[8], L[9], L[10], L[11], L[12]]
-    radii = [7.0, 6.6, 6.2, 5.8, 5.4]
-    for k in range(5):
-        S.tag = "tail" if k < 4 else "stinger"
-        a, b = v(tail[k]), v(tail[k + 1])
-        S.ellipsoid((a + b) / 2, b - a, np.linalg.norm(b - a) / 2 + 3.0, radii[k], depth=6.0, lift=-3.0 + k * 0.2, along_flat=0.5)
+def chela(L, h, g=0.0, fb=0.62):
+    """A pincer in local space (x along it, y to its outer side): a bulbous hand and two curved
+    fingers, their tips turned toward each other round an almond opening. The fingers begin at
+    `fb` of its length; `g` opens the gap between their tips."""
+    def X(x):
+        return L * (x * fb / 0.62 if x <= 0.62 else fb + (x - 0.62) * (1 - fb) / 0.38)
+    P = []
+    P += cubic((X(0), 0.42 * h), (X(0.12), 1.0 * h), (X(0.45), 1.08 * h), (X(0.62), 0.78 * h))
+    P += cubic((X(0.62), 0.78 * h), (X(0.80), 0.60 * h), (X(0.98), 0.48 * h), (X(1.0), (0.16 + g) * h))[1:]
+    P += cubic((X(1.0), (0.16 + g) * h), (X(0.93), (0.30 + g) * h), (X(0.80), 0.34 * h), (X(0.66), 0.06 * h))[1:]
+    P += cubic((X(0.66), 0.06 * h), (X(0.78), -0.26 * h), (X(0.90), (-0.24 - g) * h), (X(0.95), (-0.20 - g) * h))[1:]
+    P += cubic((X(0.95), (-0.20 - g) * h), (X(0.95), -0.50 * h), (X(0.78), -0.76 * h), (X(0.55), -0.90 * h))[1:]
+    P += cubic((X(0.55), -0.90 * h), (X(0.35), -1.0 * h), (X(0.10), -0.85 * h), (X(0), -0.40 * h))[1:]
+    return P
 
-    # The telson: a swollen bulb between kappa and Shaula, then the curved sting past Shaula.
-    kappa, shaula = v(L[12]), v(L[13])
-    S.tag = "stinger"
-    S.ellipsoid(lerp(kappa, shaula, 0.6), shaula - kappa, 13.0, 6.8, depth=6.0, lift=-1.5)
-    forward = unit(shaula - kappa)
-    curl = np.array([forward[1], -forward[0]])  # turns up, back over the body
-    if curl[1] > 0:
-        curl = -curl
-    sting = bezier(shaula + forward * 4.0, shaula + forward * 14.0 + curl * 2.0, shaula + forward * 13.0 + curl * 12.0, 10)
-    S.chain(sting, list(np.linspace(3.6, 0.5, len(sting))), lift=-1.0)
 
-    # The pedipalps: from the carapace's front corners out to beta and pi, then heavy pincers that
-    # open forward (right), the way the scorpion faces.
-    S.tag = "claws"
-    for claw, bend in ((L[0], -1.0), (L[2], 1.0)):
-        shoulder = v(head) + v((-4.0, 5.0 * bend))
-        elbow = lerp(shoulder, claw, 0.5) + v((-6.0, 1.0 * bend))
-        S.chain([shoulder, elbow, claw], [3.6, 3.0, 3.6], lift=-0.5)
-        manus = v(claw) + v((5.0, 0.0))
-        S.ellipsoid(manus, (1.0, 0.25 * bend), 8.5, 5.8, depth=5.5, lift=0.5)
-        tip = manus + v((7.0, 0.0))
-        fixed = bezier(tip + v((-1, -2.2)), tip + v((7.0, -6.0)), tip + v((11.0, -1.0)), 7)
-        moving = bezier(tip + v((-1, 2.2)), tip + v((7.0, 6.0)), tip + v((11.0, 1.0)), 7)
-        S.chain(fixed, list(np.linspace(2.8, 0.7, 7)), lift=0.2)
-        S.chain(moving, list(np.linspace(2.5, 0.7, 7)), lift=0.0)
+def body_width(s):
+    xs_, ws = zip(*BODY_WIDTH)
+    return float(np.interp(s, xs_, ws))
+
+
+def figure_shapes() -> list:
+    """The scorpion as clean_line shapes, back to front: the telson, the tail, the legs, the
+    plates, the arms, the carapace and the pincers."""
+    shapes = []
+
+    def add(name, part, pts, group=None):
+        shapes.append({"name": name, "part": part, "group": group or name, "d": path_of(pts)})
+
+    ax = Axis(AXIS)
+    shapes.append({"name": "telson", "part": "stinger", "group": "telson", "d": TELSON})
+    step = (ax.L - TAIL_S0) / len(TAIL_WIDTHS)
+    for i in reversed(range(len(TAIL_WIDTHS))):
+        s0, s1, w = TAIL_S0 + i * step - 7, TAIL_S0 + (i + 1) * step + 7, TAIL_WIDTHS[i]
+        add(f"bead{i}", TAIL_PARTS[i], segment(ax, s0, s1, w, w * 0.94, p=2.4, pinch=0.12))
+    for side, sign, legs in (("u", 1, LEGS_UP), ("d", -1, LEGS_DOWN)):
+        for j, (s, a1, l1, a2, l2) in enumerate(legs):
+            c, t, nrm = ax.frame(s)
+            n, f = nrm * sign, -t
+            root = c + n * (body_width(s) - 10)
+
+            def toward(a):
+                r = math.radians(a)
+                return n * math.cos(r) + f * math.sin(r)
+            knee = root + toward(a1) * l1
+            foot = knee + toward(a2) * l2
+            spine = [root, root + toward(a1) * l1 * 0.55, knee, knee + toward(a2) * l2 * 0.5, foot]
+            add(f"leg_{side}{j}", "claws" if s < CARA_S1 else "heart", tube(spine, *LEG_WIDTH))
+    for i in reversed(range(len(PLATE_PARTS))):
+        s0, s1 = PLATE_EDGES[i] - 4, PLATE_EDGES[i + 1] + 10
+        add(f"plate{i}", PLATE_PARTS[i], segment(ax, s0, s1, body_width(s0 + 4), body_width(s1 - 4), p=3.2))
+    for k, arm in enumerate(ARMS):
+        add(f"femur{k}", "claws", tube(arm["femur"], *arm["fw"]), group=f"arm{k}")
+        add(f"patella{k}", "claws", tube(arm["patella"], *arm["pw"]), group=f"arm{k}")
+    add("carapace", "claws", segment(ax, CARA_S0, CARA_S1, CARA_W[0], CARA_W[1], p=3.0))
+    for k, ch in enumerate(CHELAE):
+        add(f"chela{k}", "claws", placed(ch["wrist"], ch["ang"], chela(ch["L"], ch["h"], ch["g"], ch["fb"])))
+    return shapes
 
 
 # The part stages' own paintings: the same body parts, fitted to each stage's landmarks.
@@ -415,23 +463,6 @@ def shade(S: Solids):
                 img[y, x, 3] = 255
     return img
 
-
-def add_details(img: np.ndarray):
-    # Stardust in the body: a sparse scatter of pale specks on its darker steps, fixed by a hash.
-    dark = {RGB[k] for k in ("N2", "N3", "N4")}
-    for y in range(H):
-        for x in range(W):
-            if img[y, x, 3] and tuple(img[y, x, :3]) in dark:
-                h = (x * 374761393 + y * 668265263) & 0xFFFFFFFF
-                h = ((h ^ (h >> 13)) * 1274126177) & 0xFFFFFFFF
-                if h % 37 == 0:
-                    img[y, x, :3] = RGB["N8"] if h % 3 else RGB["D0"]
-    # Eyes on the carapace, near its front: two pale glints.
-    for p in ((152, 109), (154, 113)):
-        img[p[1], p[0], :3] = RGB["D0"]
-        img[p[1], p[0], 3] = 255
-
-
 def add_stardust(img: np.ndarray):
     dark = {RGB[k] for k in ("N2", "N3", "N4")}
     for y in range(H):
@@ -448,37 +479,6 @@ STAR_PARTS = {13: "stinger", 12: "stinger", 11: "stinger", 10: "tail", 9: "tail"
               7: "body", 6: "body", 5: "body", 4: "heart", 3: "heart", 1: "claws", 0: "claws", 2: "claws"}
 
 
-def pieces(S: Solids, img: np.ndarray):
-    """The whole painting cut by part: each body pixel goes with its solid's part, each aura pixel
-    with the body pixel beside it. A joint where two parts meet goes with the part of the star on
-    top of it, so every star sits on its own part's piece."""
-    for star, part in STAR_PARTS.items():
-        x, y = L[star]
-        S.tags[S.owner[y, x]] = part
-    for star, part in STAR_PARTS.items():
-        x, y = L[star]
-        assert S.tags[S.owner[y, x]] == part, f"landmark {star} sits on a solid of two parts"
-    tags = np.full((H, W), "", dtype=object)
-    inside = S.z >= 0.0
-    for y, x in zip(*np.nonzero(inside)):
-        tags[y, x] = S.tags[S.owner[y, x]]
-    for y, x in zip(*np.nonzero(img[..., 3] > 0)):
-        if tags[y, x]:
-            continue
-        for dy, dx in ((0, 1), (1, 0), (0, -1), (-1, 0)):
-            # The aura wraps at the image's edges like the np.roll that made it.
-            ny, nx = (y + dy) % H, (x + dx) % W
-            if tags[ny, nx] and inside[ny, nx]:
-                tags[y, x] = tags[ny, nx]
-                break
-    out = {}
-    for part in PARTS:
-        piece = img.copy()
-        piece[tags != part] = 0
-        out[part] = piece
-    assert all(tags[y, x] for y, x in zip(*np.nonzero(img[..., 3] > 0))), "every pixel has a part"
-    return out
-
 
 def save(img: np.ndarray, path: Path):
     Image.fromarray(img, "RGBA").save(path)
@@ -486,14 +486,19 @@ def save(img: np.ndarray, path: Path):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--preview", type=Path, help="also write the figure over the sky, x3, here")
+    args = parser.parse_args()
     ART.mkdir(parents=True, exist_ok=True)
-    S = Solids()
-    build_body(S)
-    img = shade(S)
-    add_details(img)
+    img, parts = clean_line.semi_hollow(figure_shapes(), L, SIZES, SEED, LIGHT)
+    used = sd.check(img)
+    print(f"figure: {sum(used.values())} px, {used}")
     save(img, OUT)
-    for part, piece in pieces(S, img).items():
+    for part, piece in sd.pieces(img, clean_line.part_tags(parts, img, L, STAR_PARTS), PARTS).items():
         save(piece, ART / f"scorpio_piece_{part}.png")
+    if args.preview:
+        sd.preview(img, L, SIZES, SEGMENTS).save(args.preview)
+        print(f"wrote {args.preview}")
     for name, landmarks in stage_landmarks().items():
         stage = Solids()
         STAGE_BUILDERS[name](stage, landmarks)
