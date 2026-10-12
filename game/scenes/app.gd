@@ -110,6 +110,10 @@ func _ready() -> void:
 			open_current_trial(true, 0, "aquarius")
 		elif "--aquarius-off" in OS.get_cmdline_user_args():
 			open_current_trial(false, 0, "aquarius")
+		elif "--black-hole" in OS.get_cmdline_user_args():
+			open_current_trial(true, 0, "black_hole")
+		elif "--black-hole-off" in OS.get_cmdline_user_args():
+			open_current_trial(false, 0, "black_hole")
 
 
 func _notification(what: int) -> void:
@@ -150,6 +154,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_A:
 		open_current_trial(not key.shift_pressed, 0, "aquarius")
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_G:
+		open_current_trial(not key.shift_pressed, 0, "black_hole")
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_U:
 		debug_win_parts()
@@ -358,8 +365,8 @@ func options() -> OptionsMenu:
 	return _options
 
 
-## No progress callbacks: experimental wins never count toward Scorpio. `layout`: "tail" or
-## "aquarius" (StarMap.current_layout).
+## No progress callbacks: experimental wins never count toward Scorpio. `layout`: "tail", "aquarius"
+## or "black_hole" (StarMap.current_layout).
 func open_current_trial(enabled: bool = true, seed_value: int = 0, layout: String = "tail") -> void:
 	if not OS.is_debug_build() or _stage != null:
 		return

@@ -152,9 +152,15 @@ static func current_trial(enabled: bool = true) -> StarMap:
 	return map
 
 
-## A debug current trial's map: "aquarius" (the flow layout) or the Tail trial (anything else).
+## A debug trial's map: "aquarius" (the flow layout), "black_hole" (chapter 5's trial) or the Tail
+## trial (anything else).
 static func current_layout(layout: String, enabled: bool = true) -> StarMap:
-	return aquarius_flow(enabled) if layout == "aquarius" else current_trial(enabled)
+	match layout:
+		"aquarius":
+			return aquarius_flow(enabled)
+		"black_hole":
+			return black_hole_trial(enabled)
+	return current_trial(enabled)
 
 
 ## Debug experiment: the Aquarius Body's layout (aquarius_body) as a trial that the FLOW ON/OFF
