@@ -190,6 +190,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_current_intro()
 	# And a Sagittarius stage bringing its hole, or its hungry hole: stars shown falling in.
 	run.play_hole_intro()
+	# And the Legs' twin holes: their path to where they meet, as a forecast.
+	run.play_twins_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)

@@ -5,7 +5,7 @@ extends GutTest
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
 const SKY := Rect2i(0, 78, 180, 172)
-const BUILT: Array[String] = ["sagittarius_arrow", "sagittarius_bow", "sagittarius_body"]
+const BUILT: Array[String] = ["sagittarius_arrow", "sagittarius_bow", "sagittarius_body", "sagittarius_legs"]
 
 
 func _run(map: StarMap, seed_value: int = 7) -> RunState:
@@ -40,11 +40,11 @@ func test_sagittarius_is_chapter_5_after_virgo_on_the_ring() -> void:
 	assert_eq(chapter.stage_name(0), "ARROW")
 	assert_eq(chapter.stage_name(1), "BOW")
 	assert_eq(chapter.stage_name(2), "BODY")
-	for stage: int in 3:
+	for stage: int in BUILT.size():
 		assert_eq(chapter.map_id(stage), BUILT[stage])
 		assert_true(chapter.has_stage(stage))
-	for stage: int in range(3, Chapter.stage_count()):
-		assert_false(chapter.has_stage(stage), "stages 4 to 6 aren't built yet")
+	for stage: int in range(BUILT.size(), Chapter.stage_count()):
+		assert_false(chapter.has_stage(stage), "the Head and the final aren't built yet")
 	assert_eq(ChapterSelect.sky_x("sagittarius") - ChapterSelect.sky_x("virgo"), 3 * ChapterSelect.SKY_SPAN, "three signs on, round the ring")
 
 
@@ -207,3 +207,106 @@ func test_a_stage_with_a_hole_says_its_rule_as_the_intro_shows_it() -> void:
 	_settle(main)
 	var hud: Hud = main.get_node("HUD")
 	assert_eq(hud.message(), Hud.HOLE_MESSAGE)
+
+
+func _twins() -> StarGravity:
+	var hole := StarGravity.new(Vector2i(20, 162), 8, 800, 24)
+	hole.add_twin(Vector2i(160, 162), 24, 12)
+	return hole
+
+
+func test_each_star_falls_toward_its_nearest_hole() -> void:
+	var hole: StarGravity = _twins()
+	var stars: Array[Star] = [Star.new(1, Star.Size.SMALL, Vector2i(60, 162)), Star.new(2, Star.Size.SMALL, Vector2i(120, 162))]
+	var result: Dictionary[int, Vector2i] = hole.preview(stars, SKY, [])
+	assert_lt(result[1].x, 60, "toward the left hole")
+	assert_gt(result[2].x, 120, "toward the right hole")
+	var doomed := Star.new(3, Star.Size.SMALL, Vector2i(150, 162))
+	var into: Dictionary[int, Vector2i] = hole.preview([doomed] as Array[Star], SKY, [])
+	assert_eq(into[3], Vector2i(160, 162), "swallowed by the nearer twin")
+	assert_true(hole.swallowed(into[3]))
+
+
+func test_twins_drift_together_along_their_path_and_merge_into_one_bigger_hole() -> void:
+	var hole: StarGravity = _twins()
+	assert_eq(hole.launches_to_merge(), 3)
+	assert_eq(hole.next_centers(), [Vector2i(44, 162), Vector2i(136, 162)] as Array[Vector2i])
+	assert_false(hole.drift_holes())
+	assert_false(hole.drift_holes())
+	assert_true(hole.merges_next(), "the next drift would make their horizons touch")
+	assert_eq(hole.next_centers(), [Vector2i(90, 162)] as Array[Vector2i], "they meet in the middle")
+	assert_true(hole.drift_holes())
+	assert_false(hole.has_twins())
+	assert_eq(hole.centers, [Vector2i(90, 162)] as Array[Vector2i])
+	assert_eq(hole.horizon, 12, "one bigger hole")
+	assert_false(hole.drift_holes(), "one hole stays put")
+
+
+func test_the_legs_holes_path_and_merged_hole_keep_clear_of_the_figure() -> void:
+	var map: StarMap = StarMap.sagittarius_legs()
+	var run: RunState = _run(map)
+	var hole: StarGravity = run.gravity.copy()
+	assert_true(hole.has_twins())
+	var tuning: Dictionary = Balance.load_file().black_hole_for(map.id)
+	for launch: int in hole.launches_to_merge() + 1:
+		for i: int in hole.centers.size():
+			for landmark: Vector2i in run.scorpio.landmark_positions():
+				assert_gt(Vector2(landmark).distance_to(Vector2(hole.centers[i])), hole.horizons[i] + GravityView.RING_GAP + 6.0, "launch %d: hole %d clear of the figure" % [launch, i])
+		hole.drift_holes()
+	assert_eq(hole.horizon, tuning.merge_horizon)
+
+
+func test_the_merge_is_a_big_bang_that_clears_the_sky_for_no_dust_and_keeps_lit_stars() -> void:
+	var run: RunState = _run(StarMap.sagittarius_legs())
+	var banged: Array = []
+	var drifted: Array = []
+	run.big_bang_started.connect(func(at: Vector2i, cleared: Array[Star], dust: int) -> void: banged.append([at, cleared.size(), dust]))
+	run.holes_drifted.connect(func(_from: Array[Vector2i], to: Array[Vector2i], merged: bool) -> void: drifted.append([to, merged]))
+	run.scorpio.light(1)
+	var lit: Array[bool] = run.scorpio.lit.duplicate()
+	for launch: int in 3:
+		run.add_star(Star.Size.BIG, Vector2i(90, 96))
+		run.load_pack("blue")
+		assert_true(run.launch(Vector2i(90, 240)))
+	assert_eq(drifted.size(), 3)
+	assert_false(drifted[0][1])
+	assert_true(drifted[2][1], "they meet on the third launch")
+	assert_eq(banged.size(), 1)
+	assert_eq(banged[0][0], run.gravity.center, "the Big Bang plays where they met")
+	assert_gt(banged[0][1], 0, "it took the loose stars")
+	assert_eq(banged[0][2], 0, "and pays no dust")
+	assert_true(run.stars.is_empty(), "the sky is clear")
+	assert_eq(run.dust, 100)
+	assert_eq(run.scorpio.lit, lit, "lit stars stay lit")
+	assert_false(run.gravity.has_twins(), "one bigger hole stays")
+
+
+func test_the_legs_opens_by_forecasting_the_twins_path_and_changes_nothing() -> void:
+	var run: RunState = _run(StarMap.sagittarius_legs())
+	var forecast: Array = []
+	run.holes_forecast.connect(func(paths: Array) -> void: forecast.assign(paths))
+	var centers: Array[Vector2i] = run.gravity.centers.duplicate()
+	run.play_twins_intro()
+	assert_eq(forecast.size(), 2)
+	assert_eq((forecast[0] as Array).size(), run.gravity.launches_to_merge())
+	assert_eq(forecast[0].back(), forecast[1].back(), "both paths end where they meet")
+	assert_eq(run.gravity.centers, centers, "the run's holes haven't moved")
+	var shown: Array = []
+	run.hole_intro_placed.connect(func(stars: Array[Star]) -> void: shown.append(stars))
+	run.play_hole_intro()
+	assert_true(shown.is_empty(), "the twins' stage shows its forecast, not the falling stars")
+	assert_eq(Hud.hole_rule(run.gravity), Hud.TWINS_MESSAGE)
+
+
+func test_the_path_shows_where_the_twins_go_and_turns_ember_on_the_last_step() -> void:
+	var hole: StarGravity = _twins()
+	var calm: Dictionary[Vector2i, Color] = GravityView.path_pixels(hole.centers, hole.next_centers(), 8, false, 12, 0.0)
+	assert_true(calm.values().has(Palette.M3), "a dotted line between them")
+	assert_true(calm.values().has(Palette.M4), "ghost rings where they'll be")
+	assert_false(calm.values().has(Palette.S4))
+	hole.drift_holes()
+	hole.drift_holes()
+	var last: Dictionary[Vector2i, Color] = GravityView.path_pixels(hole.centers, hole.next_centers(), 8, hole.merges_next(), 12, 0.0)
+	assert_true(last.values().has(Palette.S4), "the meeting point warns in ember")
+	for color: Color in last.values():
+		assert_has([Palette.S3, Palette.S4], color)
