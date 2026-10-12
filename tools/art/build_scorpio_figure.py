@@ -1,6 +1,6 @@
 """Builds the Scorpio's paintings (the chapter's rewards), in assets/art/:
 
-  scorpio_figure.png         the whole scorpion, the final stage's reward, as a Stardust Myth vision
+  scorpio_figure.png         the whole scorpion, the final stage's reward
   scorpio_piece_<part>.png   the same painting cut into the chapter's five parts (stinger, tail,
                              body, heart, claws), in the same full-screen home layout: the chapter
                              chart shows the won ones dormant, then the whole figure once the final
@@ -9,23 +9,20 @@
                              stage's own landmarks (game/core/star_map.gd, read from the source),
                              shown when the stage is complete
 
-The whole Scorpio is painted in the Stardust Myth style (tools/art/stardust.py): the scorpion is
-suggested, not drawn. Its form is modelled as overlapping solids anchored to the 14 landmarks of
-Scorpius (game/core/scorpio.gd LANDMARKS): Dschubba on the head, beta and pi in the claws, Antares
-at the heart, the tail curling down through zeta, eta and theta and back up to Shaula, the sting.
-The solids are never shaded: they give the stardust a mask, normals and joints. Over them go a
-broken contour on the lit edges, faint joint strokes, hollow nebula wisps, an outer haze, specks
-thickest at the contour, rose glints, and the mythic flourish: a stardust trail spiralling off the
-sting into the empty sky. The carapace is a notched shield with a drawn rim, a median ridge and a
-pair of eyes; the eight legs are single strokes of dust with a bright knee, under the shield and
-the plates. The heavy pincers (and their haze) are kept from the first approved pass, painted over
-its own form (oval carapace, solid legs), because their contour depends on what surrounds them.
-Every pixel is a palette N step above the sky behind it, or a speck (N7, N8, D0) or glint (N9);
-opaque or empty; nothing in the Sun's zone (y < 78); each landmark star in a gap clear of specks.
+The whole Scorpio is a clean line, semi-hollow with stardust. Its form is a stack of shapes
+(tools/art/clean_line.py) round the 14 landmarks of Scorpius (game/core/scorpio.gd LANDMARKS): a
+carapace with two arms and heavy pincers reaching to beta and pi, eight thin legs, six body plates
+from sigma through Antares, and a tail of six segments curling down through zeta, eta and theta and
+back up to the telson and its sting at Shaula. clean_line draws one unbroken 1 px line round each
+plate and segment, hidden where a later shape lies over it. The line is four N steps above the sky
+behind it (five on its lit, upper-left side) with a few N9 rose glints. Inside, each segment holds
+Bayer-dithered stardust (tools/art/stardust.py) one or two steps up, thick along its edge and thin
+in its middle so the sky shows through, plus N7/N8/D0 specks off the line. Opaque palette pixels
+only; nothing in the Sun's zone (y < 78) or at or below the end panel; each landmark star in a gap
+clear of specks, on a faint pixel of its own part.
 
-The pieces partition the whole: each pixel goes with the part of the solid under it (Chapter.STAGES;
-a joint where two parts meet goes with the part of the star on it), else with its leg (front pairs
-heart, back pairs body) or the sting's trail (stinger), else with the nearest tagged pixel.
+The pieces partition the whole: each pixel goes with the part of the segment under it, else with
+the nearest tagged pixel; each star's own pixel goes with its part.
 
 The part stages keep the shaded-solid style: each part as solids lit from the top left on a stepped
 N ramp, N1 creases, an N9/N10 rose rim, N8/D0 stardust specks and a checkered N3 aura.
@@ -45,6 +42,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import clean_line  # noqa: E402
 import stardust as sd  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -171,7 +169,7 @@ def unit(p):
 
 
 
-# ---- The whole Scorpio, in the Stardust Myth style (tools/art/stardust.py). ----
+# ---- The whole Scorpio: a clean line, semi-hollow with stardust (tools/art/clean_line.py). ----
 
 SEED = 7
 # Each landmark's size (game/core/scorpio.gd SIZES): the stars' gaps and the preview's stars.
@@ -180,381 +178,275 @@ SIZES = ["M", "M", "S", "S", "B", "S", "M", "S", "S", "S", "B", "S", "M", "B"]
 SEGMENTS = [(0, 1), (1, 2), (1, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10),
             (10, 11), (11, 12), (12, 13)]
 
-# The carapace (prosoma): a shield from just over the first body plate to Dschubba, broader at
-# the back than the plate it sits on, narrowing to a notched front edge between the arms.
-CARA_BACK = (127.0, 125.0)
-CARA_FRONT = (159.5, 112.5)
-CARA_HALF = (13.5, 9.0)          # half-width at the back edge, at the front edge
-CARA_BIAS = 0.45                 # the shield's outline is drawn almost whole
-CARA_FILL = 0.6                  # and its inside kept thinner than the body's
-# The legs: four per side, each root (under the carapace's flank), knee, ankle and foot. The femur
-# leaves the flank, the knee turns the leg back towards the tail. The front pairs are held back
-# out of the pincers' reach (the arms ride over them).
-LEGS = [
-    # Upper side: the femur goes out (up) from under the shield's top edge, a clear knee, then
-    # the shin turns outward and back. The shins fan from up-left (front) to down-left (back).
-    [(138, 109), (137, 101), (133, 97), (131, 97)],      # upper I
-    [(132, 111), (128, 102), (121, 101), (119, 102)],    # upper II
-    [(125, 115), (119, 106), (111, 108), (108, 110)],    # upper III
-    [(118, 121), (110, 112), (102, 116), (99, 119)],     # upper IV
-    # Lower side: out (down-right) from under the shield's lower edge, a clear knee, then the
-    # shin and foot back down-left. The front shin stands upright, the back one sweeps back.
-    [(140, 131), (144, 133), (145, 138), (144, 142)],    # lower I
-    [(133, 135), (139, 138), (141, 144), (140, 149)],    # lower II
-    [(125, 139), (132, 142), (135, 149), (133, 155)],    # lower III
-    [(116, 146), (122, 150), (125, 157), (122, 163)],    # lower IV
+# The figure is drawn in clean_line's 4x space (game pixel (x, y) covers 4x..4x+3).
+# The centre line of the body and tail, from the carapace's front to the telson's root.
+AXIS = [(668, 458), (610, 468), (555, 480), (500, 503), (458, 545), (428, 602), (405, 670),
+        (390, 740), (374, 822), (356, 902), (305, 932), (220, 934), (140, 916), (80, 870), (72, 820)]
+# The carapace: from CARA_S0 to CARA_S1 along the axis, half-widths at its front and back.
+CARA_S0, CARA_S1, CARA_W = 6, 118, (36, 52)
+# The mesosoma's half-width along the axis: (arclength, half-width), linear between.
+BODY_WIDTH = [(100, 48), (150, 60), (205, 70), (250, 72), (300, 67), (345, 56), (392, 42)]
+# The six plates' edges along the axis (each overlaps the next) and their parts.
+PLATE_EDGES = [108, 152, 198, 244, 290, 338, 392]
+PLATE_PARTS = ["heart", "heart", "heart", "heart", "body", "body"]
+# The six tail segments, from TAIL_S0 to the axis's end: half-widths and parts.
+TAIL_S0 = 386
+TAIL_WIDTHS = [29, 28, 27, 26, 25, 24]
+TAIL_PARTS = ["body", "body", "tail", "tail", "tail", "stinger"]
+# The telson: a round vesicle at kappa and a slim sting arcing over to Shaula, its tip turned down.
+TELSON = ("M 52 818 C 54 780 88 750 124 746 C 150 736 182 722 206 726 "
+          "C 221 729 229 739 226 752 C 220 745 211 741 200 743 "
+          "C 182 746 166 756 158 774 C 150 798 122 814 96 822 Z")
+# The legs, four a side, each arching out and forward to the knee, then out and back to the foot:
+# (arclength of the root, knee angle (+: toward the head), femur length, foot angle, tibia length).
+LEGS_UP = [(124, 36, 44, -14, 44), (148, 8, 48, -44, 50), (172, -20, 50, -70, 52), (196, -48, 48, -96, 52)]
+LEGS_DOWN = [(170, 62, 44, 20, 46), (196, 30, 50, -14, 54), (222, -2, 52, -46, 56), (248, -34, 50, -80, 54)]
+LEG_WIDTH = (3.4, 2.8)
+# The pedipalps: femur and patella (spines and half-widths), then the pincer at the wrist.
+ARMS = [
+    {"femur": [(612, 430), (575, 412), (536, 404)], "fw": (11, 10),
+     "patella": [(536, 404), (546, 382), (574, 368)], "pw": (11, 13)},
+    {"femur": [(606, 512), (624, 548), (642, 574)], "fw": (13, 12),
+     "patella": [(642, 574), (662, 590), (670, 614)], "pw": (12, 14)},
 ]
-# The piece each leg goes with: the front two pairs with the heart, the back two with the body.
-LEG_PARTS = ["heart", "heart", "body", "body", "heart", "heart", "body", "body"]
-LEG_MAX = 4      # the leg's stroke, steps above the sky (the femur and foot one less)
-LEG_KNEE = 5     # the knee, one step brighter
-LEG_HOLES = 0.08  # the share of a leg's pixels left out, so it reads as dust, not wire
-# How far round each pincer its haze reaches: the first pass's pixels are kept in there.
-PINCER_HAZE = 7
-# The solid tags that go with another part's piece.
-TAG_PARTS = {"arms": "claws", "carapace": "claws"}
+CHELAE = [
+    {"wrist": (562, 365), "ang": 8, "L": 154, "h": 44, "g": 0.0, "fb": 0.62},
+    {"wrist": (670, 604), "ang": 112, "L": 164, "h": 46, "g": 0.04, "fb": 0.58},
+]
+
+# The painting over the line: the line LINE_STEPS above the sky (one more on its lit side), stardust
+# dithered inside each segment (thick along its edge over BAND px, thin in its middle), specks, and
+# a few rose glints on the brightest stretches of the line.
+LINE_STEPS = 4
+LIT_FACING = 0.15
+NEBULA_CELL = 8
+BAND = 5.0
+CORE = 0.16
+FILL = 1.45
+SECOND = 0.40
+GLINT_FACING = 0.45
+GLINTS = 0.14
 
 
-def body_plates(S: Solids):
-    """The mesosoma: seven plates from just behind the carapace to mu, widest round Antares."""
-    sigma, antares, tau, eps, mu = L[3], L[4], L[5], L[6], L[7]
-    widths = [11.0, 12.5, 13.5, 13.5, 12.5, 11.0, 9.0]
-    track = [lerp(sigma, antares, 0.45), lerp(sigma, antares, 0.95), lerp(antares, tau, 0.45),
-             lerp(antares, tau, 0.95), lerp(tau, eps, 0.5), lerp(eps, mu, 0.1), lerp(eps, mu, 0.55)]
-    for k in range(7):
-        S.tag = "heart" if k < 3 else "body"
-        prev = track[max(k - 1, 0)]
-        nxt = track[min(k + 1, 6)]
-        S.ellipsoid(track[k], v(nxt) - v(prev), 9.0, widths[k], depth=7.0, lift=-k * 0.6, along_flat=0.35)
-
-
-def tail_and_sting(S: Solids):
-    """The metasoma (five joints from mu to kappa, thinning), the telson between kappa and Shaula,
-    and the curved sting past Shaula."""
-    eps, mu = L[6], L[7]
-    tail = [lerp(eps, mu, 0.92), L[8], L[9], L[10], L[11], L[12]]
-    radii = [7.0, 6.6, 6.2, 5.8, 5.4]
-    for k in range(5):
-        S.tag = "tail" if k < 4 else "stinger"
-        a, b = v(tail[k]), v(tail[k + 1])
-        S.ellipsoid((a + b) / 2, b - a, np.linalg.norm(b - a) / 2 + 3.0, radii[k], depth=6.0, lift=-3.0 + k * 0.2, along_flat=0.5)
-    kappa, shaula = v(L[12]), v(L[13])
-    S.tag = "stinger"
-    S.ellipsoid(lerp(kappa, shaula, 0.6), shaula - kappa, 13.0, 6.8, depth=6.0, lift=-1.5)
-    tip, forward, curl = sting_tip()
-    sting_points = bezier(shaula + forward * 4.0, shaula + forward * 14.0 + curl * 2.0, tip, 10)
-    S.chain(sting_points, list(np.linspace(3.6, 0.5, len(sting_points))), lift=-1.0)
-
-
-def sting_tip():
-    """The sting's point, the telson's forward direction and the way the sting curls (up)."""
-    kappa, shaula = v(L[12]), v(L[13])
-    forward = unit(shaula - kappa)
-    curl = np.array([forward[1], -forward[0]])
-    if curl[1] > 0:
-        curl = -curl
-    return shaula + forward * 13.0 + curl * 12.0, forward, curl
-
-
-def heavy_pincer(S: Solids, claw, bend: float):
-    """A heavy pincer at a claw star (beta up, `bend` -1; pi down, +1), opening forward (right),
-    the way the scorpion faces. The lower one is pulled in so its fingers end inside x 180."""
-    reach = 1.0 if bend < 0 else 0.62
-    manus = v(claw) + v((5.0 * reach, 0.0))
-    S.ellipsoid(manus, (1.0, 0.25 * bend), 8.5, 5.8, depth=5.5, lift=0.5)
-    tip = manus + v((7.0 * reach, 0.0))
-    fixed = bezier(tip + v((-1, -2.2)), tip + v((7.0 * reach, -6.0)), tip + v((11.0 * reach, -1.0)), 7)
-    moving = bezier(tip + v((-1, 2.2)), tip + v((7.0 * reach, 6.0)), tip + v((11.0 * reach, 1.0)), 7)
-    S.chain(fixed, list(np.linspace(2.8, 0.7, 7)), lift=0.2)
-    S.chain(moving, list(np.linspace(2.5, 0.7, 7)), lift=0.0)
-
-
-def arm_elbow(claw, bend: float):
-    """The pedipalp's elbow: halfway to the claw star from the carapace's front, pulled back."""
-    shoulder = v(L[1]) + v((-4.0, 5.0 * bend))
-    return lerp(shoulder, claw, 0.5) + v((-6.0, 1.0 * bend))
-
-
-def cara_frame():
-    """The shield's back centre, its unit axis to the front, its unit side (+: the lower flank)
-    and its length."""
-    b, f = v(CARA_BACK), v(CARA_FRONT)
-    length = float(np.linalg.norm(f - b))
-    u = (f - b) / length
-    w = np.array([-u[1], u[0]])
-    return b, u, w, length
-
-
-def cara_half(s):
-    return CARA_HALF[0] + (CARA_HALF[1] - CARA_HALF[0]) * s
-
-
-def shield(S: Solids, depth=8.0, lift=1.5):
-    """The carapace as a height field: a rounded trapezoid (superellipse), domed, with a notch."""
-    b, u, w, length = cara_frame()
-    dx, dy = S.px - b[0], S.py - b[1]
-    s = (dx * u[0] + dy * u[1]) / length
-    t = dx * w[0] + dy * w[1]
-    tn = t / cara_half(np.clip(s, 0, 1))
-    r = np.abs(2.0 * s - 1.0) ** 6 + np.abs(tn) ** 4
-    inside = r <= 1.0
-    inside &= ~((s * length > length - 1.6) & (np.abs(t) < 1.6))  # the front notch
-    h = depth * np.sqrt(np.clip(1.0 - r, 0.0, 1.0)) * inside
-    gy, gx = np.gradient(h)
-    S._put(inside, h, -gx, -gy, np.full_like(h, 1.2), lift)
-
-
-def front_corner(sign: float):
-    """A front corner of the shield, where an arm leaves from under it."""
-    b, u, w, length = cara_frame()
-    return b + u * (length - 2.0) + w * sign * (cara_half(1.0) - 1.0)
-
-
-def build_vision(S: Solids) -> list:
-    """The scorpion's form (a mask, normals and joints for the stardust, never shaded as solids):
-    the plates, the shield over their front, the tail and sting, and the arms from the shield's
-    front corners to beta and pi with heavy pincers. The legs are strokes (`leg_strokes`), not
-    solids: a solid tube this thin would draw as two outlines and a knot of haze. Returns the ids
-    of the two arms' first joints (the shield's rim breaks where they leave it)."""
-    arms = []
-    body_plates(S)
-    S.tag = "carapace"
-    shield(S)
-    tail_and_sting(S)
-    for claw, bend in ((L[0], -1.0), (L[2], 1.0)):
-        S.tag = "arms"
-        S.chain([front_corner(bend), arm_elbow(claw, bend), claw], [3.6, 3.0, 3.6], lift=-0.5)
-        arms.append(S.count - 2)
-        S.tag = "claws"
-        heavy_pincer(S, claw, bend)
-    return arms
-
-
-def build_first_vision(S: Solids):
-    """The first approved pass's form, kept for its pincers (the user's favourite part: their haze
-    and contour depend on the arms and carapace round them): solid legs, an oval carapace and the
-    arms from its front, all else as `build_vision`."""
-    head, sigma, antares, mu = L[1], L[3], L[4], L[7]
-    spine_dir = unit(v(mu) - v(sigma))
-    side = np.array([-spine_dir[1], spine_dir[0]])
-    roots = [lerp(head, sigma, 0.55), lerp(head, sigma, 0.95), lerp(sigma, antares, 0.4), lerp(sigma, antares, 0.85)]
-    reach = [15.0, 17.0, 18.0, 18.0]
-    for k, root in enumerate(roots):
-        S.tag = "heart" if k < 2 else "body"
-        for sign in (-1.0, 1.0):
-            out = side * sign
-            knee = root + out * reach[k] * 0.55 - spine_dir * (3.0 - k * 1.5)
-            ankle = knee + out * reach[k] * 0.35 + spine_dir * (2.0 + k * 1.2)
-            foot = ankle + spine_dir * (5.0 + k) + out * 2.0
-            S.chain([root, knee, ankle, foot], [2.1, 1.8, 1.4, 0.9], lift=-4.0)
-    body_plates(S)
-    S.tag = "claws"
-    S.ellipsoid(lerp(head, sigma, 0.45), v(head) - v(sigma), 15.0, 11.0, depth=8.0, lift=1.5)
-    tail_and_sting(S)
-    S.tag = "claws"
-    for claw, bend in ((L[0], -1.0), (L[2], 1.0)):
-        shoulder = v(head) + v((-4.0, 5.0 * bend))
-        S.chain([shoulder, arm_elbow(claw, bend), claw], [3.6, 3.0, 3.6], lift=-0.5)
-        heavy_pincer(S, claw, bend)
-
-
-def pincer_zone() -> np.ndarray:
-    """The pincers (hands and fingers) grown by their haze's reach: the first pass's pixels."""
-    S = Solids()
-    for claw, bend in ((L[0], -1.0), (L[2], 1.0)):
-        heavy_pincer(S, claw, bend)
-    return sd.grow(S.z >= 0, PINCER_HAZE)
-
-
-def leg_line(a, b):
-    (x0, y0), (x1, y1) = a, b
-    n = max(abs(x1 - x0), abs(y1 - y0))
-    return [(round(x0 + (x1 - x0) * k / n), round(y0 + (y1 - y0) * k / n)) for k in range(n + 1)]
-
-
-def leg_strokes():
-    """Each leg as a 1 px stroke of (segment, pixel) pairs: 0 femur, 1 tibia, 2 foot."""
+def catmull(pts, n=40):
+    """A Catmull-Rom curve through `pts`, `n` points per span."""
+    pts = [np.array(p, float) for p in pts]
+    P = [pts[0] * 2 - pts[1]] + pts + [pts[-1] * 2 - pts[-2]]
     out = []
-    for leg_points in LEGS:
-        px = []
-        for seg in range(3):
-            for p in leg_line(leg_points[seg], leg_points[seg + 1]):
-                if not px or px[-1][1] != p:
-                    px.append((seg, p))
-        out.append(px)
+    for i in range(1, len(P) - 2):
+        p0, p1, p2, p3 = P[i - 1], P[i], P[i + 1], P[i + 2]
+        for t in np.linspace(0, 1, n, endpoint=False):
+            t2, t3 = t * t, t * t * t
+            out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+                              + (-p0 + 3 * p1 - 3 * p2 + p3) * t3))
+    out.append(P[-2])
+    return np.array(out)
+
+
+class Axis:
+    """A smooth spine, walked by arclength: its point, tangent and normal (left of travel)."""
+
+    def __init__(self, pts):
+        self.p = catmull(pts, 60)
+        d = np.linalg.norm(np.diff(self.p, axis=0), axis=1)
+        self.s = np.concatenate([[0], np.cumsum(d)])
+        self.L = self.s[-1]
+
+    def at(self, s):
+        s = min(max(s, 0), self.L)
+        return np.array([np.interp(s, self.s, self.p[:, 0]), np.interp(s, self.s, self.p[:, 1])])
+
+    def tan(self, s):
+        s = min(max(s, 0), self.L)
+        t = self.at(min(s + 3, self.L)) - self.at(max(s - 3, 0))
+        if np.linalg.norm(t) < 1e-6:
+            t = self.p[-1] - self.p[-2] if s > self.L / 2 else self.p[1] - self.p[0]
+        return t / np.linalg.norm(t)
+
+    def frame(self, s):
+        t = self.tan(s)
+        return self.at(s), t, np.array([-t[1], t[0]])
+
+
+def path_of(pts):
+    """A closed polygon as an SVG path (0.1 px)."""
+    pts = [(round(float(x), 1), round(float(y), 1)) for x, y in pts]
+    return "M %s %s " % pts[0] + " ".join("L %s %s" % p for p in pts[1:]) + " Z"
+
+
+def segment(axis, s0, s1, w0, w1, p=4.0, n=48, pinch=0.0):
+    """A body segment from arclength s0 to s1, half-width w0 to w1, with superellipse ends."""
+    left, right = [], []
+    for u in np.linspace(-1, 1, n):
+        s = s0 + (u + 1) / 2 * (s1 - s0)
+        c, t, nrm = axis.frame(s)
+        w = w0 + (w1 - w0) * (u + 1) / 2
+        k = (1 - abs(u) ** p) ** (1 / p)
+        k *= 1 - pinch * (u * u)
+        left.append(c + nrm * w * k)
+        right.append(c - nrm * w * k)
+    return left + right[::-1]
+
+
+def tube(spine, w0, w1, n=50):
+    """A tapered tube along a smoothed spine, with round end caps."""
+    ax = Axis(spine)
+    left, right = [], []
+    for s in np.linspace(0, ax.L, n):
+        c, t, nrm = ax.frame(s)
+        w = w0 + (w1 - w0) * s / ax.L
+        left.append(c + nrm * w)
+        right.append(c - nrm * w)
+    c1, t1, n1 = ax.frame(ax.L)
+    cap_end = [c1 + t1 * w1 * math.sin(a) + n1 * w1 * math.cos(a) for a in np.linspace(0, math.pi, 9)[1:-1]]
+    c0, t0, n0 = ax.frame(0)
+    cap_start = [c0 - t0 * w0 * math.sin(a) - n0 * w0 * math.cos(a) for a in np.linspace(0, math.pi, 9)[1:-1]]
+    return left + cap_end + right[::-1] + cap_start
+
+
+def placed(origin, ang_deg, pts):
+    """Local points (x along the pointing direction `ang_deg`, y to its upper side) on the screen."""
+    a = math.radians(ang_deg)
+    u = np.array([math.cos(a), math.sin(a)])
+    w = np.array([math.sin(a), -math.cos(a)])
+    o = np.array(origin, float)
+    return [o + u * x + w * y for x, y in pts]
+
+
+def cubic(p0, p1, p2, p3, n=16):
+    p0, p1, p2, p3 = (np.array(p, float) for p in (p0, p1, p2, p3))
+    return [((1 - t) ** 3) * p0 + 3 * ((1 - t) ** 2) * t * p1 + 3 * (1 - t) * t * t * p2 + t ** 3 * p3
+            for t in np.linspace(0, 1, n)]
+
+
+def chela(L, h, g=0.0, fb=0.62):
+    """A pincer in local space (x along it, y to its outer side): a bulbous hand and two curved
+    fingers, their tips turned toward each other round an almond opening. The fingers begin at
+    `fb` of its length; `g` opens the gap between their tips."""
+    def X(x):
+        return L * (x * fb / 0.62 if x <= 0.62 else fb + (x - 0.62) * (1 - fb) / 0.38)
+    P = []
+    P += cubic((X(0), 0.42 * h), (X(0.12), 1.0 * h), (X(0.45), 1.08 * h), (X(0.62), 0.78 * h))
+    P += cubic((X(0.62), 0.78 * h), (X(0.80), 0.60 * h), (X(0.98), 0.48 * h), (X(1.0), (0.16 + g) * h))[1:]
+    P += cubic((X(1.0), (0.16 + g) * h), (X(0.93), (0.30 + g) * h), (X(0.80), 0.34 * h), (X(0.66), 0.06 * h))[1:]
+    P += cubic((X(0.66), 0.06 * h), (X(0.78), -0.26 * h), (X(0.90), (-0.24 - g) * h), (X(0.95), (-0.20 - g) * h))[1:]
+    P += cubic((X(0.95), (-0.20 - g) * h), (X(0.95), -0.50 * h), (X(0.78), -0.76 * h), (X(0.55), -0.90 * h))[1:]
+    P += cubic((X(0.55), -0.90 * h), (X(0.35), -1.0 * h), (X(0.10), -0.85 * h), (X(0), -0.40 * h))[1:]
+    return P
+
+
+def body_width(s):
+    xs_, ws = zip(*BODY_WIDTH)
+    return float(np.interp(s, xs_, ws))
+
+
+def figure_shapes() -> list:
+    """The scorpion as clean_line shapes, back to front: the telson, the tail, the legs, the
+    plates, the arms, the carapace and the pincers."""
+    shapes = []
+
+    def add(name, part, pts, group=None):
+        shapes.append({"name": name, "part": part, "group": group or name, "d": path_of(pts)})
+
+    ax = Axis(AXIS)
+    shapes.append({"name": "telson", "part": "stinger", "group": "telson", "d": TELSON})
+    step = (ax.L - TAIL_S0) / len(TAIL_WIDTHS)
+    for i in reversed(range(len(TAIL_WIDTHS))):
+        s0, s1, w = TAIL_S0 + i * step - 7, TAIL_S0 + (i + 1) * step + 7, TAIL_WIDTHS[i]
+        add(f"bead{i}", TAIL_PARTS[i], segment(ax, s0, s1, w, w * 0.94, p=2.4, pinch=0.12))
+    for side, sign, legs in (("u", 1, LEGS_UP), ("d", -1, LEGS_DOWN)):
+        for j, (s, a1, l1, a2, l2) in enumerate(legs):
+            c, t, nrm = ax.frame(s)
+            n, f = nrm * sign, -t
+            root = c + n * (body_width(s) - 10)
+
+            def toward(a):
+                r = math.radians(a)
+                return n * math.cos(r) + f * math.sin(r)
+            knee = root + toward(a1) * l1
+            foot = knee + toward(a2) * l2
+            spine = [root, root + toward(a1) * l1 * 0.55, knee, knee + toward(a2) * l2 * 0.5, foot]
+            add(f"leg_{side}{j}", "claws" if s < CARA_S1 else "heart", tube(spine, *LEG_WIDTH))
+    for i in reversed(range(len(PLATE_PARTS))):
+        s0, s1 = PLATE_EDGES[i] - 4, PLATE_EDGES[i + 1] + 10
+        add(f"plate{i}", PLATE_PARTS[i], segment(ax, s0, s1, body_width(s0 + 4), body_width(s1 - 4), p=3.2))
+    for k, arm in enumerate(ARMS):
+        add(f"femur{k}", "claws", tube(arm["femur"], *arm["fw"]), group=f"arm{k}")
+        add(f"patella{k}", "claws", tube(arm["patella"], *arm["pw"]), group=f"arm{k}")
+    add("carapace", "claws", segment(ax, CARA_S0, CARA_S1, CARA_W[0], CARA_W[1], p=3.0))
+    for k, ch in enumerate(CHELAE):
+        add(f"chela{k}", "claws", placed(ch["wrist"], ch["ang"], chela(ch["L"], ch["h"], ch["g"], ch["fb"])))
+    return shapes
+
+
+def blur(a, r):
+    """`a` box-blurred three times with radius `r` (about a Gaussian)."""
+    out = a.astype(float)
+    k = 2 * r + 1
+    for _ in range(3):
+        c = np.pad(np.cumsum(np.cumsum(np.pad(out, r, mode="edge"), 0), 1), ((1, 0), (1, 0)))
+        out = (c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]) / (k * k)
     return out
 
 
-def trail_path():
-    """The sting's trail: it leaves the sting along its curl, then wanders up and left, waving."""
-    tip, forward, curl = sting_tip()
-    up_left = unit((-0.62, -1.0))
-    side = np.array([-up_left[1], up_left[0]])
-    path = []
-    for k in range(260):
-        t = k / 259
-        p = (tip + curl * 5.0 + forward * 3.0 * min(t * 6, 1.0) + curl * 4.0 * min(t * 6, 1.0)
-             + up_left * 78.0 * t + side * 7.0 * math.sin(t * 2.6 * math.pi) * t)
-        path.append((p, t))
-    return path
-
-
-def head_marks(dust, S: Solids, cara, arms):
-    """The carapace's own lines: its rim drawn whole (it lies over the legs and the first plate),
-    broken only where the arms leave from under its front corners, and a faint median ridge.
-    Returns the dark gap just outside the rim (kept empty: the shield overlaps what is under it)
-    and the two median eyes near its front edge."""
-    b, u, w, length = cara_frame()
-    s = ((S.px - b[0]) * u[0] + (S.py - b[1]) * u[1]) / length
-    t = (S.px - b[0]) * w[0] + (S.py - b[1]) * w[1]
-    rim = np.zeros((H, W), bool)
-    arms_near = np.zeros((H, W), bool)
-    near = np.zeros((H, W), bool)
-    for dy, dx in sd.FOUR:
-        rim |= cara & ~sd.shift(cara, dy, dx)
-        arms_near |= np.isin(sd.shift(S.owner, dy, dx), arms)
-        near |= sd.shift(cara, dy, dx)
-    dust.put(rim & ~arms_near, 4)
-    dust.put(cara & (np.abs(t) < 0.7) & (s > 0.28) & (s < 0.64), 2)
-    gap = near & ~cara & (S.z >= 0) & ~arms_near
-    # Where the shield's top edge meets the first plate's, a 1 px break so the two lines don't
-    # run on as one outline.
-    gap |= (sd.xs >= 126) & (sd.xs <= 128) & (sd.ys >= 111) & (sd.ys <= 113) & ~cara
-    eyes = []
-    for side in (-1.0, 1.0):
-        e = b + u * (0.84 * length) + w * side * 2.0
-        eyes.append((int(round(e[0])), int(round(e[1]))))
-    return gap, eyes
-
-
-def paint_legs(dust, body):
-    """The legs as single strokes of dust, hidden where the body lies over them, at the outline's
-    strength with the knee one step brighter, a few specks drifting off each shin, and a dotted
-    shadow under the femur. Returns each leg's pixels (for its piece)."""
-    marks = []
-    for li, leg in enumerate(leg_strokes()):
-        mine = np.zeros((H, W), bool)
-        kx, ky = LEGS[li][1]
-        for seg, (x, y) in leg:
-            if body[y, x] or sd.hsh(x, y, 37) < LEG_HOLES:
-                continue
-            step = (LEG_MAX - 1, LEG_MAX, LEG_MAX - 1)[seg]
-            if (x - kx) ** 2 + (y - ky) ** 2 <= 2:
-                step = LEG_KNEE
-            dust.level[y, x] = max(dust.level[y, x], step)
-            dust.fixed[y, x] = ""
-            mine[y, x] = True
-        for seg, (x, y) in leg:
-            if seg == 1 and sd.hsh(x, y, 41) < 0.30:
-                dx, dy = (2, 0) if sd.hsh(x, y, 42) < 0.5 else (-2, 1)
-                if not body[y + dy, x + dx] and dust.level[y + dy, x + dx] <= 1:
-                    dust.fixed[y + dy, x + dx] = "N8" if sd.hsh(x, y, 43) < 0.6 else "N7"
-                    mine[y + dy, x + dx] = True
-        for seg, (x, y) in leg:
-            if seg == 0 and li < 4 and not body[y + 1, x] and dust.level[y + 1, x] < 1 and (x + y) % 2 == 0:
-                dust.level[y + 1, x] = 1
-                mine[y + 1, x] = True
-        marks.append(mine)
-    return marks
-
-
-def paint_vision(S: Solids, arms=None):
-    """The stardust over a form: with `arms` (the ids `build_vision` returns), the head pass
-    (shield marks, eyes, leg strokes); without, the first pass (eye glints only). Returns the
-    painting and, for the head pass, the marks its pieces need."""
-    rng = np.random.default_rng(SEED)
-    inside = S.z >= 0.0
-    lit = np.clip(S.n @ LIGHT, 0.0, 1.0)
-    facing = S.n[..., 0] * LIGHT[0] + S.n[..., 1] * LIGHT[1]
-    tags = np.array(S.tags + [""], dtype=object)[S.owner]
-    cara = tags == "carapace"
-    dust = sd.Dust()
-    edge = sd.edge_of(inside)
-    crease = sd.creases_of(inside, S.owner, S.z, edge)
-    dist = sd.distance_inside(inside)
-
-    # The pincers, the shield and the sting keep more of their outline: they must read.
-    bias = sd.contour_bias(facing, {"claws": 0.34, "arms": 0.34, "stinger": 0.30, "carapace": CARA_BIAS}, tags)
-    contour = sd.broken_contour(dust, rng, edge, facing, lit, bias)
-    sd.joint_strokes(dust, rng, crease)
-    if arms is not None:
-        cara_gap, eyes = head_marks(dust, S, cara, arms)
-    sd.nebula(dust, rng, inside, dist, lit, np.where(cara, CARA_FILL, 1.0))
-    out_d = sd.outer_haze(dust, rng, inside)
-    path = trail_path()
-    sd.stardust_trail(dust, path)
-    sd.specks(dust, inside, dist, out_d, lit)
-    sd.rose_glints(dust, contour, lit)
-
-    marks = None
-    if arms is None:
-        # The eyes: two pale glints on the carapace's brow.
-        for ex, ey in ((152, 109), (154, 113)):
-            dust.fixed[ey, ex] = "D0"
-    else:
-        dust.level[cara_gap] = -1
-        # The eyes: a pair of dots at the outline's strength, each in a small clear hollow.
-        for ex, ey in eyes:
-            dust.clear((np.abs(sd.xs - ex) <= 1) & (np.abs(sd.ys - ey) <= 1))
-        for ex, ey in eyes:
-            dust.level[ey, ex] = 4
-        dust.fixed[cara_gap] = ""
-        marks = {"legs": paint_legs(dust, inside | cara_gap), "trail": sd.trail_pixels(path)}
-    # The sting's point: a rose glint where the hook ends, so the trail reads as leaving it.
-    tip, _, _ = sting_tip()
-    tx, ty = int(round(tip[0])), int(round(tip[1]))
-    dust.fixed[ty, tx] = "N9"
-    dust.fixed[ty + 1, tx] = "N8"
-    sd.star_gaps(dust, L, SIZES)
-    return sd.resolve(dust, sd.sky_index()), marks
-
-
 def paint_scorpio():
-    """The whole Scorpio: the head pass, with the pincers and their haze from the first pass.
-    Returns the painting, the head pass's form and its marks (for the pieces)."""
-    S = Solids()
-    arms = build_vision(S)
-    img, marks = paint_vision(S, arms)
-    first = Solids()
-    build_first_vision(first)
-    first_img, _ = paint_vision(first)
-    keep = pincer_zone()
-    img[keep] = first_img[keep]
+    """The whole Scorpio: the clean line in the Stardust ramp, and stardust dithered inside each
+    segment, thick at its edge and thin in its middle so the sky shows through (semi-hollow).
+    Returns the painting and each pixel's part (the group's on top, "" off the form)."""
+    line, groups, parts = clean_line.draw(figure_shapes())
+    form = groups >= 0
+    rng = np.random.default_rng(SEED)
+    # Which way each pixel faces, read off the silhouette: the blurred form's slope points out.
+    gy, gx = np.gradient(blur(form, 3))
+    light = LIGHT[:2] / np.linalg.norm(LIGHT[:2])
+    mag = np.hypot(gx, gy) + 1e-6
+    facing = (-gx * light[0] - gy * light[1]) / mag * np.clip(mag * 6, 0, 1)
+    lit = np.clip(0.5 + 0.6 * facing, 0, 1)
+    # Each segment hollow on its own: the distance to its own visible border.
+    dist = np.zeros((H, W))
+    for g in range(groups.max() + 1):
+        dist = np.maximum(dist, sd.distance_inside(groups == g))
+    inside = form & ~line
+
+    dust = sd.Dust()
+    dust.put(line, LINE_STEPS)
+    dust.put(line & (facing > LIT_FACING), LINE_STEPS + 1)
+    neb = sd.value_noise(rng, NEBULA_CELL, 3)
+    band = np.clip(1.0 - (dist - 1.0) / BAND, 0.0, 1.0)
+    dens = (band * (0.35 + 0.55 * lit) + CORE + 0.15 * lit) * np.clip((neb - 0.22) * 2.4, 0, 1.2) * FILL
+    dust.put(inside & (sd.BAY < dens), 1)
+    dust.put(inside & (sd.BAY < dens * SECOND) & (lit > 0.5), 2)
+    sd.specks(dust, form, dist, sd.distance_inside(~form), lit)
+    dust.fixed[line] = ""
+    for y, x in zip(*np.nonzero(line & (facing > GLINT_FACING))):
+        if sd.hsh(x, y, 4) < GLINTS:
+            dust.fixed[y, x] = "N9"
+    sd.star_gaps(dust, L, SIZES)
+    sky = sd.sky_index()
+    img = sd.resolve(dust, sky)
     # Each star on one faint pixel of its own (one step above the sky, hidden under the star): its
     # piece holds it, so the chart can grow that piece from its stars.
-    sky = sd.sky_index()
     for x, y in L:
         if not img[y, x, 3]:
             img[y, x, :3] = sd.PAL[sd.N[sky[y, x] + 1]]
             img[y, x, 3] = 255
-    # The haze stops above the end panel, so the whole tail stays in view after the win.
+    # Nothing at or below the end panel, so the whole tail stays in view after the win.
     img[END_PANEL_TOP:] = 0
-    return sd.sun_clamp(img), S, marks
+    return sd.sun_clamp(img), parts
 
 
-def part_tags(S: Solids, img: np.ndarray, marks) -> np.ndarray:
-    """Each painted pixel's part: the part of the solid under it (a joint where two parts meet goes
-    with the part of the star on it, so every star sits on its own part's piece), else its leg's
-    or the sting's trail's, else the nearest tagged pixel's (the haze and the specks off the form)."""
+def part_tags(parts: np.ndarray, img: np.ndarray) -> np.ndarray:
+    """Each painted pixel's part: the part of the segment under it, else the nearest tagged pixel's
+    (the specks off the form). Each star's own pixel goes with its part, and each star must sit on
+    a segment of its part."""
     for star, part in STAR_PARTS.items():
         x, y = L[star]
-        S.tags[S.owner[y, x]] = part
-    names = [TAG_PARTS.get(t, t) for t in S.tags]
-    for star, part in STAR_PARTS.items():
-        x, y = L[star]
-        assert names[S.owner[y, x]] == part, f"landmark {star} sits on a solid of two parts"
-    tags = np.array(names + [""], dtype=object)[S.owner]
-    for mine, part in zip(marks["legs"], LEG_PARTS):
-        tags[mine & (tags == "")] = part
-    tags[marks["trail"] & (tags == "")] = "stinger"
-    tags = sd.spread_tags(tags, img[..., 3] > 0)
-    # Each star's own pixel goes with its part, whatever solid lies under it.
+        assert parts[y, x] == part, f"landmark {star} sits on {parts[y, x] or 'nothing'}, not {part}"
+    tags = sd.spread_tags(parts, img[..., 3] > 0)
     for star, part in STAR_PARTS.items():
         x, y = L[star]
         tags[y, x] = part
     return tags
-
-
 
 
 # The part stages' own paintings: the same body parts, fitted to each stage's landmarks.
@@ -775,11 +667,11 @@ def main():
     parser.add_argument("--preview", type=Path, help="also write the figure over the sky, x3, here")
     args = parser.parse_args()
     ART.mkdir(parents=True, exist_ok=True)
-    img, S, marks = paint_scorpio()
+    img, parts = paint_scorpio()
     used = sd.check(img)
     print(f"figure: {sum(used.values())} px, {used}")
     save(img, OUT)
-    for part, piece in sd.pieces(img, part_tags(S, img, marks), PARTS).items():
+    for part, piece in sd.pieces(img, part_tags(parts, img), PARTS).items():
         save(piece, ART / f"scorpio_piece_{part}.png")
     if args.preview:
         sd.preview(img, L, SIZES, SEGMENTS).save(args.preview)
