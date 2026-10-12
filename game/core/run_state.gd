@@ -31,6 +31,13 @@ signal hole_intro_cleared(stars: Array[Star])
 ## `merged`, they met in one hole at to[0] (its horizon gravity.horizon), and big_bang_started
 ## follows there, clearing the sky for no dust.
 signal holes_drifted(from: Array[Vector2i], to: Array[Vector2i], merged: bool)
+## The light gauge: a link sent `amount` of its light into the hole from `from` (the link's middle)
+## instead of the Sun; the gauge now holds `absorbed` of `capacity` (0 when that filled it:
+## big_bang_started follows at the hole, clearing the sky for no dust).
+signal light_absorbed(from: Vector2i, amount: int, absorbed: int, capacity: int)
+## The gauge's intro, as the stage opens: a demo link's `amount` of light streams from `from` into the
+## hole and fills its gauge that far, then it drains back (presentation only).
+signal gauge_intro_shown(from: Vector2i, amount: int)
 ## Twin holes' intro, as the stage opens: where each twin will be launch by launch (`paths`, one
 ## array of centres each, the meeting point last in both), shown as a forecast. Presentation only.
 signal holes_forecast(paths: Array)
@@ -303,6 +310,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			gravity = StarGravity.new(scorpio.map.black_hole_center + scorpio.shift, hole.horizon, hole.pull, hole.max_step, hunger, hole.max_horizon)
 			if scorpio.map.black_hole_twins:
 				gravity.add_twin(scorpio.map.black_hole_twin + scorpio.shift, hole.drift, hole.merge_horizon)
+			if scorpio.map.black_hole_gauge and hole.gauge > 0:
+				gravity.set_gauge(hole.gauge, hole.gauge_share)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -872,8 +881,10 @@ func link(star_ids: Array[int]) -> String:
 	var reward: Balance.ComboReward = balance.combos[combo]
 	var paid: int = link_dust(combo)
 	dust += paid
-	light += reward.light
-	combo_collected.emit(combo, linked, paid, reward.light)
+	# The light gauge: the hole drinks its share, and only the rest reaches the Sun.
+	var drunk: int = gravity.drinks(reward.light) if gravity != null else 0
+	light += reward.light - drunk
+	combo_collected.emit(combo, linked, paid, reward.light - drunk)
 	if scorpio != null:
 		for star: Star in linked:
 			if scorpio.is_landmark(star.id):
@@ -887,6 +898,8 @@ func link(star_ids: Array[int]) -> String:
 			_clear_sky(0)
 		if scorpio.is_complete():
 			constellation_completed.emit()
+	if drunk > 0:
+		_drink_light(_centre_of(linked), drunk)
 	# Orion: a link that left his mark behind has the arrow take it (a clear took it already), before
 	# the loss check sees the sky. Then he marks a new star if the run goes on. On the final he also
 	# looses volleys (the Claws had them too, until #97): the single arrow flies first, so the mark is
@@ -1111,6 +1124,37 @@ func _fall_stars() -> void:
 	gravity.feed(swallowed.size())
 	if not fell.is_empty():
 		stars_fell.emit(fell)
+
+
+## The light gauge drinks a link's `amount` from `from`; filled, the hole goes Big Bang: every loose
+## star cleared for nothing (lit stars stay), and the gauge empties. Not over a completed figure (the
+## win clears the sky itself).
+func _drink_light(from: Vector2i, amount: int) -> void:
+	var filled: bool = gravity.absorb(amount)
+	light_absorbed.emit(from, amount, gravity.absorbed, gravity.capacity)
+	if filled and not scorpio.is_complete():
+		var cleared: Array[Star] = stars.duplicate()
+		stars.clear()
+		_orion_forget(cleared)
+		big_bang_started.emit(gravity.center, cleared, 0)
+
+
+## Pure: whether a valid link of `star_ids` would fill the hole's light gauge (and so bang).
+func link_fills_gauge(star_ids: Array[int]) -> bool:
+	if gravity == null or not gravity.has_gauge() or is_over():
+		return false
+	var combo: String = combo_for(star_ids)
+	if combo == Combos.INVALID:
+		return false
+	return gravity.fills_with(gravity.drinks(balance.combos[combo].light))
+
+
+## The gauge's intro, as a stage with a light gauge and intros opens: a demo link's light (a
+## sequence's share) streams into the hole and back out. Changes nothing.
+func play_gauge_intro() -> void:
+	if gravity == null or not gravity.has_gauge() or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	gauge_intro_shown.emit(_open_middle(), gravity.drinks(balance.combos[Combos.SEQUENCE].light))
 
 
 ## Twin holes drift toward each other; if they meet, they merge in a Big Bang that clears the sky,
@@ -1559,7 +1603,7 @@ func play_current_intro() -> void:
 ## a copy of the hole (a hungry one grows as it swallows), and the one left fades out. No pack used,
 ## no reward, no RNG drawn. Nothing without a hole, on a map without intros, or once the run has begun.
 func play_hole_intro() -> void:
-	if gravity == null or gravity.has_twins() or scorpio == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+	if gravity == null or gravity.has_twins() or gravity.has_gauge() or scorpio == null or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
 	var spots: Array[Vector2i] = hole_intro_spots()
 	if spots.is_empty():
