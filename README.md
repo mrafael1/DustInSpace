@@ -65,6 +65,7 @@ All costs, chances, rewards and targets live in [game/config/balance.json](game/
 | --- | --- |
 | [Game design](docs/design.md) | Core loop, combos, Scorpio, win/loss and sound |
 | [Art direction](docs/art-direction.md) | Palette, pixel grid, sprites and UI |
+| [Web hosting](docs/web-hosting.md) | Build the game (chapters 1-4) and deploy the AloneLab site to Netlify |
 | [Contributor instructions](AGENTS.md) | Repository layout, workflow and checks |
 | [Balance configuration](game/config/balance.json) | Shared tuning for the game and simulator |
 | [Issues](https://github.com/mrafael1/DustInSpace/issues) | Bugs, experiments and planned work |

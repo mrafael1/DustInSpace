@@ -132,3 +132,32 @@ func test_the_aquarius_chart_draws_its_own_figure_and_paintings() -> void:
 	assert_eq(path[-1], def.figure.landmarks[3], "and climbs to the jar, through the knee and the head")
 	(chart.get_node("Chart") as CanvasItem).queue_redraw()
 	await get_tree().process_frame
+
+
+func test_all_open_opens_every_chapter_and_stage_for_testing() -> void:
+	var app: App = AppScene.instantiate()
+	app.opens_on_title = false
+	app.progress_path = STORE
+	app.all_open = true
+	add_child_autofree(app)
+	for each: Chapter in app.chapters:
+		assert_true(app.is_open(each), "%s is open" % each.id)
+		for stage: int in Chapter.stage_count():
+			if each.has_stage(stage):
+				assert_ne(each.state(stage), Chapter.PointState.LOCKED, "%s stage %d" % [each.id, stage])
+	app.chapter = app.chapters[3]
+	app.open_stage(Chapter.FINAL)
+	assert_not_null(app.stage(), "Virgo's final plays at once")
+	app.stage().stage_won.emit()
+	assert_true(app.chapter.is_completed(Chapter.FINAL), "a win still counts")
+	app.back_to_chart()
+	assert_false((app.get_node("ChapterSelect") as ChapterSelect).is_opening(), "no chapter to open: all are")
+
+
+func test_without_all_open_progression_holds() -> void:
+	var fresh := Chapter.new(ChapterDef.virgo())
+	assert_eq(fresh.state(1), Chapter.PointState.LOCKED)
+	fresh.all_open = true
+	assert_eq(fresh.state(1), Chapter.PointState.AVAILABLE)
+	assert_eq(fresh.state(Chapter.FINAL), Chapter.PointState.AVAILABLE)
+	assert_false(App.asks_all_open(), "tests aren't launched with --all")

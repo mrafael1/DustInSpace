@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AloneLab · Independent games</title>
+  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --sky-top:      #3aade8;
+      --sky-mid:      #4bb8f5;
+      --sky-light:    #b8e8ff;
+      --cloud:        #e8f6ff;
+      --yellow:       #f5c518;
+      --yellow-dark:  #c8860a;
+      --yellow-light: #ffe86a;
+      --white:        #ffffff;
+      --dark:         #1a1a2e;
+      --px:           #1a1a2e;   /* pixel border colour */
+      --lob-red:      #e74c3c;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Manrope', sans-serif;
+      background: var(--sky-mid);
+      overflow-x: hidden;
+    }
+
+    /* ─── PIXEL GRID OVERLAY ─── */
+    .sky-section {
+      background: linear-gradient(180deg, #3aade8 0%, #4bb8f5 35%, #7dcffa 70%, #b8e8ff 100%);
+      position: relative;
+    }
+    .sky-section::after {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background-image:
+        repeating-linear-gradient(0deg,  transparent, transparent 3px, rgba(255,255,255,.022) 3px, rgba(255,255,255,.022) 4px),
+        repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(255,255,255,.022) 3px, rgba(255,255,255,.022) 4px);
+    }
+
+    /* ─── PIXEL CLOUDS ─── */
+    .cloud-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+    .cloud { position: absolute; width: 8px; height: 8px; }
+
+    .c1 { background: rgba(255,255,255,.88); top: 11%; left: 6%;
+      box-shadow: 8px 0 0 rgba(255,255,255,.88),16px 0 0 rgba(255,255,255,.88),24px 0 0 rgba(255,255,255,.88),32px 0 0 rgba(255,255,255,.88),
+                  0 -8px 0 rgba(255,255,255,.88),8px -8px 0 rgba(255,255,255,.88),16px -8px 0 rgba(255,255,255,.88),24px -8px 0 rgba(255,255,255,.88),
+                  8px -16px 0 rgba(255,255,255,.88),16px -16px 0 rgba(255,255,255,.88);
+      animation: drift 44s linear infinite; }
+
+    .c2 { background: rgba(255,255,255,.7); top: 20%; left: 52%;
+      box-shadow: 8px 0 0 rgba(255,255,255,.7),16px 0 0 rgba(255,255,255,.7),24px 0 0 rgba(255,255,255,.7),
+                  0 -8px 0 rgba(255,255,255,.7),8px -8px 0 rgba(255,255,255,.7),16px -8px 0 rgba(255,255,255,.7);
+      animation: drift 62s linear infinite; }
+
+    .c3 { background: rgba(255,255,255,.85); top: 6%; left: 74%;
+      box-shadow: 8px 0 0 rgba(255,255,255,.85),16px 0 0 rgba(255,255,255,.85),
+                  -8px 0 0 rgba(255,255,255,.85),24px 0 0 rgba(255,255,255,.85),
+                  0 -8px 0 rgba(255,255,255,.85),8px -8px 0 rgba(255,255,255,.85),16px -8px 0 rgba(255,255,255,.85);
+      animation: drift 37s linear infinite reverse; }
+
+    .c4 { background: rgba(255,255,255,.45); top: 48%; left: 20%;
+      box-shadow: 8px 0 0 rgba(255,255,255,.45),16px 0 0 rgba(255,255,255,.45),8px -8px 0 rgba(255,255,255,.45);
+      animation: drift 72s linear infinite; }
+
+    @keyframes drift { from { transform: translateX(0); } to { transform: translateX(-130vw); } }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 40px;
+      background: rgba(42,155,215,.93);
+      backdrop-filter: blur(6px);
+      border-bottom: 4px solid var(--px);
+    }
+
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'Press Start 2P', monospace; font-size: .78rem;
+      color: var(--white); text-decoration: none;
+      text-shadow: 3px 3px 0 var(--px);
+    }
+    .nav-logo img { width: 32px; height: 32px; image-rendering: pixelated; border: 2px solid var(--px); }
+    .nav-logo em { font-style: normal; color: var(--yellow); }
+
+    .nav-links { display: flex; gap: 22px; list-style: none; }
+    .nav-links a {
+      font-family: 'Press Start 2P', monospace; font-size: .4rem;
+      color: var(--white); text-decoration: none;
+      text-shadow: 1px 1px 0 var(--px); transition: color .1s;
+    }
+    .nav-links a:hover { color: var(--yellow); }
+
+    /* ─── HERO ─── */
+    .hero {
+      min-height: 100vh; display: flex; flex-direction: column;
+      justify-content: center; align-items: center; text-align: center;
+      padding: 110px 40px 60px; position: relative;
+    }
+
+    .hero-eyebrow {
+      font-family: 'Press Start 2P', monospace; font-size: .44rem;
+      color: var(--white); letter-spacing: .2em;
+      text-shadow: 2px 2px 0 var(--px); margin-bottom: 20px;
+      opacity: 0; animation: fadeUp .5s .2s forwards;
+    }
+
+    .hero-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(38px, 9vw, 100px);
+      color: var(--yellow);
+      text-shadow: 5px 5px 0 var(--yellow-dark), 9px 9px 0 var(--px);
+      line-height: 1.15;
+      opacity: 0; animation: fadeUp .5s .4s forwards;
+    }
+    .hero-title .lab {
+      display: block; font-size: .48em; color: var(--white);
+      text-shadow: 3px 3px 0 #888, 6px 6px 0 var(--px); margin-top: 6px;
+    }
+
+    .hero-sub {
+      margin-top: 26px; font-size: 1.05rem; font-weight: 800;
+      color: var(--white); text-shadow: 1px 2px 0 rgba(0,0,0,.25);
+      max-width: 400px; line-height: 1.7;
+      opacity: 0; animation: fadeUp .5s .6s forwards;
+    }
+
+    .hero-cta { margin-top: 34px; opacity: 0; animation: fadeUp .5s .8s forwards; }
+
+    .px-btn {
+      display: inline-block; font-family: 'Press Start 2P', monospace; font-size: .54rem;
+      padding: 14px 26px; background: var(--yellow); color: var(--px);
+      text-decoration: none; border: 4px solid var(--px);
+      box-shadow: 5px 5px 0 var(--px); transition: transform .1s, box-shadow .1s;
+    }
+    .px-btn:hover { transform: translate(2px,2px); box-shadow: 3px 3px 0 var(--px); }
+    .px-btn:active { transform: translate(5px,5px); box-shadow: none; }
+    .px-btn.dark { background: var(--px); color: var(--yellow); }
+
+    /* hero mascot */
+    .hero-mascot {
+      margin-top: 44px;
+      opacity: 0; animation: fadeUp .5s 1s forwards;
+    }
+    .hero-mascot img {
+      width: 140px; height: auto;
+      image-rendering: pixelated;
+      animation: mascotFloat 3.2s ease-in-out infinite;
+      filter: drop-shadow(0 12px 20px rgba(0,0,0,.18));
+    }
+    @keyframes mascotFloat {
+      0%,100% { transform: translateY(0) rotate(-3deg); }
+      50%      { transform: translateY(-18px) rotate(3deg); }
+    }
+
+    /* ─── SECTION HELPERS ─── */
+    section { padding: 80px 48px; position: relative; }
+
+    .section-header { text-align: center; margin-bottom: 50px; }
+    .px-label {
+      font-family: 'Press Start 2P', monospace; font-size: .4rem;
+      letter-spacing: .3em; color: var(--yellow-dark); display: block;
+      margin-bottom: 10px; text-shadow: 1px 1px 0 rgba(0,0,0,.15);
+    }
+    .px-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(15px, 2.4vw, 26px);
+      color: var(--white); text-shadow: 3px 3px 0 var(--px); line-height: 1.5;
+    }
+
+    /* ─── DUST IN SPACE: Chapter 1's own pixel star field ─── */
+    #dust-in-space {
+      background-color: #07091f;
+      background-image: url('dust_space.png');
+      background-size: 960px 600px;
+      background-position: center;
+      image-rendering: pixelated;
+      border-top: 4px solid #2a3375;
+      border-bottom: 4px solid #2a3375;
+      color: #d9e2ff;
+      padding: 100px 24px;
+    }
+    #dust-in-space .section-header { max-width: 640px; margin: 0 auto; }
+    #dust-in-space .px-label { color: #a77fd8; text-shadow: 2px 2px 0 #07091f; }
+    #dust-in-space .px-title { color: #fffbea; text-shadow: 3px 3px 0 #07091f; }
+    #dust-in-space .dust-description {
+      margin: 24px auto 32px; max-width: 520px; line-height: 1.7;
+      font-size: 18px; text-shadow: 2px 2px 0 #07091f;
+    }
+    #dust-in-space .px-btn {
+      background: #ffc062; color: #07091f; border-color: #07091f;
+      box-shadow: 5px 5px 0 #3e3f8a;
+    }
+    #dust-in-space .px-btn:hover { box-shadow: 3px 3px 0 #3e3f8a; }
+    #dust-in-space .px-btn:active { box-shadow: none; }
+    #dust-in-space .px-btn:focus-visible { outline: 3px solid #fffbea; outline-offset: 5px; }
+
+    /* ─── PROJECTS GRID ─── */
+    #projects { background: linear-gradient(180deg,#5ec2f8 0%,#a8dff8 100%); }
+
+    .projects-grid {
+      display: grid; grid-template-columns: repeat(5,1fr);
+      gap: 8px; max-width: 960px; margin: 0 auto;
+    }
+
+    .proj-card {
+      background: var(--cloud); border: 4px solid var(--px);
+      box-shadow: 5px 5px 0 var(--px); padding: 24px 10px 18px;
+      text-align: center; cursor: pointer;
+      transition: transform .1s, box-shadow .1s;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .proj-card:hover { transform: translate(-2px,-2px); box-shadow: 7px 7px 0 var(--px); }
+    .proj-card.active  { background: #fffbe6; }
+    .proj-card.teaser  { background: #fff0f0; }
+    .proj-card.locked  { background: #eef3f8; opacity: .65; }
+
+    /* icon / letter */
+    .proj-icon { width: 56px; height: 56px; image-rendering: pixelated; }
+    .proj-letter {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(24px,3.8vw,42px); display: block; line-height: 1;
+    }
+    .proj-card.teaser .proj-letter { color: var(--lob-red); text-shadow: 3px 3px 0 #8b0000, 5px 5px 0 var(--px); }
+    .proj-card.locked .proj-letter { color: #aab; text-shadow: 3px 3px 0 #778, 5px 5px 0 var(--px); }
+
+    .proj-name {
+      font-family: 'Press Start 2P', monospace; font-size: .4rem;
+      color: var(--px); letter-spacing: .03em;
+    }
+    .proj-status {
+      font-family: 'Press Start 2P', monospace; font-size: .3rem;
+      display: inline-block; padding: 4px 6px; border: 2px solid;
+    }
+    .status-live { color: #16a34a; border-color: #16a34a; background: #f0fdf4; }
+    .status-soon { color: var(--lob-red); border-color: var(--lob-red); background: #fff5f5; animation: blink 1.2s step-end infinite; }
+    .status-tbd  { color: #999; border-color: #ccc; background: #f5f5f5; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+    /* ─── AIRTIME SPOTLIGHT ─── */
+    #airtime { background: linear-gradient(180deg,#a8dff8 0%,#7dcffa 100%); }
+
+    .airtime-inner {
+      max-width: 1060px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;
+    }
+
+    /* phone frame with real screenshot */
+    .phone-mockup { display: flex; justify-content: center; }
+
+    .phone-frame {
+      width: 220px; background: #2d3748;
+      border: 6px solid var(--px); box-shadow: 8px 8px 0 var(--px);
+      animation: phoneFloat 4s ease-in-out infinite;
+    }
+    .phone-notch {
+      height: 14px; background: #1a202c;
+      border-bottom: 4px solid var(--px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .phone-notch::after {
+      content: ''; width: 40px; height: 5px;
+      background: #0d1117; border-radius: 0;
+    }
+    .phone-screen-img {
+      display: block; width: 100%;
+      image-rendering: pixelated;
+    }
+    .phone-chin {
+      height: 14px; background: #1a202c;
+      border-top: 4px solid var(--px);
+    }
+    @keyframes phoneFloat {
+      0%,100% { transform: translateY(0) rotate(-2deg); }
+      50%      { transform: translateY(-20px) rotate(2deg); }
+    }
+
+    /* text side */
+    .airtime-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(22px,3.5vw,44px);
+      color: var(--yellow); text-shadow: 4px 4px 0 var(--yellow-dark), 7px 7px 0 var(--px);
+      line-height: 1.3; margin-bottom: 18px;
+    }
+    .airtime-desc { font-size: .95rem; color: var(--dark); line-height: 1.8; font-weight: 700; margin-bottom: 10px; }
+
+    .tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+    .px-tag {
+      font-family: 'Press Start 2P', monospace; font-size: .3rem;
+      padding: 6px 8px; background: var(--white); border: 3px solid var(--px);
+      box-shadow: 2px 2px 0 var(--px); color: var(--px);
+    }
+
+    .store-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+    .store-btn {
+      display: flex; align-items: center; gap: 10px; padding: 12px 18px;
+      background: var(--px); color: var(--white); text-decoration: none;
+      border: 4px solid #000; box-shadow: 4px 4px 0 #000;
+      transition: transform .1s, box-shadow .1s;
+    }
+    .store-btn:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 #000; }
+    .store-icon { font-size: 1.3rem; }
+    .store-txt-sm { font-size: .52rem; font-weight: 700; letter-spacing: .1em; opacity: .65; display: block; }
+    .store-txt-lg { font-size: .85rem; font-weight: 800; display: block; }
+
+    /* mascot showcase */
+    .mascot-showcase {
+      display: flex; justify-content: center; align-items: flex-end;
+      gap: 0; margin-top: 60px;
+      border-top: 4px solid rgba(0,0,0,.08); padding-top: 56px;
+    }
+    .mascot-img {
+      width: 200px; image-rendering: pixelated;
+      animation: mascotFloat 3.5s ease-in-out infinite;
+      filter: drop-shadow(0 16px 24px rgba(0,0,0,.15));
+    }
+    .mascot-caption {
+      text-align: center; margin-top: 16px;
+      font-family: 'Press Start 2P', monospace; font-size: .38rem;
+      color: var(--px); opacity: .6;
+    }
+
+    /* ─── LOBOTOMY ─── */
+    #lobotomy {
+      background: linear-gradient(180deg,#110003 0%,#1f0508 100%);
+      text-align: center; padding: 100px 48px;
+    }
+    .lob-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(22px,5vw,64px);
+      color: var(--lob-red);
+      text-shadow: 4px 4px 0 #7a0000, 8px 8px 0 #000, 0 0 50px rgba(231,76,60,.4);
+      letter-spacing: .06em; animation: glitchLob 5s infinite;
+    }
+    .lob-sub {
+      font-family: 'Press Start 2P', monospace; font-size: .38rem;
+      color: #666; letter-spacing: .13em; margin-top: 22px; line-height: 2.4;
+    }
+    .redacted { background: #444; color: transparent; user-select: none; padding: 0 6px; }
+    .lob-warning {
+      display: inline-block; margin-top: 44px; padding: 16px 24px;
+      border: 4px solid var(--lob-red); box-shadow: 4px 4px 0 var(--lob-red);
+      font-family: 'Press Start 2P', monospace; font-size: .38rem;
+      color: var(--lob-red); letter-spacing: .08em;
+      animation: lobPulse 2s ease-in-out infinite;
+    }
+    @keyframes lobPulse {
+      0%,100%{ box-shadow: 4px 4px 0 var(--lob-red); }
+      50%    { box-shadow: 4px 4px 0 var(--lob-red), 0 0 24px rgba(231,76,60,.35); }
+    }
+    @keyframes glitchLob {
+      0%,87%,100%{ transform: none; text-shadow: 4px 4px 0 #7a0000, 8px 8px 0 #000; }
+      89%{ transform: skewX(-3deg) translateX(4px); text-shadow: -4px 0 cyan, 4px 0 magenta; }
+      91%{ transform: skewX(3deg) translateX(-4px); text-shadow: 4px 0 cyan,-4px 0 magenta; }
+      93%{ transform: none; text-shadow: 4px 4px 0 #7a0000, 8px 8px 0 #000; }
+    }
+
+    /* ─── ABOUT ─── */
+    #about { background: linear-gradient(180deg,#4bb8f5 0%,#3aade8 100%); }
+    .about-inner { max-width: 860px; margin: 0 auto; }
+    .about-box {
+      background: var(--cloud); border: 4px solid var(--px);
+      box-shadow: 6px 6px 0 var(--px); padding: 34px; margin-bottom: 10px;
+    }
+    .about-box h3 { font-family:'Press Start 2P',monospace; font-size:.58rem; color: var(--px); margin-bottom:14px; }
+    .about-box p  { font-size:.95rem; color:#333; line-height:1.8; font-weight:700; }
+
+    .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 8px; }
+    .stat-box {
+      background: var(--yellow); border: 4px solid var(--px);
+      box-shadow: 4px 4px 0 var(--px); padding: 22px 12px; text-align: center;
+    }
+    .stat-num   { font-family:'Press Start 2P',monospace; font-size:clamp(18px,2.5vw,28px); color:var(--px); display:block; text-shadow:2px 2px 0 var(--yellow-dark); }
+    .stat-label { font-family:'Press Start 2P',monospace; font-size:.3rem; color:var(--px); display:block; margin-top:8px; opacity:.7; }
+
+    /* ─── FOOTER ─── */
+    footer {
+      background: var(--px); border-top: 4px solid #000;
+      padding: 34px 48px; display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 16px;
+    }
+    .footer-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-family:'Press Start 2P',monospace; font-size:.72rem;
+      color: var(--yellow); text-shadow:2px 2px 0 var(--yellow-dark); text-decoration:none;
+    }
+    .footer-logo img { width:28px; height:28px; image-rendering:pixelated; border:2px solid rgba(255,255,255,.2); }
+    .footer-copy { font-family:'Press Start 2P',monospace; font-size:.3rem; color:#777; letter-spacing:.08em; }
+    .footer-links { display:flex; gap:20px; list-style:none; }
+    .footer-links a { font-family:'Press Start 2P',monospace; font-size:.3rem; color:#999; text-decoration:none; transition:color .1s; }
+    .footer-links a:hover { color:var(--yellow); }
+
+    /* ─── ANIMATIONS ─── */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(16px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width:860px) {
+      nav { padding:12px 18px; }
+      .nav-links { display:none; }
+      section { padding:60px 18px; }
+      .projects-grid { grid-template-columns:repeat(3,1fr); }
+      .airtime-inner { grid-template-columns:1fr; gap:36px; }
+      .stats-row { grid-template-columns:1fr 1fr; }
+      footer { flex-direction:column; text-align:center; padding:24px 18px; }
+      .hero { padding:90px 18px 40px; }
+      .mascot-img { width:140px; }
+    }
+
+    /* Studio polish: quieter framing, expressive project lettering. */
+    :root { --px:#07091f; --dark:#07091f; --white:#fffbea; --yellow:#ffc062; --yellow-dark:#a45a78; --lob-red:#c8413a; }
+    body { background:#07091f; color:#fffbea; -webkit-font-smoothing:antialiased; }
+    html { scroll-padding-top:85px; }
+    a:focus-visible { outline:2px solid #ffc062; outline-offset:6px; }
+    nav { position:absolute; background:transparent; backdrop-filter:none; border-bottom:1px solid #2a3375; padding:26px max(40px,calc((100vw - 1120px)/2)); }
+    .nav-logo { font-size:11px; text-shadow:none; gap:4px; } .nav-logo img { display:none; } .nav-logo em { color:#a77fd8; }
+    .nav-links { gap:26px; } .nav-links a { font-family:Manrope,sans-serif; font-size:11px; text-shadow:none; font-weight:600; }
+    .sky-section { background:#07091f; } .sky-section::after,.cloud-layer { display:none; }
+    .hero { min-height:720px; align-items:flex-start; text-align:left; max-width:1200px; margin:auto; padding:180px 40px 85px; }
+    .hero::before { content:''; position:absolute; inset:0; background:url('dust_space.png') center/960px 600px; image-rendering:pixelated; opacity:.16; pointer-events:none; }
+    .hero>* { position:relative; } .hero-eyebrow { font-family:Manrope,sans-serif; font-size:10px; letter-spacing:.2em; color:#9fb0ee; margin-bottom:45px; text-shadow:none; }
+    .hero-title { font-size:clamp(44px,8.5vw,105px); letter-spacing:-.05em; color:#fffbea; text-shadow:none; line-height:1.35; }
+    .brand-letters { display:flex; gap:.035em; } .hero-title .lab { text-shadow:none; color:#9fb0ee; letter-spacing:.15em; position:relative; font-size:.46em; }
+    .air-letter { color:#62b4f0; text-shadow:0 4px 0 #1d4696; position:relative; }
+    .lob-letter { position:relative; } .lob-letter::after { content:''; position:absolute; width:38%; height:5px; left:-6%; top:49%; background:#c8413a; box-shadow:14px 8px 0 #862032,-5px -14px 0 #c8413a; animation:brandBug 9s steps(1) infinite; }
+    .space-letter { position:relative; color:#a77fd8; text-shadow:0 4px 0 #3e3f8a; } .space-letter::after { content:''; position:absolute; width:4px; height:4px; background:#d9e2ff; top:9%; right:8%; box-shadow:0 -4px 0 #9fb0ee,0 4px 0 #9fb0ee,-4px 0 0 #9fb0ee,4px 0 0 #9fb0ee,13px 18px 0 #7e68c8; }
+    .brand-fragment { position:absolute; left:55%; bottom:6px; width:5px; height:5px; background:#a77fd8; box-shadow:10px -10px 0 #3e3f8a,20px -5px 0 #a77fd8; }
+    .hero-sub { font-weight:500; font-size:18px; color:#d9e2ff; text-shadow:none; margin-top:36px; }
+    .hero-cta { margin-top:28px; } .hero-mascot { display:none; }
+    .px-btn { font-family:Manrope,sans-serif; font-weight:800; font-size:12px; border:1px solid #ffc062; box-shadow:none; padding:18px 24px; }
+    .px-btn:hover { transform:translateY(-2px); box-shadow:none; background:#fffbea; }
+    section { padding:85px max(40px,calc((100vw - 1120px)/2)); }
+    .px-label { font-family:Manrope,sans-serif; font-size:10px; letter-spacing:.18em; color:#9fb0ee; text-shadow:none; }
+    .px-title { text-shadow:none; font-size:22px; } .section-header { text-align:left; margin-bottom:40px; }
+    #dust-in-space { display:grid; grid-template-columns:1.2fr .8fr; align-items:center; gap:50px; padding:85px max(40px,calc((100vw - 1120px)/2)); border-block:1px solid #2a3375; }
+    #dust-in-space .section-header { max-width:none; margin:0; } #dust-in-space .px-title { text-shadow:none; font-size:clamp(28px,4vw,48px); line-height:1.55; }
+    #dust-in-space .px-label { text-shadow:none; } #dust-in-space .dust-description { margin:24px 0 28px; font-size:16px; text-shadow:none; max-width:450px; }
+    #dust-in-space .px-btn { box-shadow:none; border:1px solid #ffc062; } #dust-in-space .px-btn:hover { box-shadow:none; background:#fffbea; }
+    .title-star { color:#a77fd8; font-size:.55em; vertical-align:top; margin-left:10px; }
+    .dust-note { font-size:10px; letter-spacing:.06em; color:#9fb0ee; margin-top:18px; }
+    .orbit-display { text-align:center; } .orbit-art { width:min(100%,350px); shape-rendering:crispEdges; } .orbit-display span { display:block; font-size:10px; letter-spacing:.18em; color:#9fb0ee; margin-top:16px; }
+    #projects { background:#07091f; } .projects-grid { max-width:none; gap:0; border-top:1px solid #2a3375; border-left:1px solid #2a3375; }
+    .proj-card,.proj-card.active,.proj-card.teaser,.proj-card.locked { background:transparent; border:0; border-right:1px solid #2a3375; border-bottom:1px solid #2a3375; box-shadow:none; opacity:1; padding:36px 12px 25px; text-decoration:none; min-width:0; cursor:default; }
+    a.proj-card { cursor:pointer; } a.proj-card:hover { background:#151d4a; transform:none; box-shadow:none; }
+    .proj-letter { font-size:54px; height:68px; } .proj-card.teaser .proj-letter { color:#c8413a; text-shadow:3px 0 0 #862032; position:relative; }
+    .proj-card.teaser .proj-letter::after { content:''; position:absolute; width:38px; height:5px; top:28px; left:-5px; background:#07091f; box-shadow:8px 5px 0 #c8413a; }
+    .proj-card.locked .proj-letter { color:#3e3f8a; text-shadow:none; }
+    .proj-name { font-family:Manrope,sans-serif; font-size:12px; color:#fffbea; letter-spacing:0; font-weight:700; margin-top:16px; }
+    .proj-status { font-family:Manrope,sans-serif; font-size:9px; padding:0; border:0; background:none; color:#9fb0ee; animation:none; } .status-live { color:#62b4f0; } .status-play { color:#ffc062; }
+    #airtime { background:#b8e6ff; } #airtime .px-label { color:#1d4696; } #airtime .px-title { color:#07091f; }
+    .airtime-inner { max-width:none; gap:80px; } .phone-frame { width:192px; border:8px solid #07091f; border-radius:20px; overflow:hidden; box-shadow:12px 12px 0 #62b4f0; animation:none; }
+    .phone-notch,.phone-chin { height:8px; border:0; background:#07091f; }
+    .airtime-title { text-shadow:none; color:#07091f; font-size:38px; margin-bottom:25px; } .airtime-desc { font-weight:500; }
+    .tag-row { gap:8px 18px; } .px-tag { font-family:Manrope,sans-serif; font-size:10px; font-weight:700; padding:0; border:0; background:none; box-shadow:none; }
+    .store-btn { border:1px solid #07091f; box-shadow:none; padding:12px 18px; } .store-btn:hover { transform:none; box-shadow:none; } .store-btn.unavailable { background:transparent; color:#07091f; }
+    .store-txt-sm { font-size:8px; } .store-txt-lg { font-size:14px; } .store-icon { font-size:18px; }
+    #airtime>div:last-child:not(.airtime-inner):not(.section-header) { display:none; }
+    #lobotomy { background:#0a0c26; text-align:left; padding:85px max(40px,calc((100vw - 1120px)/2)); border-bottom:1px solid #45193a; }
+    .lob-title { font-size:clamp(25px,5.4vw,62px); text-shadow:none; animation:none; } .lob-sub { font-family:Manrope,sans-serif; font-size:11px; color:#a77fd8; text-align:left; letter-spacing:.06em; }
+    .redacted { background:#45193a; } .lob-warning { border:0; box-shadow:none; padding:0; font-family:Manrope,sans-serif; font-size:11px; animation:none; margin-top:30px; }
+    #about { background:#07091f; } .about-inner { max-width:none; display:grid; grid-template-columns:1fr 1fr; gap:55px; }
+    .about-box { border:0; box-shadow:none; padding:0; background:none; } .about-box h3 { font-family:Manrope,sans-serif; font-size:23px; font-weight:500; color:#fffbea; line-height:1.4; }
+    .about-box p { font-weight:400; font-size:14px; color:#9fb0ee; line-height:1.9; } .stats-row { display:none; }
+    footer { background:#07091f; border-top:1px solid #2a3375; padding:32px max(40px,calc((100vw - 1120px)/2)); } .footer-logo { font-size:10px; text-shadow:none; color:#a77fd8; } .footer-logo img { display:none; }
+    .footer-copy,.footer-links a { font-family:Manrope,sans-serif; font-size:10px; color:#9fb0ee; }
+    @keyframes brandBug { 0%,94%,100% { transform:none; } 95% { transform:translateX(6px); } 97% { transform:translateX(-4px); } }
+    @media(max-width:860px) { .nav-links { display:flex; } .nav-links li:nth-child(2),.nav-links li:nth-child(4),.nav-links li:nth-child(6) { display:none; } .projects-grid { grid-template-columns:repeat(5,1fr); } .airtime-inner { grid-template-columns:1fr 1fr; gap:35px; } .hero-title { font-size:10vw; } }
+    @media(max-width:600px) { nav { padding:25px 20px; } .nav-links { gap:18px; } .nav-links li:nth-child(5) { display:none; } .nav-links a { font-size:10px; } section { padding:50px 20px; } .hero { min-height:630px; padding:145px 20px 65px; } .hero-title { font-size:12.8vw; } .hero-eyebrow { font-size:9px; } .hero-sub { font-size:16px; } #dust-in-space { padding:48px 20px; grid-template-columns:1fr; gap:30px; } .orbit-display { order:-1; } .orbit-art { width:175px; } .orbit-display span { display:none; } #dust-in-space .px-title { font-size:8vw; } #dust-in-space .dust-description { font-size:14px; } .proj-card { padding:24px 5px 18px !important; } .proj-letter { font-size:30px; height:42px; } .proj-name { font-size:9px; line-height:1.5; min-height:28px; overflow-wrap:anywhere; } .proj-status { font-size:8px; line-height:1.5; } .proj-card.teaser .proj-letter::after { width:22px; height:3px; top:15px; left:0; } .airtime-inner { grid-template-columns:1fr; gap:35px; } .phone-frame { width:155px; } .airtime-title { font-size:30px; } #lobotomy { padding:55px 20px; } .lob-title { font-size:7.6vw; } .lob-warning { line-height:1.8; } .about-inner { grid-template-columns:1fr; gap:30px; } footer { padding:30px 20px; } .px-title { font-size:19px; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { animation:none !important; transition:none !important; opacity:1 !important; } }
+
+.space-letter::before { content:""; position:absolute; height:2px; background:#9fb0ee; width:120%; top:52%; left:-10%; transform:rotate(-25deg); }
+  </style>
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav aria-label="Main navigation">
+  <a href="#" class="nav-logo">
+    <img src="icon.png" alt="AloneLab icon">
+    ALONE<em>LAB</em>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#projects">PROJECTS</a></li>
+    <li><a href="#airtime">AIRTIME</a></li>
+    <li><a href="#dust-in-space">DUST IN SPACE</a></li>
+    <li><a href="#lobotomy">NEXT</a></li>
+    <li><a href="#about">ABOUT</a></li>
+    <li><a href="mailto:hello@alonelab.com">CONTACT</a></li>
+  </ul>
+</nav>
+
+<main>
+<!-- ─── HERO ─── -->
+<div class="sky-section">
+  <div class="cloud-layer">
+    <div class="cloud c1"></div><div class="cloud c2"></div>
+    <div class="cloud c3"></div><div class="cloud c4"></div>
+  </div>
+  <section class="hero">
+    <div class="hero-eyebrow">INDEPENDENT GAME STUDIO</div>
+    <h1 class="hero-title" aria-label="AloneLab"><span class="brand-letters" aria-hidden="true"><span class="air-letter">A</span><span class="lob-letter">L</span><span class="space-letter">O</span><span>N</span><span>E</span></span><span class="lab" aria-hidden="true">LAB<span class="brand-fragment"></span></span></h1>
+    <p class="hero-sub">A little strange. Hard to put down.<br>Small games. Distinct worlds.</p>
+    <div class="hero-cta"><a href="#dust-in-space" class="px-btn">EXPLORE THE LATEST ↗</a></div>
+    <div class="hero-mascot">
+      <img src="icon.png" alt="Airtime mascot" />
+    </div>
+  </section>
+</div>
+
+<!-- ─── DUST IN SPACE ─── -->
+<section id="dust-in-space">
+  <div class="section-header">
+    <span class="px-label">THE LATEST FROM THE LAB / 4 CHAPTERS</span>
+    <h2 class="px-title dust-title">DUST<br>IN SPACE<span class="title-star" aria-hidden="true">✦</span></h2>
+    <p class="dust-description">Launch a planet. Watch it burst into stars.<br>Link three and bring a constellation to life.</p>
+    <a href="/dust-in-space/" class="px-btn">PLAY ↗</a>
+    <p class="dust-note">FREE TO PLAY · MOUSE OR TOUCH</p>
+  </div>
+  <div class="orbit-display" aria-hidden="true"><svg viewBox="0 0 180 180" class="orbit-art"><path d="M58 28H116V34H130V46H140V62H146V116H140V132H128V144H112V150H58V144H44V132H34V116H28V62H34V46H46V34H58Z" fill="#151d4a" stroke="#7e68c8" stroke-width="2"/><path d="M62 42H112V48H124V62H132V112H126V126H112V134H62V128H50V114H42V64H48V50H62Z" fill="#07091f" stroke="#3e3f8a" stroke-width="2"/><path d="M20 128L38 118L60 108L84 94L106 78L130 60L158 44" fill="none" stroke="#9fb0ee"/><path d="M20 128V120M16 124H24M60 108V100M56 104H64M106 78V70M102 74H110M158 44V36M154 40H162M140 27V39M134 33H146M37 145V157M31 151H43" stroke="#d9e2ff" stroke-width="2"/></svg><span>O / A WORLD IN ORBIT</span></div>
+</section>
+
+<!-- ─── PROJECTS ─── -->
+<section id="projects" class="sky-section">
+  <div class="cloud-layer"><div class="cloud c2"></div><div class="cloud c4"></div></div>
+  <div class="section-header">
+    <span class="px-label">THE COLLECTION</span>
+    <h2 class="px-title">THE ALONE SERIES</h2>
+  </div>
+  <div class="projects-grid">
+
+    <a href="#airtime" class="proj-card active">
+      <span class="proj-letter air-letter" aria-hidden="true">A</span>
+      <span class="proj-name">Airtime</span>
+      <span class="proj-status status-live">Available</span>
+    </a>
+
+    <a href="#lobotomy" class="proj-card teaser">
+      <span class="proj-letter">L</span>
+      <span class="proj-name">Lobotomy</span>
+      <span class="proj-status status-soon">Coming soon</span>
+    </a>
+
+    <a href="#dust-in-space" class="proj-card space-card">
+      <span class="proj-letter space-letter" aria-hidden="true">O</span>
+      <span class="proj-name">Dust in Space</span>
+      <span class="proj-status status-play">4 chapters</span>
+    </a>
+
+    <div class="proj-card locked">
+      <span class="proj-letter">N</span>
+      <span class="proj-name">Unknown</span>
+      <span class="proj-status status-tbd">Unrevealed</span>
+    </div>
+
+    <div class="proj-card locked">
+      <span class="proj-letter">E</span>
+      <span class="proj-name">Unknown</span>
+      <span class="proj-status status-tbd">Unrevealed</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── AIRTIME ─── -->
+<section id="airtime" class="sky-section">
+  <div class="cloud-layer"><div class="cloud c1"></div><div class="cloud c3"></div></div>
+  <div class="section-header">
+    <span class="px-label">A / AIRTIME</span>
+    <h2 class="px-title">NOW PLAYING</h2>
+  </div>
+
+  <div class="airtime-inner">
+
+    <!-- real screenshot in phone frame -->
+    <div class="phone-mockup">
+      <div class="phone-frame">
+        <div class="phone-notch"></div>
+        <img src="screenshot.jpg" class="phone-screen-img" alt="Airtime screenshot">
+        <div class="phone-chin"></div>
+      </div>
+    </div>
+
+    <!-- info -->
+    <div>
+      <h2 class="airtime-title">AIR<br>TIME</h2>
+      <p class="airtime-desc">The game is simple. The stakes are real.</p>
+      <p class="airtime-desc">Toss your phone into the air. The longer it flies, the higher your score. Every throw tests gravity and your screen protector.</p>
+
+      <div class="tag-row">
+        <span class="px-tag">ACCELEROMETER</span>
+        <span class="px-tag">REAL PHYSICS</span>
+        <span class="px-tag">LEADERBOARD</span>
+        <span class="px-tag">INSTANT PLAY</span>
+        <span class="px-tag">FREE</span>
+      </div>
+
+      <div class="store-row">
+        <div class="store-btn unavailable" aria-label="Cancelled from the App Store">
+          <span class="store-icon" aria-hidden="true">×</span>
+          <div>
+            <span class="store-txt-sm">CANCEL FROM THE</span>
+            <span class="store-txt-lg">App Store</span>
+          </div>
+        </div>
+        <a href="https://play.google.com/store/apps/details?id=com.alonelab.airtime&amp;hl=en" class="store-btn">
+          <span class="store-icon">▶</span>
+          <div>
+            <span class="store-txt-sm">GET IT ON</span>
+            <span class="store-txt-lg">Google Play</span>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- mascot showcase -->
+  <div style="text-align:center; margin-top:72px; border-top:4px solid rgba(0,0,0,.07); padding-top:60px;">
+    <span class="px-label">MEET THE MASCOT</span>
+    <div style="margin-top:20px;">
+      <img src="phone-cute.png" class="mascot-img" alt="Airtime mascot - winged phone character" style="width:180px; image-rendering:pixelated; animation: mascotFloat 3.5s ease-in-out infinite; filter:drop-shadow(0 16px 28px rgba(0,0,0,.18));">
+    </div>
+    <p class="mascot-caption" style="margin-top:16px;">YOUR PHONE. BUT CUTER.</p>
+  </div>
+</section>
+
+<!-- ─── LOBOTOMY ─── -->
+<section id="lobotomy">
+  <div class="section-header">
+    <span class="px-label" style="color:#c0392b;">L / LOBOTOMY</span>
+  </div>
+  <h2 class="lob-title">LOBOTOMY</h2>
+  <div class="lob-sub">
+    PROJECT L &nbsp;·&nbsp; STATUS: <span class="redacted">CLASSIFIED</span><br>
+    PLATFORM: <span class="redacted">REDACTED</span> &nbsp;·&nbsp; ETA: <span class="redacted">UNKNOWN</span>
+  </div>
+  <div><span class="lob-warning">FURTHER INFORMATION WITHHELD.</span></div>
+</section>
+
+<!-- ─── ABOUT ─── -->
+<section id="about" class="sky-section">
+  <div class="cloud-layer"><div class="cloud c2"></div></div>
+  <div class="section-header">
+    <span class="px-label">THE LAB</span>
+    <h2 class="px-title">ABOUT US</h2>
+  </div>
+  <div class="about-inner">
+    <div class="about-box">
+      <h3>BUILT ALONE. FELT BY EVERYONE.</h3>
+      <p>AloneLab is an independent mobile studio with one mission: make you feel something. Tactile mechanics, distinct pixel worlds, and a reason to try one more time.</p>
+    </div>
+    <div class="about-box">
+      <h3>THE CONCEPT</h3>
+      <p>Each project maps to a letter in ALONE. Five letters, five distinct worlds. Each built around one moment that makes you want to play again.</p>
+    </div>
+    <div class="stats-row">
+      <div class="stat-box"><span class="stat-num">1</span><span class="stat-label">LIVE APP</span></div>
+      <div class="stat-box"><span class="stat-num">5</span><span class="stat-label">PLANNED</span></div>
+      <div class="stat-box"><span class="stat-num">∞</span><span class="stat-label">DOPAMINE</span></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<!-- ─── FOOTER ─── -->
+<footer>
+  <a href="#" class="footer-logo">
+    <img src="icon.png" alt="AloneLab">
+    ALONELAB
+  </a>
+  <div class="footer-copy">© 2026 ALONELAB · ALL RIGHTS RESERVED</div>
+  <ul class="footer-links">
+    <li><a href="mailto:hello@alonelab.com">HELLO@ALONELAB.COM</a></li>
+    <li><a href="mailto:support@alonelab.com">SUPPORT</a></li>
+
+  </ul>
+</footer>
+
+</body>
+</html>

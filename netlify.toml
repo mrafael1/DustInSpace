@@ -1,0 +1,5 @@
+[build]
+  publish = "build/alonelab"
+
+# Deploy the locally built folder/ZIP. A Git-connected build needs Godot 4.7
+# and Web templates installed before running tools/web/build.py.

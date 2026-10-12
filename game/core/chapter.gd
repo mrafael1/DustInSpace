@@ -9,6 +9,8 @@ extends RefCounted
 ## Completed stages can be replayed. Every chapter has five parts and a final.
 ## Pure state, separate from the constellation built inside a stage. Saved as a Dictionary
 ## (to_save / from_save) by ProgressStore, under the chapter's id.
+## For testing (the web build's ?all): with all_open, every built stage can be played at once;
+## wins still count and save as usual.
 
 enum PointState { LOCKED, AVAILABLE, COMPLETED }
 
@@ -21,6 +23,8 @@ var def: ChapterDef
 var id: String:
 	get:
 		return def.id
+## Every built stage is playable, won or not (testing: the web build's ?all).
+var all_open: bool = false
 var _completed: Array[bool] = []
 ## Which stages have a map (tests may build more).
 var _built: Array[bool] = []
@@ -86,6 +90,8 @@ func is_completed(stage: int) -> bool:
 func is_available(stage: int) -> bool:
 	if not has_stage(stage):
 		return false
+	if all_open:
+		return true
 	if is_final(stage):
 		return parts_done()
 	return stage == 0 or _completed[stage - 1]
