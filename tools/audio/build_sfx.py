@@ -263,6 +263,20 @@ def big_bang_bang():
     return mix((0, boom, 1.0), (0, crack, 0.8), (0, crunch, 0.35), (0.12, shimmer, 0.25))
 
 
+def big_bang_void():
+    # A black hole's Big Bang (chapter 5: the twin holes' merge, the full light gauge), which takes the
+    # stars for nothing: the losing bang (the user's pick of three, 2026-10-13). No crack and no notes:
+    # a deep boom that keeps sinking, a dark rumble, and a dissonant low drone (a tritone, beating)
+    # fading into nothing. Heavy and empty, where the planet's bang rings out like a jackpot.
+    boom = envelope(tone(60, 1.9, "sine", 22), attack=0.003, curve=1.6)
+    rumble = envelope(noise(1.6, 600, 60), attack=0.01, curve=1.4)
+    drone = envelope(mix(
+        (0, tone(note("C3"), 1.6, "triangle", note("A2"), vibrato=0.01, vib_rate=5), 1.0),
+        (0, tone(note("F#3"), 1.6, "triangle", note("D#3"), vibrato=0.012, vib_rate=4.3), 0.8),
+    ), attack=0.05, curve=1.8)
+    return mix((0, boom, 1.0), (0, rumble, 0.55), (0.05, drone, 0.3))
+
+
 def sun_ignite():
     swell = envelope(mix(
         (0, tone(note("C4"), 1.8, "triangle", note("C5")), 0.5),
@@ -318,6 +332,7 @@ CUES = {
     "light_land": (light_land, -18),
     "big_bang_collapse": (big_bang_collapse, -6),
     "big_bang_bang": (big_bang_bang, -1),
+    "big_bang_void": (big_bang_void, -2),
     "sun_ignite": (sun_ignite, -4),
     "win": (win, -5),
     "loss": (loss, -8),

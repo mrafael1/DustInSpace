@@ -24,7 +24,7 @@ const AUDIO_DIR: String = "res://assets/audio/"
 const CUES: Array[StringName] = [
 	&"pack_load", &"pack_buy", &"tap_refused", &"pull_start", &"pull_step", &"pull_cancel",
 	&"launch", &"tremble", &"burst", &"star_select", &"link_collect", &"link_reject",
-	&"dust_land", &"light_land", &"big_bang_collapse", &"big_bang_bang", &"sun_ignite",
+	&"dust_land", &"light_land", &"big_bang_collapse", &"big_bang_bang", &"big_bang_void", &"sun_ignite",
 	&"win", &"loss", &"restart", &"pack_ready", &"drain", &"crop", &"swallow",
 ]
 const VOICES: int = 12
@@ -35,6 +35,7 @@ const LIMITS: Dictionary[StringName, Vector2] = {
 	&"light_land": Vector2(2, 0.06),
 	&"pull_step": Vector2(1, 0.0),
 	&"big_bang_bang": Vector2(1, 0.0),
+	&"big_bang_void": Vector2(1, 0.0),
 }
 const SEMITONE: float = 1.0594631
 ## The dust count-up: a semitone per landing, at most DUST_CLIMB_MAX, reset after DUST_CLIMB_RESET.
@@ -218,9 +219,11 @@ func on_pull_stepped(frame: int) -> void:
 	play(&"pull_step", pow(SEMITONE, 3 * (frame - 1)))
 
 
-func on_big_bang_banged() -> void:
+## The Big Bang banged: the silence breaks with the planet's rewarding bang, or, for a black hole's
+## that takes the stars for nothing (`losing`), the void.
+func on_big_bang_banged(losing: bool = false) -> void:
 	unduck()
-	play(&"big_bang_bang")
+	play(&"big_bang_void" if losing else &"big_bang_bang")
 
 
 ## Scorpio's completion: string `order` (0 = the lowest) sounds the next note up a major

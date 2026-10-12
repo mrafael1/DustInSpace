@@ -128,6 +128,8 @@ var _sparkle_at: Array[Vector2i] = []
 var _sparkle_delay: Array[float] = []
 var _sparkle_ramp: Array[int] = []
 var _dust: int = 0
+## A black hole's Big Bang, paying nothing (chapter 5): it bangs with the void, not the reward.
+var _losing: bool = false
 var _darken: ImageTexture
 
 @onready var _front: Node2D = $Front/Flash
@@ -185,6 +187,11 @@ func setup(_run: RunState, sequencer: EventSequencer) -> void:
 
 func is_playing() -> bool:
 	return _time >= 0.0
+
+
+## Whether the Big Bang playing is a black hole's, taking the stars for nothing.
+func is_losing() -> bool:
+	return _losing
 
 
 func is_banner_shown() -> bool:
@@ -355,6 +362,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	_time = 0.0
 	_title.text = "BIG BANG"
 	_dust = event.args[2]
+	_losing = _dust <= 0
 	# The twin holes' merge pays nothing: the banner says BIG BANG alone, with no +0.
 	_amount.visible = _dust > 0
 	_icon.visible = _dust > 0
