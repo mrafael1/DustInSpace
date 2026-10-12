@@ -209,8 +209,15 @@ const SWIPE: int = 28
 ## constellations between them pass at the camera's speed, the background stars at STAR_PARALLAX of
 ## it (each trailing a short streak once that speed passes STREAK_SPEED px/s, up to STREAK_MAX px),
 ## the milky way and the nebulae stay put. Forward (the next chapter) is to the right.
-const ZODIAC: Array[String] = ["scorpio", "sagittarius", "capricornus", "aquarius", "pisces", "aries", "taurus", "gemini", "cancer", "leo", "virgo"]
+## The zodiac closes into a ring (docs/chapter_4_6_plan.md): after Virgo comes Libra, then Scorpio
+## again, every RING px. A chapter's place is its sign plus its lap (CHAPTER_LAPS: Sagittarius,
+## chapter 5, is on the second lap, three signs on from Virgo). The constellations between, the
+## chapters' own figures and the background stars repeat round the ring, so a voyage passes the
+## earlier chapters again, faint and named; only a chapter's own place shows its chart.
+const ZODIAC: Array[String] = ["scorpio", "sagittarius", "capricornus", "aquarius", "pisces", "aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra"]
 const SKY_SPAN: int = 180
+const RING: int = 12 * SKY_SPAN
+const CHAPTER_LAPS: Dictionary[String, int] = {"sagittarius": 1}
 const VOYAGE_BASE: float = 0.6
 const VOYAGE_PER_SIGN: float = 0.28
 const VOYAGE_EASE: float = 0.25
@@ -219,7 +226,8 @@ const STREAK_SPEED: float = 160.0
 const STREAK_MAX: int = 3
 ## The constellations passed on a voyage, in their screen's home place: their stars (an N8 cross
 ## with an M5 heart, the brightest an M6 glint with M5 arms), their strings (solid N5, stopping short
-## of each star), their name (3x5, N8) centred under them.
+## of each star), their name (3x5, N8) centred under them. One that's also a chapter (Sagittarius) is
+## drawn as the chapter's figure instead, once that chapter exists.
 const PASSING: Dictionary = {
 	"sagittarius": {"name": "SAGITTARIUS", "stars": [Vector2i(56, 172), Vector2i(78, 158), Vector2i(98, 164), Vector2i(94, 188), Vector2i(70, 192), Vector2i(86, 138), Vector2i(118, 156), Vector2i(124, 184)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 0), Vector2i(1, 5), Vector2i(5, 2), Vector2i(2, 6), Vector2i(3, 7)], "bright": [1, 2]},
 	"capricornus": {"name": "CAPRICORNUS", "stars": [Vector2i(40, 140), Vector2i(70, 150), Vector2i(110, 160), Vector2i(140, 150), Vector2i(150, 128), Vector2i(100, 190), Vector2i(66, 180)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(0, 6), Vector2i(6, 5), Vector2i(5, 3)], "bright": [0, 4]},
@@ -228,6 +236,7 @@ const PASSING: Dictionary = {
 	"taurus": {"name": "TAURUS", "stars": [Vector2i(96, 172), Vector2i(118, 160), Vector2i(136, 150), Vector2i(112, 182), Vector2i(128, 188), Vector2i(160, 120), Vector2i(166, 172), Vector2i(48, 128), Vector2i(53, 125), Vector2i(51, 132)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(0, 3), Vector2i(3, 4), Vector2i(2, 5), Vector2i(4, 6)], "bright": [2, 8]},
 	"gemini": {"name": "GEMINI", "stars": [Vector2i(60, 110), Vector2i(64, 140), Vector2i(70, 170), Vector2i(76, 200), Vector2i(92, 112), Vector2i(96, 142), Vector2i(102, 170), Vector2i(110, 198)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(4, 5), Vector2i(5, 6), Vector2i(6, 7), Vector2i(0, 4)], "bright": [0, 4]},
 	"cancer": {"name": "CANCER", "stars": [Vector2i(92, 160), Vector2i(88, 130), Vector2i(70, 190), Vector2i(118, 186), Vector2i(94, 146)], "lines": [Vector2i(0, 4), Vector2i(4, 1), Vector2i(0, 2), Vector2i(0, 3)], "bright": []},
+	"libra": {"name": "LIBRA", "stars": [Vector2i(100, 116), Vector2i(62, 152), Vector2i(132, 150), Vector2i(44, 190), Vector2i(128, 192), Vector2i(116, 208)], "lines": [Vector2i(0, 1), Vector2i(0, 2), Vector2i(1, 2), Vector2i(1, 3), Vector2i(2, 4), Vector2i(4, 5)], "bright": [0, 1]},
 }
 ## The selection star leads every voyage: over the camera's speed-up it lifts off the stage that
 ## was selected and flies to LEAD_AHEAD px ahead of the screen's middle (towards where it's going),
@@ -507,7 +516,7 @@ static func sky_section(section: int) -> Array:
 	if _sections.has(section):
 		return _sections[section]
 	var rng := RandomNumberGenerator.new()
-	rng.seed = STAR_SEED ^ (section * 2654435761)
+	rng.seed = STAR_SEED ^ (posmod(section, RING / SKY_SPAN) * 2654435761)
 	var stars: Array[Vector3i] = []
 	for i: int in SKY_SPAN * (STAR_ROWS.y - STAR_ROWS.x) / STAR_ODDS:
 		stars.append(Vector3i(section * SKY_SPAN + rng.randi_range(0, SKY_SPAN - 1), rng.randi_range(STAR_ROWS.x, STAR_ROWS.y - 1), rng.randi() & 0x3FFFFFFF))
@@ -521,7 +530,7 @@ static func sky_section_above(section: int) -> Array:
 	if _sections_above.has(section):
 		return _sections_above[section]
 	var rng := RandomNumberGenerator.new()
-	rng.seed = STAR_SEED_ABOVE ^ (section * 2654435761)
+	rng.seed = STAR_SEED_ABOVE ^ (posmod(section, RING / SKY_SPAN) * 2654435761)
 	var stars: Array[Vector3i] = []
 	for i: int in SKY_SPAN * (STAR_ROWS_ABOVE.y - STAR_ROWS_ABOVE.x) / STAR_ODDS:
 		stars.append(Vector3i(section * SKY_SPAN + rng.randi_range(0, SKY_SPAN - 1), rng.randi_range(STAR_ROWS_ABOVE.x, STAR_ROWS_ABOVE.y - 1), rng.randi() & 0x3FFFFFFF))
@@ -812,6 +821,29 @@ func _place_x(id: String) -> int:
 	return roundi(sky_x(id) - _camera)
 
 
+## How far across the screen the copy round the ring of whatever sits at world x `base` nearest the
+## screen is now (RING is far wider than any screen: only one copy can show at once).
+func _ring_x(base: int) -> int:
+	var middle: float = _camera + ScreenZones.SCREEN.x / 2.0 - SKY_SPAN / 2.0
+	return roundi(base + roundf((middle - base) / RING) * RING - _camera)
+
+
+## Where a passing constellation `sign` shows (its nearest copy round the ring), or a far-off x when it's
+## also a chapter's (drawn as that chapter's figure).
+func _passing_x(sign: String) -> int:
+	for each: Chapter in _chapters:
+		if each.id == sign:
+			return -RING
+	return _ring_x(sign_x(sign))
+
+
+## Where chapter `id`'s figure shows as a passing one on another lap (its nearest copy round the ring
+## that isn't its own place), or a far-off x when its own place is the nearer.
+func _echo_x(id: String) -> int:
+	var x: int = _ring_x(sky_x(id))
+	return -RING if x == _place_x(id) else x
+
+
 ## Whether a sign's screen at `x` is on the visible screen.
 func _on_screen(x: int) -> bool:
 	return x + SKY_SPAN > _screen.position.x and x < _screen.end.x
@@ -820,7 +852,7 @@ func _on_screen(x: int) -> bool:
 ## The labels at the other chapters' places and the passing constellations' names follow the camera.
 func _place_passing() -> void:
 	for sign: String in PASSING:
-		var shift: int = _place_x(sign)
+		var shift: int = _passing_x(sign)
 		var label: Label = _passing_names[sign]
 		label.visible = _on_screen(shift)
 		if label.visible:
@@ -839,10 +871,12 @@ func _place_passing() -> void:
 				label.size = label.get_minimum_size()
 				label.position = Vector2(x + ScreenZones.SCREEN.x / 2 - floori(label.size.x / 2.0), (TITLE_Y if k == 0 else SUBTITLE_Y) - rise)
 		var name_label: Label = _chapter_names[each.id]
-		name_label.visible = faint
-		if faint:
+		var echo: int = _echo_x(each.id)
+		var echoed: bool = not charted and not faint and _on_screen(echo)
+		name_label.visible = faint or echoed
+		if faint or echoed:
 			var stars: Array = each.def.figure.landmarks
-			_place_under(name_label, stars, x)
+			_place_under(name_label, stars, x if faint else echo)
 
 
 ## Centres `label` under the lowest of `stars` (home layout), `shift` px across.
@@ -897,9 +931,14 @@ static func voyage_time(signs: int) -> float:
 	return VOYAGE_BASE + VOYAGE_PER_SIGN * maxi(signs, 1)
 
 
-## Where a chapter's chart (or a passing constellation, by its id) sits on the shared sky.
+## Where a chapter's chart sits on the shared sky: its sign on its lap round the ring.
 static func sky_x(id: String) -> int:
-	return maxi(ZODIAC.find(id), 0) * SKY_SPAN
+	return sign_x(id) + CHAPTER_LAPS.get(id, 0) * RING
+
+
+## Where a sign of the zodiac sits on the ring's first lap.
+static func sign_x(sign: String) -> int:
+	return maxi(ZODIAC.find(sign), 0) * SKY_SPAN
 
 
 ## How far through the voyage the camera is (0-1): speeding up, cruising, slowing down.
@@ -1665,20 +1704,24 @@ func _draw_sky_stars() -> void:
 ## The constellations between the chapters, passing on a voyage: faint stars, dotted strings.
 func _draw_passing() -> void:
 	for sign: String in PASSING:
-		var shift := Vector2i(_place_x(sign), 0)
+		var shift := Vector2i(_passing_x(sign), 0)
 		if _on_screen(shift.x):
 			_draw_faint(PASSING[sign]["stars"], PASSING[sign]["lines"], PASSING[sign]["bright"], shift)
-	# A locked chapter (or the one a reveal is about to open) looks the same, its big stars bright.
+	# A locked chapter (or the one a reveal is about to open) looks the same, its big stars bright;
+	# so does every chapter's figure on the other laps of the ring.
 	for each: Chapter in _chapters:
+		var bright: Array[int] = []
+		for i: int in each.def.figure.count():
+			if each.def.figure.sizes[i] == Star.Size.BIG:
+				bright.append(i)
+		var echo := Vector2i(_echo_x(each.id), 0)
+		if _on_screen(echo.x):
+			_draw_faint(each.def.figure.landmarks, each.def.figure.segments, bright, echo)
 		if _chapter != null and each.id == _chapter.id:
 			continue
 		var shift := Vector2i(_place_x(each.id), 0)
 		if not _on_screen(shift.x) or _shows_as_chart(each):
 			continue
-		var bright: Array[int] = []
-		for i: int in each.def.figure.count():
-			if each.def.figure.sizes[i] == Star.Size.BIG:
-				bright.append(i)
 		_draw_faint(each.def.figure.landmarks, each.def.figure.segments, bright, shift)
 
 

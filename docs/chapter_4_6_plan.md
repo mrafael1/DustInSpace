@@ -33,7 +33,7 @@ The chapters sit at their signs on one sky, and forward (the next chapter) is to
 
 Voyages stay at their pace (0.6 s plus 0.28 s a sign: 0.88 s, then 1.44 s twice). Passing your own earlier chapters on the way is the reward of the ring.
 
-Needed, as its own chore before chapter 5: Virgo and Libra as passing figures; the ring (world x wraps every 12 signs; each chapter's place is its sign plus its lap); and the **chapters' own constellations drawn as passing figures**. Today a voyage from Scorpio to Leo crosses Aquarius's place empty, because chapter figures aren't drawn as passing ones. The background stars wrap with the ring.
+**Built (2026-10-12):** Libra as a passing figure, the ring (world x repeats every 12 signs, `ChapterSelect.CHAPTER_LAPS`), chapter figures as passing ones on other laps, and background stars that wrap. Ophiuchus is left out. The original note: Virgo and Libra as passing figures; the ring (world x wraps every 12 signs; each chapter's place is its sign plus its lap); and the **chapters' own constellations drawn as passing figures**. Today a voyage from Scorpio to Leo crosses Aquarius's place empty, because chapter figures aren't drawn as passing ones. The background stars wrap with the ring.
 
 ## Chapter 4: Virgo, the harvest
 
