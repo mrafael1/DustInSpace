@@ -88,6 +88,13 @@ var current_steps: Dictionary[String, int] = {}
 var harvest_every: int = 0
 var harvest_link_dust_cut: int = 0
 var harvest_stages: Dictionary[String, Dictionary] = {}
+## Sagittarius's black hole (chapter 5, a debug trial): once each launch has burst, a loose star
+## `d` px from the hole falls black_hole_pull / d px toward it (at least 1, at most
+## black_hole_max_step), and one that reaches black_hole_horizon px from it is swallowed.
+## Optional: without a "black_hole" block there is none (pull 0).
+var black_hole_pull: int = 0
+var black_hole_max_step: int = 1
+var black_hole_horizon: int = 0
 
 var errors: Array[String] = []
 
@@ -187,6 +194,11 @@ func _parse(data: Dictionary) -> void:
 				current_steps[str(map_id)] = _read_int(stages, map_id, "currents.stages.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
+	if data.has("black_hole"):
+		var hole: Dictionary = _read_dict(data, "black_hole", "")
+		black_hole_pull = _read_int(hole, "pull", "black_hole.", 1)
+		black_hole_max_step = _read_int(hole, "max_step", "black_hole.", 1)
+		black_hole_horizon = _read_int(hole, "horizon", "black_hole.", 0)
 	for block: String in VOLLEY_BLOCKS:
 		if data.has(block):
 			volleys[block] = _parse_volley(_read_dict(data, block, ""), block + ".")

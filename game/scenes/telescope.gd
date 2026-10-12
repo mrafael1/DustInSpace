@@ -645,8 +645,8 @@ func _draw_burst_preview() -> void:
 
 ## The scatter rings round `points` (the burst points, in the sky's space), dot by dot: M5, or ember
 ## (S4) where the launch's own stars would be lost as they land (#149): every dot of a burst the
-## harvest reaps (a red planet's first, on the harvest launch), and the dots inside the band its flow
-## drains this launch.
+## harvest reaps (a red planet's first, on the harvest launch), the dots inside the band its flow
+## drains this launch, and the dots close enough to a black hole to fall in on landing.
 func scatter_ring_pixels(points: Array[Vector2i]) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	var reaped: Array[bool] = _run.harvest_reaps_bursts(shown_pack()) if _run != null else [] as Array[bool]
@@ -655,7 +655,7 @@ func scatter_ring_pixels(points: Array[Vector2i]) -> Dictionary[Vector2i, Color]
 		for i: int in RING_DOTS:
 			var angle: float = i * TAU / RING_DOTS
 			var p: Vector2i = points[k] + Vector2i((Vector2(cos(angle), sin(angle) * StarScatter.RING_SQUASH) * RING_RADIUS).round())
-			dots[p] = Palette.S4 if lost or (_run != null and _run.burst_drains_at(p)) else Palette.M5
+			dots[p] = Palette.S4 if lost or (_run != null and (_run.burst_drains_at(p) or _run.burst_swallowed_at(p))) else Palette.M5
 	return dots
 
 

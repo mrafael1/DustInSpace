@@ -83,6 +83,11 @@ var harvest_binds: bool = false
 var harvest_quickens: bool = false
 ## Tied at once: the binding acts after every launch, not only at the harvest.
 var harvest_ties: bool = false
+## Sagittarius's black hole (chapter 5, a debug trial): once each launch has burst, loose stars fall
+## toward it and the ones reaching its horizon are swallowed (StarGravity; its pull is balance.json's
+## black_hole block). Where it is, in home layout.
+var black_hole: bool = false
+var black_hole_center: Vector2i = Vector2i.ZERO
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -147,9 +152,15 @@ static func current_trial(enabled: bool = true) -> StarMap:
 	return map
 
 
-## A debug current trial's map: "aquarius" (the flow layout) or the Tail trial (anything else).
+## A debug trial's map: "aquarius" (the flow layout), "black_hole" (chapter 5's trial) or the Tail
+## trial (anything else).
 static func current_layout(layout: String, enabled: bool = true) -> StarMap:
-	return aquarius_flow(enabled) if layout == "aquarius" else current_trial(enabled)
+	match layout:
+		"aquarius":
+			return aquarius_flow(enabled)
+		"black_hole":
+			return black_hole_trial(enabled)
+	return current_trial(enabled)
 
 
 ## Debug experiment: the Aquarius Body's layout (aquarius_body) as a trial that the FLOW ON/OFF
@@ -164,6 +175,21 @@ static func aquarius_flow(enabled: bool = true) -> StarMap:
 	if not enabled:
 		map.current_region = Rect2i()
 		map.current_drains = false
+	return map
+
+
+## Debug experiment for chapter 5 (Sagittarius): Scorpio's Heart layout without Orion's hunt, and a
+## black hole inside the figure, just left of Antares, so the stars a landmark waits for fall past it
+## (spatial bots: docs/chapter_4_6_plan.md). The HOLE ON/OFF switch turns it off to replay the same
+## seed. No progress identity; the Heart's painting stands in.
+static func black_hole_trial(enabled: bool = true) -> StarMap:
+	var map: StarMap = heart()
+	map.id = "black_hole_trial" if enabled else "black_hole_off"
+	map.title = "BLACK HOLE" if enabled else "BLACK HOLE OFF"
+	map.hunt = false
+	map.intros = false
+	map.black_hole = enabled
+	map.black_hole_center = Vector2i(90, 164)
 	return map
 
 

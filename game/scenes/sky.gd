@@ -115,6 +115,7 @@ var _arrival_sweep: bool = false
 @onready var _star_layer: Node2D = $StarLayer
 @onready var _orion: OrionView = $OrionLayer
 @onready var _current: CurrentView = $CurrentLayer
+@onready var _gravity: GravityView = $GravityLayer
 @onready var _heat: HeatView = $HeatLayer
 @onready var _harvest: HarvestView = $HarvestLayer
 
@@ -370,6 +371,8 @@ func _play_current_event(event: EventSequencer.RunEvent) -> bool:
 	match event.type:
 		&"stars_shifted":
 			_shift(event.args[0])
+		&"stars_fell":
+			_fall(event.args[0])
 		&"current_intro_placed":
 			# A beat to see the stars before the flow carries them.
 			_place_intro(event.args[0])
@@ -735,6 +738,22 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 			_current.flash_drain(Vector2i(v.position), Vector2i(signi(move.to.x - move.from.x), signi(move.to.y - move.from.y)))
 			star_drained.emit(Vector2i(v.position)))
 		view.drain_to(_edge_point(move.to))
+	_sequencer.hold(StarView.DRIFT_TIME)
+
+
+## The black hole (chapter 5 trial): every fallen star drifts; a swallowed one drifts to the horizon
+## and cuts out there as the ring flares, for nothing.
+func _fall(falls: Array[StarGravity.Fall]) -> void:
+	for fall: StarGravity.Fall in falls:
+		var view: StarView = _views.get(fall.star_id)
+		if view == null:
+			continue
+		if not fall.swallowed:
+			view.drift_to(fall.to)
+			continue
+		_views.erase(fall.star_id)
+		view.drained.connect(func(_v: StarView) -> void: _gravity.flash_swallow())
+		view.drain_to(_gravity.horizon_point(fall.from))
 	_sequencer.hold(StarView.DRIFT_TIME)
 
 

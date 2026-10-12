@@ -41,7 +41,7 @@ signal encounter_finished(threat: int)
 ## Debug-only Aquarius experiment, using Tail geometry with every Orion rule disabled.
 @export var current_trial: bool = false
 @export var current_enabled: bool = true
-## Which trial map: "tail" or "aquarius" (StarMap.current_layout).
+## Which trial map: "tail", "aquarius" or "black_hole" (StarMap.current_layout).
 @export var current_layout: String = "tail"
 
 var run: RunState
@@ -158,10 +158,11 @@ func start_run(balance: Balance) -> bool:
 	_pause_pending = false
 	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
-	set_process(run.current != null or run.heat != null or run.harvest != null)
+	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
 	($Sky/ConstellationLayer as ConstellationView).repeat = replay
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
+	($Sky/GravityLayer as GravityView).setup(run, _sequencer)
 	($Sky/HeatLayer as HeatView).setup(run, _sequencer)
 	($Sky/HarvestLayer as HarvestView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
@@ -203,9 +204,10 @@ func _process(_delta: float) -> void:
 	var aiming: bool = run != null and not _sequencer.is_busy() and (
 		_telescope.is_aiming() and not _telescope.is_letting_go() if use_telescope else _launcher.is_pulling())
 	($Sky/CurrentLayer as CurrentView).aiming = aiming and run.current != null
+	($Sky/GravityLayer as GravityView).aiming = aiming and run.gravity != null
 	($Sky/HeatLayer as HeatView).aiming = aiming and run.heat != null
 	($Sky/HarvestLayer as HarvestView).aiming = aiming and run.harvest != null
-	($Sky/ConstellationLayer as ConstellationView).current_aiming = aiming and (run.current != null or run.heat != null)
+	($Sky/ConstellationLayer as ConstellationView).current_aiming = aiming and (run.current != null or run.heat != null or run.gravity != null)
 
 
 ## C restarts the trial with the same seed and the other setting.
