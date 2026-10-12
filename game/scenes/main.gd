@@ -354,6 +354,8 @@ func _wire_sound() -> void:
 	_sky.star_exploded.connect(_on_star_exploded)
 	# A drained star is the player's loss: sucked down the drain, a thump and a falling gulp.
 	_sky.star_drained.connect(func(_at: Vector2i) -> void: _sfx.play(&"drain"))
+	# A swallowed star: an inward rush, a deep drop and a glassy blip as it crosses the horizon.
+	_sky.star_swallowed.connect(func(_at: Vector2i) -> void: _sfx.play(&"swallow"))
 	# A burnt star is lost too: it bursts low.
 	_sky.star_burned.connect(func(at: Vector2i) -> void:
 		_sparks.explode_at(at)
