@@ -1,6 +1,6 @@
 # Chapters 4 to 6: ideas to test
 
-**Status: Virgo is built with the scythe and bound sheaves (step D: kept, revised), 2026-10-08.** All six stages are in [design.md](design.md) (chapter 4); paintings to come. The harvest that paid dust failed its stakes gate; bound sheaves with a tighter economy passed it (step C, below). The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
+**Status: Virgo is built with the scythe and bound sheaves (step D: kept, revised), 2026-10-08.** **Sagittarius's black hole is at step C (a debug trial and spatial bots), 2026-10-12.** All six stages are in [design.md](design.md) (chapter 4); paintings to come. The harvest that paid dust failed its stakes gate; bound sheaves with a tighter economy passed it (step C, below). The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
 
 ## Direction and stakes
 
@@ -169,6 +169,38 @@ Falling stars preview as short trails toward the hole, like the current's. The h
 Stars must keep their size colours near the hole: reddening can only touch their trail or halo, never their body, since colour codes size.
 
 The Big Bang already has a black hole in its collapse, so this one must look clearly different (persistent, smaller, with its ring) so the rare Big Bang keeps its signature.
+
+### Step B: the debug trial (2026-10-12)
+
+Built in the core, debug only (`StarGravity`, balance.json's `black_hole` block, `StarMap.black_hole`, `StarMap.black_hole_trial`). Once each launch has burst (the new stars too), every loose star falls toward the hole by `pull` / its distance, at least 1 px and at most `max_step`. A star whose fall reaches `horizon` px from the hole is swallowed for nothing. Landmarks never fall. A blocked star flows round what's in its way, as the current's do, and never moves further from the hole. As with the current, the falls of the stars already in the sky are reserved before the burst, so the aim's preview is exact. Aiming draws no random numbers, and a Big Bang clears the sky with no fall.
+
+On the chart, G opens the trial and shift+G opens it with the hole off; HOLE ON/OFF replays the same seed. The layout is Scorpio's Heart without Orion's hunt, with the hole at (90, 164) inside the figure, just left of Antares. The cues are minimal: an N0 disc the size of the horizon in a cool ring whose bright arc orbits, flaring ember as it swallows. While aiming, each star's fall shows as a dotted trail (ember into the hole), and the scatter ring turns ember where landing stars would fall in. While not aiming, two ember dots mark each star the next launch swallows. Tuning: pull 1000, max step 24, horizon 8.
+
+### Step C: spatial bots (2026-10-12)
+
+`tools/gravity/playtest.gd`, paired seeds. The policies:
+- *link-first* links everything first and aims at the first unlit landmark (careless).
+- *launch-first* hoards.
+- *archer* links first and aims 26 px past that landmark on the side away from the hole, so its stars fall toward it.
+- *archer-hoard* aims as the archer and hoards.
+
+The trial's layout, 300 seeds:
+
+| | Hole off | Hole on | Packs/win (on) | Swallowed/run (of them on landing) |
+|---|---|---|---|---|
+| Careless (link-first) | 100% | 43.7% | 4.97 | 9.24 (7.87) |
+| Hoard (launch-first) | 100% | 7.0% | 5.71 | 9.51 (6.59) |
+| Archer | | **99.7%** | 4.21 | 2.92 (2.09) |
+| Archer, hoarding | | 85.3% | 5.21 | 6.53 (2.27) |
+
+A sweep (150 seeds; Leo's Haunch, Aquarius's Body, Scorpio's Heart; holes in the middle, low, left and right; pull 1000/24, 1500/30, 2500/40) showed:
+
+- **The hole has to sit inside the figure.** Low or at the side, almost every policy wins nearly every run, and the hole only tidies up stars nobody used, which was Leo's flaw. In the middle of a figure that surrounds it (the Heart), stars waiting for a landmark fall past it.
+- **The stake is the aim and the timing together.** Aiming past the landmark, so the fall carries stars onto it, wins. Aiming carelessly loses, mostly to bursts landing in the hole, which a human reading the ember ring would avoid. Hoarding loses even with a good aim (85% against 99.7%), because a waiting pair keeps falling.
+- **Linking first with a good aim is safe.** As with Aquarius's drain (aiming upstream), the skill is in where you launch more than in when you link. The chapter's ladder has to make waiting tempting, for example with landmarks the fall can feed.
+- Pull is a steep dial: on the Heart, 1500 drops the archer to 97% and careless play to 10%; at 2500 even the archer wins only 51%.
+
+Still to do before step D: human play of the trial, and the gate's readability check at 180x320 (the hole, its preview and the at-risk marks are first-pass cues). The swallow needs its own sound and a juicier moment, as the drain got. The look must stay clearly unlike the Big Bang's collapse.
 
 ### Payout spike
 
