@@ -276,6 +276,9 @@ func _play_core_event(event: EventSequencer.RunEvent) -> bool:
 			_launched_kind = event.args[0]
 		&"big_bang_started":
 			_big_bang(event.args[0], event.args[1])
+			# Sagittarius's final won: its hole goes into the Big Bang it ends with.
+			if _run.is_over() and _run.outcome == RunState.Outcome.WON and _run.scorpio != null and _run.scorpio.map.big_bang_finale:
+				_gravity.vanish()
 		&"landmark_lit":
 			_constellation.flash_landmark(event.args[0])
 			_orion.hurt(_unlit_shown())

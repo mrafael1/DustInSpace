@@ -122,6 +122,8 @@ var _drink_time: float = -1.0
 var _stream_from: Array[Vector2i] = []
 var _stream_time: Array[float] = []
 var _stream_after: Array[int] = []
+## The hole went into the final's winning Big Bang.
+var _vanished: bool = false
 ## The intro's gauge: held (-1: not playing) for this long once its stream has arrived.
 var _gauge_intro_hold: float = -1.0
 
@@ -142,6 +144,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_stream_time.clear()
 	_stream_after.clear()
 	_gauge_intro_hold = -1.0
+	_vanished = false
 	tracing_fills = false
 	_sync()
 	set_process(run.gravity != null)
@@ -160,6 +163,18 @@ func flash_swallow(from: Vector2i, hole: Vector2i) -> void:
 	_swallows.append(Vector3(way.x, way.y, 0.0))
 	_swallow_holes.append(_shown_centers[at])
 	_shown_horizons[at] = mini(_shown_horizons[at] + _run.gravity.hunger, _run.gravity.max_horizon)
+	queue_redraw()
+
+
+## Whether the hole is gone: the final's winning Big Bang began, and the hole went into it (the Big
+## Bang's own hole opens where it was).
+func banged_out() -> bool:
+	return _vanished
+
+
+## The final's winning Big Bang began: the hole goes into it.
+func vanish() -> void:
+	_vanished = true
 	queue_redraw()
 
 
@@ -315,7 +330,7 @@ func _draw() -> void:
 
 func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	if _run == null or _run.gravity == null:
+	if _run == null or _run.gravity == null or banged_out():
 		return result
 	var hole: StarGravity = _run.gravity
 	var busy: bool = _sequencer != null and _sequencer.is_busy()
