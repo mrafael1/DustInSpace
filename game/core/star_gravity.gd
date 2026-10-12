@@ -4,6 +4,8 @@ extends RefCounted
 ## Once each launch has burst, every loose star falls toward it, a step that grows the closer it is
 ## (`pull` / its distance, at least 1 px, at most `max_step`); a star whose fall reaches the event
 ## horizon (`horizon` px from the hole) is swallowed, lost for nothing. Landmarks never fall.
+## A hungry hole (`hunger` > 0) grows: each star it swallows widens its horizon by `hunger` px, up to
+## `max_horizon`.
 ## No randomness, nodes or rewards. Existing destinations can be reserved before a burst, so newly
 ## arriving stars never invalidate the aiming preview (as StarCurrent's).
 
@@ -33,14 +35,31 @@ var horizon: int
 ## A star `d` px from the hole falls pull / d px a launch.
 var pull: int
 var max_step: int
+## Px the horizon widens for each star swallowed (0: it never grows), up to max_horizon.
+var hunger: int = 0
+var max_horizon: int = 0
 
 
-func _init(p_center: Vector2i, p_horizon: int, p_pull: int, p_max_step: int) -> void:
+func _init(p_center: Vector2i, p_horizon: int, p_pull: int, p_max_step: int, p_hunger: int = 0, p_max_horizon: int = 0) -> void:
 	assert(p_horizon >= 0 and p_pull >= 0 and p_max_step >= 1, "a black hole needs a horizon, a pull and a step")
 	center = p_center
 	horizon = p_horizon
 	pull = p_pull
 	max_step = p_max_step
+	hunger = p_hunger
+	max_horizon = maxi(p_max_horizon, p_horizon)
+
+
+## A copy as it is now (an intro's demo plays on one, never on the run's own hole).
+func copy() -> StarGravity:
+	return StarGravity.new(center, horizon, pull, max_step, hunger, max_horizon)
+
+
+## The hole swallowed `count` stars: a hungry one grows (up to max_horizon). Returns how much.
+func feed(count: int) -> int:
+	var before: int = horizon
+	horizon = mini(horizon + hunger * count, max_horizon)
+	return horizon - before
 
 
 ## How far a star at `point` falls on a launch (0 at the hole itself, or with no pull).
@@ -54,6 +73,20 @@ func step_at(point: Vector2i) -> int:
 ## Whether a star at `point` is inside the horizon (swallowed).
 func inside(point: Vector2i) -> bool:
 	return point.distance_squared_to(center) <= horizon * horizon
+
+
+## How many falls a lone star `distance` px out takes to be swallowed, straight in and unblocked (the
+## hole not growing), at most `limit` (more: limit + 1).
+func pulls_to_swallow(distance: int, limit: int = 8) -> int:
+	var r: float = distance
+	for k: int in range(1, limit + 1):
+		if pull <= 0:
+			break
+		var step: int = clampi(roundi(pull / r), 1, max_step) if r > 0.0 else 0
+		if r - step <= horizon:
+			return k
+		r -= step
+	return limit + 1
 
 
 ## Whether a star at `point` falls past the horizon on its next fall.

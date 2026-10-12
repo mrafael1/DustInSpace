@@ -95,6 +95,13 @@ var harvest_stages: Dictionary[String, Dictionary] = {}
 var black_hole_pull: int = 0
 var black_hole_max_step: int = 1
 var black_hole_horizon: int = 0
+## A hungry hole's growth: px a swallowed star widens its horizon, up to black_hole_max_horizon.
+## Optional in the block (0: 0 and the horizon).
+var black_hole_hunger: int = 0
+var black_hole_max_horizon: int = 0
+## A stage's own tuning (by StarMap id: any of "pull", "max_step", "horizon", "hunger",
+## "max_horizon"), else the block's.
+var black_hole_stages: Dictionary[String, Dictionary] = {}
 
 var errors: Array[String] = []
 
@@ -112,6 +119,14 @@ func harvest_every_for(map_id: String) -> int:
 ## The dust taken off every link under the harvest on the stage playing `map_id`.
 func harvest_link_dust_cut_for(map_id: String) -> int:
 	return harvest_stages.get(map_id, {}).get("link_dust_cut", harvest_link_dust_cut)
+
+
+## The black hole's tuning on the stage playing `map_id`: "pull", "max_step", "horizon", "hunger"
+## and "max_horizon" (its own, else the block's). A pull of 0: no hole.
+func black_hole_for(map_id: String) -> Dictionary:
+	var tuning: Dictionary = {"pull": black_hole_pull, "max_step": black_hole_max_step, "horizon": black_hole_horizon, "hunger": black_hole_hunger, "max_horizon": black_hole_max_horizon}
+	tuning.merge(black_hole_stages.get(map_id, {}), true)
+	return tuning
 
 
 ## A link's `dust` with `cut` taken off it, never below 0 (what a link pays under Virgo's harvest).
@@ -199,6 +214,19 @@ func _parse(data: Dictionary) -> void:
 		black_hole_pull = _read_int(hole, "pull", "black_hole.", 1)
 		black_hole_max_step = _read_int(hole, "max_step", "black_hole.", 1)
 		black_hole_horizon = _read_int(hole, "horizon", "black_hole.", 0)
+		if hole.has("hunger"):
+			black_hole_hunger = _read_int(hole, "hunger", "black_hole.", 0)
+		if hole.has("max_horizon"):
+			black_hole_max_horizon = _read_int(hole, "max_horizon", "black_hole.", 0)
+		if hole.has("stages"):
+			var stages: Dictionary = _read_dict(hole, "stages", "black_hole.")
+			for map_id: Variant in stages:
+				var entry: Dictionary = _read_dict(stages, map_id, "black_hole.stages.")
+				var stage: Dictionary = {}
+				for key: String in ["pull", "max_step", "horizon", "hunger", "max_horizon"]:
+					if entry.has(key):
+						stage[key] = _read_int(entry, key, "black_hole.stages.%s." % map_id, 1 if key in ["pull", "max_step"] else 0)
+				black_hole_stages[str(map_id)] = stage
 	for block: String in VOLLEY_BLOCKS:
 		if data.has(block):
 			volleys[block] = _parse_volley(_read_dict(data, block, ""), block + ".")
