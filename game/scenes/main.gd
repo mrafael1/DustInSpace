@@ -188,6 +188,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_harvest_intro()
 	# And an Aquarius stage bringing its flow, drain, tide or box: the flow shown on a few stars.
 	run.play_current_intro()
+	# And a Sagittarius stage bringing its hole, or its hungry hole: stars shown falling in.
+	run.play_hole_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)

@@ -1,6 +1,6 @@
 # Chapters 4 to 6: ideas to test
 
-**Status: Virgo is built with the scythe and bound sheaves (step D: kept, revised), 2026-10-08.** **Sagittarius's black hole is kept (step D, the user's call after playing the trial, 2026-10-12); its stages are next.** All six stages are in [design.md](design.md) (chapter 4); paintings to come. The harvest that paid dust failed its stakes gate; bound sheaves with a tighter economy passed it (step C, below). The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
+**Status: Virgo is built with the scythe and bound sheaves (step D: kept, revised), 2026-10-08.** **Sagittarius's black hole is kept (step D, 2026-10-12); stages 1-3 are built (the Arrow, the Bow, the Body with the hungry hole: [design.md](design.md), chapter 5).** All six stages are in [design.md](design.md) (chapter 4); paintings to come. The harvest that paid dust failed its stakes gate; bound sheaves with a tighter economy passed it (step C, below). The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
 
 ## Direction and stakes
 
@@ -33,7 +33,7 @@ The chapters sit at their signs on one sky, and forward (the next chapter) is to
 
 Voyages stay at their pace (0.6 s plus 0.28 s a sign: 0.88 s, then 1.44 s twice). Passing your own earlier chapters on the way is the reward of the ring.
 
-Needed, as its own chore before chapter 5: Virgo and Libra as passing figures; the ring (world x wraps every 12 signs; each chapter's place is its sign plus its lap); and the **chapters' own constellations drawn as passing figures**. Today a voyage from Scorpio to Leo crosses Aquarius's place empty, because chapter figures aren't drawn as passing ones. The background stars wrap with the ring.
+**Built (2026-10-12):** Libra as a passing figure, the ring (world x repeats every 12 signs, `ChapterSelect.CHAPTER_LAPS`), chapter figures as passing ones on other laps, and background stars that wrap. Ophiuchus is left out. The original note: Virgo and Libra as passing figures; the ring (world x wraps every 12 signs; each chapter's place is its sign plus its lap); and the **chapters' own constellations drawn as passing figures**. Today a voyage from Scorpio to Leo crosses Aquarius's place empty, because chapter figures aren't drawn as passing ones. The background stars wrap with the ring.
 
 ## Chapter 4: Virgo, the harvest
 

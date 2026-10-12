@@ -113,9 +113,33 @@ static func virgo() -> ChapterDef:
 	return def
 
 
+## Chapter 5: Sagittarius, the archer, who aims at the black hole at the heart of the galaxy. Opens
+## once Virgo's final is won; on the sky, the zodiac's second lap. Travelled from the arrow: the
+## arrow, the bow, the body, the legs, the head, then the whole Sagittarius (stages 4 to 6 aren't
+## built yet).
+static func sagittarius() -> ChapterDef:
+	var def := ChapterDef.new()
+	def.id = "sagittarius"
+	def.title = "SAGITTARIUS"
+	def.number = 5
+	def.stages = [
+		{"name": "ARROW", "map": "sagittarius_arrow", "piece": "arrow", "stars": [0, 1]},
+		{"name": "BOW", "map": "sagittarius_bow", "piece": "bow", "stars": [2, 3, 8, 9]},
+		{"name": "BODY", "map": "sagittarius_body", "piece": "body", "stars": [4, 5]},
+		{"name": "LEGS", "map": "", "piece": "legs", "stars": [7, 6, 12]},
+		{"name": "HEAD", "map": "", "piece": "head", "stars": [10, 11]},
+		{"name": "SAGITTARIUS", "map": "", "stars": []},
+	]
+	def.figure = StarMap.sagittarius()
+	def.final_at = Vector2i(96, 72)
+	def.piece = "res://assets/art/sagittarius_piece_%s.png"
+	def.unlocked_by = "virgo"
+	return def
+
+
 ## Every chapter, in campaign order.
 static func all() -> Array[ChapterDef]:
-	return [scorpio(), aquarius(), leo(), virgo()]
+	return [scorpio(), aquarius(), leo(), virgo(), sagittarius()]
 
 
 ## A won part's piece of the painting, or "" while it has no map (and so no piece).
