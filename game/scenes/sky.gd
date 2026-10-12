@@ -263,6 +263,8 @@ func _play_core_event(event: EventSequencer.RunEvent) -> bool:
 	match event.type:
 		&"pack_burst":
 			_burst(event.args[1], event.args[2])
+			# The planet opened as it should: a Big Bang after it (Sagittarius's holes) isn't its.
+			_launched_kind = ""
 		&"stars_resized":
 			_resize(event.args[0])
 		&"combo_collected":
@@ -398,6 +400,11 @@ func _play_current_event(event: EventSequencer.RunEvent) -> bool:
 		&"holes_forecast":
 			# Where the twins will go, launch by launch, to where they meet.
 			_sequencer.hold(_gravity.play_forecast(event.args[0]))
+		&"light_absorbed":
+			# The link's drunk light streams into the hole; a full gauge's Big Bang follows.
+			_sequencer.hold(_gravity.absorb_light(event.args[0], event.args[1], event.args[2], event.args[3]))
+		&"gauge_intro_shown":
+			_sequencer.hold(_gravity.play_gauge_intro(event.args[0], event.args[1]))
 		_:
 			return false
 	return true
@@ -596,6 +603,8 @@ func _show_link() -> void:
 		_heat.tracing = _gesture.selected if full and breathes else ([] as Array[int])
 		# Virgo's binding: a full, valid link that would light a star alone shows its ring now.
 		_harvest.tracing_alone = _run.link_lights_alone(_gesture.selected) if full else -1
+		# Sagittarius's light gauge: a full, valid link that would fill it blinks it ember.
+		_gravity.tracing_fills = full and _run.link_fills_gauge(_gesture.selected)
 
 
 ## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it
@@ -691,11 +700,14 @@ func _big_bang(burst: Vector2i, cleared: Array[Star]) -> void:
 
 
 ## Stars the launched pack would have opened into, drawn and placed like real ones. Ids are
-## negative so they never match a star in the run.
+## negative so they never match a star in the run. None for a Big Bang no planet opened into (the
+## twin holes' merge, the full light gauge's): it isn't a burst.
 func _decoys(burst: Vector2i) -> Array[Star]:
 	var pack: Balance.PackDef = _run.balance.packs.get(_launched_kind)
-	var count: int = pack.stars * pack.bursts if pack != null else 3
-	var weights: Array[int] = pack.weights if pack != null else [1, 1, 1] as Array[int]
+	if pack == null:
+		return [] as Array[Star]
+	var count: int = pack.stars * pack.bursts
+	var weights: Array[int] = pack.weights
 	var places: Array[Vector2i] = StarScatter.place(count, burst, _run.sky_rect, [] as Array[Vector2i], _decoy_rng)
 	var decoys: Array[Star] = []
 	for i: int in count:
