@@ -43,14 +43,12 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clean_line  # noqa: E402
+from clean_line import Axis, cubic, path_of, placed, segment, tube  # noqa: E402
 import stardust as sd  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ART = ROOT / "assets" / "art"
 OUT = ART / "scorpio_figure.png"
-# The end panel's top row on the home screen after the final's win (game/ui/end_screen.gd, TOP
-# shifted with the sky): nothing is painted from here down.
-END_PANEL_TOP = 243
 STAR_MAP = ROOT / "game" / "core" / "star_map.gd"
 PARTS = ("stinger", "tail", "body", "heart", "claws")
 
@@ -214,111 +212,6 @@ CHELAE = [
     {"wrist": (670, 604), "ang": 112, "L": 164, "h": 46, "g": 0.04, "fb": 0.58},
 ]
 
-# The painting over the line: the line LINE_STEPS above the sky (one more on its lit side), stardust
-# dithered inside each segment (thick along its edge over BAND px, thin in its middle), specks, and
-# a few rose glints on the brightest stretches of the line.
-LINE_STEPS = 4
-LIT_FACING = 0.15
-NEBULA_CELL = 8
-BAND = 5.0
-CORE = 0.16
-FILL = 1.45
-SECOND = 0.40
-GLINT_FACING = 0.45
-GLINTS = 0.14
-
-
-def catmull(pts, n=40):
-    """A Catmull-Rom curve through `pts`, `n` points per span."""
-    pts = [np.array(p, float) for p in pts]
-    P = [pts[0] * 2 - pts[1]] + pts + [pts[-1] * 2 - pts[-2]]
-    out = []
-    for i in range(1, len(P) - 2):
-        p0, p1, p2, p3 = P[i - 1], P[i], P[i + 1], P[i + 2]
-        for t in np.linspace(0, 1, n, endpoint=False):
-            t2, t3 = t * t, t * t * t
-            out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
-                              + (-p0 + 3 * p1 - 3 * p2 + p3) * t3))
-    out.append(P[-2])
-    return np.array(out)
-
-
-class Axis:
-    """A smooth spine, walked by arclength: its point, tangent and normal (left of travel)."""
-
-    def __init__(self, pts):
-        self.p = catmull(pts, 60)
-        d = np.linalg.norm(np.diff(self.p, axis=0), axis=1)
-        self.s = np.concatenate([[0], np.cumsum(d)])
-        self.L = self.s[-1]
-
-    def at(self, s):
-        s = min(max(s, 0), self.L)
-        return np.array([np.interp(s, self.s, self.p[:, 0]), np.interp(s, self.s, self.p[:, 1])])
-
-    def tan(self, s):
-        s = min(max(s, 0), self.L)
-        t = self.at(min(s + 3, self.L)) - self.at(max(s - 3, 0))
-        if np.linalg.norm(t) < 1e-6:
-            t = self.p[-1] - self.p[-2] if s > self.L / 2 else self.p[1] - self.p[0]
-        return t / np.linalg.norm(t)
-
-    def frame(self, s):
-        t = self.tan(s)
-        return self.at(s), t, np.array([-t[1], t[0]])
-
-
-def path_of(pts):
-    """A closed polygon as an SVG path (0.1 px)."""
-    pts = [(round(float(x), 1), round(float(y), 1)) for x, y in pts]
-    return "M %s %s " % pts[0] + " ".join("L %s %s" % p for p in pts[1:]) + " Z"
-
-
-def segment(axis, s0, s1, w0, w1, p=4.0, n=48, pinch=0.0):
-    """A body segment from arclength s0 to s1, half-width w0 to w1, with superellipse ends."""
-    left, right = [], []
-    for u in np.linspace(-1, 1, n):
-        s = s0 + (u + 1) / 2 * (s1 - s0)
-        c, t, nrm = axis.frame(s)
-        w = w0 + (w1 - w0) * (u + 1) / 2
-        k = (1 - abs(u) ** p) ** (1 / p)
-        k *= 1 - pinch * (u * u)
-        left.append(c + nrm * w * k)
-        right.append(c - nrm * w * k)
-    return left + right[::-1]
-
-
-def tube(spine, w0, w1, n=50):
-    """A tapered tube along a smoothed spine, with round end caps."""
-    ax = Axis(spine)
-    left, right = [], []
-    for s in np.linspace(0, ax.L, n):
-        c, t, nrm = ax.frame(s)
-        w = w0 + (w1 - w0) * s / ax.L
-        left.append(c + nrm * w)
-        right.append(c - nrm * w)
-    c1, t1, n1 = ax.frame(ax.L)
-    cap_end = [c1 + t1 * w1 * math.sin(a) + n1 * w1 * math.cos(a) for a in np.linspace(0, math.pi, 9)[1:-1]]
-    c0, t0, n0 = ax.frame(0)
-    cap_start = [c0 - t0 * w0 * math.sin(a) - n0 * w0 * math.cos(a) for a in np.linspace(0, math.pi, 9)[1:-1]]
-    return left + cap_end + right[::-1] + cap_start
-
-
-def placed(origin, ang_deg, pts):
-    """Local points (x along the pointing direction `ang_deg`, y to its upper side) on the screen."""
-    a = math.radians(ang_deg)
-    u = np.array([math.cos(a), math.sin(a)])
-    w = np.array([math.sin(a), -math.cos(a)])
-    o = np.array(origin, float)
-    return [o + u * x + w * y for x, y in pts]
-
-
-def cubic(p0, p1, p2, p3, n=16):
-    p0, p1, p2, p3 = (np.array(p, float) for p in (p0, p1, p2, p3))
-    return [((1 - t) ** 3) * p0 + 3 * ((1 - t) ** 2) * t * p1 + 3 * (1 - t) * t * t * p2 + t ** 3 * p3
-            for t in np.linspace(0, 1, n)]
-
-
 def chela(L, h, g=0.0, fb=0.62):
     """A pincer in local space (x along it, y to its outer side): a bulbous hand and two curved
     fingers, their tips turned toward each other round an almond opening. The fingers begin at
@@ -377,76 +270,6 @@ def figure_shapes() -> list:
     for k, ch in enumerate(CHELAE):
         add(f"chela{k}", "claws", placed(ch["wrist"], ch["ang"], chela(ch["L"], ch["h"], ch["g"], ch["fb"])))
     return shapes
-
-
-def blur(a, r):
-    """`a` box-blurred three times with radius `r` (about a Gaussian)."""
-    out = a.astype(float)
-    k = 2 * r + 1
-    for _ in range(3):
-        c = np.pad(np.cumsum(np.cumsum(np.pad(out, r, mode="edge"), 0), 1), ((1, 0), (1, 0)))
-        out = (c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]) / (k * k)
-    return out
-
-
-def paint_scorpio():
-    """The whole Scorpio: the clean line in the Stardust ramp, and stardust dithered inside each
-    segment, thick at its edge and thin in its middle so the sky shows through (semi-hollow).
-    Returns the painting and each pixel's part (the group's on top, "" off the form)."""
-    line, groups, parts = clean_line.draw(figure_shapes())
-    form = groups >= 0
-    rng = np.random.default_rng(SEED)
-    # Which way each pixel faces, read off the silhouette: the blurred form's slope points out.
-    gy, gx = np.gradient(blur(form, 3))
-    light = LIGHT[:2] / np.linalg.norm(LIGHT[:2])
-    mag = np.hypot(gx, gy) + 1e-6
-    facing = (-gx * light[0] - gy * light[1]) / mag * np.clip(mag * 6, 0, 1)
-    lit = np.clip(0.5 + 0.6 * facing, 0, 1)
-    # Each segment hollow on its own: the distance to its own visible border.
-    dist = np.zeros((H, W))
-    for g in range(groups.max() + 1):
-        dist = np.maximum(dist, sd.distance_inside(groups == g))
-    inside = form & ~line
-
-    dust = sd.Dust()
-    dust.put(line, LINE_STEPS)
-    dust.put(line & (facing > LIT_FACING), LINE_STEPS + 1)
-    neb = sd.value_noise(rng, NEBULA_CELL, 3)
-    band = np.clip(1.0 - (dist - 1.0) / BAND, 0.0, 1.0)
-    dens = (band * (0.35 + 0.55 * lit) + CORE + 0.15 * lit) * np.clip((neb - 0.22) * 2.4, 0, 1.2) * FILL
-    dust.put(inside & (sd.BAY < dens), 1)
-    dust.put(inside & (sd.BAY < dens * SECOND) & (lit > 0.5), 2)
-    sd.specks(dust, form, dist, sd.distance_inside(~form), lit)
-    dust.fixed[line] = ""
-    for y, x in zip(*np.nonzero(line & (facing > GLINT_FACING))):
-        if sd.hsh(x, y, 4) < GLINTS:
-            dust.fixed[y, x] = "N9"
-    sd.star_gaps(dust, L, SIZES)
-    sky = sd.sky_index()
-    img = sd.resolve(dust, sky)
-    # Each star on one faint pixel of its own (one step above the sky, hidden under the star): its
-    # piece holds it, so the chart can grow that piece from its stars.
-    for x, y in L:
-        if not img[y, x, 3]:
-            img[y, x, :3] = sd.PAL[sd.N[sky[y, x] + 1]]
-            img[y, x, 3] = 255
-    # Nothing at or below the end panel, so the whole tail stays in view after the win.
-    img[END_PANEL_TOP:] = 0
-    return sd.sun_clamp(img), parts
-
-
-def part_tags(parts: np.ndarray, img: np.ndarray) -> np.ndarray:
-    """Each painted pixel's part: the part of the segment under it, else the nearest tagged pixel's
-    (the specks off the form). Each star's own pixel goes with its part, and each star must sit on
-    a segment of its part."""
-    for star, part in STAR_PARTS.items():
-        x, y = L[star]
-        assert parts[y, x] == part, f"landmark {star} sits on {parts[y, x] or 'nothing'}, not {part}"
-    tags = sd.spread_tags(parts, img[..., 3] > 0)
-    for star, part in STAR_PARTS.items():
-        x, y = L[star]
-        tags[y, x] = part
-    return tags
 
 
 # The part stages' own paintings: the same body parts, fitted to each stage's landmarks.
@@ -667,11 +490,11 @@ def main():
     parser.add_argument("--preview", type=Path, help="also write the figure over the sky, x3, here")
     args = parser.parse_args()
     ART.mkdir(parents=True, exist_ok=True)
-    img, parts = paint_scorpio()
+    img, parts = clean_line.semi_hollow(figure_shapes(), L, SIZES, SEED, LIGHT)
     used = sd.check(img)
     print(f"figure: {sum(used.values())} px, {used}")
     save(img, OUT)
-    for part, piece in sd.pieces(img, part_tags(parts, img), PARTS).items():
+    for part, piece in sd.pieces(img, clean_line.part_tags(parts, img, L, STAR_PARTS), PARTS).items():
         save(piece, ART / f"scorpio_piece_{part}.png")
     if args.preview:
         sd.preview(img, L, SIZES, SEGMENTS).save(args.preview)
