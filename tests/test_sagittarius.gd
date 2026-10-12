@@ -334,7 +334,7 @@ func _head_link(run: RunState, size: Star.Size, at: Vector2i) -> Array[int]:
 	return ids
 
 
-func test_a_link_sends_half_its_light_to_the_hole_and_the_rest_to_the_sun() -> void:
+func test_the_head_drinks_all_of_a_links_light_so_the_sun_gets_none() -> void:
 	var run: RunState = _run(StarMap.sagittarius_head())
 	var absorbed: Array = []
 	var collected: Array = []
@@ -343,16 +343,16 @@ func test_a_link_sends_half_its_light_to_the_hole_and_the_rest_to_the_sun() -> v
 	var light: int = run.light
 	assert_eq(run.link(_head_link(run, Star.Size.MEDIUM, Vector2i(20, 100))), "medium_triple")
 	var full: int = run.balance.combos["medium_triple"].light
-	assert_eq(absorbed, [[full / 2, full / 2, 25]])
-	assert_eq(collected, [full - full / 2], "only the Sun's share flies to the Sun")
-	assert_eq(run.light, light + full - full / 2)
+	assert_eq(absorbed, [[full, full, run.gravity.capacity]])
+	assert_eq(collected, [0], "no light flies to the Sun")
+	assert_eq(run.light, light, "the Sun can't fill, so it never rekindles")
 
 
 func test_the_link_that_fills_the_gauge_bangs_the_sky_for_no_dust() -> void:
 	var run: RunState = _run(StarMap.sagittarius_head())
 	var banged: Array = []
 	run.big_bang_started.connect(func(at: Vector2i, cleared: Array[Star], dust: int) -> void: banged.append([at, cleared.size(), dust]))
-	run.gravity.absorbed = 20
+	run.gravity.absorbed = run.gravity.capacity - 10
 	var bystander: Star = run.add_star(Star.Size.SMALL, Vector2i(150, 230))
 	var ids: Array[int] = _head_link(run, Star.Size.BIG, Vector2i(20, 100))
 	assert_true(run.link_fills_gauge(ids), "the trace can warn before the release")
@@ -371,21 +371,38 @@ func test_the_link_that_fills_the_gauge_bangs_the_sky_for_no_dust() -> void:
 
 func test_a_small_link_doesnt_fill_the_gauge_and_other_stages_have_none() -> void:
 	var run: RunState = _run(StarMap.sagittarius_head())
+	run.gravity.absorbed = run.gravity.capacity - 10
 	assert_false(run.link_fills_gauge(_head_link(run, Star.Size.SMALL, Vector2i(20, 100))))
 	var arrow: RunState = _run(StarMap.sagittarius_arrow())
 	assert_false(arrow.gravity.has_gauge())
 	assert_false(arrow.link_fills_gauge(_head_link(arrow, Star.Size.BIG, Vector2i(20, 100))))
 
 
-func test_the_head_opens_by_streaming_a_links_light_into_the_hole_and_changes_nothing() -> void:
+func test_the_head_opens_by_showing_a_link_whose_light_the_hole_drinks_and_changes_nothing() -> void:
 	var run: RunState = _run(StarMap.sagittarius_head())
-	var shown: Array = []
-	run.gauge_intro_shown.connect(func(from: Vector2i, amount: int) -> void: shown.append([from, amount]))
+	var placed: Array[Star] = []
+	var linked: Array = []
+	run.gauge_intro_placed.connect(func(stars: Array[Star]) -> void: placed.assign(stars))
+	run.gauge_intro_linked.connect(func(link: Array[int], amount: int) -> void: linked.append([link, amount]))
+	var light: int = run.light
+	var packs: Dictionary = run.owned_packs.duplicate()
 	run.play_gauge_intro()
-	assert_eq(shown.size(), 1)
-	assert_eq(shown[0][1], run.gravity.drinks(run.balance.combos[Combos.SEQUENCE].light))
+	assert_eq(placed.size(), 3, "one star of each size")
+	var sizes: Array[int] = []
+	for star: Star in placed:
+		sizes.append(star.size)
+	assert_eq(Combos.evaluate(sizes), Combos.SEQUENCE, "a link a player could make")
+	assert_eq(linked.size(), 1)
+	assert_eq((linked[0][0] as Array).size(), 3)
+	assert_eq(linked[0][1], run.gravity.drinks(run.balance.combos[Combos.SEQUENCE].light))
+	assert_lt(linked[0][1], run.gravity.capacity, "the demo fills it only part way")
 	assert_eq(run.gravity.absorbed, 0, "the run's gauge is empty")
+	assert_eq(run.light, light)
+	assert_eq(run.owned_packs, packs)
 	assert_true(run.stars.is_empty())
+	for star: Star in placed:
+		for landmark: Vector2i in run.scorpio.landmark_positions():
+			assert_gte(star.position.distance_to(landmark), float(StarScatter.MIN_SPACING), "clear of the figure")
 	assert_eq(Hud.hole_rule(run.gravity), Hud.GAUGE_MESSAGE)
 	var falling: Array = []
 	run.hole_intro_placed.connect(func(stars: Array[Star]) -> void: falling.append(stars))
