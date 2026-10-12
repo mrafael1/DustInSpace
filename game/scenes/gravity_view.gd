@@ -62,6 +62,9 @@ var _sequencer: EventSequencer
 var _time: float = 0.0
 ## Swallows playing: the way each star came in from (a unit vector from the hole) and the seconds since.
 var _swallows: Array[Vector3] = []
+## The horizon shown: a hungry hole grows in the core the moment a launch resolves, but on screen
+## only as each swallow plays; it catches up with the core once nothing is playing.
+var _shown_horizon: int = 0
 
 
 func _ready() -> void:
@@ -73,6 +76,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_sequencer = sequencer
 	aiming = false
 	_swallows.clear()
+	_shown_horizon = run.gravity.horizon if run.gravity != null else 0
 	set_process(run.gravity != null)
 	queue_redraw()
 
@@ -86,7 +90,13 @@ func _process(delta: float) -> void:
 func flash_swallow(from: Vector2i) -> void:
 	var way: Vector2 = Vector2(from - _run.gravity.center).normalized()
 	_swallows.append(Vector3(way.x, way.y, 0.0))
+	_shown_horizon = mini(_shown_horizon + _run.gravity.hunger, _run.gravity.max_horizon)
 	queue_redraw()
+
+
+## The horizon as shown now (a hungry hole grows on screen as each swallow plays).
+func shown_horizon() -> int:
+	return _shown_horizon
 
 
 ## Whether a swallow is playing.
@@ -97,6 +107,8 @@ func is_swallowing() -> bool:
 ## Turns the ring and the swallows on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	_time += delta
+	if _run != null and _run.gravity != null and _swallows.is_empty() and (_sequencer == null or not _sequencer.is_busy()):
+		_shown_horizon = _run.gravity.horizon
 	for i: int in range(_swallows.size() - 1, -1, -1):
 		_swallows[i].z += delta
 		if _swallows[i].z >= SWALLOW_TIME:
@@ -107,7 +119,7 @@ func advance(delta: float) -> void:
 func horizon_point(from: Vector2i) -> Vector2i:
 	var hole: StarGravity = _run.gravity
 	var way: Vector2 = Vector2(from - hole.center).normalized()
-	return hole.center + Vector2i((way * hole.horizon).round())
+	return hole.center + Vector2i((way * _shown_horizon).round())
 
 
 func _draw() -> void:
@@ -124,12 +136,13 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	var flare: float = -1.0
 	for swallow: Vector3 in _swallows:
 		flare = swallow.z if flare < 0.0 else minf(flare, swallow.z)
-	result.merge(infall_pixels(hole.center, hole.horizon, _time))
-	result.merge(mote_pixels(hole.center, hole.horizon, _time, false), true)
-	result.merge(hole_pixels(hole.center, hole.horizon, _time, flare), true)
-	result.merge(mote_pixels(hole.center, hole.horizon, _time, true), true)
+	var horizon: int = _shown_horizon
+	result.merge(infall_pixels(hole.center, horizon, _time))
+	result.merge(mote_pixels(hole.center, horizon, _time, false), true)
+	result.merge(hole_pixels(hole.center, horizon, _time, flare), true)
+	result.merge(mote_pixels(hole.center, horizon, _time, true), true)
 	for swallow: Vector3 in _swallows:
-		result.merge(swallow_pixels(hole.center, hole.horizon, Vector2(swallow.x, swallow.y), swallow.z), true)
+		result.merge(swallow_pixels(hole.center, horizon, Vector2(swallow.x, swallow.y), swallow.z), true)
 	var busy: bool = _sequencer != null and _sequencer.is_busy()
 	if busy:
 		return result

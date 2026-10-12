@@ -385,6 +385,12 @@ func _play_current_event(event: EventSequencer.RunEvent) -> bool:
 		&"current_intro_cleared":
 			# What the flow left fades out once it has been seen: no reward, nothing drained.
 			_clear_intro(event.args[0], StarView.DISSOLVE_TIME)
+		&"hole_intro_placed":
+			# A beat to see the stars before the hole pulls them.
+			_place_intro(event.args[0])
+		&"hole_intro_cleared":
+			# What the hole left fades out once it has been seen: no reward.
+			_clear_intro(event.args[0], StarView.DISSOLVE_TIME)
 		_:
 			return false
 	return true
