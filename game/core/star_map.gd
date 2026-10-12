@@ -93,6 +93,10 @@ var black_hole: bool = false
 var black_hole_center: Vector2i = Vector2i.ZERO
 ## The hungry hole: each star it swallows widens its horizon (balance.json's hunger).
 var black_hole_hungry: bool = false
+## Twin holes: a second hole here (home layout), the two drifting toward each other each launch
+## until they merge in a Big Bang (balance.json's drift and merge_horizon).
+var black_hole_twins: bool = false
+var black_hole_twin: Vector2i = Vector2i.ZERO
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -810,6 +814,27 @@ static func sagittarius_body() -> StarMap:
 	return map
 
 
+## Sagittarius, stage 4: the Legs. Twin holes (its intro shows their path): two holes either side
+## draw together along a line, a step each launch, and where they meet they merge in a Big Bang that
+## clears every loose star (paying nothing; lit stars stay lit), leaving one bigger hole. From the
+## hip (lit, top) the centaur's legs part, each through its knee and hock to its hoof; the holes'
+## path runs across between the knees and the hocks. Six to light. Strings are 32-36 px.
+static func sagittarius_legs() -> StarMap:
+	var map := StarMap.new()
+	map.id = "sagittarius_legs"
+	map.title = "LEGS"
+	map.landmarks = [Vector2i(90, 118), Vector2i(62, 140), Vector2i(46, 184), Vector2i(62, 216), Vector2i(118, 140), Vector2i(134, 184), Vector2i(118, 216)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(0, 4), Vector2i(4, 5), Vector2i(5, 6)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
+	map.starting_lit = [0]
+	map.painting = SAGITTARIUS_PART % "legs"
+	map.black_hole = true
+	map.black_hole_center = Vector2i(20, 162)
+	map.black_hole_twins = true
+	map.black_hole_twin = Vector2i(160, 162)
+	return map
+
+
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
 		"stinger":
@@ -874,6 +899,8 @@ static func by_id(p_id: String) -> StarMap:
 			return sagittarius_bow()
 		"sagittarius_body":
 			return sagittarius_body()
+		"sagittarius_legs":
+			return sagittarius_legs()
 	return scorpio()
 
 
