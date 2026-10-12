@@ -403,8 +403,12 @@ func _play_current_event(event: EventSequencer.RunEvent) -> bool:
 		&"light_absorbed":
 			# The link's drunk light streams into the hole; a full gauge's Big Bang follows.
 			_sequencer.hold(_gravity.absorb_light(event.args[0], event.args[1], event.args[2], event.args[3]))
-		&"gauge_intro_shown":
-			_sequencer.hold(_gravity.play_gauge_intro(event.args[0], event.args[1]))
+		&"gauge_intro_placed":
+			# A beat to see the demo stars before they're linked.
+			_place_intro(event.args[0])
+		&"gauge_intro_linked":
+			# The demo link is traced and collects; then its light streams into the hole, not the Sun.
+			_sequencer.hold(_link_into_hole(event.args[0], event.args[1]))
 		_:
 			return false
 	return true
@@ -457,6 +461,20 @@ func _play_harvest_event(event: EventSequencer.RunEvent) -> bool:
 		_:
 			return false
 	return true
+
+
+## The gauge intro: the demo `link` is traced and collects, then its `amount` of light streams from
+## where it was into the hole and fills the gauge. Returns how long it all plays.
+func _link_into_hole(link: Array[int], amount: int) -> float:
+	var from := Vector2i.ZERO
+	for id: int in link:
+		from += Vector2i(_views[id].position) if _views.has(id) else Vector2i.ZERO
+	from /= maxi(1, link.size())
+	var trace: float = _trace_intro_link(link, -1, false)
+	var tween: Tween = create_tween()
+	tween.tween_interval(trace)
+	tween.tween_callback(func() -> void: _gravity.play_gauge_intro(from, amount))
+	return trace + GravityView.STREAM_TIME + GravityView.GAUGE_INTRO_HOLD
 
 
 ## A stage's intro placed its demo stars: they appear, and play waits a beat to see them.

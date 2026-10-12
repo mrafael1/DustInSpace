@@ -35,9 +35,12 @@ signal holes_drifted(from: Array[Vector2i], to: Array[Vector2i], merged: bool)
 ## instead of the Sun; the gauge now holds `absorbed` of `capacity` (0 when that filled it:
 ## big_bang_started follows at the hole, clearing the sky for no dust).
 signal light_absorbed(from: Vector2i, amount: int, absorbed: int, capacity: int)
-## The gauge's intro, as the stage opens: a demo link's `amount` of light streams from `from` into the
-## hole and fills its gauge that far, then it drains back (presentation only).
-signal gauge_intro_shown(from: Vector2i, amount: int)
+## The gauge's intro, as the stage opens: demo `stars` appear (one of each size, copies as placed).
+signal gauge_intro_placed(stars: Array[Star])
+## The gauge's intro: the demo stars are linked (`link`, their ids in the order they're traced) and
+## the hole drinks the link's `amount` of light, filling its gauge that far; then it drains back. The
+## run's own gauge, light and sky don't change, and the demo stars are gone (presentation only).
+signal gauge_intro_linked(link: Array[int], amount: int)
 ## Twin holes' intro, as the stage opens: where each twin will be launch by launch (`paths`, one
 ## array of centres each, the meeting point last in both), shown as a forecast. Presentation only.
 signal holes_forecast(paths: Array)
@@ -213,6 +216,10 @@ const CURRENT_INTRO_PULSES: int = 2
 ## at least StarScatter.MIN_SPACING apart), along the first of HOLE_INTRO_WAYS directions where all
 ## three are clear of the figure and inside the sky.
 const HOLE_INTRO_WAYS: int = 32
+## The gauge intro's three stars stand this far apart, at least GAUGE_INTRO_HOLE_CLEARANCE px past the
+## hole's ring (so they don't read as falling in).
+const GAUGE_INTRO_GAP: int = 18
+const GAUGE_INTRO_HOLE_CLEARANCE: int = 16
 const HOLE_INTRO_STRING_CLEARANCE: float = 10.0
 const HOLE_INTRO_PULLS: int = 2
 const CURRENT_INTRO_ACROSS: Array[int] = [0, 6, -6]
@@ -1149,12 +1156,51 @@ func link_fills_gauge(star_ids: Array[int]) -> bool:
 	return gravity.fills_with(gravity.drinks(balance.combos[combo].light))
 
 
-## The gauge's intro, as a stage with a light gauge and intros opens: a demo link's light (a
-## sequence's share) streams into the hole and back out. Changes nothing.
+## The gauge's intro, as a stage with a light gauge and intros opens (playtest: show a link, then its
+## light drunk by the hole): one star of each size appears in a row in the open sky, they're linked as
+## a player would, and the hole drinks the link's light (a sequence's share). No reward, no pack used,
+## no RNG drawn; the demo stars are gone and the run's gauge is as it was.
 func play_gauge_intro() -> void:
 	if gravity == null or not gravity.has_gauge() or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
-	gauge_intro_shown.emit(_open_middle(), gravity.drinks(balance.combos[Combos.SEQUENCE].light))
+	var spots: Array[Vector2i] = gauge_intro_spots()
+	if spots.is_empty():
+		return
+	var shown: Array[Star] = []
+	var link: Array[int] = []
+	for i: int in spots.size():
+		var star: Star = add_star(HEAT_INTRO_SIZES[i], spots[i])
+		shown.append(Star.new(star.id, star.size, star.position))
+		link.append(star.id)
+	gauge_intro_placed.emit(shown)
+	stars.clear()
+	gauge_intro_linked.emit(link, gravity.drinks(balance.combos[Combos.SEQUENCE].light))
+
+
+## Where the gauge intro's three stars stand: a row GAUGE_INTRO_GAP px apart, centred on the open
+## middle of the sky, clear of the figure and the hole ([] if it doesn't fit).
+func gauge_intro_spots() -> Array[Vector2i]:
+	var spots: Array[Vector2i] = []
+	if gravity == null:
+		return spots
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
+	var middle: Vector2i = _open_middle()
+	for dy: int in [0, 16, -16, 32, -32, 48, -48, 64]:
+		for dx: int in [0, 16, -16, 32, -32]:
+			spots.clear()
+			for k: int in 3:
+				var spot: Vector2i = middle + Vector2i(dx + (k - 1) * GAUGE_INTRO_GAP, dy)
+				var clear: bool = inner.has_point(spot) and spot.distance_to(gravity.center) > gravity.horizon + GravityView.RING_GAP + GAUGE_INTRO_HOLE_CLEARANCE
+				for at: Vector2i in landmarks:
+					clear = clear and spot.distance_to(at) >= StarScatter.MIN_SPACING
+				if not clear:
+					break
+				spots.append(spot)
+			if spots.size() == 3:
+				return spots
+	spots.clear()
+	return spots
 
 
 ## Twin holes drift toward each other; if they meet, they merge in a Big Bang that clears the sky,
