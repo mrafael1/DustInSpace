@@ -4,8 +4,8 @@ extends SceneTree
 ## difficulty.
 ## --map=<StarMap id> (default black_hole_trial, the trial's own map; any other is a borrowed layout
 ## with its heat, current, harvest and threats switched off), --hole=x,y (home layout; else the map's own, else 90,164), --runs=N,
-## --pull=N, --max-step=N, --horizon=N (what-ifs over balance.json's black_hole block, in memory
-## only), --policies=a,b.
+## --pull=N, --max-step=N, --horizon=N, --hunger=N (what-ifs over the stage's black_hole tuning in
+## balance.json, in memory only), --policies=a,b.
 ## Policies: link-first links every link before launching, aiming at the first unlit landmark;
 ## launch-first launches every owned pack before linking (hoards); archer links like link-first but
 ## aims past that landmark on the side away from the hole, so its stars fall toward it; archer-hoard
@@ -24,6 +24,7 @@ var _policy: String = ""
 
 func _initialize() -> void:
 	_balance = Balance.load_file()
+	var what_if: Dictionary = {}
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
 			_runs = maxi(1, argument.trim_prefix("--runs=").to_int())
@@ -33,19 +34,26 @@ func _initialize() -> void:
 			var xy: PackedStringArray = argument.trim_prefix("--hole=").split(",")
 			_hole = Vector2i(xy[0].to_int(), xy[1].to_int())
 		elif argument.begins_with("--pull="):
-			_balance.black_hole_pull = argument.trim_prefix("--pull=").to_int()
+			what_if["pull"] = argument.trim_prefix("--pull=").to_int()
 		elif argument.begins_with("--max-step="):
-			_balance.black_hole_max_step = maxi(1, argument.trim_prefix("--max-step=").to_int())
+			what_if["max_step"] = maxi(1, argument.trim_prefix("--max-step=").to_int())
 		elif argument.begins_with("--horizon="):
-			_balance.black_hole_horizon = argument.trim_prefix("--horizon=").to_int()
+			what_if["horizon"] = argument.trim_prefix("--horizon=").to_int()
+		elif argument.begins_with("--hunger="):
+			what_if["hunger"] = argument.trim_prefix("--hunger=").to_int()
 		elif argument.begins_with("--policies="):
 			_policies.assign(argument.trim_prefix("--policies=").split(","))
+	# What-ifs override the stage's own tuning (balance.json's stays the source of truth).
+	var stage: Dictionary = _balance.black_hole_stages.get(_map, {}).duplicate()
+	stage.merge(what_if, true)
+	_balance.black_hole_stages[_map] = stage
 	_simulate.call_deferred()
 
 
 func _simulate() -> void:
 	var probe: StarMap = _layout(true)
-	print("Paired seeds 1..%d; %s; hole %s; pull %d; max step %d; horizon %d" % [_runs, _map, probe.black_hole_center, _balance.black_hole_pull, _balance.black_hole_max_step, _balance.black_hole_horizon])
+	var tuning: Dictionary = _balance.black_hole_for(_map)
+	print("Paired seeds 1..%d; %s; hole %s; pull %d; max step %d; horizon %d; hunger %d" % [_runs, _map, probe.black_hole_center, tuning.pull, tuning.max_step, tuning.horizon, tuning.hunger if probe.black_hole_hungry else 0])
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
 		for enabled: bool in [false, true]:
