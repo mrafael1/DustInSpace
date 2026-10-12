@@ -47,6 +47,8 @@ signal link_cancelled
 signal star_exploded(at: Vector2i)
 ## A draining current took a star at `at`, on the field's edge. Feedback only.
 signal star_drained(at: Vector2i)
+## The black hole swallowed a star at `at` (the horizon's edge), for nothing.
+signal star_swallowed(at: Vector2i)
 ## The heat burned a star out at `at`. Feedback only.
 signal star_burned(at: Vector2i)
 ## The cold faded a small star out at `at`. Feedback only.
@@ -752,7 +754,10 @@ func _fall(falls: Array[StarGravity.Fall]) -> void:
 			view.drift_to(fall.to)
 			continue
 		_views.erase(fall.star_id)
-		view.drained.connect(func(_v: StarView) -> void: _gravity.flash_swallow())
+		var from: Vector2i = fall.from
+		view.drained.connect(func(v: StarView) -> void:
+			_gravity.flash_swallow(from)
+			star_swallowed.emit(Vector2i(v.position)))
 		view.drain_to(_gravity.horizon_point(fall.from))
 	_sequencer.hold(StarView.DRIFT_TIME)
 

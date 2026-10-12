@@ -209,6 +209,18 @@ def drain():
     )
 
 
+def swallow():
+    # A star swallowed by Sagittarius's black hole (0.45 s): air rushing inward, rising, a glassy blip
+    # falling as it crosses the horizon, and a deep drop that warps as it sinks. Not the Big Bang's
+    # collapse (0.9 s of sinking noise cut dead): short, with an inward swell before the drop.
+    return mix(
+        (0, envelope(noise(0.12, 300, 2600), attack=0.1, curve=0.6), 0.55),
+        (0.1, envelope(tone(note("E6"), 0.09, "sine", note("E4")), attack=0.001, curve=1.6), 0.45),
+        (0.1, envelope(tone(95, 0.34, "sine", 28, vibrato=0.04, vib_rate=14), attack=0.002, curve=1.8), 1.0),
+        (0.1, envelope(tone(note("C3"), 0.07, "square", note("C2"), duty=0.3), attack=0.001, curve=2), 0.3),
+    )
+
+
 def crop():
     # A constellation star cut by Virgo's scythe (0.4 s): a bright metallic shing as the blade
     # passes, a sharp snap as the star splits, a low thud, and an ember fizz as the halves cool.
@@ -301,6 +313,7 @@ CUES = {
     "link_reject": (link_reject, -12),
     "drain": (drain, -7),
     "crop": (crop, -8),
+    "swallow": (swallow, -7),
     "dust_land": (dust_land, -18),
     "light_land": (light_land, -18),
     "big_bang_collapse": (big_bang_collapse, -6),
