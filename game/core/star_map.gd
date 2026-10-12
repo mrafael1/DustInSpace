@@ -178,15 +178,15 @@ static func aquarius_flow(enabled: bool = true) -> StarMap:
 	return map
 
 
-## Debug experiment for chapter 5 (Sagittarius): Leo's Haunch layout with every rule of its own off
-## and a black hole in the open middle of the sky, which the BLACK HOLE ON/OFF switch can turn off to
-## replay the same seed. No progress identity; the Haunch's painting stands in.
+## Debug experiment for chapter 5 (Sagittarius): Scorpio's Heart layout without Orion's hunt, and a
+## black hole inside the figure, just left of Antares, so the stars a landmark waits for fall past it
+## (spatial bots: docs/chapter_4_6_plan.md). The HOLE ON/OFF switch turns it off to replay the same
+## seed. No progress identity; the Heart's painting stands in.
 static func black_hole_trial(enabled: bool = true) -> StarMap:
-	var map: StarMap = leo_haunch()
+	var map: StarMap = heart()
 	map.id = "black_hole_trial" if enabled else "black_hole_off"
 	map.title = "BLACK HOLE" if enabled else "BLACK HOLE OFF"
-	map.heat_change = 0
-	map.heat_burns = false
+	map.hunt = false
 	map.intros = false
 	map.black_hole = enabled
 	map.black_hole_center = Vector2i(90, 164)
