@@ -355,6 +355,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	_time = 0.0
 	_title.text = "BIG BANG"
 	_dust = event.args[2]
+	# The twin holes' merge pays nothing: the banner says BIG BANG alone, with no +0.
+	_amount.visible = _dust > 0
+	_icon.visible = _dust > 0
 	_show_banner(-1.0)
 	_scatter_debris()
 	_scatter_specks()

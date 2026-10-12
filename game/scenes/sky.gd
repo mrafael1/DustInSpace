@@ -391,6 +391,13 @@ func _play_current_event(event: EventSequencer.RunEvent) -> bool:
 		&"hole_intro_cleared":
 			# What the hole left fades out once it has been seen: no reward.
 			_clear_intro(event.args[0], StarView.DISSOLVE_TIME)
+		&"holes_drifted":
+			# The twins slide along their path (together, merging: the Big Bang follows there).
+			_gravity.slide_holes(event.args[0], event.args[1], event.args[2])
+			_sequencer.hold(GravityView.SLIDE_TIME)
+		&"holes_forecast":
+			# Where the twins will go, launch by launch, to where they meet.
+			_sequencer.hold(_gravity.play_forecast(event.args[0]))
 		_:
 			return false
 	return true
@@ -761,10 +768,11 @@ func _fall(falls: Array[StarGravity.Fall]) -> void:
 			continue
 		_views.erase(fall.star_id)
 		var from: Vector2i = fall.from
+		var hole: Vector2i = fall.to
 		view.drained.connect(func(v: StarView) -> void:
-			_gravity.flash_swallow(from)
+			_gravity.flash_swallow(from, hole)
 			star_swallowed.emit(Vector2i(v.position)))
-		view.drain_to(_gravity.horizon_point(fall.from))
+		view.drain_to(_gravity.horizon_point(fall.from, fall.to))
 	_sequencer.hold(StarView.DRIFT_TIME)
 
 

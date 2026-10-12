@@ -27,6 +27,13 @@ signal stars_fell(falls: Array[StarGravity.Fall])
 signal hole_intro_placed(stars: Array[Star])
 ## Sagittarius's hole intro is over: `stars`, what the hole left of it, leave the sky. No reward.
 signal hole_intro_cleared(stars: Array[Star])
+## Twin holes, once a launch has resolved: they drifted from `from` to `to` along their path; with
+## `merged`, they met in one hole at to[0] (its horizon gravity.horizon), and big_bang_started
+## follows there, clearing the sky for no dust.
+signal holes_drifted(from: Array[Vector2i], to: Array[Vector2i], merged: bool)
+## Twin holes' intro, as the stage opens: where each twin will be launch by launch (`paths`, one
+## array of centres each, the meeting point last in both), shown as a forecast. Presentation only.
+signal holes_forecast(paths: Array)
 ## The heat (Leo) changed the size of loose stars once the launch resolved (after any current).
 ## A change flagged lost took its star out of the sky, for nothing.
 signal stars_resized(changes: Array[StarHeat.Change])
@@ -294,6 +301,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.black_hole and hole.pull > 0:
 			var hunger: int = hole.hunger if scorpio.map.black_hole_hungry else 0
 			gravity = StarGravity.new(scorpio.map.black_hole_center + scorpio.shift, hole.horizon, hole.pull, hole.max_step, hunger, hole.max_horizon)
+			if scorpio.map.black_hole_twins:
+				gravity.add_twin(scorpio.map.black_hole_twin + scorpio.shift, hole.drift, hole.merge_horizon)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -659,6 +668,8 @@ func launch(target: Vector2i) -> bool:
 		_shift_stars()
 	if gravity != null and not result.big_bang:
 		_fall_stars()
+	if gravity != null and gravity.has_twins():
+		_drift_holes()
 	if heat != null and not result.big_bang:
 		_heat_stars(first_new_id)
 		if scorpio.map.heat_landmarks:
@@ -1102,6 +1113,19 @@ func _fall_stars() -> void:
 		stars_fell.emit(fell)
 
 
+## Twin holes drift toward each other; if they meet, they merge in a Big Bang that clears the sky,
+## paying nothing (the stars are lost; lit constellation stars stay lit).
+func _drift_holes() -> void:
+	var from: Array[Vector2i] = gravity.centers.duplicate()
+	var merged: bool = gravity.drift_holes()
+	holes_drifted.emit(from, gravity.centers.duplicate(), merged)
+	if merged:
+		var cleared: Array[Star] = stars.duplicate()
+		stars.clear()
+		_orion_forget(cleared)
+		big_bang_started.emit(gravity.center, cleared, 0)
+
+
 ## The harvest clock counts a launch, just before its last burst; when it runs out, the scythe reaps
 ## every loose star in the sky then, for nothing (a red planet's first burst too; its last burst, or
 ## a blue planet's only one, lands after), and, where it binds, puts out the constellation stars lit
@@ -1535,7 +1559,7 @@ func play_current_intro() -> void:
 ## a copy of the hole (a hungry one grows as it swallows), and the one left fades out. No pack used,
 ## no reward, no RNG drawn. Nothing without a hole, on a map without intros, or once the run has begun.
 func play_hole_intro() -> void:
-	if gravity == null or scorpio == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+	if gravity == null or gravity.has_twins() or scorpio == null or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
 	var spots: Array[Vector2i] = hole_intro_spots()
 	if spots.is_empty():
@@ -1565,6 +1589,28 @@ func play_hole_intro() -> void:
 		var left: Array[Star] = stars.duplicate()
 		stars.clear()
 		hole_intro_cleared.emit(left)
+
+
+## Twin holes' intro, as the stage opens (the scene calls it with the other intros): their path,
+## launch by launch, to where they meet, as a forecast. Changes nothing. Nothing without twins, on a
+## map without intros, or once the run has begun.
+func play_twins_intro() -> void:
+	if gravity == null or not gravity.has_twins() or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	holes_forecast.emit(twin_paths())
+
+
+## Where each twin will be, launch by launch, until they meet (the meeting point last in both).
+func twin_paths() -> Array:
+	var paths: Array = [[] as Array[Vector2i], [] as Array[Vector2i]]
+	if gravity == null or not gravity.has_twins():
+		return paths
+	var ahead: StarGravity = gravity.copy()
+	for launch: int in gravity.launches_to_merge():
+		var merging: bool = ahead.drift_holes()
+		for i: int in 2:
+			(paths[i] as Array[Vector2i]).append(ahead.centers[0 if merging else i])
+	return paths
 
 
 ## Where the hole intro's stars stand (small, medium, big), or [] without a hole (or no way round it

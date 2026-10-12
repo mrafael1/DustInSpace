@@ -132,6 +132,7 @@ const LION_MESSAGE: String = "THE LION GROWS TOO\nLINK BIG STARS FIRST"
 const HOLE_MESSAGE: String = "THE HOLE PULLS STARS IN\nSO AIM BEYOND THE STARS"
 const HUNGRY_MESSAGE: String = "THE HOLE GROWS WITH\nEVERY STAR IT SWALLOWS"
 const SWALLOW_LOSS_MESSAGE: String = "THE HOLE TOOK A STAR\nLINK MARKED ONES FIRST"
+const TWINS_MESSAGE: String = "WHERE THE HOLES MEET\nA BIG BANG CLEARS ALL"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
 ## no launch, other message or clear cuts it before it can be read; only another teaching line can.
@@ -468,6 +469,8 @@ static func harvest_rule(harvest: StarHarvest) -> String:
 
 ## What the black hole's message says: it pulls stars in, or (hungry) it grows as it swallows.
 static func hole_rule(hole: StarGravity) -> String:
+	if hole.has_twins():
+		return TWINS_MESSAGE
 	return HUNGRY_MESSAGE if hole.hunger > 0 else HOLE_MESSAGE
 
 
@@ -815,7 +818,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed":
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast":
 			# Virgo's, the current's and the breath's intros say their rule as the effect shows.
 			tell_current_rule()
 			return

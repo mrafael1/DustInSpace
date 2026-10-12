@@ -99,8 +99,12 @@ var black_hole_horizon: int = 0
 ## Optional in the block (0: 0 and the horizon).
 var black_hole_hunger: int = 0
 var black_hole_max_horizon: int = 0
+## Twin holes: px each drifts toward the other a launch, and the merged hole's horizon. Optional in
+## the block (0: the twins never move; the merged hole as wide as a twin).
+var black_hole_drift: int = 0
+var black_hole_merge_horizon: int = 0
 ## A stage's own tuning (by StarMap id: any of "pull", "max_step", "horizon", "hunger",
-## "max_horizon"), else the block's.
+## "max_horizon", "drift", "merge_horizon"), else the block's.
 var black_hole_stages: Dictionary[String, Dictionary] = {}
 
 var errors: Array[String] = []
@@ -124,7 +128,7 @@ func harvest_link_dust_cut_for(map_id: String) -> int:
 ## The black hole's tuning on the stage playing `map_id`: "pull", "max_step", "horizon", "hunger"
 ## and "max_horizon" (its own, else the block's). A pull of 0: no hole.
 func black_hole_for(map_id: String) -> Dictionary:
-	var tuning: Dictionary = {"pull": black_hole_pull, "max_step": black_hole_max_step, "horizon": black_hole_horizon, "hunger": black_hole_hunger, "max_horizon": black_hole_max_horizon}
+	var tuning: Dictionary = {"pull": black_hole_pull, "max_step": black_hole_max_step, "horizon": black_hole_horizon, "hunger": black_hole_hunger, "max_horizon": black_hole_max_horizon, "drift": black_hole_drift, "merge_horizon": black_hole_merge_horizon}
 	tuning.merge(black_hole_stages.get(map_id, {}), true)
 	return tuning
 
@@ -218,12 +222,16 @@ func _parse(data: Dictionary) -> void:
 			black_hole_hunger = _read_int(hole, "hunger", "black_hole.", 0)
 		if hole.has("max_horizon"):
 			black_hole_max_horizon = _read_int(hole, "max_horizon", "black_hole.", 0)
+		if hole.has("drift"):
+			black_hole_drift = _read_int(hole, "drift", "black_hole.", 0)
+		if hole.has("merge_horizon"):
+			black_hole_merge_horizon = _read_int(hole, "merge_horizon", "black_hole.", 0)
 		if hole.has("stages"):
 			var stages: Dictionary = _read_dict(hole, "stages", "black_hole.")
 			for map_id: Variant in stages:
 				var entry: Dictionary = _read_dict(stages, map_id, "black_hole.stages.")
 				var stage: Dictionary = {}
-				for key: String in ["pull", "max_step", "horizon", "hunger", "max_horizon"]:
+				for key: String in ["pull", "max_step", "horizon", "hunger", "max_horizon", "drift", "merge_horizon"]:
 					if entry.has(key):
 						stage[key] = _read_int(entry, key, "black_hole.stages.%s." % map_id, 1 if key in ["pull", "max_step"] else 0)
 				black_hole_stages[str(map_id)] = stage

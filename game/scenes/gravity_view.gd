@@ -14,6 +14,13 @@ extends Node2D
 ## Idle (playtest: it needed one; the user picked motes and infall together from a mock): motes orbit
 ## in a disc seen at a tilt, the inner ones faster, the far half passing behind the hole; and specks
 ## of sky dust drift straight in from round it, speeding up and dimming as they near it.
+## Twin holes (the Legs): each drawn as the hole is. While nothing plays, their path shows: a dotted M3
+## line between them and a dotted ghost ring where each will be after the next launch; when that
+## launch merges them, one ember ghost ring (S3, S4 by turns) the merged hole's size where they meet,
+## and the line in S3 (the countdown's last step: link before it). After a launch they slide along
+## the path (SLIDE_TIME); merging, they slide together and go, and the Big Bang plays there, then the
+## merged hole shows. The intro's forecast: the ghost rings step out along the path a launch at a
+## time (FORECAST_STEP), the meeting point's ember ring last.
 
 ## The ring sits RING_GAP px outside the horizon; its bright arc spans ARC_DOTS dots of RING_DOTS and
 ## moves a dot on every ARC_STEP.
@@ -51,6 +58,14 @@ const MOTE_TRAIL_GAP: float = 0.05
 const INFALL_SPECKS: int = 5
 const INFALL_PERIOD: float = 1.8
 const INFALL_FROM: float = 22.0
+## Twins slide to where they drifted over SLIDE_TIME; the path's dots are PATH_GAP px apart; a ghost
+## ring has a dot every GHOST_GAP of RING_DOTS. The forecast shows a step every FORECAST_STEP, then
+## holds FORECAST_HOLD.
+const SLIDE_TIME: float = 0.4
+const PATH_GAP: int = 4
+const GHOST_GAP: int = 2
+const FORECAST_STEP: float = 0.3
+const FORECAST_HOLD: float = 0.9
 
 var aiming: bool = false:
 	set(value):
@@ -60,11 +75,24 @@ var aiming: bool = false:
 var _run: RunState
 var _sequencer: EventSequencer
 var _time: float = 0.0
-## Swallows playing: the way each star came in from (a unit vector from the hole) and the seconds since.
+## Swallows playing: the way each star came in from (a unit vector from its hole) and the seconds
+## since, and the hole it fell into (as the core had it).
 var _swallows: Array[Vector3] = []
-## The horizon shown: a hungry hole grows in the core the moment a launch resolves, but on screen
-## only as each swallow plays; it catches up with the core once nothing is playing.
-var _shown_horizon: int = 0
+var _swallow_holes: Array[Vector2i] = []
+## The holes shown: a hungry hole grows in the core the moment a launch resolves, but on screen only
+## as each swallow plays, and twins drift in the core at once but slide on screen once their launch
+## has played; both catch up with the core once nothing is playing.
+var _shown_centers: Array[Vector2i] = []
+var _shown_horizons: Array[int] = []
+## A slide playing: from and to, seconds since (-1: none), and whether it ends in a merge (the holes
+## then go until the Big Bang has played).
+var _slide_from: Array[Vector2i] = []
+var _slide_to: Array[Vector2i] = []
+var _slide_time: float = -1.0
+var _slide_merges: bool = false
+## The intro's forecast: each twin's path and the seconds since it began (-1: none).
+var _forecast: Array = []
+var _forecast_time: float = -1.0
 
 
 func _ready() -> void:
@@ -76,7 +104,10 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_sequencer = sequencer
 	aiming = false
 	_swallows.clear()
-	_shown_horizon = run.gravity.horizon if run.gravity != null else 0
+	_swallow_holes.clear()
+	_slide_time = -1.0
+	_forecast_time = -1.0
+	_sync()
 	set_process(run.gravity != null)
 	queue_redraw()
 
@@ -86,17 +117,53 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-## The hole swallowed a star that fell in from `from`: plays its swallow.
-func flash_swallow(from: Vector2i) -> void:
-	var way: Vector2 = Vector2(from - _run.gravity.center).normalized()
+## The hole at `hole` swallowed a star that fell in from `from`: plays its swallow.
+func flash_swallow(from: Vector2i, hole: Vector2i) -> void:
+	var at: int = _shown_index(hole)
+	var way: Vector2 = Vector2(from - _shown_centers[at]).normalized()
 	_swallows.append(Vector3(way.x, way.y, 0.0))
-	_shown_horizon = mini(_shown_horizon + _run.gravity.hunger, _run.gravity.max_horizon)
+	_swallow_holes.append(_shown_centers[at])
+	_shown_horizons[at] = mini(_shown_horizons[at] + _run.gravity.hunger, _run.gravity.max_horizon)
 	queue_redraw()
 
 
-## The horizon as shown now (a hungry hole grows on screen as each swallow plays).
+## The first hole's horizon as shown now (a hungry hole grows on screen as each swallow plays).
 func shown_horizon() -> int:
-	return _shown_horizon
+	return _shown_horizons[0] if not _shown_horizons.is_empty() else 0
+
+
+## Where the holes show now.
+func shown_centers() -> Array[Vector2i]:
+	return _shown_centers.duplicate()
+
+
+## Twins drifted from `from` to `to` (merged: to one hole): they slide there; merging, they go.
+func slide_holes(from: Array[Vector2i], to: Array[Vector2i], merges: bool) -> void:
+	_slide_from = from.duplicate()
+	_slide_to = to.duplicate()
+	if merges:
+		_slide_to = [to[0], to[0]]
+	_slide_merges = merges
+	_slide_time = 0.0
+	queue_redraw()
+
+
+## The intro's forecast of the twins' `paths` (launch by launch); returns how long it plays.
+func play_forecast(paths: Array) -> float:
+	_forecast = paths
+	_forecast_time = 0.0
+	queue_redraw()
+	return forecast_length()
+
+
+## How long the forecast plays.
+func forecast_length() -> float:
+	var steps: int = (_forecast[0] as Array).size() if not _forecast.is_empty() else 0
+	return FORECAST_STEP * steps + FORECAST_HOLD
+
+
+func is_sliding() -> bool:
+	return _slide_time >= 0.0
 
 
 ## Whether a swallow is playing.
@@ -107,19 +174,57 @@ func is_swallowing() -> bool:
 ## Turns the ring and the swallows on. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	_time += delta
-	if _run != null and _run.gravity != null and _swallows.is_empty() and (_sequencer == null or not _sequencer.is_busy()):
-		_shown_horizon = _run.gravity.horizon
+	if _slide_time >= 0.0:
+		_slide_time += delta
+		var k: float = minf(_slide_time / SLIDE_TIME, 1.0)
+		var eased: float = k * k * (3.0 - 2.0 * k)
+		_shown_centers.clear()
+		for i: int in _slide_from.size():
+			_shown_centers.append(Vector2i(Vector2(_slide_from[i]).lerp(Vector2(_slide_to[i]), eased).round()))
+		if k >= 1.0:
+			_slide_time = -1.0
+			if _slide_merges:
+				# Gone into the Big Bang; the merged hole shows once it has played.
+				_shown_centers.clear()
+				_shown_horizons.clear()
+	if _forecast_time >= 0.0:
+		_forecast_time += delta
+		if _forecast_time >= forecast_length():
+			_forecast_time = -1.0
+	if _run != null and _run.gravity != null and _swallows.is_empty() and _slide_time < 0.0 and (_sequencer == null or not _sequencer.is_busy()):
+		_sync()
 	for i: int in range(_swallows.size() - 1, -1, -1):
 		_swallows[i].z += delta
 		if _swallows[i].z >= SWALLOW_TIME:
 			_swallows.remove_at(i)
+			_swallow_holes.remove_at(i)
 
 
-## Where a swallowed star vanishes, on its way from `from`: the horizon's edge on its side.
-func horizon_point(from: Vector2i) -> Vector2i:
-	var hole: StarGravity = _run.gravity
-	var way: Vector2 = Vector2(from - hole.center).normalized()
-	return hole.center + Vector2i((way * _shown_horizon).round())
+func _sync() -> void:
+	_shown_centers.clear()
+	_shown_horizons.clear()
+	if _run != null and _run.gravity != null:
+		_shown_centers = _run.gravity.centers.duplicate()
+		_shown_horizons = _run.gravity.horizons.duplicate()
+
+
+## The shown hole nearest `point`.
+func _shown_index(point: Vector2i) -> int:
+	var best: int = 0
+	for i: int in _shown_centers.size():
+		if point.distance_squared_to(_shown_centers[i]) < point.distance_squared_to(_shown_centers[best]):
+			best = i
+	return best
+
+
+## Where a star swallowed by the hole at `hole` vanishes, on its way from `from`: the horizon's edge
+## on its side.
+func horizon_point(from: Vector2i, hole: Vector2i) -> Vector2i:
+	if _shown_centers.is_empty():
+		return hole
+	var at: int = _shown_index(hole)
+	var way: Vector2 = Vector2(from - _shown_centers[at]).normalized()
+	return _shown_centers[at] + Vector2i((way * _shown_horizons[at]).round())
 
 
 func _draw() -> void:
@@ -133,23 +238,32 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _run == null or _run.gravity == null:
 		return result
 	var hole: StarGravity = _run.gravity
-	var flare: float = -1.0
-	for swallow: Vector3 in _swallows:
-		flare = swallow.z if flare < 0.0 else minf(flare, swallow.z)
-	var horizon: int = _shown_horizon
-	result.merge(infall_pixels(hole.center, horizon, _time))
-	result.merge(mote_pixels(hole.center, horizon, _time, false), true)
-	result.merge(hole_pixels(hole.center, horizon, _time, flare), true)
-	result.merge(mote_pixels(hole.center, horizon, _time, true), true)
-	for swallow: Vector3 in _swallows:
-		result.merge(swallow_pixels(hole.center, horizon, Vector2(swallow.x, swallow.y), swallow.z), true)
 	var busy: bool = _sequencer != null and _sequencer.is_busy()
+	if hole.has_twins() and _shown_centers.size() > 1 and (not busy or _forecast_time >= 0.0) and _slide_time < 0.0:
+		result.merge(path_pixels(_shown_centers, hole.next_centers(), _shown_horizons[0], hole.merges_next(), hole.merge_horizon, _time))
+	if _forecast_time >= 0.0:
+		result.merge(forecast_pixels(_forecast, _forecast_time, _shown_horizons[0] if not _shown_horizons.is_empty() else hole.horizon, hole.merge_horizon, _time), true)
+	for i: int in _shown_centers.size():
+		var center: Vector2i = _shown_centers[i]
+		var horizon: int = _shown_horizons[i]
+		var flare: float = -1.0
+		for k: int in _swallows.size():
+			if _swallow_holes[k] == center:
+				flare = _swallows[k].z if flare < 0.0 else minf(flare, _swallows[k].z)
+		result.merge(infall_pixels(center, horizon, _time + i * 0.7), true)
+		result.merge(mote_pixels(center, horizon, _time + i * 1.3, false), true)
+		result.merge(hole_pixels(center, horizon, _time + i * 0.5, flare), true)
+		result.merge(mote_pixels(center, horizon, _time + i * 1.3, true), true)
+	for k: int in _swallows.size():
+		var at: int = _shown_index(_swallow_holes[k])
+		if at < _shown_centers.size():
+			result.merge(swallow_pixels(_shown_centers[at], _shown_horizons[at], Vector2(_swallows[k].x, _swallows[k].y), _swallows[k].z), true)
 	if busy:
 		return result
 	if not aiming:
 		for id: int in _run.launch_swallows():
 			var star: Star = _run.find_star(id)
-			var way: Vector2 = Vector2(hole.center - star.position).normalized()
+			var way: Vector2 = Vector2(hole.centers[hole.nearest(star.position)] - star.position).normalized()
 			var edge: int = StarView.half_extent(star.size)
 			for dot: int in [3, 5]:
 				result[star.position + Vector2i((way * (edge + dot)).round())] = Palette.S4
@@ -161,7 +275,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 			continue
 		var radius: int = [4, 6, 8][star.size]
 		if hole.swallowed(to):
-			for point: Vector2i in _trail(star.position, horizon_point(star.position), radius + 2):
+			for point: Vector2i in _trail(star.position, horizon_point(star.position, to), radius + 2):
 				result[point] = Palette.S4
 			continue
 		for point: Vector2i in _trail(star.position, to, radius + 2):
@@ -197,6 +311,59 @@ static func hole_pixels(center: Vector2i, horizon: int, time: float, flare: floa
 			color = Palette.S4 if flare < FLARE_HOT else Palette.S3
 		result[p] = color
 	return result
+
+
+## The twins' path: a dotted M3 line between the holes at `centers` (PATH_GAP apart, clear of the
+## holes' rings), and a dotted ghost ring (M4, a dot every GHOST_GAP) at each of `next`; when the next
+## launch `merges`, one ember ghost ring of `merge_horizon` where they meet, its dots S3 and S4 by turns
+## (swapping every half second), and the line S3.
+static func path_pixels(centers: Array[Vector2i], next: Array[Vector2i], horizon: int, merges: bool, merge_horizon: int, time: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	if centers.size() < 2:
+		return pixels
+	var a := Vector2(centers[0])
+	var b := Vector2(centers[1])
+	var length: float = a.distance_to(b)
+	var clear: float = horizon + RING_GAP + 2
+	var d: float = clear
+	while d < length - clear:
+		pixels[Vector2i(a.lerp(b, d / length).round())] = Palette.S3 if merges else Palette.M3
+		d += PATH_GAP
+	if merges:
+		var swap: int = int(time / 0.5) % 2
+		for p: Vector2i in ghost_ring(next[0], merge_horizon + RING_GAP):
+			var index: int = (p.x + p.y) % 2
+			pixels[p] = Palette.S4 if index == swap else Palette.S3
+	else:
+		for at: Vector2i in next:
+			for p: Vector2i in ghost_ring(at, horizon + RING_GAP):
+				pixels[p] = Palette.M4
+	return pixels
+
+
+## A dotted ring of `radius` round `center` (a dot every GHOST_GAP of RING_DOTS).
+static func ghost_ring(center: Vector2i, radius: int) -> Array[Vector2i]:
+	var dots: Array[Vector2i] = []
+	for i: int in range(0, RING_DOTS, GHOST_GAP):
+		var angle: float = i * TAU / RING_DOTS
+		dots.append(center + Vector2i((Vector2(cos(angle), sin(angle)) * radius).round()))
+	return dots
+
+
+## The intro's forecast `t` seconds in: along each twin's `paths`, a ghost ring at each launch's
+## spot, one more every FORECAST_STEP; the last (where they meet) ember, the merged hole's size.
+static func forecast_pixels(paths: Array, t: float, horizon: int, merge_horizon: int, time: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	if paths.is_empty():
+		return pixels
+	var steps: int = (paths[0] as Array).size()
+	var shown: int = mini(floori(t / FORECAST_STEP) + 1, steps)
+	for path: Array in paths:
+		for k: int in shown:
+			var last: bool = k == steps - 1
+			for p: Vector2i in ghost_ring(path[k], (merge_horizon if last else horizon) + RING_GAP):
+				pixels[p] = (Palette.S4 if int(time / 0.5) % 2 == (p.x + p.y) % 2 else Palette.S3) if last else Palette.M4
+	return pixels
 
 
 ## The idle disc's motes `time` seconds in: the near half (`front`, drawn over the hole) or the far
