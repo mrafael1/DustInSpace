@@ -11,6 +11,9 @@ extends Node2D
 ## A swallow (swallow_pixels, SWALLOW_TIME): the star's core pinches at the horizon, its light
 ## stretches in as a streak, the disc gulps a pixel wider, the ring flashes ember and two sparks race
 ## round it from the entry, and specks of sky dust fall straight in, dimming as they near the hole.
+## Idle (playtest: it needed one; the user picked motes and infall together from a mock): motes orbit
+## in a disc seen at a tilt, the inner ones faster, the far half passing behind the hole; and specks
+## of sky dust drift straight in from round it, speeding up and dimming as they near it.
 
 ## The ring sits RING_GAP px outside the horizon; its bright arc spans ARC_DOTS dots of RING_DOTS and
 ## moves a dot on every ARC_STEP.
@@ -34,6 +37,20 @@ const SPARK_TIME: float = 0.3
 ## Specks of sky dust: their angle off the entry (rad) and how far out they start (px past the ring).
 const SPECKS: Array[Vector2] = [Vector2(-0.9, 14), Vector2(-0.45, 9), Vector2(0.0, 16), Vector2(0.4, 11), Vector2(0.85, 15), Vector2(1.3, 8)]
 const SPECK_TIME: float = 0.4
+## Idle motes: x px out from the horizon, y the starting angle (rad), z 1 for a dimmer mote. Each
+## orbits in a disc flattened to DISC_TILT of its width, at MOTE_SPEED rad/s at MOTE_SPEED_AT px out
+## and slower further out (Keplerian), trailing MOTE_TRAIL pixels MOTE_TRAIL_GAP seconds apart.
+const MOTES: Array[Vector3] = [Vector3(5, 0.0, 0), Vector3(6, 3.3, 1), Vector3(7, 2.1, 1), Vector3(9, 4.0, 0), Vector3(12, 1.0, 1)]
+const DISC_TILT: float = 0.42
+const MOTE_SPEED: float = 2.6
+const MOTE_SPEED_AT: float = 13.0
+const MOTE_TRAIL: int = 3
+const MOTE_TRAIL_GAP: float = 0.05
+## Idle infall: INFALL_SPECKS specks, each falling in over INFALL_PERIOD from INFALL_FROM (+0-6) px out
+## to the ring, at a fresh angle each time (a fixed hash, so the pattern is stable).
+const INFALL_SPECKS: int = 5
+const INFALL_PERIOD: float = 1.8
+const INFALL_FROM: float = 22.0
 
 var aiming: bool = false:
 	set(value):
@@ -107,7 +124,10 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	var flare: float = -1.0
 	for swallow: Vector3 in _swallows:
 		flare = swallow.z if flare < 0.0 else minf(flare, swallow.z)
-	result.merge(hole_pixels(hole.center, hole.horizon, _time, flare))
+	result.merge(infall_pixels(hole.center, hole.horizon, _time))
+	result.merge(mote_pixels(hole.center, hole.horizon, _time, false), true)
+	result.merge(hole_pixels(hole.center, hole.horizon, _time, flare), true)
+	result.merge(mote_pixels(hole.center, hole.horizon, _time, true), true)
 	for swallow: Vector3 in _swallows:
 		result.merge(swallow_pixels(hole.center, hole.horizon, Vector2(swallow.x, swallow.y), swallow.z), true)
 	var busy: bool = _sequencer != null and _sequencer.is_busy()
@@ -164,6 +184,38 @@ static func hole_pixels(center: Vector2i, horizon: int, time: float, flare: floa
 			color = Palette.S4 if flare < FLARE_HOT else Palette.S3
 		result[p] = color
 	return result
+
+
+## The idle disc's motes `time` seconds in: the near half (`front`, drawn over the hole) or the far
+## half (drawn under it, so the hole hides what passes behind it).
+static func mote_pixels(center: Vector2i, horizon: int, time: float, front: bool) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	for mote: Vector3 in MOTES:
+		var r: float = horizon + mote.x
+		var speed: float = MOTE_SPEED * pow(MOTE_SPEED_AT / r, 1.5)
+		for trail: int in range(MOTE_TRAIL - 1, -1, -1):
+			var angle: float = mote.y + speed * (time - trail * MOTE_TRAIL_GAP)
+			if (sin(angle) > 0.0) != front:
+				continue
+			var color: Color = Palette.M3 if trail == MOTE_TRAIL - 1 else Palette.M4
+			if trail == 0:
+				color = Palette.M5 if mote.z > 0 else Palette.M6
+			pixels[center + Vector2i(Vector2(cos(angle) * r, sin(angle) * r * DISC_TILT).round())] = color
+	return pixels
+
+
+## The idle infall `time` seconds in: specks of sky dust drifting straight in to the ring, speeding up
+## and dimming (M6, M5, M4) as they near it.
+static func infall_pixels(center: Vector2i, horizon: int, time: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	for slot: int in INFALL_SPECKS:
+		var phase: float = time / INFALL_PERIOD + float(slot) / INFALL_SPECKS
+		var cycle: int = floori(phase)
+		var k: float = phase - cycle
+		var h: int = absi(hash(Vector2i(slot, cycle))) % 360
+		var r: float = lerpf(INFALL_FROM + h % 7, horizon + RING_GAP, k * k)
+		pixels[center + Vector2i((Vector2.from_angle(deg_to_rad(h)) * r).round())] = Palette.M6 if k < 0.35 else Palette.M5 if k < 0.7 else Palette.M4
+	return pixels
 
 
 ## A star swallowed `t` seconds ago, having fallen in from `way` (a unit vector from the hole): the

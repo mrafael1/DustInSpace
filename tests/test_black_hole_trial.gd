@@ -99,3 +99,21 @@ func test_a_swallowed_star_plays_its_swallow_and_sound() -> void:
 		await get_tree().process_frame
 	assert_true(view.is_swallowing())
 	assert_has(played, &"swallow")
+
+
+func test_the_idle_disc_and_infall_move_on_cool_colours() -> void:
+	var cool: Array[Color] = [Palette.M3, Palette.M4, Palette.M5, Palette.M6]
+	var center := Vector2i(90, 164)
+	for time: float in [0.0, 0.7, 1.9, 3.3]:
+		for color: Color in GravityView.mote_pixels(center, 8, time, true).values() + GravityView.mote_pixels(center, 8, time, false).values() + GravityView.infall_pixels(center, 8, time).values():
+			assert_has(cool, color, "the idle never uses warm colours (warm is for what's valuable)")
+	assert_ne(GravityView.mote_pixels(center, 8, 0.0, true).merged(GravityView.mote_pixels(center, 8, 0.0, false)), GravityView.mote_pixels(center, 8, 0.5, true).merged(GravityView.mote_pixels(center, 8, 0.5, false)), "the motes orbit")
+	assert_ne(GravityView.infall_pixels(center, 8, 0.0), GravityView.infall_pixels(center, 8, 0.5), "the dust falls")
+
+
+func test_motes_behind_the_hole_are_hidden_by_it() -> void:
+	for time: float in [0.0, 0.4, 1.1, 2.0]:
+		for p: Vector2i in GravityView.mote_pixels(Vector2i(90, 164), 8, time, false):
+			assert_true(p.y <= 164, "the far half of the disc is above the hole's middle")
+		for p: Vector2i in GravityView.mote_pixels(Vector2i(90, 164), 8, time, true):
+			assert_true(p.y >= 164, "the near half passes in front, below it")
