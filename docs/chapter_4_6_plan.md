@@ -1,6 +1,6 @@
 # Chapters 4 to 6: ideas to test
 
-**Status: Virgo is built with the scythe and bound sheaves (step D: kept, revised), 2026-10-08.** **Sagittarius's black hole is at step C (a debug trial and spatial bots), 2026-10-12.** All six stages are in [design.md](design.md) (chapter 4); paintings to come. The harvest that paid dust failed its stakes gate; bound sheaves with a tighter economy passed it (step C, below). The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
+**Status: Virgo is built with the scythe and bound sheaves (step D: kept, revised), 2026-10-08.** **Sagittarius's black hole is kept (step D, the user's call after playing the trial, 2026-10-12); its stages are next.** All six stages are in [design.md](design.md) (chapter 4); paintings to come. The harvest that paid dust failed its stakes gate; bound sheaves with a tighter economy passed it (step C, below). The user chose three mechanics from a shortlist: **Virgo, the harvest**; **Sagittarius, the black hole**; **Pisces, the cord**. Chapter 6 is a chapter like the others (its own mechanic; the campaign can keep growing after it), not a finale. Nothing here is committed: every rule below is a proposal that has to pass its gates, as Aquarius's current and Leo's heat did ([chapter_2_3_plan.md](chapter_2_3_plan.md)). [design.md](design.md) remains the rules reference.
 
 ## Direction and stakes
 
@@ -200,7 +200,28 @@ A sweep (150 seeds; Leo's Haunch, Aquarius's Body, Scorpio's Heart; holes in the
 - **Linking first with a good aim is safe.** As with Aquarius's drain (aiming upstream), the skill is in where you launch more than in when you link. The chapter's ladder has to make waiting tempting, for example with landmarks the fall can feed.
 - Pull is a steep dial: on the Heart, 1500 drops the archer to 97% and careless play to 10%; at 2500 even the archer wins only 51%.
 
-Still to do before step D: human play of the trial, and the gate's readability check at 180x320 (the hole, its preview and the at-risk marks are first-pass cues). The swallow needs its own sound and a juicier moment, as the drain got. The look must stay clearly unlike the Big Bang's collapse.
+### Step D: kept (2026-10-12)
+
+The user played the trial and kept the black hole. Later stages can add a reaction when the hole has swallowed too much, or on another condition: the plan's hungry hole, the accretion disc and the quasar below.
+
+**The swallow** (playtest: a loss moment gets its own punch, as the drain did): the star drifts to the horizon. Its white-hot core pinches to a point there, and its light stretches into the disc as a cool streak. The disc gulps a pixel wider and the ring flashes ember. Then two ember sparks race round the ring both ways from the entry, and six specks of sky dust fall straight in, dimming from M6 to M4 as they near the hole. It lasts 0.45 s and doesn't block input. Its sound is its own cue, `swallow` (`tools/audio/build_sfx.py`): air rushing inward and rising, a glassy blip falling as it crosses, and a deep drop that warps as it sinks (0.44 s, -7 dBFS). None of it uses the Big Bang's signatures: no freeze, silence, shake, spiral or warm C2 photon ring.
+
+**Idle** (playtest: the hole needed one; the user picked motes and infall together from a side-by-side mock): five motes orbit in a disc seen at a tilt, the inner ones faster (Keplerian). The far half passes behind the hole and the near half crosses in front. Five specks of sky dust drift straight in from 22-28 px out, speeding up and dimming M6 → M4, each at a fresh angle every 1.8 s. All of it is on the cool M ramp (M3-M6), under the stars. The ring's bright arc keeps orbiting.
+
+**The final ends with the Big Bang** (the user's idea, 2026-10-12; they chose the final only, so it stays rare): when Sagittarius's final is won, the hole swallows every star left in the sky. It implodes and bangs (the Big Bang's script: the freeze, the silence, the flash), then the figure rises in the new sky as usual. Nothing is left to wipe at that point, which is why the Big Bang is off on chapter stages (#148). Its dust and any payout are to decide with the quasar. Part stages keep the usual finish.
+
+Still to do: the readability check at 180x320 on a phone (the at-risk marks are first-pass), the stage ladder below, and the ring chore before Sagittarius goes on the chart.
+
+**Possible stage ladder** (each twist measured with bots, as Virgo's were):
+
+1. The hole alone, with a gentle pull. The stage opens by showing a few demo stars falling in.
+2. A stronger pull, with the hole placed so waiting for a third star is tempting.
+3. **The hungry hole:** its horizon grows a pixel for each star it swallows.
+4. Two holes.
+5. A hole on an orbit.
+6. Final, the whole Sagittarius: the accretion disc fills as it swallows, and a full disc fires the quasar (the payout spike, below; its own branch and balance report). Winning it ends in the Big Bang (above).
+
+The sweep says bigger figures need a stronger pull (the whole Virgo at 2500: careless 6%, hoarding 0%, archer 84%), so pull is a per-stage dial.
 
 ### Payout spike
 
