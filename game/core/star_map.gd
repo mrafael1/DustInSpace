@@ -83,6 +83,11 @@ var harvest_binds: bool = false
 var harvest_quickens: bool = false
 ## Tied at once: the binding acts after every launch, not only at the harvest.
 var harvest_ties: bool = false
+## Sagittarius's black hole (chapter 5, a debug trial): once each launch has burst, loose stars fall
+## toward it and the ones reaching its horizon are swallowed (StarGravity; its pull is balance.json's
+## black_hole block). Where it is, in home layout.
+var black_hole: bool = false
+var black_hole_center: Vector2i = Vector2i.ZERO
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -164,6 +169,21 @@ static func aquarius_flow(enabled: bool = true) -> StarMap:
 	if not enabled:
 		map.current_region = Rect2i()
 		map.current_drains = false
+	return map
+
+
+## Debug experiment for chapter 5 (Sagittarius): Leo's Haunch layout with every rule of its own off
+## and a black hole in the open middle of the sky, which the BLACK HOLE ON/OFF switch can turn off to
+## replay the same seed. No progress identity; the Haunch's painting stands in.
+static func black_hole_trial(enabled: bool = true) -> StarMap:
+	var map: StarMap = leo_haunch()
+	map.id = "black_hole_trial" if enabled else "black_hole_off"
+	map.title = "BLACK HOLE" if enabled else "BLACK HOLE OFF"
+	map.heat_change = 0
+	map.heat_burns = false
+	map.intros = false
+	map.black_hole = enabled
+	map.black_hole_center = Vector2i(90, 164)
 	return map
 
 

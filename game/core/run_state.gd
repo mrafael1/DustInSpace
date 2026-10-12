@@ -18,6 +18,9 @@ signal pack_split(kind: String, at: Vector2i, points: Array[Vector2i])
 ## The burst(s) settled, then the current shifted loose stars. Positions are event snapshots.
 ## A move flagged drained took its star out of the sky, for nothing.
 signal stars_shifted(moves: Array[StarCurrent.Move])
+## Sagittarius's black hole (chapter 5 trial): once the burst(s) settled, loose stars fell toward it.
+## A fall flagged swallowed took its star into the hole, for nothing. Positions are event snapshots.
+signal stars_fell(falls: Array[StarGravity.Fall])
 ## The heat (Leo) changed the size of loose stars once the launch resolved (after any current).
 ## A change flagged lost took its star out of the sky, for nothing.
 signal stars_resized(changes: Array[StarHeat.Change])
@@ -225,10 +228,15 @@ var current: StarCurrent
 var heat: StarHeat
 ## Virgo's harvest (chapter 4), or null when the map has none (or balance.json no harvest block).
 var harvest: StarHarvest
+## Sagittarius's black hole (chapter 5 trial), or null when the map has none (or balance.json no
+## black_hole block).
+var gravity: StarGravity
 ## Bound sheaves: the landmarks bound to the figure (lit at the start, or still lit at a harvest).
 var _bound: Array[bool] = []
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
 var _current_reserved: Dictionary[int, Vector2i] = {}
+## The same for the black hole's falls.
+var _gravity_reserved: Dictionary[int, Vector2i] = {}
 ## The guided run's Sun has rekindled once (its own target is spent).
 var _tutorial_rekindled: bool = false
 ## The landmark the last rekindle lit, for the tutorial (-1: none since the link began).
@@ -269,6 +277,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.harvest and balance.harvest_every_for(scorpio.map.id) > 0:
 			harvest = StarHarvest.new(balance.harvest_every_for(scorpio.map.id), scorpio.map.harvest_binds, scorpio.map.harvest_quickens, scorpio.map.harvest_ties)
 			_bound.assign(scorpio.lit)
+		if scorpio.map.black_hole and balance.black_hole_pull > 0:
+			gravity = StarGravity.new(scorpio.map.black_hole_center + scorpio.shift, balance.black_hole_horizon, balance.black_hole_pull, balance.black_hole_max_step)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -475,6 +485,33 @@ func launch_drains() -> Array[int]:
 	return result
 
 
+## Pure preview of the black hole's falls on the next launch for the stars now in the sky (their
+## destinations; the hole's centre for a star it swallows). No RNG draws, no changes to stars.
+func gravity_preview() -> Dictionary[int, Vector2i]:
+	if gravity == null:
+		return {}
+	return gravity.preview(stars, sky_rect, scorpio.landmark_positions())
+
+
+## Pure: the stars in the sky now that the next launch's black hole swallows, wherever it's aimed
+## (their falls are reserved before its burst). None without a hole, or once the run is over.
+func launch_swallows() -> Array[int]:
+	var result: Array[int] = []
+	if gravity == null or is_over():
+		return result
+	var destinations: Dictionary[int, Vector2i] = gravity_preview()
+	for star: Star in stars:
+		if gravity.swallowed(destinations[star.id]):
+			result.append(star.id)
+	return result
+
+
+## Pure: whether a star the next launch brings, landing at `point`, falls into the black hole on
+## that same launch.
+func burst_swallowed_at(point: Vector2i) -> bool:
+	return gravity != null and not is_over() and gravity.swallows_at(point)
+
+
 ## Pure: whether a star the next launch brings, landing at `point`, is carried out of its draining
 ## flow on that same launch (the new stars flow too; #149: the aim only showed the stars already out).
 func burst_drains_at(point: Vector2i) -> bool:
@@ -566,6 +603,7 @@ func launch(target: Vector2i) -> bool:
 	if tutorial != null and not tutorial.allows_launch(burst, _tutorial_landmark_at()):
 		return false
 	_current_reserved = current_preview()
+	_gravity_reserved = gravity_preview()
 	owned_packs[kind] -= 1
 	pack_launched.emit(kind, burst)
 	if encounter != null and encounter.launched():
@@ -604,6 +642,8 @@ func launch(target: Vector2i) -> bool:
 		_burst(kind, burst, result.sizes)
 	if current != null and not result.big_bang:
 		_shift_stars()
+	if gravity != null and not result.big_bang:
+		_fall_stars()
 	if heat != null and not result.big_bang:
 		_heat_stars(first_new_id)
 		if scorpio.map.heat_landmarks:
@@ -613,6 +653,7 @@ func launch(target: Vector2i) -> bool:
 	if current != null:
 		current.turn()
 	_current_reserved.clear()
+	_gravity_reserved.clear()
 	# The hunting area's strike comes before any single mark, so a mark never lands on a star the
 	# arrow is about to take.
 	if hunt != null:
@@ -1000,8 +1041,8 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 	var occupied: Array[Vector2i] = []
 	for star: Star in stars:
 		occupied.append(star.position)
-	for destination: Vector2i in _current_reserved.values():
-		if not occupied.has(destination):
+	for destination: Vector2i in _current_reserved.values() + _gravity_reserved.values():
+		if not occupied.has(destination) and (gravity == null or destination != gravity.center):
 			occupied.append(destination)
 	var landmarks: Array[Vector2i] = []
 	if scorpio != null:
@@ -1011,7 +1052,7 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 	for i: int in sizes.size():
 		var star: Star = add_star(sizes[i] as Star.Size, positions[i])
 		# Core positions change immediately. Record the burst's pre-current positions for views.
-		born.append(Star.new(star.id, star.size, star.position) if current != null else star)
+		born.append(Star.new(star.id, star.size, star.position) if current != null or gravity != null else star)
 	pack_burst.emit(kind, burst, born)
 
 
@@ -1025,6 +1066,24 @@ func _shift_stars() -> void:
 			stars.erase(find_star(move.star_id))
 	if not shifted.is_empty():
 		stars_shifted.emit(shifted)
+
+
+## The black hole: every loose star falls toward it (the burst's new stars too); the ones reaching
+## its horizon are swallowed, for nothing.
+func _fall_stars() -> void:
+	var destinations: Dictionary[int, Vector2i] = gravity.preview(stars, sky_rect, scorpio.landmark_positions(), _gravity_reserved)
+	var fell: Array[StarGravity.Fall] = gravity.falls(stars, destinations)
+	var swallowed: Array[Star] = []
+	for star: Star in stars:
+		star.position = destinations[star.id]
+	for fall: StarGravity.Fall in fell:
+		if fall.swallowed:
+			swallowed.append(find_star(fall.star_id))
+	for star: Star in swallowed:
+		stars.erase(star)
+	_orion_forget(swallowed)
+	if not fell.is_empty():
+		stars_fell.emit(fell)
 
 
 ## The harvest clock counts a launch, just before its last burst; when it runs out, the scythe reaps
