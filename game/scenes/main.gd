@@ -192,6 +192,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_hole_intro()
 	# And the Legs' twin holes: their path to where they meet, as a forecast.
 	run.play_twins_intro()
+	# And the Head's light gauge: a link's light streaming into the hole.
+	run.play_gauge_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
@@ -395,7 +397,8 @@ func _wire_sound() -> void:
 	_hud.show_sound_level(_sfx.level)
 	_big_bang.collapse_started.connect(_sfx.play.bind(&"big_bang_collapse", 1.0))
 	_big_bang.silence_started.connect(_sfx.duck)
-	_big_bang.banged.connect(_sfx.on_big_bang_banged)
+	# A black hole's Big Bang (no dust) bangs with the void instead of the reward.
+	_big_bang.banged.connect(func() -> void: _sfx.on_big_bang_banged(_big_bang.is_losing()))
 	_sun.ignited.connect(_sfx.play.bind(&"sun_ignite", 1.0))
 	_end_screen.shown.connect(_sfx.on_end_shown)
 	_end_screen.restart_requested.connect(_sfx.play.bind(&"restart", 1.0))

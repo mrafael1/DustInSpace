@@ -20,6 +20,6 @@
   "hunt": { "radius": 38, "intro_stars": 3 },
   "hints": { "idle_seconds": 4 },
   "harvest": { "every": 3, "link_dust_cut": 1, "stages": { "virgo_head": { "link_dust_cut": 0 } } },
-  "black_hole": { "pull": 1000, "max_step": 24, "horizon": 8, "hunger": 1, "max_horizon": 14, "stages": { "sagittarius_arrow": { "pull": 1400, "max_step": 40 }, "sagittarius_bow": { "pull": 1700, "max_step": 44 }, "sagittarius_body": { "pull": 1400, "max_step": 40 }, "sagittarius_legs": { "pull": 800, "max_step": 24, "drift": 24, "merge_horizon": 12 } } },
+  "black_hole": { "pull": 1000, "max_step": 24, "horizon": 8, "hunger": 1, "max_horizon": 14, "stages": { "sagittarius_arrow": { "pull": 1400, "max_step": 40 }, "sagittarius_bow": { "pull": 1700, "max_step": 44 }, "sagittarius_body": { "pull": 1400, "max_step": 40 }, "sagittarius_legs": { "pull": 800, "max_step": 24, "drift": 24, "merge_horizon": 12 }, "sagittarius_head": { "pull": 800, "max_step": 24, "gauge": 60, "gauge_share": 100 } } },
   "currents": { "step": 24, "stages": { "aquarius_hand": 24, "aquarius_body": 24, "aquarius_legs": 28, "aquarius_stream": 32, "aquarius_jar": 56, "aquarius_final": 56 } }
 }

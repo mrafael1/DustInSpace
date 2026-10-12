@@ -21,6 +21,7 @@ const PATTERNS: Dictionary[StringName, Array] = {
 	&"drain": [[0.0, 40, 0.6]],
 	&"sun_ignite": [[0.0, 80, 0.7]],
 	&"big_bang_bang": [[0.0, 350, 1.0]],
+	&"big_bang_void": [[0.0, 350, 1.0]],
 	&"win": [[0.0, 30, 0.5], [0.12, 30, 0.7], [0.24, 60, 1.0]],
 	&"loss": [[0.0, 120, 0.3]],
 }

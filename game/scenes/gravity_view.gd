@@ -21,6 +21,14 @@ extends Node2D
 ## the path (SLIDE_TIME); merging, they slide together and go, and the Big Bang plays there, then the
 ## merged hole shows. The intro's forecast: the ghost rings step out along the path a launch at a
 ## time (FORECAST_STEP), the meeting point's ember ring last.
+## The light gauge (the Head): a dotted ring GAUGE_GAP px outside the hole's, GAUGE_DOTS dots filling
+## clockwise from the top in light's gold (C1, every fourth C0) over N5 for what's empty. A link's
+## drunk light streams from the link into the hole (STREAM_TIME, gold dots) and the gauge fills as it
+## arrives; the filling stream holds it full until the Big Bang. The stream (playtest: too subtle)
+## is a white-hot head (a C0 cross) with a gold tail of STREAM_DOTS, and as it arrives the hole's ring
+## flashes gold for DRINK_FLASH. While a link that would fill it is traced, the gauge blinks ember (its
+## gold S4 by turns, its empty dots S3). The intro streams a demo link's light in, holds, then the
+## gauge drains back.
 
 ## The ring sits RING_GAP px outside the horizon; its bright arc spans ARC_DOTS dots of RING_DOTS and
 ## moves a dot on every ARC_STEP.
@@ -66,11 +74,24 @@ const PATH_GAP: int = 4
 const GHOST_GAP: int = 2
 const FORECAST_STEP: float = 0.3
 const FORECAST_HOLD: float = 0.9
+const GAUGE_DOTS: int = 24
+const GAUGE_GAP: int = 4
+const STREAM_TIME: float = 0.6
+const STREAM_DOTS: int = 8
+const DRINK_FLASH: float = 0.16
+const GAUGE_INTRO_HOLD: float = 0.9
+const BLINK_STEP: float = 0.15
 
 var aiming: bool = false:
 	set(value):
 		if aiming != value:
 			aiming = value
+			queue_redraw()
+## A traced link would fill the light gauge: it blinks ember.
+var tracing_fills: bool = false:
+	set(value):
+		if tracing_fills != value:
+			tracing_fills = value
 			queue_redraw()
 var _run: RunState
 var _sequencer: EventSequencer
@@ -93,6 +114,16 @@ var _slide_merges: bool = false
 ## The intro's forecast: each twin's path and the seconds since it began (-1: none).
 var _forecast: Array = []
 var _forecast_time: float = -1.0
+## The gauge as shown (it fills as each stream arrives), and the streams playing: where each came
+## from, the seconds since, and what the gauge shows once it arrives.
+var _shown_absorbed: int = 0
+## Seconds since a stream arrived (-1: none): the ring flashes gold.
+var _drink_time: float = -1.0
+var _stream_from: Array[Vector2i] = []
+var _stream_time: Array[float] = []
+var _stream_after: Array[int] = []
+## The intro's gauge: held (-1: not playing) for this long once its stream has arrived.
+var _gauge_intro_hold: float = -1.0
 
 
 func _ready() -> void:
@@ -107,6 +138,11 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_swallow_holes.clear()
 	_slide_time = -1.0
 	_forecast_time = -1.0
+	_stream_from.clear()
+	_stream_time.clear()
+	_stream_after.clear()
+	_gauge_intro_hold = -1.0
+	tracing_fills = false
 	_sync()
 	set_process(run.gravity != null)
 	queue_redraw()
@@ -166,6 +202,33 @@ func is_sliding() -> bool:
 	return _slide_time >= 0.0
 
 
+## A link's `amount` of light streams from `from` into the hole; the gauge shows `absorbed` of
+## `capacity` once it arrives (0 after that filled it: it holds full until the Big Bang). Returns how
+## long it plays.
+func absorb_light(from: Vector2i, amount: int, absorbed: int, capacity: int) -> float:
+	_stream_from.append(from)
+	_stream_time.append(0.0)
+	_stream_after.append(capacity if absorbed == 0 and amount > 0 else absorbed)
+	queue_redraw()
+	return STREAM_TIME
+
+
+## The intro: a demo link's `amount` streams in from `from`, holds, and drains. Returns how long.
+func play_gauge_intro(from: Vector2i, amount: int) -> float:
+	absorb_light(from, amount, amount, _run.gravity.capacity)
+	_gauge_intro_hold = GAUGE_INTRO_HOLD
+	return STREAM_TIME + GAUGE_INTRO_HOLD
+
+
+## The gauge as shown now.
+func shown_absorbed() -> int:
+	return _shown_absorbed
+
+
+func is_streaming() -> bool:
+	return not _stream_time.is_empty()
+
+
 ## Whether a swallow is playing.
 func is_swallowing() -> bool:
 	return not _swallows.is_empty()
@@ -191,7 +254,23 @@ func advance(delta: float) -> void:
 		_forecast_time += delta
 		if _forecast_time >= forecast_length():
 			_forecast_time = -1.0
-	if _run != null and _run.gravity != null and _swallows.is_empty() and _slide_time < 0.0 and (_sequencer == null or not _sequencer.is_busy()):
+	for i: int in range(_stream_time.size() - 1, -1, -1):
+		_stream_time[i] += delta
+		if _stream_time[i] >= STREAM_TIME:
+			_shown_absorbed = _stream_after[i]
+			_drink_time = 0.0
+			_stream_from.remove_at(i)
+			_stream_time.remove_at(i)
+			_stream_after.remove_at(i)
+	if _drink_time >= 0.0:
+		_drink_time += delta
+		if _drink_time >= DRINK_FLASH:
+			_drink_time = -1.0
+	if _gauge_intro_hold >= 0.0 and _stream_time.is_empty():
+		_gauge_intro_hold -= delta
+		if _gauge_intro_hold < 0.0:
+			_shown_absorbed = 0
+	if _run != null and _run.gravity != null and _swallows.is_empty() and _slide_time < 0.0 and _stream_time.is_empty() and _gauge_intro_hold < 0.0 and (_sequencer == null or not _sequencer.is_busy()):
 		_sync()
 	for i: int in range(_swallows.size() - 1, -1, -1):
 		_swallows[i].z += delta
@@ -206,6 +285,7 @@ func _sync() -> void:
 	if _run != null and _run.gravity != null:
 		_shown_centers = _run.gravity.centers.duplicate()
 		_shown_horizons = _run.gravity.horizons.duplicate()
+		_shown_absorbed = _run.gravity.absorbed
 
 
 ## The shown hole nearest `point`.
@@ -258,6 +338,14 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		var at: int = _shown_index(_swallow_holes[k])
 		if at < _shown_centers.size():
 			result.merge(swallow_pixels(_shown_centers[at], _shown_horizons[at], Vector2(_swallows[k].x, _swallows[k].y), _swallows[k].z), true)
+	if hole.has_gauge() and not _shown_centers.is_empty():
+		var radius: int = _shown_horizons[0] + RING_GAP + GAUGE_GAP
+		result.merge(gauge_pixels(_shown_centers[0], radius, float(_shown_absorbed) / hole.capacity, tracing_fills and not busy, _time), true)
+		for i: int in _stream_time.size():
+			result.merge(stream_pixels(_stream_from[i], _shown_centers[0], _stream_time[i] / STREAM_TIME), true)
+		if _drink_time >= 0.0:
+			for p: Vector2i in ghost_ring(_shown_centers[0], _shown_horizons[0] + RING_GAP):
+				result[p] = Palette.C1
 	if busy:
 		return result
 	if not aiming:
@@ -338,6 +426,41 @@ static func path_pixels(centers: Array[Vector2i], next: Array[Vector2i], horizon
 		for at: Vector2i in next:
 			for p: Vector2i in ghost_ring(at, horizon + RING_GAP):
 				pixels[p] = Palette.M4
+	return pixels
+
+
+## The light gauge round `center` at `radius`: GAUGE_DOTS dots clockwise from the top, the first
+## `filled` of them gold (C1, every fourth C0), the rest N5; `blinking` (a traced link would fill it),
+## the gold ones S4 every other BLINK_STEP and the empty ones S3.
+static func gauge_pixels(center: Vector2i, radius: int, filled: float, blinking: bool, time: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	var full: int = clampi(roundi(filled * GAUGE_DOTS), 0, GAUGE_DOTS)
+	var hot: bool = blinking and int(time / BLINK_STEP) % 2 == 0
+	for i: int in GAUGE_DOTS:
+		var angle: float = -PI / 2.0 + i * TAU / GAUGE_DOTS
+		var p: Vector2i = center + Vector2i((Vector2(cos(angle), sin(angle)) * radius).round())
+		if i < full:
+			pixels[p] = Palette.S4 if hot else (Palette.C0 if i % 4 == 0 else Palette.C1)
+		else:
+			pixels[p] = Palette.S3 if blinking else Palette.N5
+	return pixels
+
+
+## A link's light streaming from `from` into the hole at `to`, `k` (0 to 1) of the way: a white-hot
+## head (a C0 cross with C1 arms) and a tail of STREAM_DOTS gold dots following it in, speeding up.
+static func stream_pixels(from: Vector2i, to: Vector2i, k: float) -> Dictionary[Vector2i, Color]:
+	var pixels: Dictionary[Vector2i, Color] = {}
+	for i: int in range(STREAM_DOTS - 1, -1, -1):
+		var u: float = clampf(k * 1.5 - i * 0.06, 0.0, 1.0)
+		if u <= 0.0 or u >= 1.0:
+			continue
+		var at := Vector2i(Vector2(from).lerp(Vector2(to), u * u).round())
+		if i == 0:
+			for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				pixels[at + n] = Palette.C1
+			pixels[at] = Palette.C0
+		else:
+			pixels[at] = Palette.C1 if i < 3 else Palette.C2
 	return pixels
 
 

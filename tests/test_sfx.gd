@@ -159,6 +159,14 @@ func test_the_silence_cuts_every_voice_and_refuses_cues_until_the_bang() -> void
 	assert_eq(played.back(), &"big_bang_bang", "the bang breaks it")
 
 
+func test_a_black_holes_big_bang_breaks_the_silence_with_the_void() -> void:
+	sfx.duck()
+	sfx.on_big_bang_banged(true)
+	assert_false(sfx.is_ducked())
+	assert_eq(played.back(), &"big_bang_void", "a losing bang, not the jackpot")
+	assert_true(FileAccess.file_exists(Sfx.AUDIO_DIR + "big_bang_void.wav"))
+
+
 func test_a_duck_nothing_lifts_lifts_itself() -> void:
 	sfx.duck()
 	sfx.advance(Sfx.DUCK_SAFETY + 0.01)
