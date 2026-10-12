@@ -10,6 +10,9 @@ extends RefCounted
 ## two drift `drift` px toward each other along the line between them (a fixed path); when the next
 ## drift would make their horizons touch, they merge at the middle into one hole of `merge_horizon`
 ## (the run plays it as a Big Bang).
+## A hole with a light gauge (set_gauge) drinks `gauge_share` percent of each link's light (rounded
+## down; the rest goes to the Sun); when `absorbed` reaches `capacity` it's full (the run plays it as
+## a Big Bang) and empties.
 ## No randomness, nodes or rewards. Existing destinations can be reserved before a burst, so newly
 ## arriving stars never invalidate the aiming preview (as StarCurrent's).
 
@@ -56,6 +59,11 @@ var max_horizon: int = 0
 ## Twins: px each drifts toward the other a launch, and the merged hole's horizon.
 var drift: int = 0
 var merge_horizon: int = 0
+## The light gauge: how much light fills it (0: none), the percent of a link's light it drinks, and
+## how much it holds now.
+var capacity: int = 0
+var gauge_share: int = 0
+var absorbed: int = 0
 
 
 func _init(p_center: Vector2i, p_horizon: int, p_pull: int, p_max_step: int, p_hunger: int = 0, p_max_horizon: int = 0) -> void:
@@ -77,6 +85,38 @@ func add_twin(at: Vector2i, p_drift: int, p_merge_horizon: int) -> void:
 	merge_horizon = maxi(p_merge_horizon, horizon)
 
 
+## A light gauge of `p_capacity`, drinking `p_share` percent of each link's light.
+func set_gauge(p_capacity: int, p_share: int) -> void:
+	capacity = p_capacity
+	gauge_share = clampi(p_share, 0, 100)
+	absorbed = 0
+
+
+func has_gauge() -> bool:
+	return capacity > 0
+
+
+## How much of a link's `light` the hole drinks (0 without a gauge).
+func drinks(light: int) -> int:
+	return light * gauge_share / 100 if has_gauge() else 0
+
+
+## Whether drinking `amount` more light fills the gauge.
+func fills_with(amount: int) -> bool:
+	return has_gauge() and amount > 0 and absorbed + amount >= capacity
+
+
+## The hole drinks `amount` light. Returns true when that filled the gauge, which then empties.
+func absorb(amount: int) -> bool:
+	if not has_gauge() or amount <= 0:
+		return false
+	absorbed += amount
+	if absorbed < capacity:
+		return false
+	absorbed = 0
+	return true
+
+
 ## Whether there are two holes still to merge.
 func has_twins() -> bool:
 	return centers.size() > 1
@@ -89,6 +129,9 @@ func copy() -> StarGravity:
 	twin.horizons = horizons.duplicate()
 	twin.drift = drift
 	twin.merge_horizon = merge_horizon
+	twin.capacity = capacity
+	twin.gauge_share = gauge_share
+	twin.absorbed = absorbed
 	return twin
 
 
