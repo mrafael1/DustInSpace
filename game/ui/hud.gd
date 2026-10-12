@@ -128,6 +128,10 @@ const HARVEST_CLOCK_BELOW: int = 30
 const BREATH_MESSAGE: String = "EVERY LINK HEATS TOO\nLINK BIG STARS FIRST"
 ## The Head: the constellation stars grow too (a big one comes back small); loose bigs burn.
 const LION_MESSAGE: String = "THE LION GROWS TOO\nLINK BIG STARS FIRST"
+## Sagittarius's black hole (chapter 5): the hole, the hungry hole, and a swallowed star.
+const HOLE_MESSAGE: String = "THE HOLE PULLS STARS IN\nSO AIM BEYOND THE STARS"
+const HUNGRY_MESSAGE: String = "THE HOLE GROWS WITH\nEVERY STAR IT SWALLOWS"
+const SWALLOW_LOSS_MESSAGE: String = "THE HOLE TOOK A STAR\nLINK MARKED ONES FIRST"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
 ## no launch, other message or clear cuts it before it can be read; only another teaching line can.
@@ -376,7 +380,7 @@ func advance(delta: float) -> void:
 
 ## The run's current says its rule, once a run (Main calls it as the player first aims).
 func tell_current_rule() -> void:
-	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null):
+	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null):
 		return
 	_current_told = true
 	# A final's title card is up, or about to be: the rule waits for it to go, so the two don't
@@ -401,6 +405,8 @@ func _stage_rule() -> String:
 		return current_rule(_run.current)
 	if _run.heat != null:
 		return heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links)
+	if _run.gravity != null:
+		return hole_rule(_run.gravity)
 	return ""
 
 
@@ -438,6 +444,8 @@ func _tell_loss(changes: Array) -> void:
 	for change: Variant in changes:
 		if change is StarCurrent.Move and (change as StarCurrent.Move).drained:
 			said = DRAIN_LOSS_MESSAGE
+		elif change is StarGravity.Fall and (change as StarGravity.Fall).swallowed:
+			said = SWALLOW_LOSS_MESSAGE
 		elif change is StarHeat.Change and (change as StarHeat.Change).lost and (change as StarHeat.Change).star_id >= 0:
 			said = FADE_LOSS_MESSAGE if (change as StarHeat.Change).is_cold() else BURN_LOSS_MESSAGE
 		if said != "":
@@ -456,6 +464,11 @@ static func harvest_rule(harvest: StarHarvest) -> String:
 	if harvest.binds and harvest.ties:
 		return TIE_MESSAGE
 	return BIND_MESSAGE if harvest.binds else SCYTHE_MESSAGE % harvest.every
+
+
+## What the black hole's message says: it pulls stars in, or (hungry) it grows as it swallows.
+static func hole_rule(hole: StarGravity) -> String:
+	return HUNGRY_MESSAGE if hole.hunger > 0 else HOLE_MESSAGE
 
 
 ## What the heat's message says: it grows or shrinks stars (or both, by turns), and whether it
@@ -802,11 +815,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked":
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed":
 			# Virgo's, the current's and the breath's intros say their rule as the effect shows.
 			tell_current_rule()
 			return
-		&"stars_shifted", &"stars_resized":
+		&"stars_shifted", &"stars_resized", &"stars_fell":
 			# Normally said when the player first aimed; a launch made without aiming says it here.
 			tell_current_rule()
 			_tell_loss(event.args[0])

@@ -21,6 +21,12 @@ signal stars_shifted(moves: Array[StarCurrent.Move])
 ## Sagittarius's black hole (chapter 5 trial): once the burst(s) settled, loose stars fell toward it.
 ## A fall flagged swallowed took its star into the hole, for nothing. Positions are event snapshots.
 signal stars_fell(falls: Array[StarGravity.Fall])
+## Sagittarius's hole intro: the stage opened with `stars` (one of each size, copies as placed) at
+## three distances from the hole; it pulls them next (stars_fell, each time), the nearest falling in
+## first. Presentation only: the run's own hole doesn't change (a hungry one grows in the demo only).
+signal hole_intro_placed(stars: Array[Star])
+## Sagittarius's hole intro is over: `stars`, what the hole left of it, leave the sky. No reward.
+signal hole_intro_cleared(stars: Array[Star])
 ## The heat (Leo) changed the size of loose stars once the launch resolved (after any current).
 ## A change flagged lost took its star out of the sky, for nothing.
 signal stars_resized(changes: Array[StarHeat.Change])
@@ -188,6 +194,13 @@ const HEAT_INTRO_CLEARANCE: int = 48
 ## Aquarius's current intro: how many times the flow moves its stars (a tide or a box turns between
 ## them), and the demo stars' offsets across the flow (so they don't stand in a ruled line).
 const CURRENT_INTRO_PULSES: int = 2
+## The hole intro: the hole pulls HOLE_INTRO_PULLS times; its stars stand where the first falls in
+## on the first pull, the next on the second, and the last survives both (StarGravity.pulls_to_swallow,
+## at least StarScatter.MIN_SPACING apart), along the first of HOLE_INTRO_WAYS directions where all
+## three are clear of the figure and inside the sky.
+const HOLE_INTRO_WAYS: int = 32
+const HOLE_INTRO_STRING_CLEARANCE: float = 10.0
+const HOLE_INTRO_PULLS: int = 2
 const CURRENT_INTRO_ACROSS: Array[int] = [0, 6, -6]
 ## The furthest one keeps this far inside the upstream edge of the field.
 const CURRENT_INTRO_EDGE: int = 4
@@ -277,8 +290,10 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.harvest and balance.harvest_every_for(scorpio.map.id) > 0:
 			harvest = StarHarvest.new(balance.harvest_every_for(scorpio.map.id), scorpio.map.harvest_binds, scorpio.map.harvest_quickens, scorpio.map.harvest_ties)
 			_bound.assign(scorpio.lit)
-		if scorpio.map.black_hole and balance.black_hole_pull > 0:
-			gravity = StarGravity.new(scorpio.map.black_hole_center + scorpio.shift, balance.black_hole_horizon, balance.black_hole_pull, balance.black_hole_max_step)
+		var hole: Dictionary = balance.black_hole_for(scorpio.map.id)
+		if scorpio.map.black_hole and hole.pull > 0:
+			var hunger: int = hole.hunger if scorpio.map.black_hole_hungry else 0
+			gravity = StarGravity.new(scorpio.map.black_hole_center + scorpio.shift, hole.horizon, hole.pull, hole.max_step, hunger, hole.max_horizon)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -1082,6 +1097,7 @@ func _fall_stars() -> void:
 	for star: Star in swallowed:
 		stars.erase(star)
 	_orion_forget(swallowed)
+	gravity.feed(swallowed.size())
 	if not fell.is_empty():
 		stars_fell.emit(fell)
 
@@ -1512,6 +1528,83 @@ func play_current_intro() -> void:
 		var left: Array[Star] = stars.duplicate()
 		stars.clear()
 		current_intro_cleared.emit(left)
+
+
+## Sagittarius's hole intro, as a stage with a black hole and intros opens (the scene calls it once its
+## views are bound): one star of each size at three distances from the hole; it pulls them twice, on
+## a copy of the hole (a hungry one grows as it swallows), and the one left fades out. No pack used,
+## no reward, no RNG drawn. Nothing without a hole, on a map without intros, or once the run has begun.
+func play_hole_intro() -> void:
+	if gravity == null or scorpio == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	var spots: Array[Vector2i] = hole_intro_spots()
+	if spots.is_empty():
+		return
+	var hole: StarGravity = gravity.copy()
+	var shown: Array[Star] = []
+	for i: int in spots.size():
+		var star: Star = add_star(HEAT_INTRO_SIZES[i], spots[i])
+		shown.append(Star.new(star.id, star.size, star.position))
+	hole_intro_placed.emit(shown)
+	for pull: int in HOLE_INTRO_PULLS:
+		if stars.is_empty():
+			break
+		var destinations: Dictionary[int, Vector2i] = hole.preview(stars, sky_rect, scorpio.landmark_positions())
+		var fell: Array[StarGravity.Fall] = hole.falls(stars, destinations)
+		var swallowed: int = 0
+		for star: Star in stars:
+			star.position = destinations[star.id]
+		for fall: StarGravity.Fall in fell:
+			if fall.swallowed:
+				stars.erase(find_star(fall.star_id))
+				swallowed += 1
+		hole.feed(swallowed)
+		if not fell.is_empty():
+			stars_fell.emit(fell)
+	if not stars.is_empty():
+		var left: Array[Star] = stars.duplicate()
+		stars.clear()
+		hole_intro_cleared.emit(left)
+
+
+## Where the hole intro's stars stand (small, medium, big), or [] without a hole (or no way round it
+## clear of the figure): see HOLE_INTRO_WAYS.
+func hole_intro_spots() -> Array[Vector2i]:
+	var spots: Array[Vector2i] = []
+	if gravity == null:
+		return spots
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
+	# How far out each stands: the nearest spot that falls in on pull k (the last: survives them all).
+	var distances: Array[int] = []
+	var distance: int = gravity.horizon + 2
+	while distances.size() <= HOLE_INTRO_PULLS and distance < 2 * ScreenZones.SCREEN.x:
+		var pulls: int = gravity.pulls_to_swallow(distance)
+		if pulls == distances.size() + 1 or (distances.size() == HOLE_INTRO_PULLS and pulls > HOLE_INTRO_PULLS):
+			distances.append(distance)
+			distance += StarScatter.MIN_SPACING
+		else:
+			distance += 1
+	for k: int in HOLE_INTRO_WAYS:
+		var way: Vector2 = Vector2.from_angle(TAU * k / HOLE_INTRO_WAYS - PI / 2.0)
+		spots.clear()
+		for out: int in distances:
+			var spot: Vector2i = gravity.center + Vector2i((way * out).round())
+			var clear: bool = inner.has_point(spot)
+			for at: Vector2i in landmarks:
+				clear = clear and spot.distance_to(at) >= StarScatter.MIN_SPACING
+			# Clear of its strings too (#149: a demo star beside a string read as one of the figure's).
+			for segment: int in scorpio.map.segment_count():
+				var ends: Array[int] = scorpio.map.segment_landmarks(segment)
+				var closest: Vector2 = Geometry2D.get_closest_point_to_segment(Vector2(spot), Vector2(landmarks[ends[0]]), Vector2(landmarks[ends[1]]))
+				clear = clear and closest.distance_to(Vector2(spot)) >= HOLE_INTRO_STRING_CLEARANCE
+			if not clear:
+				break
+			spots.append(spot)
+		if spots.size() == HOLE_INTRO_PULLS + 1:
+			return spots
+	spots.clear()
+	return spots
 
 
 ## Where the current intro's stars stand (small, medium, big), or [] without a current: along the

@@ -21,6 +21,9 @@ const LEO_PART := "res://assets/art/leo_part_%s.png"
 ## Chapter 4's Virgo and its stages' paintings, once drawn (a missing one is left out).
 const VIRGO_FIGURE := "res://assets/art/virgo_figure.png"
 const VIRGO_PART := "res://assets/art/virgo_part_%s.png"
+## Chapter 5's Sagittarius and its stages' paintings, once drawn (a missing one is left out).
+const SAGITTARIUS_FIGURE := "res://assets/art/sagittarius_figure.png"
+const SAGITTARIUS_PART := "res://assets/art/sagittarius_part_%s.png"
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -88,6 +91,8 @@ var harvest_ties: bool = false
 ## black_hole block). Where it is, in home layout.
 var black_hole: bool = false
 var black_hole_center: Vector2i = Vector2i.ZERO
+## The hungry hole: each star it swallows widens its horizon (balance.json's hunger).
+var black_hole_hungry: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -715,6 +720,96 @@ static func virgo_final() -> StarMap:
 
 
 ## The map for `id`, the full Scorpio for anything unknown.
+## Chapter 5's full Sagittarius, the archer, east to the left as the sky shows it: the teapot of his
+## body and bow with the arrow pointing right (Alnasl, its tip), his head up at the left and a hoof
+## below. Thirteen stars at least 24 px apart, joined as a tree (the teapot's lid and handle open).
+static func sagittarius() -> StarMap:
+	var map := StarMap.new()
+	map.id = "sagittarius"
+	map.title = "SAGITTARIUS"
+	# 0 Alnasl (the arrow's tip), 1 Kaus Media, 2 Kaus Borealis, 3 mu (the bow's top), 4 phi,
+	# 5 Nunki, 6 tau, 7 Ascella, 8 Kaus Australis, 9 eta (the bow's foot), 10 pi, 11 xi (the head),
+	# 12 Rukbat (a hoof).
+	map.landmarks = [
+		Vector2i(150, 176), Vector2i(124, 158), Vector2i(108, 128), Vector2i(128, 100),
+		Vector2i(90, 156), Vector2i(62, 148), Vector2i(60, 180), Vector2i(84, 194),
+		Vector2i(128, 196), Vector2i(146, 222), Vector2i(40, 122), Vector2i(22, 100),
+		Vector2i(92, 226),
+	]
+	map.segments = [
+		Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(1, 4), Vector2i(4, 5),
+		Vector2i(5, 6), Vector2i(6, 7), Vector2i(7, 8), Vector2i(8, 9), Vector2i(5, 10),
+		Vector2i(10, 11), Vector2i(7, 12),
+	]
+	map.sizes = [
+		Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL,
+		Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM,
+		Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL, Star.Size.SMALL,
+		Star.Size.SMALL,
+	]
+	map.starting_lit = [0]
+	map.painting = SAGITTARIUS_FIGURE
+	return map
+
+
+## Sagittarius, stage 1: the Arrow. The black hole alone, with a gentle pull (its intro shows stars
+## falling in): once each launch has burst, every loose star falls toward it, faster the nearer it
+## is, and one reaching its horizon is swallowed, for nothing. From the nock (lit, lower left) the
+## shaft climbs to the head (big) at the upper right, a barb hanging off it; the hole sits below the
+## shaft's middle. Aim past the stars you need, so the pull brings stars to them. Five to light.
+## Strings are 34-36 px.
+static func sagittarius_arrow() -> StarMap:
+	var map := StarMap.new()
+	map.id = "sagittarius_arrow"
+	map.title = "ARROW"
+	map.landmarks = [Vector2i(36, 220), Vector2i(62, 196), Vector2i(88, 172), Vector2i(114, 148), Vector2i(140, 124), Vector2i(150, 158)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.SMALL, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = SAGITTARIUS_PART % "arrow"
+	map.black_hole = true
+	map.black_hole_center = Vector2i(96, 198)
+	return map
+
+
+## Sagittarius, stage 2: the Bow. The pull is stronger, and the hole sits in the bow's curve: its
+## limbs arc round it from the top tip to the bottom one through the grip (lit, at the left), the
+## arrow's head out beyond the grip. Stars waiting by the limbs fall past the hole. Five to light.
+## Strings are 32-36 px.
+static func sagittarius_bow() -> StarMap:
+	var map := StarMap.new()
+	map.id = "sagittarius_bow"
+	map.title = "BOW"
+	map.landmarks = [Vector2i(90, 152), Vector2i(100, 118), Vector2i(124, 96), Vector2i(100, 186), Vector2i(124, 208), Vector2i(58, 152)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(0, 3), Vector2i(3, 4), Vector2i(0, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG]
+	map.starting_lit = [0]
+	map.painting = SAGITTARIUS_PART % "bow"
+	map.black_hole = true
+	map.black_hole_center = Vector2i(120, 152)
+	map.intros = false
+	return map
+
+
+## Sagittarius, stage 3: the Body. The hungry hole (its intro shows it grow): every star it swallows
+## widens its horizon. The archer's body curls round it, from the flank (lit, lower left) up the back
+## through Nunki (big) and round over the shoulders to the chest at the lower right. Six to light.
+## Strings are 34-37 px.
+static func sagittarius_body() -> StarMap:
+	var map := StarMap.new()
+	map.id = "sagittarius_body"
+	map.title = "BODY"
+	map.landmarks = [Vector2i(70, 186), Vector2i(60, 156), Vector2i(72, 128), Vector2i(100, 124), Vector2i(126, 140), Vector2i(130, 172), Vector2i(108, 194)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5), Vector2i(5, 6)]
+	map.sizes = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = SAGITTARIUS_PART % "body"
+	map.black_hole = true
+	map.black_hole_center = Vector2i(94, 160)
+	map.black_hole_hungry = true
+	return map
+
+
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
 		"stinger":
@@ -771,6 +866,14 @@ static func by_id(p_id: String) -> StarMap:
 			return virgo_wheat()
 		"virgo_final":
 			return virgo_final()
+		"sagittarius":
+			return sagittarius()
+		"sagittarius_arrow":
+			return sagittarius_arrow()
+		"sagittarius_bow":
+			return sagittarius_bow()
+		"sagittarius_body":
+			return sagittarius_body()
 	return scorpio()
 
 
