@@ -1,7 +1,9 @@
 extends GutTest
 ## Pisces's cords (chapter 6, a debug trial on the Heart's layout): every successful link leaves its
 ## string as a cord until the sky is cleared, and a traced link can't cross one. The loss check
-## counts only the combos that can still be traced.
+## counts only the combos that can still be traced. The fish's cord (StarMap.fish_cord) is in the sky
+## from the start, blocks the same way and is never cleared. The link-cord tests run without it
+## (_run's `fish`), so the fish's placement can change without moving them.
 
 const Fixtures := preload("res://tests/fixtures.gd")
 
@@ -16,6 +18,14 @@ const CORD_POINTS: Array[Vector2i] = [Vector2i(80, 90), Vector2i(80, 110), Vecto
 const LEFT := Vector2i(60, 100)
 const RIGHT := Vector2i(100, 100)
 const BELOW := Vector2i(84, 150)
+## A test fish cord, in home layout: a V knotted at (90, 140), its arms up to the side edges. Shifted
+## into TALL_SKY it runs (0, 214) - (90, 254) - (179, 214).
+const FISH: Array[Vector2i] = [Vector2i(0, 100), Vector2i(90, 140), Vector2i(179, 100)]
+## Three mediums in reach of each other in TALL_SKY: one over the fish's left arm, two under it (out
+## of reach of any medium landmark).
+const OVER := Vector2i(20, 205)
+const UNDER := Vector2i(20, 240)
+const UNDER_RIGHT := Vector2i(40, 240)
 
 var tied: Array[Array] = []
 var cleared: int = 0
@@ -40,7 +50,7 @@ func test_only_the_cord_trial_has_cords() -> void:
 	assert_eq(off.title, "CORD OFF")
 	assert_false(off.cords)
 	assert_not_null(_run().cords)
-	assert_true(_run().cords.is_empty())
+	assert_true(_run().cords.is_empty(), "without the fish's cord, no cord until a link")
 	assert_null(_run(false).cords)
 	for other: StarMap in [StarMap.heart(), StarMap.black_hole_trial(), StarMap.sagittarius_head()]:
 		assert_false(other.cords, other.id)
@@ -228,24 +238,146 @@ func test_launches_and_failed_links_keep_the_cords() -> void:
 func test_cords_draw_no_random_numbers() -> void:
 	for seed_value: int in [1, 7, 42]:
 		var on: RunState = _run(true, {"blue": 3, "red": 0}, seed_value)
+		var fished: RunState = _run(true, {"blue": 3, "red": 0}, seed_value, true)
 		var off: RunState = _run(false, {"blue": 3, "red": 0}, seed_value)
-		for run: RunState in [on, off]:
+		for run: RunState in [on, fished, off]:
 			for point: Vector2i in CORD_POINTS:
 				run.add_star(Star.Size.SMALL, point)
 			assert_eq(run.link(Fixtures.ids(run.stars)), "small_triple")
 			Fixtures.launch(run, Vector2i(60, 200))
 			Fixtures.launch(run, Vector2i(120, 260))
 		assert_eq(on.cords.count(), 2)
+		assert_eq(fished.cords.link_count(), 2)
+		assert_gt(fished.cords.fixed_count(), 0, "the trial's fish cord")
 		assert_eq(_layout(on), _layout(off), "seed %d: the same stars land" % seed_value)
+		assert_eq(_layout(fished), _layout(off), "seed %d: the fish's cord draws nothing either" % seed_value)
 
 
-func _run(enabled: bool = true, packs: Dictionary = {"blue": 3, "red": 0}, seed_value: int = 1) -> RunState:
+func test_the_trial_brings_the_fish_cord_across_the_sky() -> void:
+	var map: StarMap = StarMap.cord_trial()
+	assert_gt(map.fish_cord.size(), 2, "a V: two arms meeting at Alrescha")
+	var home: Rect2i = Scorpio.HOME_SKY
+	for point: Vector2i in map.fish_cord:
+		assert_true(home.has_point(point), "%s in the home sky" % point)
+	for end: Vector2i in [map.fish_cord[0], map.fish_cord[-1]]:
+		var on_edge: bool = end.x == home.position.x or end.x == home.end.x - 1 or end.y == home.position.y or end.y == home.end.y - 1
+		assert_true(on_edge, "%s: its arms reach the sky's edges" % end)
+	assert_true(StarMap.cord_trial(false).fish_cord.is_empty(), "cords off: no fish cord either")
+	assert_null(_run(false, {"blue": 3, "red": 0}, 1, true).cords, "nor any cord at all")
+	for other: StarMap in [StarMap.heart(), StarMap.black_hole_trial(), StarMap.scorpio()]:
+		assert_true(other.fish_cord.is_empty(), other.id)
+
+
+func test_the_fish_cord_is_in_place_before_any_link_with_the_shift() -> void:
+	var run: RunState = _run(true, {"blue": 3, "red": 0}, 1, true)
+	var expected: Array[Array] = []
+	var home: Array[Vector2i] = StarMap.cord_trial().fish_cord
+	for i: int in range(1, home.size()):
+		expected.append([home[i - 1] + SHIFT, home[i] + SHIFT] as Array[Vector2i])
+	assert_eq(run.scorpio.shift, SHIFT)
+	assert_eq(run.cords.segments(), expected)
+	assert_eq(run.cords.fixed_count(), expected.size())
+	assert_eq(run.cords.link_count(), 0)
+	assert_true(tied.is_empty(), "no link tied it")
+	var custom: RunState = _run(true, {"blue": 3, "red": 0}, 1, false, FISH)
+	assert_eq(custom.cords.fixed_segments(), [[Vector2i(0, 214), Vector2i(90, 254)], [Vector2i(90, 254), Vector2i(179, 214)]])
+
+
+func test_a_link_step_across_the_fish_cord_is_refused_and_uses_nothing_up() -> void:
+	var run: RunState = _run(true, {"blue": 3, "red": 0}, 1, false, FISH)
+	var over: Star = run.add_star(Star.Size.MEDIUM, OVER)
+	var under: Star = run.add_star(Star.Size.MEDIUM, UNDER)
+	var under_right: Star = run.add_star(Star.Size.MEDIUM, UNDER_RIGHT)
+	var rejected: Array[Array] = []
+	run.link_rejected.connect(func(ids: Array[int]) -> void: rejected.append(ids))
+	var dust: int = run.dust
+	var light: int = run.light
+	assert_true(run.in_reach(OVER, UNDER), "in reach: only the fish's cord blocks it")
+	assert_false(run.can_step(OVER, UNDER))
+	assert_false(run.can_step(UNDER_RIGHT, OVER))
+	assert_true(run.can_step(UNDER, UNDER_RIGHT), "the same side")
+	assert_true(run.can_step(Vector2i(90, 254), Vector2i(60, 215)), "from its knot, over the arm: touching")
+	var ids: Array[int] = [over.id, under.id, under_right.id]
+	assert_true(run.traceable_orders(ids).is_empty(), "every order steps across it")
+	assert_false(run.has_remaining_combo())
+	assert_eq(run.combo_for(ids), Combos.INVALID)
+	assert_eq(run.link(ids), Combos.INVALID)
+	assert_eq(rejected, [ids])
+	assert_eq(run.stars.size(), 3, "every star kept")
+	assert_eq(run.dust, dust)
+	assert_eq(run.light, light)
+	assert_eq(run.cords.link_count(), 0, "no cord tied")
+	assert_true(tied.is_empty())
+	var free: RunState = _run()
+	var free_ids: Array[int] = []
+	for point: Vector2i in [OVER, UNDER, UNDER_RIGHT]:
+		free_ids.append(free.add_star(Star.Size.MEDIUM, point).id)
+	assert_eq(free.link(free_ids), "medium_triple", "without the fish's cord the same trio links")
+
+
+func test_combos_walled_off_by_the_fish_cord_lose_the_run() -> void:
+	var run: RunState = _run(true, {"blue": 0, "red": 0}, 1, false, FISH)
+	for point: Vector2i in [OVER, UNDER, UNDER_RIGHT]:
+		run.add_star(Star.Size.MEDIUM, point)
+	_tie_the_cord(run)
+	assert_eq(run.outcome, RunState.Outcome.LOST, "no pack, no dust for one, every combo across the fish")
+	var free: RunState = _run(true, {"blue": 0, "red": 0})
+	for point: Vector2i in [OVER, UNDER, UNDER_RIGHT]:
+		free.add_star(Star.Size.MEDIUM, point)
+	_tie_the_cord(free)
+	assert_eq(free.outcome, RunState.Outcome.PLAYING, "the fish's cord was what walled them")
+
+
+func test_the_fish_cord_survives_a_rekindle_while_link_cords_clear() -> void:
+	var run: RunState = _run(true, {"blue": 3, "red": 0}, 1, false, FISH)
+	var fish: Array[Array] = run.cords.fixed_segments()
+	_tie_the_cord(run)
+	var a: Star = run.add_star(Star.Size.MEDIUM, Vector2i(30, 100))
+	var b: Star = run.add_star(Star.Size.MEDIUM, Vector2i(30, 130))
+	var c: Star = run.add_star(Star.Size.MEDIUM, Vector2i(50, 150))
+	run.light = run.light_target() - 1
+	assert_eq(run.link([a.id, b.id, c.id] as Array[int]), "medium_triple")
+	assert_eq(cleared, 1, "the links' cords cleared")
+	assert_eq(run.cords.link_count(), 0)
+	assert_eq(run.cords.segments(), fish, "the fish's cord stays")
+	assert_false(run.can_step(OVER, UNDER), "and still blocks")
+	assert_true(run.can_step(LEFT, RIGHT), "the link's cord doesn't")
+
+
+func test_the_fish_cord_survives_a_big_bang_while_link_cords_clear() -> void:
+	var run: RunState = _run(true, {"blue": 3, "red": 0}, 1, false, FISH)
+	var fish: Array[Array] = run.cords.fixed_segments()
+	_tie_the_cord(run)
+	run.force_next_big_bang = true
+	assert_true(Fixtures.launch(run, Vector2i(90, 200)))
+	assert_eq(cleared, 1)
+	assert_eq(run.cords.segments(), fish)
+	assert_false(run.can_step(OVER, UNDER))
+
+
+func test_a_clear_with_only_the_fish_cord_left_says_nothing() -> void:
+	var run: RunState = _run(true, {"blue": 3, "red": 0}, 1, false, FISH)
+	var fish: Array[Array] = run.cords.fixed_segments()
+	run.force_next_big_bang = true
+	assert_true(Fixtures.launch(run, Vector2i(90, 200)))
+	assert_eq(cleared, 0, "no link's cord to clear: no cords_cleared")
+	assert_eq(run.cords.segments(), fish)
+
+
+## The trial in TALL_SKY. `fish`: keep the trial's own fish cord (else none); `fish_cord`, when
+## given, replaces it.
+func _run(enabled: bool = true, packs: Dictionary = {"blue": 3, "red": 0}, seed_value: int = 1, fish: bool = false, fish_cord: Array[Vector2i] = []) -> RunState:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
 	data["packs"]["red"]["big_bang_chance"] = 0.0
 	data["start_packs"] = packs
 	data["scorpio"] = {"enabled": true, "sun_dust_per_star": 1, "sun_target": 75, "max_link_distance": 56}
-	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(seed_value), TALL_SKY, StarMap.cord_trial(enabled))
+	var map: StarMap = StarMap.cord_trial(enabled)
+	if not fish:
+		map.fish_cord = [] as Array[Vector2i]
+	if not fish_cord.is_empty():
+		map.fish_cord = fish_cord
+	var run := RunState.new(Balance.from_dict(data), Fixtures.rng(seed_value), TALL_SKY, map)
 	run.cord_tied.connect(func(points: Array[Vector2i]) -> void: tied.append(points))
 	run.cords_cleared.connect(func() -> void: cleared += 1)
 	return run

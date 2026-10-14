@@ -1,7 +1,9 @@
 extends GutTest
 ## Pisces's cord trial in the scenes: the CORD ON/OFF switch, the cords drawn as a dim rope on the
 ## palette (laid after a link, gone with a clear), the trace refusing a step across one and breaking
-## where it would cross, and the rule said as the trial opens.
+## where it would cross, and the rule said as the trial opens. The fish's cord is drawn from the start
+## and stays through every clear. The link-cord tests take the fish's cord out of the run (_start's
+## `fish`), so its placement can change without moving them.
 
 const MainScene := preload("res://game/scenes/main.tscn")
 
@@ -14,6 +16,7 @@ const RIGHT := Vector2i(44, 110)
 const BELOW := Vector2i(31, 150)
 const ROPE: Array[Color] = [Palette.N5, Palette.N6]
 const EMBER: Array[Color] = [Palette.S3, Palette.S4]
+const FISH: Array[Color] = [Palette.N6, Palette.N7, Palette.N8]
 
 var main: Main
 var run: RunState
@@ -22,7 +25,8 @@ var sequencer: EventSequencer
 var view: CordView
 
 
-func _start(enabled: bool = true) -> void:
+## `fish`: keep the trial's fish cord; without it the run's cords start empty (link-cord tests).
+func _start(enabled: bool = true, fish: bool = false) -> void:
 	main = MainScene.instantiate()
 	main.current_trial = true
 	main.current_layout = "cord"
@@ -35,6 +39,10 @@ func _start(enabled: bool = true) -> void:
 	view = main.get_node("Sky/CordLayer")
 	for node: Node in [sequencer, view, main.get_node("CollectParticles"), main.get_node("Sfx"), main.get_node("Sky/ConstellationLayer"), main.get_node("Sun")]:
 		node.set_process(false)
+	if not fish and run.cords != null:
+		run.cords = StarCords.new()
+		view.setup(run, sequencer)
+		view.set_process(false)
 	_play_out()
 
 
@@ -141,6 +149,95 @@ func test_a_big_bang_keeps_the_cords_until_its_freeze() -> void:
 	assert_true(view.pixels().is_empty(), "and go")
 
 
+func test_the_fish_cord_is_drawn_as_the_trial_opens() -> void:
+	_start(true, true)
+	var fish: Array[Array] = run.cords.fixed_segments()
+	assert_gt(fish.size(), 1, "a V")
+	assert_eq(view.fish_count(), fish.size())
+	assert_eq(view.shown_count(), fish.size(), "no link has tied a cord yet")
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	for segment: Array in fish:
+		for p: Vector2i in LinkLayer.line_pixels(segment[0], segment[1]):
+			assert_true(pixels.has(p), "%s: unbroken" % p)
+	for color: Color in pixels.values():
+		assert_has(FISH, color, "cool, never gold")
+	var knot: Vector2i = fish[0][1]
+	assert_eq(pixels[knot], Palette.N8, "the knot at Alrescha")
+	for corner: Vector2i in CordView.CORNERS:
+		assert_eq(pixels[knot + corner], Palette.N6, "a 3x3 knot")
+	assert_ne(pixels[fish[0][0]], Palette.N8, "no knot at its loose end")
+
+
+func test_the_fish_cord_glows_ember_where_a_trace_would_cross_it() -> void:
+	_start(true, true)
+	var fish: Array[Array] = run.cords.fixed_segments()
+	var middle: Vector2i = (fish[0][0] + fish[0][1]) / 2
+	view.tracing_step = [middle + Vector2i(0, -8), middle + Vector2i(0, 8)] as Array[Vector2i]
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	for p: Vector2i in LinkLayer.line_pixels(fish[0][0], fish[0][1]):
+		assert_has(EMBER, pixels[p], "%s: the crossed arm glows" % p)
+	assert_eq(pixels[fish[0][1]], Palette.S4, "its knot with it")
+	var other: Array[Vector2i] = LinkLayer.line_pixels(fish[1][0], fish[1][1])
+	assert_has(FISH, pixels[other[other.size() / 2]], "the other arm stays cool")
+	view.tracing_step = [] as Array[Vector2i]
+	for color: Color in view.pixels().values():
+		assert_has(FISH, color)
+
+
+func test_the_fish_cord_stays_through_a_clear_and_a_big_bang() -> void:
+	_start(true, true)
+	var fish: int = view.fish_count()
+	var before: Dictionary[Vector2i, Color] = view.pixels()
+	var link: Array[Vector2i] = [Vector2i(150, 220), Vector2i(160, 240), Vector2i(140, 240)]
+	run.cords.tie(link)
+	view.tie(link)
+	view.advance(1.0)
+	assert_eq(view.shown_count(), fish + 2)
+	run.cords.clear()
+	view.clear_cords()
+	assert_eq(view.pixels()[link[1]], Palette.N7, "the link's cord flashes")
+	for p: Vector2i in before:
+		if not LinkLayer.path_pixels(link).has(p):
+			assert_eq(view.pixels()[p], before[p], "%s: the fish's cord doesn't flash" % p)
+	view.advance(CordView.CLEAR_FLASH + 0.01)
+	view.advance(0.1)
+	assert_eq(view.shown_count(), fish, "the link's cord went, the fish's stayed")
+	assert_eq(view.pixels(), before)
+	run.cords.tie(link)
+	view.tie(link)
+	view.advance(1.0)
+	run.cords.clear()
+	view.clear_cords()
+	view.hold_for_big_bang()
+	view.advance(BigBangSequence.FREEZE_AT + 0.01)
+	view.advance(CordView.CLEAR_FLASH + 0.01)
+	view.advance(0.1)
+	assert_eq(view.shown_count(), fish, "a Big Bang leaves it too")
+	assert_eq(view.pixels(), before)
+	view.setup(run, sequencer)
+	assert_eq(view.pixels(), before, "a restart draws it again")
+
+
+func test_the_fish_cord_stays_on_the_palette() -> void:
+	for color: Color in CordView.fish_rope_pixels(Vector2i(0, 128), Vector2i(98, 176), false).values():
+		assert_has([Palette.N6, Palette.N7], color)
+	for color: Color in CordView.fish_rope_pixels(Vector2i(0, 128), Vector2i(98, 176), true).values():
+		assert_has(EMBER, color)
+	for color: Color in CordView.fish_knot_pixels(Vector2i(98, 176)).values():
+		assert_has(FISH, color)
+	for color: Color in CordView.fish_knot_pixels(Vector2i(98, 176), true).values():
+		assert_has(EMBER, color)
+	var rope: Dictionary[Vector2i, Color] = CordView.fish_rope_pixels(Vector2i(0, 128), Vector2i(98, 176), false)
+	assert_eq(rope.size(), LinkLayer.line_pixels(Vector2i(0, 128), Vector2i(98, 176)).size(), "no gaps: stronger than a link's dashed rope")
+
+
+func test_with_cords_off_there_is_no_fish_cord() -> void:
+	_start(false, true)
+	assert_null(run.cords)
+	assert_eq(view.fish_count(), 0)
+	assert_true(view.pixels().is_empty())
+
+
 func test_a_restart_rebuilds_the_cords_from_the_run() -> void:
 	_start()
 	_tie_the_cord()
@@ -168,7 +265,7 @@ func test_a_star_across_a_cord_cant_join_and_nothing_is_used() -> void:
 	_tap(below.position)
 	_tap(right.position)
 	assert_eq(run.stars.size(), 0, "round the cord: linked")
-	assert_eq(run.cords.count(), 4)
+	assert_eq(run.cords.link_count(), 4)
 
 
 func test_the_trace_breaks_where_it_would_cross_a_cord() -> void:

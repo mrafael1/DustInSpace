@@ -83,3 +83,38 @@ func test_a_repeated_point_ties_no_segment() -> void:
 	var added: Array[Array] = cords.tie([Vector2i(40, 120), Vector2i(40, 120), Vector2i(80, 120)] as Array[Vector2i])
 	assert_eq(added.size(), 1)
 	assert_eq(cords.count(), 1)
+
+
+func test_fixed_cords_block_and_survive_a_clear() -> void:
+	var cords := StarCords.new()
+	var fish: Array[Array] = cords.tie_fixed([Vector2i(0, 100), Vector2i(60, 140), Vector2i(120, 100)] as Array[Vector2i])
+	assert_eq(fish, [[Vector2i(0, 100), Vector2i(60, 140)], [Vector2i(60, 140), Vector2i(120, 100)]])
+	assert_eq(cords.fixed_count(), 2)
+	assert_eq(cords.link_count(), 0)
+	assert_false(cords.is_empty(), "the fixed cord is in the sky")
+	assert_true(cords.crosses(Vector2i(30, 100), Vector2i(30, 140)), "it blocks like a link's cord")
+	assert_false(cords.crosses(Vector2i(60, 140), Vector2i(60, 180)), "touching its knot doesn't")
+	cords.tie([Vector2i(10, 200), Vector2i(30, 200), Vector2i(50, 200)] as Array[Vector2i])
+	assert_eq(cords.count(), 4)
+	assert_eq(cords.link_count(), 2)
+	assert_eq(cords.segments().slice(0, 2), fish, "fixed first")
+	assert_eq(cords.fixed_segments(), fish)
+	assert_eq(cords.link_segments(), [[Vector2i(10, 200), Vector2i(30, 200)], [Vector2i(30, 200), Vector2i(50, 200)]])
+	assert_true(cords.is_fixed(0))
+	assert_true(cords.is_fixed(1))
+	assert_false(cords.is_fixed(2))
+	cords.clear()
+	assert_eq(cords.count(), 2, "a clear keeps the fixed cord")
+	assert_eq(cords.link_count(), 0)
+	assert_eq(cords.segments(), fish)
+	assert_true(cords.crosses(Vector2i(30, 100), Vector2i(30, 140)))
+	assert_false(cords.crosses(Vector2i(20, 190), Vector2i(20, 210)), "the link's cord is gone")
+
+
+func test_fixed_cords_stay_ahead_of_link_cords_tied_before() -> void:
+	var cords := StarCords.new()
+	cords.tie([Vector2i(10, 200), Vector2i(30, 200)] as Array[Vector2i])
+	cords.tie_fixed([Vector2i(0, 100), Vector2i(60, 140)] as Array[Vector2i])
+	assert_eq(cords.segments(), [[Vector2i(0, 100), Vector2i(60, 140)], [Vector2i(10, 200), Vector2i(30, 200)]])
+	cords.clear()
+	assert_eq(cords.segments(), [[Vector2i(0, 100), Vector2i(60, 140)]])

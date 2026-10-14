@@ -99,7 +99,7 @@ signal string_built(segment: int)
 ## positions, in pick order).
 signal cord_tied(points: Array[Vector2i])
 ## Pisces's cords: the sky was cleared (the Sun rekindled, the figure completed, a Big Bang), and
-## every cord with it.
+## every link's cord with it (only when there was one). The fish's cord is never cleared.
 signal cords_cleared
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
 ## Its light then clears the sky: sky_cleared follows the landmark's events.
@@ -271,7 +271,8 @@ var harvest: StarHarvest
 ## Sagittarius's black hole (chapter 5 trial), or null when the map has none (or balance.json no
 ## black_hole block).
 var gravity: StarGravity
-## Pisces's cords (chapter 6, a debug trial): null on a map without them.
+## Pisces's cords (chapter 6, a debug trial): null on a map without them. The map's fish cord
+## (StarMap.fish_cord, shifted) is tied fixed from the start.
 var cords: StarCords
 ## Bound sheaves: the landmarks bound to the figure (lit at the start, or still lit at a harvest).
 var _bound: Array[bool] = []
@@ -329,6 +330,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 				gravity.set_gauge(hole.gauge, hole.gauge_share)
 		if scorpio.map.cords:
 			cords = StarCords.new()
+			cords.tie_fixed(_fish_cord())
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -1480,9 +1482,18 @@ func _tie_cord(linked: Array[Star]) -> void:
 	cord_tied.emit(points)
 
 
-## Pisces: the sky was cleared, and its cords go with it.
+## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map).
+func _fish_cord() -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	for point: Vector2i in scorpio.map.fish_cord:
+		points.append(point + scorpio.shift)
+	return points
+
+
+## Pisces: the sky was cleared, and the links' cords go with it (the fish's cord stays). Nothing is
+## emitted when no link's cord was there to clear.
 func _clear_cords() -> void:
-	if cords == null or cords.is_empty():
+	if cords == null or cords.link_count() == 0:
 		return
 	cords.clear()
 	cords_cleared.emit()

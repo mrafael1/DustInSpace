@@ -5,12 +5,18 @@ extends RefCounted
 ## crossing blocks: a step that touches a cord (a shared end, an end lying on it, or running along
 ## it) passes. Bursts and stars cross cords freely. The tests are exact integer orientation tests, so
 ## every machine agrees on them, and cords draw no random numbers.
+## A map may also bring fixed cords (the fish's cord, StarMap.fish_cord: tie_fixed): they block the
+## same way but are never cleared. Every query (crosses, crossing, count, is_empty, segments) covers
+## both kinds; fixed_count/link_count, fixed_segments/link_segments and is_fixed tell them apart.
 
 ## What crossing() answers when a step crosses no cord.
 const NO_CROSSING := Vector2i(-1, -1)
 
-## The cords' segments as pairs of ends, flat: segment i runs from _ends[2i] to _ends[2i + 1].
+## The cords' segments as pairs of ends, flat: segment i runs from _ends[2i] to _ends[2i + 1]. The
+## fixed segments come first.
 var _ends: Array[Vector2i] = []
+## How many segments at the front of _ends are fixed.
+var _fixed: int = 0
 
 
 ## Whether segments `a`-`b` and `c`-`d` cross properly: each one's ends lie strictly on either side
@@ -37,7 +43,21 @@ func tie(points: Array[Vector2i]) -> Array[Array]:
 	return added
 
 
-## Whether a link step from `a` to `b` properly crosses any cord.
+## Ties a fixed cord (the fish's): a segment between each pair of consecutive `points`, kept through
+## clear(). Fixed segments stay ahead of the link cords. Returns the segments added, each as [from, to].
+func tie_fixed(points: Array[Vector2i]) -> Array[Array]:
+	var added: Array[Array] = []
+	for i: int in range(1, points.size()):
+		if points[i - 1] == points[i]:
+			continue
+		_ends.insert(2 * _fixed, points[i])
+		_ends.insert(2 * _fixed, points[i - 1])
+		_fixed += 1
+		added.append([points[i - 1], points[i]] as Array[Vector2i])
+	return added
+
+
+## Whether a link step from `a` to `b` properly crosses any cord (fixed or a link's).
 func crosses(a: Vector2i, b: Vector2i) -> bool:
 	for i: int in count():
 		if properly_cross(a, b, _ends[2 * i], _ends[2 * i + 1]):
@@ -63,24 +83,54 @@ func crossing(a: Vector2i, b: Vector2i) -> Vector2i:
 	return best
 
 
-## Removes every cord (the sky was cleared).
+## Removes every link's cord (the sky was cleared); the fixed cords stay.
 func clear() -> void:
-	_ends.clear()
+	_ends.resize(2 * _fixed)
 
 
+## Whether no cord at all is in the sky (fixed or a link's).
 func is_empty() -> bool:
 	return _ends.is_empty()
 
 
-## How many cord segments are tied.
+## How many cord segments are in the sky, fixed and links' together.
 func count() -> int:
 	return _ends.size() / 2
 
 
-## Every cord segment, oldest first, each as [from, to].
+## How many fixed segments there are (the fish's cord).
+func fixed_count() -> int:
+	return _fixed
+
+
+## How many segments links have tied (what a clear removes).
+func link_count() -> int:
+	return count() - _fixed
+
+
+## Whether segment `index` (of segments()) is fixed.
+func is_fixed(index: int) -> bool:
+	return index >= 0 and index < _fixed
+
+
+## Every cord segment, the fixed ones first, then the links' oldest first, each as [from, to].
 func segments() -> Array[Array]:
+	return _segments_between(0, count())
+
+
+## The fixed segments only, in order.
+func fixed_segments() -> Array[Array]:
+	return _segments_between(0, _fixed)
+
+
+## The links' segments only, oldest first.
+func link_segments() -> Array[Array]:
+	return _segments_between(_fixed, count())
+
+
+func _segments_between(from: int, to: int) -> Array[Array]:
 	var found: Array[Array] = []
-	for i: int in count():
+	for i: int in range(from, to):
 		found.append([_ends[2 * i], _ends[2 * i + 1]] as Array[Vector2i])
 	return found
 
