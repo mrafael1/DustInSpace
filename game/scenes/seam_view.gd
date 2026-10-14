@@ -8,7 +8,12 @@ extends Node2D
 ## each end dithered out into the sky. Moonlight blues, so it reads as a surface on every band of
 ## the sky and isn't taken for the figure's lavender strings. The splash is a ring closing on the
 ## thrown point in hard steps (N8, N7, N6) over SPLASH_TIME, as the planet sinks into the mirror;
-## the stars come out across the seam with the burst.
+## the stars come out across the seam with the burst. Both seams (a cross) draw both lines.
+## The splash (from the Knot): where the planet went in, a water ring spreads out to the splash's
+## reach in hard steps (M5, M4, M3) over RIPPLE_TIME as the stars it pushes drift; a star pushed out
+## of the sky cuts out at the edge in a burst of droplets (M5, then M4) over LOSS_TIME. While aiming,
+## the splash's reach rings the aim (an M4 dot every REACH_GAP px), each star it would push shows where it goes
+## (M5 brackets, as a current's), and each it would push out trails ember dots out the way it goes.
 
 const LINE_COLOUR: Color = Palette.M4
 const EDGE_COLOUR: Color = Palette.M3
@@ -23,6 +28,25 @@ const FADE_SPARSE: int = 6
 const SPLASH_TIME: float = 0.3
 const SPLASH_RADII: Array[int] = [7, 5, 3]
 const SPLASH_COLOURS: Array[Color] = [Palette.N8, Palette.N7, Palette.N6]
+const RIPPLE_TIME: float = 0.3
+const RIPPLE_COLOURS: Array[Color] = [Palette.M5, Palette.M4, Palette.M3]
+const LOSS_TIME: float = 0.3
+## A star the aim would push out trails this many ember dots, a pixel apart, out from its edge.
+const TRAIL_DOTS: int = 4
+## The aim's reach ring: a dot about every REACH_GAP px round it.
+const REACH_GAP: float = 3.0
+
+## The telescope aims (Main sets it each frame, with `aim`): the splash's preview shows.
+var aiming: bool = false:
+	set(value):
+		if aiming != value:
+			aiming = value
+			queue_redraw()
+var aim: Vector2i = Vector2i.ZERO:
+	set(value):
+		if aim != value:
+			aim = value
+			queue_redraw()
 
 var _run: RunState
 ## Seconds the seam has shimmered, for its glints' drift.
@@ -30,6 +54,11 @@ var _time: float = 0.0
 ## The splash playing: where, and the seconds since it began (-1: none).
 var _splash_at: Vector2i = Vector2i.ZERO
 var _splash_age: float = -1.0
+## The splash's ripple playing: where, and the seconds since it began (-1: none).
+var _ripple_at: Vector2i = Vector2i.ZERO
+var _ripple_age: float = -1.0
+## Stars lost to a splash cutting out: where each left the sky, and the seconds since.
+var _losses: Dictionary[Vector2i, float] = {}
 
 
 func _ready() -> void:
@@ -39,6 +68,9 @@ func _ready() -> void:
 func setup(run: RunState) -> void:
 	_run = run
 	_splash_age = -1.0
+	_ripple_age = -1.0
+	_losses.clear()
+	aiming = false
 	_time = 0.0
 	visible = has_seam()
 	set_process(visible)
@@ -65,11 +97,44 @@ func is_splashing() -> bool:
 	return _splash_age >= 0.0
 
 
+## The planet splashed at `at`: the water ring spreads out to the splash's reach.
+func ripple(at: Vector2i) -> void:
+	_ripple_at = at
+	_ripple_age = 0.0
+	queue_redraw()
+
+
+func is_rippling() -> bool:
+	return _ripple_age >= 0.0
+
+
+## A star the splash pushed out of the sky cuts out at `at`, the edge it left by.
+func flash_loss(at: Vector2i) -> void:
+	_losses[at] = 0.0
+	queue_redraw()
+
+
+## Where a star pushed toward `to` (past the edge) leaves the sky: the sky's edge, a pixel out.
+func exit_point(to: Vector2i) -> Vector2i:
+	var inner: Rect2i = StarScatter.inner_rect(_run.sky_rect)
+	return Vector2i(clampi(to.x, inner.position.x - 1, inner.end.x), clampi(to.y, inner.position.y - 1, inner.end.y))
+
+
 ## Drifts the glints and plays the splash. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	var drift: int = _drift()
 	_time += delta
 	if _drift() != drift:
+		queue_redraw()
+	for at: Vector2i in _losses.keys():
+		_losses[at] += delta
+		if _losses[at] >= LOSS_TIME:
+			_losses.erase(at)
+		queue_redraw()
+	if _ripple_age >= 0.0:
+		_ripple_age += delta
+		if _ripple_age >= RIPPLE_TIME:
+			_ripple_age = -1.0
 		queue_redraw()
 	if _splash_age < 0.0:
 		return
@@ -97,6 +162,56 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _splash_age >= 0.0:
 		var step: int = mini(floori(_splash_age / SPLASH_TIME * SPLASH_RADII.size()), SPLASH_RADII.size() - 1)
 		result.merge(ring_pixels(_splash_at, SPLASH_RADII[step], SPLASH_COLOURS[step]), true)
+	if _run.splash == null:
+		return result
+	if _ripple_age >= 0.0:
+		var k: int = mini(floori(_ripple_age / RIPPLE_TIME * RIPPLE_COLOURS.size()), RIPPLE_COLOURS.size() - 1)
+		@warning_ignore("integer_division")
+		var radius: int = _run.splash.radius * (k + 1) / RIPPLE_COLOURS.size()
+		result.merge(ring_pixels(_ripple_at, radius, RIPPLE_COLOURS[k], maxi(24, radius * 2)), true)
+	for at: Vector2i in _losses:
+		result.merge(droplet_pixels(at, _losses[at]), true)
+	if aiming:
+		result.merge(_aim_pixels(), true)
+	return result
+
+
+## The splash's preview for a planet thrown at `aim`: its reach, where it pushes each star, and the
+## ember trail of each it pushes out.
+func _aim_pixels() -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var at: Vector2i = StarScatter.clamp_to_sky(aim, _run.sky_rect)
+	result.merge(ring_pixels(at, _run.splash.radius, Palette.M4, ceili(TAU * _run.splash.radius / REACH_GAP)), true)
+	var destinations: Dictionary[int, Vector2i] = _run.splash_preview(aim)
+	for id: int in destinations:
+		var star: Star = _run.find_star(id)
+		if star == null:
+			continue
+		var to: Vector2i = destinations[id]
+		var size: int = [4, 6, 8][star.size]
+		if StarSplash.leaves(to, _run.sky_rect):
+			# Ember dots trail out from it the way it's pushed: it's going.
+			var way: Vector2 = Vector2(to - star.position).normalized()
+			for dot: int in TRAIL_DOTS:
+				result[star.position + Vector2i((way * (StarView.half_extent(star.size) + 3 + 2 * dot)).round())] = Palette.S4
+			continue
+		for side: int in [-1, 1]:
+			for dy: int in [-1, 0, 1]:
+				result[to + Vector2i(side * size, dy)] = Palette.M5
+	return result
+
+
+## A star cutting out at `at`, `age` seconds in: droplets flying out from it, M5 then M4.
+static func droplet_pixels(at: Vector2i, age: float) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var k: int = mini(floori(age / LOSS_TIME * 3.0), 2)
+	var colour: Color = Palette.M5 if k < 2 else Palette.M4
+	var out: int = 1 + k * 2
+	for way: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+		var reach: int = out if way.x == 0 or way.y == 0 else maxi(1, out - 1)
+		result[at + way * reach] = colour
+	if k == 0:
+		result[at] = Palette.M5
 	return result
 
 
@@ -104,6 +219,10 @@ func pixels() -> Dictionary[Vector2i, Color]:
 static func seam_pixels(seam: StarMap.Seam, middle: Vector2i, sky: Rect2i, drift: int = 0) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	if seam == StarMap.Seam.NONE:
+		return result
+	if seam == StarMap.Seam.CROSS:
+		result.merge(seam_pixels(StarMap.Seam.HORIZONTAL, middle, sky, drift), true)
+		result.merge(seam_pixels(StarMap.Seam.VERTICAL, middle, sky, drift), true)
 		return result
 	var vertical: bool = seam == StarMap.Seam.VERTICAL
 	var along: Vector2i = Vector2i.DOWN if vertical else Vector2i.RIGHT
@@ -123,11 +242,11 @@ static func seam_pixels(seam: StarMap.Seam, middle: Vector2i, sky: Rect2i, drift
 	return result
 
 
-## A ring of `radius` round `at`, on whole pixels.
-static func ring_pixels(at: Vector2i, radius: int, colour: Color) -> Dictionary[Vector2i, Color]:
+## A ring of `radius` round `at` (`dots` of them), on whole pixels.
+static func ring_pixels(at: Vector2i, radius: int, colour: Color, dots: int = 24) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	for i: int in 24:
-		var angle: float = TAU * i / 24.0
+	for i: int in dots:
+		var angle: float = TAU * i / float(dots)
 		result[at + Vector2i((Vector2(cos(angle), sin(angle)) * radius).round())] = colour
 	return result
 

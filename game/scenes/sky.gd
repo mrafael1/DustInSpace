@@ -437,6 +437,11 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			# The planet sinks into the mirror before it bursts across the seam.
 			_seam.splash(event.args[0], event.args[1])
 			_sequencer.hold(SeamView.SPLASH_TIME)
+		&"splash_intro_placed":
+			# A beat to see the demo stars before the planet splashes among them.
+			_place_intro(event.args[0])
+		&"stars_splashed":
+			_splash(event.args[0], event.args[1])
 		&"reflect_intro_cleared":
 			# A beat to see the stars across the seam, then they go: no reward.
 			_sequencer.hold(INTRO_HOLD * 2.0 + StarView.DISSOLVE_TIME)
@@ -841,6 +846,25 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 			star_drained.emit(Vector2i(v.position)))
 		view.drain_to(_edge_point(move.to))
 	_sequencer.hold(StarView.DRIFT_TIME)
+
+
+## Pisces's splash: the water ring spreads from where the planet went in, and every star it pushed
+## drifts; one pushed out of the sky drifts to the edge and cuts out there in droplets, for nothing.
+func _splash(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
+	_seam.ripple(at)
+	for move: StarCurrent.Move in moves:
+		var view: StarView = _views.get(move.star_id)
+		if view == null:
+			continue
+		if not move.drained:
+			view.drift_to(move.to)
+			continue
+		_views.erase(move.star_id)
+		view.drained.connect(func(v: StarView) -> void:
+			_seam.flash_loss(Vector2i(v.position))
+			star_drained.emit(Vector2i(v.position)))
+		view.drain_to(_seam.exit_point(move.to))
+	_sequencer.hold(maxf(SeamView.RIPPLE_TIME, StarView.DRIFT_TIME if not moves.is_empty() else 0.0))
 
 
 ## The black hole (chapter 5 trial): every fallen star drifts; a swallowed one drifts to the horizon
