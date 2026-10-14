@@ -448,8 +448,7 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			_seam.swim(event.args[0], event.args[1])
 			_sequencer.hold(SeamView.SWIM_TIME)
 		&"fish_jumped":
-			_seam.jump(event.args[0], event.args[1])
-			_sequencer.hold(SeamView.JUMP_TIME)
+			_leap(event.args[0], event.args[1], event.args[2])
 		&"stars_bitten":
 			_bite(event.args[0], event.args[1])
 		&"reflect_intro_cleared":
@@ -888,13 +887,38 @@ func _splash(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 	_sequencer.hold(maxf(SeamView.RIPPLE_TIME, StarView.DRIFT_TIME if not moves.is_empty() else 0.0))
 
 
-## Pisces's fish bites at `at`: its ring snaps in, and every star it eats drifts into it (or to where
-## it leapt at it) and cuts out there in droplets, for nothing.
+## Pisces's fish leaps from `from` at `to`: as it lands there the `caught` stars vanish into its
+## mouth, and it carries them back down into the water, which splashes as it dives.
+func _leap(from: Vector2i, to: Vector2i, caught: Array) -> void:
+	_seam.jump(from, to)
+	_sequencer.hold(SeamView.JUMP_TIME)
+	var tween: Tween = create_tween()
+	tween.tween_interval(SeamView.JUMP_TIME / 2.0)
+	tween.tween_callback(_swallow.bind(caught, to))
+
+
+## The leaping fish's mouth closes on `ids` at `at`: their views go at once, and it carries them.
+func _swallow(ids: Array, at: Vector2i) -> void:
+	for id: int in ids:
+		var view: StarView = _views.get(id)
+		if view == null:
+			continue
+		_views.erase(id)
+		view.queue_free()
+	if not ids.is_empty():
+		_seam.carry()
+		_halo_layer.queue_redraw()
+		star_drained.emit(at)
+
+
+## Pisces's fish bites at `at`: its ring snaps in, and every star it eats there drifts into it and
+## cuts out in droplets, for nothing (one it catches leaping goes with the leap).
 func _bite(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 	_seam.bite(at)
 	for move: StarCurrent.Move in moves:
 		var view: StarView = _views.get(move.star_id)
-		if view == null:
+		# A star the fish catches leaping waits for the leap (fish_jumped follows).
+		if view == null or move.to != at:
 			continue
 		_views.erase(move.star_id)
 		view.drained.connect(func(v: StarView) -> void:

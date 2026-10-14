@@ -234,7 +234,7 @@ func test_every_third_launch_the_fish_also_leaps_at_the_nearest_star_in_reach() 
 	assert_eq(run.fish.jump_every, 3, "balance.json")
 	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
 	var jumped: Array = []
-	run.fish_jumped.connect(func(from: Vector2i, to: Vector2i) -> void: jumped.append([from, to]))
+	run.fish_jumped.connect(func(from: Vector2i, to: Vector2i, caught: Array[int]) -> void: jumped.append([from, to, caught]))
 	# Two launches far from anything: no leap yet.
 	for i: int in 2:
 		assert_false(run.fish.jumps_next())
@@ -259,7 +259,7 @@ func test_every_third_launch_the_fish_also_leaps_at_the_nearest_star_in_reach() 
 			eaten.append(move.star_id)
 			caught_at.append(move.to))
 	assert_true(run.launch(bait))
-	assert_eq(jumped, [[under, nearer.position]])
+	assert_eq(jumped, [[under, nearer.position, [nearer.id] as Array[int]]], "it leaps, catching the star there")
 	assert_eq(eaten, preview, "as the aim showed")
 	assert_true(eaten.has(nearer.id))
 	assert_eq(caught_at[eaten.find(nearer.id)], nearer.position, "caught where it leapt")
@@ -272,7 +272,7 @@ func test_a_leaping_launch_with_nothing_in_reach_only_bites() -> void:
 	run.fish.launches = run.fish.jump_every - 1
 	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
 	var jumped: Array = []
-	run.fish_jumped.connect(func(from: Vector2i, to: Vector2i) -> void: jumped.append(to))
+	run.fish_jumped.connect(func(_from: Vector2i, to: Vector2i, _caught: Array[int]) -> void: jumped.append(to))
 	assert_eq(run.fish_leap(middle + Vector2i(0, 60)), StarCords.NO_CROSSING)
 	assert_true(run.launch(middle + Vector2i(0, 60)))
 	assert_true(jumped.is_empty())
@@ -289,18 +289,22 @@ func test_the_fish_glows_before_it_leaps_and_arcs_out_to_the_star() -> void:
 	_settle(main)
 	var view: SeamView = main.get_node("Sky/SeamLayer")
 	view.advance(1.0)
-	assert_false(view.pixels().values().has(Palette.S4), "no mark yet")
+	var fish: Vector2i = main.run.fish.at
+	assert_eq(view.pixels().get(fish), Palette.M5, "not yet")
 	main.run.fish.launches = main.run.fish.jump_every - 1
 	view.queue_redraw()
-	var fish: Vector2i = main.run.fish.at
-	assert_eq(view.pixels().get(fish + Vector2i(0, -4)), Palette.S4, "an ember dot over it")
-	assert_true(view.pixels().values().has(Palette.M6), "it glows")
+	assert_eq(view.pixels().get(fish), Palette.S4, "it glows red before it leaps")
+	assert_true(view.pixels().values().has(Palette.S3), "its belly too")
 	view.jump(fish, fish + Vector2i(20, -40))
 	view.advance(SeamView.JUMP_TIME / 2.0)
 	assert_eq(view.fish_shown(), fish + Vector2i(20, -40), "at the star at the top of its leap")
 	assert_true(view.is_biting(), "it bites there")
-	view.advance(SeamView.JUMP_TIME / 2.0 + 0.01)
+	view.carry()
+	view.advance(SeamView.JUMP_TIME / 4.0)
+	assert_true(view.pixels().values().has(Palette.M6), "carrying the star back")
+	view.advance(SeamView.JUMP_TIME / 4.0 + 0.01)
 	assert_false(view.is_jumping())
+	assert_false(view.is_carrying(), "into the water")
 	assert_eq(view.fish_shown(), fish, "back on the line")
 	assert_lt(SeamView.leap_point(fish, fish + Vector2i(20, -40), 0.5).y, fish.y - 20, "the arc's middle, above the straight line")
 	assert_lt(SeamView.leap_point(fish, fish + Vector2i(40, -10), 0.5).y, fish.y - 5, "it bows up, out of the water")

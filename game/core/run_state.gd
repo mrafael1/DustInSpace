@@ -115,8 +115,9 @@ signal stars_splashed(at: Vector2i, moves: Array[StarCurrent.Move])
 signal splash_intro_placed(stars: Array[Star])
 ## Pisces's fish swam along the water line from `from` to `to` (drawn to the planet just thrown).
 signal fish_swam(from: Vector2i, to: Vector2i)
-## Pisces's fish leapt out of the water from `from` (on the line) at a star at `to`, and drops back.
-signal fish_jumped(from: Vector2i, to: Vector2i)
+## Pisces's fish leapt out of the water from `from` (on the line) at a star at `to`, eating the
+## `caught` stars there (already gone with stars_bitten, just before), and drops back with them.
+signal fish_jumped(from: Vector2i, to: Vector2i, caught: Array[int])
 ## Pisces's fish bit at `at`, eating these stars (every move `drained`, `to` where it caught it: `at`,
 ## or where it leapt), for nothing.
 ## Sent for every bite, even one that eats nothing, before the planet bursts.
@@ -1809,20 +1810,24 @@ func _feed_fish(bait: Vector2i, counted: bool = true) -> void:
 	var meal: Array = _fish_meal(to, stars, counted)
 	var leap: Vector2i = meal[1]
 	var near: Array[int] = fish.bites(to, stars)
-	if leap != StarCords.NO_CROSSING:
-		fish_jumped.emit(to, leap)
 	var moves: Array[StarCurrent.Move] = []
 	var eaten: Array[Star] = []
+	var caught: Array[int] = []
 	for id: int in meal[0]:
 		var star: Star = find_star(id)
 		eaten.append(star)
 		moves.append(StarCurrent.Move.new(id, star.position, to if near.has(id) else leap, true))
+		if not near.has(id):
+			caught.append(id)
 	for star: Star in eaten:
 		stars.erase(star)
 	_orion_forget(eaten)
 	if counted:
 		fish.count_launch()
+	# Its bite at the line, then its leap at the stars it caught.
 	stars_bitten.emit(to, moves)
+	if leap != StarCords.NO_CROSSING:
+		fish_jumped.emit(to, leap, caught)
 
 
 ## A fish waiting at the water line's middle, free along the whole line.
