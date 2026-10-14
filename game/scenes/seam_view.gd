@@ -2,12 +2,15 @@ class_name SeamView
 extends Node2D
 ## Pisces's reflection (chapter 6): the seam through the sky's middle, and the splash where a thrown
 ## planet goes into the mirror. Owns no rules: RunState.reflect says where; Sky plays
-## planet_reflected here. Look: the seam is a dotted N4 line (a pixel every SEAM_GAP) along the
-## sky's middle, up and down or across, faint like the sky's own lines, drawn under the figure. The
+## planet_reflected here. Look: the seam is a dashed N7 line (SEAM_DASH pixels on, then off, every
+## SEAM_GAP) along the sky's middle, up and down or across, drawn under the figure: bright enough to
+## stand off every band of the sky, and in dashes so it isn't read as the backdrop's 1 px stars. The
 ## splash is a ring closing on the thrown point in hard steps (N8, N7, N6) over SPLASH_TIME, as the
 ## planet sinks into the mirror; the stars come out across the seam with the burst.
 
 const SEAM_GAP: int = 4
+const SEAM_DASH: int = 2
+const SEAM_COLOUR: Color = Palette.N7
 const SPLASH_TIME: float = 0.3
 const SPLASH_RADII: Array[int] = [7, 5, 3]
 const SPLASH_COLOURS: Array[Color] = [Palette.N8, Palette.N7, Palette.N6]
@@ -84,15 +87,17 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	return result
 
 
-## The seam through `middle` (any point on it), an N4 pixel every SEAM_GAP across the sky.
+## The seam through `middle` (any point on it), a SEAM_DASH dash every SEAM_GAP across the sky.
 static func seam_pixels(seam: StarMap.Seam, middle: Vector2i, sky: Rect2i) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	if seam == StarMap.Seam.VERTICAL:
-		for y: int in range(sky.position.y, sky.end.y, SEAM_GAP):
-			result[Vector2i(middle.x, y)] = Palette.N4
+		for y: int in range(sky.position.y, sky.end.y):
+			if (y - sky.position.y) % SEAM_GAP < SEAM_DASH:
+				result[Vector2i(middle.x, y)] = SEAM_COLOUR
 	elif seam == StarMap.Seam.HORIZONTAL:
-		for x: int in range(sky.position.x, sky.end.x, SEAM_GAP):
-			result[Vector2i(x, middle.y)] = Palette.N4
+		for x: int in range(sky.position.x, sky.end.x):
+			if (x - sky.position.x) % SEAM_GAP < SEAM_DASH:
+				result[Vector2i(x, middle.y)] = SEAM_COLOUR
 	return result
 
 
