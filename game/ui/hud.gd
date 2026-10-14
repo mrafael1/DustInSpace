@@ -134,6 +134,8 @@ const HUNGRY_MESSAGE: String = "THE HOLE GROWS WITH\nEVERY STAR IT SWALLOWS"
 const SWALLOW_LOSS_MESSAGE: String = "THE HOLE TOOK A STAR\nLINK MARKED ONES FIRST"
 const TWINS_MESSAGE: String = "WHERE THE HOLES MEET\nA BIG BANG CLEARS ALL"
 const GAUGE_MESSAGE: String = "THE HOLE DRINKS ALL LIGHT\nFULL IT BANGS THE SKY"
+## Pisces's cords (chapter 6 trial): every link leaves its string, and no link can cross one.
+const CORD_MESSAGE: String = "EVERY LINK LEAVES A CORD\nNO LINK CAN CROSS ONE"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
 ## no launch, other message or clear cuts it before it can be read; only another teaching line can.
@@ -382,7 +384,7 @@ func advance(delta: float) -> void:
 
 ## The run's current says its rule, once a run (Main calls it as the player first aims).
 func tell_current_rule() -> void:
-	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null):
+	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null and _run.cords == null):
 		return
 	_current_told = true
 	# A final's title card is up, or about to be: the rule waits for it to go, so the two don't
@@ -397,7 +399,7 @@ func _say_rule() -> void:
 	show_message(_stage_rule(), RULE_MESSAGE_TIME, true)
 
 
-## The stage's rule line: its harvest's, current's or heat's ("" without any).
+## The stage's rule line: its harvest's, current's, heat's, hole's or cords' ("" without any).
 func _stage_rule() -> String:
 	if _run == null:
 		return ""
@@ -409,6 +411,8 @@ func _stage_rule() -> String:
 		return heat_rule(_run.heat, _run.scorpio != null and _run.scorpio.map.heat_landmarks, _run.scorpio != null and _run.scorpio.map.heat_on_links)
 	if _run.gravity != null:
 		return hole_rule(_run.gravity)
+	if _run.cords != null:
+		return CORD_MESSAGE
 	return ""
 
 
