@@ -434,10 +434,15 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 		&"cords_cleared":
 			_cords.clear_cords()
 		&"planet_reflected":
+			# The planet sinks into the mirror before it bursts across the seam.
 			_seam.splash(event.args[0], event.args[1])
+			_sequencer.hold(SeamView.SPLASH_TIME)
 		&"reflect_intro_cleared":
 			# A beat to see the stars across the seam, then they go: no reward.
-			_clear_intro(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD * 2.0)
+			_sequencer.hold(INTRO_HOLD * 2.0 + StarView.DISSOLVE_TIME)
+			var tween: Tween = create_tween()
+			tween.tween_interval(INTRO_HOLD * 1.5)
+			tween.tween_callback(_clear_intro.bind(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD * 0.5))
 		_:
 			return false
 	return true
