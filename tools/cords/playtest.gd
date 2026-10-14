@@ -12,6 +12,9 @@ extends SceneTree
 ## --keep-cords: a what-if, in the tool only: cords outlast the sky's clears (re-tied at once on
 ## cords_cleared), so they stay the whole stage (the plan's open question); the planner then counts
 ## a clearing link's cords too.
+## --fish=x,y;x,y;...: the fish's cord as a home-layout polyline (StarMap.fish_cord), overriding the
+## map's; --fish=none removes it. Quote it in a shell ("--fish=0,128;98,176;179,132"). Only used with
+## cords on. The results file then carries the polyline in its name.
 
 const POLICIES: Array[String] = ["link-first", "careless", "launch-first", "planner", "planner-hoard"]
 ## The planner's weights: a link's dust and light, plus these.
@@ -30,6 +33,9 @@ var _map: String = "cord_trial"
 var _policies: Array[String] = POLICIES.duplicate()
 var _policy: String = ""
 var _keep_cords: bool = false
+## Whether --fish was given, and its polyline (empty for none).
+var _fish_set: bool = false
+var _fish: Array[Vector2i] = []
 
 
 func _initialize() -> void:
@@ -42,6 +48,11 @@ func _initialize() -> void:
 			_policies.assign(argument.trim_prefix("--policies=").split(","))
 		elif argument == "--keep-cords":
 			_keep_cords = true
+		elif argument.begins_with("--fish="):
+			if not _parse_fish(argument.trim_prefix("--fish=")):
+				push_error("Bad --fish '%s' (want x,y;x,y;... or none)" % argument)
+				quit(1)
+				return
 	for policy: String in _policies:
 		if not POLICIES.has(policy):
 			push_error("Unknown policy '%s' (known: %s)" % [policy, ", ".join(POLICIES)])
@@ -53,7 +64,8 @@ func _initialize() -> void:
 
 func _simulate() -> void:
 	var started: int = Time.get_ticks_msec()
-	print("Paired seeds 1..%d; %s; reach %d%s" % [_runs, _map, _balance.scorpio_max_link_distance, "; cords kept through clears" if _keep_cords else ""])
+	print("Paired seeds 1..%d; %s; reach %d%s; fish %s" % [_runs, _map, _balance.scorpio_max_link_distance, "; cords kept through clears" if _keep_cords else "",
+		_fish_text(_layout(true).fish_cord)])
 	print("%-13s %-5s %6s %5s %6s %9s %9s %7s %13s %13s %12s %6s" % ["policy", "cords", "won%", "lost", "capped", "packs/win", "cords/run", "refused", "blocked/board", "lost_to_cords", "strand/loss", "secs"])
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
@@ -61,7 +73,7 @@ func _simulate() -> void:
 			if policy.begins_with("planner") and not enabled:
 				continue
 			var row_started: int = Time.get_ticks_msec()
-			var row: Dictionary = {"map": _map, "keep_cords": _keep_cords, "policy": policy, "cords": enabled, "runs": _runs, "wins": 0, "losses": 0, "capped": 0,
+			var row: Dictionary = {"map": _map, "fish": _fish_text(_layout(true).fish_cord), "keep_cords": _keep_cords, "policy": policy, "cords": enabled, "runs": _runs, "wins": 0, "losses": 0, "capped": 0,
 				"packs_in_wins": 0, "cords_tied": 0, "refused": 0, "boards": 0, "blocked": 0, "lost_to_cords": 0, "stranded": 0}
 			for seed_value: int in range(1, _runs + 1):
 				_play(seed_value, enabled, policy, row)
@@ -82,12 +94,22 @@ func _simulate() -> void:
 				row.packs_per_win, row.cords_per_run, row.refused, row.blocked_per_board, row.lost_to_cords, row.stranded_per_loss, row.seconds])
 	print("Total %.1f s" % ((Time.get_ticks_msec() - started) / 1000.0))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/cords/out"))
-	var file: FileAccess = FileAccess.open("res://tools/cords/out/results-%s%s.json" % [_map, "-kept" if _keep_cords else ""], FileAccess.WRITE)
+	var fish_suffix: String = ""
+	if _fish_set:
+		fish_suffix = "-fish_" + (_fish_text(_fish).replace(";", "_").replace(",", "-") if not _fish.is_empty() else "none")
+	var file: FileAccess = FileAccess.open("res://tools/cords/out/results-%s%s%s.json" % [_map, "-kept" if _keep_cords else "", fish_suffix], FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
 	quit()
 
 
 func _layout(enabled: bool) -> StarMap:
+	var map: StarMap = _base_layout(enabled)
+	if _fish_set and enabled:
+		map.fish_cord = _fish.duplicate()
+	return map
+
+
+func _base_layout(enabled: bool) -> StarMap:
 	if _map == "cord_trial":
 		return StarMap.cord_trial(enabled)
 	# A borrowed layout: its own rules off, the cords set.
@@ -107,6 +129,29 @@ func _layout(enabled: bool) -> StarMap:
 	map.black_hole_gauge = false
 	map.cords = enabled
 	return map
+
+
+## Reads --fish's polyline ("none": no fish cord). False if it doesn't parse.
+func _parse_fish(text: String) -> bool:
+	_fish_set = true
+	_fish.clear()
+	if text == "none":
+		return true
+	for pair: String in text.split(";", false):
+		var xy: PackedStringArray = pair.split(",")
+		if xy.size() != 2 or not xy[0].strip_edges().is_valid_int() or not xy[1].strip_edges().is_valid_int():
+			return false
+		_fish.append(Vector2i(xy[0].strip_edges().to_int(), xy[1].strip_edges().to_int()))
+	return _fish.size() >= 2
+
+
+static func _fish_text(points: Array[Vector2i]) -> String:
+	if points.is_empty():
+		return "none"
+	var parts: PackedStringArray = []
+	for point: Vector2i in points:
+		parts.append("%d,%d" % [point.x, point.y])
+	return ";".join(parts)
 
 
 func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> void:
