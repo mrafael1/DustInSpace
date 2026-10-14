@@ -10,7 +10,7 @@ extends SceneTree
 ## stars land mirrored: what reading the seam is worth); careless links the first valid link found
 ## and aims aware; launch-first launches every owned pack before linking (hoards) and aims aware;
 ## careful plays link-first but nudges its throw (up to CAREFUL_NUDGE px, in CAREFUL_STEP steps) to
-## splash out the fewest stars, then to land nearest its target.
+## lose the fewest stars to the splash and the fish, then to land nearest its target.
 
 const POLICIES: Array[String] = ["link-first", "careful", "naive", "careless", "launch-first"]
 const CAREFUL_NUDGE: int = 24
@@ -24,8 +24,9 @@ var _runs: int = 200
 var _map: String = "pisces_circlet"
 var _policies: Array[String] = POLICIES
 var _policy: String = ""
-## Whether the toggled mechanic is the splash (a map that splashes), else the seam.
+## Whether the toggled mechanic is the splash (a map that splashes), else the seam; the fish beats both.
 var _toggles_splash: bool = false
+var _toggles_fish: bool = false
 ## Stars the splash took this run.
 var _lost: int = 0
 
@@ -44,8 +45,9 @@ func _initialize() -> void:
 
 func _simulate() -> void:
 	_toggles_splash = StarMap.by_id(_map).splash
+	_toggles_fish = StarMap.by_id(_map).fish
 	var probe: StarMap = _layout(true)
-	print("Paired seeds 1..%d; %s; seam %s; toggling the %s" % [_runs, _map, StarMap.Seam.keys()[probe.seam], "splash" if _toggles_splash else "seam"])
+	print("Paired seeds 1..%d; %s; seam %s; toggling the %s" % [_runs, _map, StarMap.Seam.keys()[probe.seam], "fish" if _toggles_fish else "splash" if _toggles_splash else "seam"])
 	_print_geometry()
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
@@ -65,7 +67,7 @@ func _simulate() -> void:
 			for key: String in ["packs_in_wins", "launches", "clamped", "on_target", "miss_px", "lost"]:
 				row.erase(key)
 			rows.append(row)
-			print("%-13s on=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  launches/run %5.2f  splashed out/run %5.2f  on target %5.1f%%  miss %5.1f px  clamped %4.1f%%" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.launches_per_run, row.splashed_out_per_run, row.on_target_rate, row.miss_px_mean, row.clamped_rate])
+			print("%-13s on=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  launches/run %5.2f  lost to splash+fish/run %5.2f  on target %5.1f%%  miss %5.1f px  clamped %4.1f%%" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.launches_per_run, row.splashed_out_per_run, row.on_target_rate, row.miss_px_mean, row.clamped_rate])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/reflect/out"))
 	var file: FileAccess = FileAccess.open("res://tools/reflect/out/results-%s.json" % _map, FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
@@ -76,7 +78,9 @@ func _layout(enabled: bool) -> StarMap:
 	var map: StarMap = StarMap.by_id(_map)
 	if enabled:
 		return map
-	if _toggles_splash:
+	if _toggles_fish:
+		map.fish = false
+	elif _toggles_splash:
 		map.splash = false
 	else:
 		map.seam = StarMap.Seam.NONE
@@ -109,10 +113,12 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	rng.seed = seed_value
 	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
 	_lost = 0
-	run.stars_splashed.connect(func(_at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
+	var count_lost: Callable = func(_at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 		for move: StarCurrent.Move in moves:
 			if move.drained:
-				_lost += 1)
+				_lost += 1
+	run.stars_splashed.connect(count_lost)
+	run.stars_bitten.connect(count_lost)
 	var packs: int = 0
 	for action: int in 400:
 		if run.is_over():
@@ -166,7 +172,7 @@ func _careful_aim(run: RunState, aim: Vector2i, target: Vector2i) -> Vector2i:
 	for dx: int in range(-CAREFUL_NUDGE, CAREFUL_NUDGE + 1, CAREFUL_STEP):
 		for dy: int in range(-CAREFUL_NUDGE, CAREFUL_NUDGE + 1, CAREFUL_STEP):
 			var nudged: Vector2i = aim + Vector2i(dx, dy)
-			var score: int = run.launch_splashes(nudged).size() * 10000 + roundi(Vector2(run.burst_centre(nudged) - target).length())
+			var score: int = (run.launch_splashes(nudged).size() + run.launch_bites(nudged).size()) * 10000 + roundi(Vector2(run.burst_centre(nudged) - target).length())
 			if score < best_score:
 				best_score = score
 				best = nudged
