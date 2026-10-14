@@ -350,7 +350,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			if scorpio.map.black_hole_gauge and hole.gauge > 0:
 				gravity.set_gauge(hole.gauge, hole.gauge_share)
 		if scorpio.map.splash and balance.splash_radius > 0:
-			splash = StarSplash.new(balance.splash_radius, balance.splash_push)
+			splash = StarSplash.new(balance.splash_radius, balance.splash_push, seam_hit)
 		if scorpio.map.cords:
 			cords = StarCords.new()
 			cords.tie_fixed(_fish_cord())
@@ -1627,6 +1627,26 @@ func _splash_intro() -> void:
 	reflect_intro_cleared.emit(left)
 
 
+## Pisces's water line, for the splash: where a push from `from` to `to` first meets it, crossing
+## it or ending on it (StarCords.NO_CROSSING: it doesn't).
+func seam_hit(from: Vector2i, to: Vector2i) -> Vector2i:
+	if not has_seam():
+		return StarCords.NO_CROSSING
+	var crossing: Vector2i = seam_crossing(from, to)
+	if crossing != StarCords.NO_CROSSING:
+		return crossing
+	return to if on_seam(to) else StarCords.NO_CROSSING
+
+
+## Pisces: whether `point` lies on the water line (either line, with both seams).
+func on_seam(point: Vector2i) -> bool:
+	if not has_seam():
+		return false
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	var seam: StarMap.Seam = scorpio.map.seam
+	return (seam != StarMap.Seam.HORIZONTAL and point.x == middle.x) or (seam != StarMap.Seam.VERTICAL and point.y == middle.y)
+
+
 ## Pure: where the splash intro's demo planet is thrown: SPLASH_INTRO_IN px in from the sky's edge
 ## on the near side of the seam (left of one up and down, above one across), along it where its demo
 ## stars keep furthest from the figure, of the spots where the splash pushes only the edge one out.
@@ -1647,8 +1667,9 @@ func splash_intro_spot() -> Vector2i:
 		# Only where the splash pushes exactly the edge star out (the others stay in the sky).
 		var lost: int = 0
 		var pushed: Dictionary[int, Vector2i] = splash.preview(thrown, demo, sky_rect, landmarks)
-		for id: int in pushed:
-			lost += 1 if StarSplash.leaves(pushed[id], sky_rect) else 0
+		for star: Star in demo:
+			if pushed.has(star.id) and splash.loses(star.position, pushed[star.id], sky_rect):
+				lost += 1
 		if lost != 1 or pushed.size() != demo.size():
 			continue
 		var clearance: int = _clearance(points, landmarks)
@@ -1681,9 +1702,21 @@ func splash_points(kind: String, aim: Vector2i) -> Array[Vector2i]:
 ## turn, each on the stars as the one before left them (all before any star lands). Empty without a
 ## splash, or once the run is over.
 func splash_preview(aim: Vector2i) -> Dictionary[int, Vector2i]:
+	return _splash_chain(aim)[0]
+
+
+## Pure: the loose stars the loaded planet thrown at `aim` splashes out: out of the sky, or onto or
+## across the water line.
+func launch_splashes(aim: Vector2i) -> Array[int]:
+	return _splash_chain(aim)[1]
+
+
+## The loaded planet's splashes thrown at `aim`, in turn: [each moved star's destination, the ids lost].
+func _splash_chain(aim: Vector2i) -> Array:
 	var result: Dictionary[int, Vector2i] = {}
+	var lost: Array[int] = []
 	if splash == null or is_over():
-		return result
+		return [result, lost]
 	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
 	var standing: Array[Star] = []
 	for star: Star in stars:
@@ -1692,23 +1725,17 @@ func splash_preview(aim: Vector2i) -> Dictionary[int, Vector2i]:
 		var moved: Dictionary[int, Vector2i] = splash.preview(point, standing, sky_rect, scorpio.landmark_positions())
 		var left: Array[Star] = []
 		for star: Star in standing:
+			var gone: bool = false
 			if moved.has(star.id):
 				result[star.id] = moved[star.id]
+				gone = splash.loses(star.position, moved[star.id], sky_rect)
 				star.position = moved[star.id]
-			if not StarSplash.leaves(star.position, sky_rect):
+			if gone:
+				lost.append(star.id)
+			else:
 				left.append(star)
 		standing = left
-	return result
-
-
-## Pure: the loose stars a planet thrown at `aim` splashes out of the sky.
-func launch_splashes(aim: Vector2i) -> Array[int]:
-	var result: Array[int] = []
-	var destinations: Dictionary[int, Vector2i] = splash_preview(aim)
-	for id: int in destinations:
-		if StarSplash.leaves(destinations[id], sky_rect):
-			result.append(id)
-	return result
+	return [result, lost]
 
 
 ## The splash where a planet went into the mirror at `at`: the stars round it pushed outward, the

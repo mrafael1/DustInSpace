@@ -12,7 +12,8 @@ extends Node2D
 ## can cross the seam: a step refused for it lights the line (M5) for the rejection's shake.
 ## The splash (from the Knot): where the planet went in, a water ring spreads out to the splash's
 ## reach in hard steps (M5, M4, M3) over RIPPLE_TIME as the stars it pushes drift; a star pushed out
-## of the sky cuts out at the edge in a burst of droplets (M5, then M4) over LOSS_TIME. While aiming,
+## of the sky, or onto the water line, cuts out there in a burst of droplets (M5, then M4) over
+## LOSS_TIME. While aiming,
 ## the splash's reach rings where it will splash (the aim; a split planet's twins) (an M4 dot every REACH_GAP px), each star it would push shows where it goes
 ## (M5 brackets, as a current's), and each it would push out trails ember dots out the way it goes.
 
@@ -206,13 +207,14 @@ func _aim_pixels() -> Dictionary[Vector2i, Color]:
 	for at: Vector2i in _run.splash_points(kind, aim):
 		result.merge(ring_pixels(at, _run.splash.radius, Palette.M4, ceili(TAU * _run.splash.radius / REACH_GAP)), true)
 	var destinations: Dictionary[int, Vector2i] = _run.splash_preview(aim)
+	var lost: Array[int] = _run.launch_splashes(aim)
 	for id: int in destinations:
 		var star: Star = _run.find_star(id)
 		if star == null:
 			continue
 		var to: Vector2i = destinations[id]
 		var size: int = [4, 6, 8][star.size]
-		if StarSplash.leaves(to, _run.sky_rect):
+		if lost.has(id):
 			# Ember dots trail out from it the way it's pushed: it's going.
 			var way: Vector2 = Vector2(to - star.position).normalized()
 			for dot: int in TRAIL_DOTS:
