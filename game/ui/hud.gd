@@ -145,6 +145,8 @@ const SEAM_CROSS_MESSAGE: String = "AIM AT ONE CORNER\nTO PLAY THE OPPOSITE"
 const SPLASH_MESSAGE: String = "THE SPLASH PUSHES STARS\nOUT OF THE SKY"
 ## Pisces's fish, on the North Fish.
 const FISH_MESSAGE: String = "THE FISH SWIMS TO YOUR\nTHROW AND EATS STARS"
+## The first time a run's fish is about to leap.
+const JUMP_MESSAGE: String = "THE FISH WILL JUMP\nAT THE NEXT THROW"
 ## A run's first star the fish ate.
 const FISH_LOSS_MESSAGE: String = "THE FISH ATE A STAR\nTHROW AWAY FROM STARS"
 ## A run's first star lost to the splash.
@@ -490,6 +492,17 @@ func _tell_splash_loss(moves: Array, said: String = SPLASH_LOSS_MESSAGE) -> void
 			_losses_told[said] = true
 			show_message(said, RULE_MESSAGE_TIME, true)
 			return
+
+
+## The fish leaps next launch: said the first time a run, over anything but the stage's rule.
+func _tell_jump() -> void:
+	if _run == null or _run.fish == null or _run.is_over() or not _run.fish.jumps_next() or _losses_told.has(JUMP_MESSAGE):
+		return
+	# A loss line still being read keeps the line; the leap is said before a later one.
+	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, FISH_LOSS_MESSAGE]:
+		return
+	_losses_told[JUMP_MESSAGE] = true
+	show_message(JUMP_MESSAGE, RULE_MESSAGE_TIME, true)
 
 
 ## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,
@@ -891,6 +904,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			# Pisces's fish: its first star eaten says so (an intro's demo stars aside).
 			tell_current_rule()
 			_tell_splash_loss(event.args[1], FISH_LOSS_MESSAGE)
+			_tell_jump()
 			return
 		&"holes_drifted":
 			# Sagittarius's final: once the twins have merged, the hole they made drinks the light.

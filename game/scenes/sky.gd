@@ -447,6 +447,9 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 		&"fish_swam":
 			_seam.swim(event.args[0], event.args[1])
 			_sequencer.hold(SeamView.SWIM_TIME)
+		&"fish_jumped":
+			_seam.jump(event.args[0], event.args[1])
+			_sequencer.hold(SeamView.JUMP_TIME)
 		&"stars_bitten":
 			_bite(event.args[0], event.args[1])
 		&"reflect_intro_cleared":
@@ -885,8 +888,8 @@ func _splash(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 	_sequencer.hold(maxf(SeamView.RIPPLE_TIME, StarView.DRIFT_TIME if not moves.is_empty() else 0.0))
 
 
-## Pisces's fish bites at `at`: its ring snaps in, and every star it eats drifts into it and cuts
-## out there in droplets, for nothing.
+## Pisces's fish bites at `at`: its ring snaps in, and every star it eats drifts into it (or to where
+## it leapt at it) and cuts out there in droplets, for nothing.
 func _bite(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 	_seam.bite(at)
 	for move: StarCurrent.Move in moves:
@@ -897,7 +900,7 @@ func _bite(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 		view.drained.connect(func(v: StarView) -> void:
 			_seam.flash_loss(Vector2i(v.position))
 			star_drained.emit(Vector2i(v.position)))
-		view.drain_to(at)
+		view.drain_to(move.to)
 	_sequencer.hold(maxf(SeamView.BITE_TIME, StarView.DRIFT_TIME if not moves.is_empty() else 0.0))
 
 
