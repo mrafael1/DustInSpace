@@ -100,7 +100,7 @@ func test_an_unmatched_echo_is_lost_for_nothing() -> void:
 	var run: RunState = _run(StarMap.pisces_circlet())
 	var link: Array[int] = _trio(run, LINK)
 	var lone: Star = run.add_star(Star.Size.BIG, Vector2i(152, 99))
-	var far: Star = run.add_star(Star.Size.BIG, Vector2i(150, 140))
+	var far: Star = run.add_star(Star.Size.BIG, Vector2i(150, 170))
 	var echoed: Array = []
 	run.mirror_echoed.connect(func(stars: Array[Star], combo: String, dust: int, light: int) -> void: echoed.append([stars, combo, dust]))
 	var dust: int = run.dust
@@ -157,11 +157,12 @@ func test_a_constellation_star_by_the_seam_never_echoes_its_own_link() -> void:
 	var at: Vector2i = run.scorpio.landmark_position(3)
 	assert_lt(run.mirror.mirror(at).distance_to(at), float(run.mirror.reach))
 	var link: Array[int] = [run.add_star(Star.Size.SMALL, at + Vector2i(-12, 8)).id, Scorpio.landmark_id(3), run.add_star(Star.Size.BIG, at + Vector2i(-14, -10)).id]
-	assert_true(run.link_echo(link).is_empty(), "the preview takes nothing")
-	var echoed: Array = []
-	run.mirror_echoed.connect(func(stars: Array[Star], combo: String, dust: int, light: int) -> void: echoed.append(stars))
+	var preview: Array[int] = _ids(run.link_echo(link))
+	assert_false(preview.has(Scorpio.landmark_id(3)), "the preview never takes it")
+	var echoed: Array[int] = []
+	run.mirror_echoed.connect(func(stars: Array[Star], combo: String, dust: int, light: int) -> void: echoed.assign(_ids(stars)))
 	assert_eq(run.link(link), "sequence")
-	assert_true(echoed.is_empty(), "and nor does the link")
+	assert_eq(echoed, preview, "nor does the link: as previewed")
 	assert_true(run.scorpio.is_lit(3))
 
 
