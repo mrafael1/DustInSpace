@@ -100,6 +100,9 @@ var black_hole_twin: Vector2i = Vector2i.ZERO
 ## The light gauge: the hole drinks a share of each link's light, and bangs when it's full
 ## (balance.json's gauge and gauge_share).
 var black_hole_gauge: bool = false
+## Pisces's cords (chapter 6, a debug trial): every successful link leaves its string in the sky as a
+## cord until the sky is cleared, and a traced link can't cross one (StarCords).
+var cords: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -164,14 +167,16 @@ static func current_trial(enabled: bool = true) -> StarMap:
 	return map
 
 
-## A debug trial's map: "aquarius" (the flow layout), "black_hole" (chapter 5's trial) or the Tail
-## trial (anything else).
+## A debug trial's map: "aquarius" (the flow layout), "black_hole" (chapter 5's trial), "cord"
+## (chapter 6's) or the Tail trial (anything else).
 static func current_layout(layout: String, enabled: bool = true) -> StarMap:
 	match layout:
 		"aquarius":
 			return aquarius_flow(enabled)
 		"black_hole":
 			return black_hole_trial(enabled)
+		"cord":
+			return cord_trial(enabled)
 	return current_trial(enabled)
 
 
@@ -202,6 +207,19 @@ static func black_hole_trial(enabled: bool = true) -> StarMap:
 	map.intros = false
 	map.black_hole = enabled
 	map.black_hole_center = Vector2i(90, 164)
+	return map
+
+
+## Debug experiment for chapter 6 (Pisces): Scorpio's Heart layout without Orion's hunt, where every
+## link leaves a cord a later link can't cross (docs/chapter_4_6_plan.md). The CORD ON/OFF switch
+## turns the cords off to replay the same seed. No progress identity; the Heart's painting stands in.
+static func cord_trial(enabled: bool = true) -> StarMap:
+	var map: StarMap = heart()
+	map.id = "cord_trial" if enabled else "cord_off"
+	map.title = "CORD" if enabled else "CORD OFF"
+	map.hunt = false
+	map.intros = false
+	map.cords = enabled
 	return map
 
 

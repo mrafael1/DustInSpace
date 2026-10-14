@@ -2,7 +2,7 @@ class_name Combos
 extends RefCounted
 ## Evaluates exactly 3 star sizes into a combo key from balance.json, or INVALID.
 ## Triples: three of one size. Sequence: one of each size, in any order.
-## Distance and crossings are ignored (design.md).
+## Sizes only (design.md): a link's reach, and on Pisces maps its cords, are RunState's to check.
 
 const INVALID: String = ""
 const SEQUENCE: String = "sequence"
