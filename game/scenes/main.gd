@@ -159,7 +159,7 @@ func start_run(balance: Balance) -> bool:
 	_pause_pending = false
 	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
-	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null or run.splash != null)
+	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null or run.splash != null or run.fish != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
 	($Sky/ConstellationLayer as ConstellationView).repeat = replay
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
@@ -222,7 +222,7 @@ func _process(_delta: float) -> void:
 	($Sky/HeatLayer as HeatView).aiming = aiming and run.heat != null
 	($Sky/HarvestLayer as HarvestView).aiming = aiming and run.harvest != null
 	var seam: SeamView = $Sky/SeamLayer
-	seam.aiming = aiming and use_telescope and run.splash != null
+	seam.aiming = aiming and use_telescope and (run.splash != null or run.fish != null)
 	if seam.aiming:
 		seam.aim = _telescope.burst_preview()
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = aiming and (run.current != null or run.heat != null or run.gravity != null)

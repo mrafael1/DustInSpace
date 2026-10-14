@@ -10,6 +10,11 @@ extends Node2D
 ## thrown point in hard steps (N8, N7, N6) over SPLASH_TIME, as the planet sinks into the mirror;
 ## the stars come out across the seam with the burst. Both seams (a cross) draw both lines. No link
 ## can cross the seam: a step refused for it lights the line (M5) for the rejection's shake.
+## The fish (the North Fish): a fish on the water line (M5 back and tail, M4 belly, M6 glint, N1
+## eye), facing the way it last swam. It glides to where it swims over SWIM_TIME, then bites: a ring snaps in to
+## its bite (M5, M4, M3) over BITE_TIME as the stars it eats drift into it. While aiming, a ghost of
+## it (M3) waits where it would swim, its bite ringed in M4 dots, and ember dots run from each star it
+## would eat toward it.
 ## The splash (from the Knot): where the planet went in, a water ring spreads out to the splash's
 ## reach in hard steps (M5, M4, M3) over RIPPLE_TIME as the stars it pushes drift; a star pushed out
 ## of the sky, or onto the water line, cuts out there in a burst of droplets (M5, then M4) over
@@ -31,6 +36,15 @@ const SPLASH_TIME: float = 0.3
 const SPLASH_RADII: Array[int] = [7, 5, 3]
 const SPLASH_COLOURS: Array[Color] = [Palette.N8, Palette.N7, Palette.N6]
 const RIPPLE_TIME: float = 0.3
+const SWIM_TIME: float = 0.4
+const BITE_TIME: float = 0.3
+## The fish facing +x along a line across, 11 px long so it stands off the line: its back and tail
+## (M5), its belly (M4), a glint (M6) and its eye (N1); turned for a line up and down, mirrored when
+## it faces the other way.
+const FISH_BACK: Array[Vector2i] = [Vector2i(-3, 0), Vector2i(-2, 0), Vector2i(-1, 0), Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(3, 0), Vector2i(4, 0), Vector2i(-2, -1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(2, -1), Vector2i(0, -2), Vector2i(1, -2), Vector2i(-4, -1), Vector2i(-5, -2), Vector2i(-4, 1), Vector2i(-5, 2)]
+const FISH_BELLY: Array[Vector2i] = [Vector2i(-2, 1), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1)]
+const FISH_GLINT := Vector2i(0, -1)
+const FISH_EYE := Vector2i(3, -1)
 const RIPPLE_COLOURS: Array[Color] = [Palette.M5, Palette.M4, Palette.M3]
 const LOSS_TIME: float = 0.3
 ## A star the aim would push out trails this many ember dots, a pixel apart, out from its edge.
@@ -61,6 +75,15 @@ var _splash_age: float = -1.0
 ## The splash's ripple playing: where, and the seconds since it began (-1: none).
 var _ripple_at: Vector2i = Vector2i.ZERO
 var _ripple_age: float = -1.0
+## The fish shown: where it swims from and to, the seconds into the swim (-1: still), the way it
+## faces along the line (1 or -1).
+var _fish_from: Vector2i = Vector2i.ZERO
+var _fish_to: Vector2i = Vector2i.ZERO
+var _swim_age: float = -1.0
+var _fish_facing: int = -1
+## The bite playing: where, and the seconds since it began (-1: none).
+var _bite_at: Vector2i = Vector2i.ZERO
+var _bite_age: float = -1.0
 ## Stars lost to a splash cutting out: where each left the sky, and the seconds since.
 var _losses: Dictionary[Vector2i, float] = {}
 
@@ -74,6 +97,12 @@ func setup(run: RunState) -> void:
 	_splash_age = -1.0
 	_ripple_age = -1.0
 	_blocking_left = 0.0
+	_swim_age = -1.0
+	_bite_age = -1.0
+	_fish_facing = -1
+	if run.fish != null:
+		_fish_from = run.fish.at
+		_fish_to = run.fish.at
 	_losses.clear()
 	aiming = false
 	_time = 0.0
@@ -111,6 +140,39 @@ func ripple(at: Vector2i) -> void:
 
 func is_rippling() -> bool:
 	return _ripple_age >= 0.0
+
+
+## The fish swims along the water line from `from` to `to`.
+func swim(from: Vector2i, to: Vector2i) -> void:
+	_fish_from = from
+	_fish_to = to
+	var along: int = (to.y - from.y) if _run != null and _run.fish != null and _run.fish.vertical else (to.x - from.x)
+	if along != 0:
+		_fish_facing = signi(along)
+	_swim_age = 0.0
+	queue_redraw()
+
+
+## Where the fish is drawn now: gliding from where it swam from to where it swims, on whole pixels.
+func fish_shown() -> Vector2i:
+	if _swim_age < 0.0:
+		return _fish_to
+	return Vector2i(Vector2(_fish_from).lerp(Vector2(_fish_to), clampf(_swim_age / SWIM_TIME, 0.0, 1.0)).round())
+
+
+func is_swimming() -> bool:
+	return _swim_age >= 0.0
+
+
+## The fish bites at `at`: a ring snaps in to its bite.
+func bite(at: Vector2i) -> void:
+	_bite_at = at
+	_bite_age = 0.0
+	queue_redraw()
+
+
+func is_biting() -> bool:
+	return _bite_age >= 0.0
 
 
 ## A star the splash pushed out of the sky cuts out at `at`, the edge it left by.
@@ -154,6 +216,16 @@ func advance(delta: float) -> void:
 		if _ripple_age >= RIPPLE_TIME:
 			_ripple_age = -1.0
 		queue_redraw()
+	if _swim_age >= 0.0:
+		_swim_age += delta
+		if _swim_age >= SWIM_TIME:
+			_swim_age = -1.0
+		queue_redraw()
+	if _bite_age >= 0.0:
+		_bite_age += delta
+		if _bite_age >= BITE_TIME:
+			_bite_age = -1.0
+		queue_redraw()
 	if _splash_age < 0.0:
 		return
 	_splash_age += delta
@@ -185,9 +257,16 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _splash_age >= 0.0:
 		var step: int = mini(floori(_splash_age / SPLASH_TIME * SPLASH_RADII.size()), SPLASH_RADII.size() - 1)
 		result.merge(ring_pixels(_splash_at, SPLASH_RADII[step], SPLASH_COLOURS[step]), true)
-	if _run.splash == null:
+	if _run.fish != null:
+		if _bite_age >= 0.0:
+			var b: int = mini(floori(_bite_age / BITE_TIME * RIPPLE_COLOURS.size()), RIPPLE_COLOURS.size() - 1)
+			@warning_ignore("integer_division")
+			var reach: int = _run.fish.bite * (RIPPLE_COLOURS.size() - b) / RIPPLE_COLOURS.size()
+			result.merge(ring_pixels(_bite_at, reach, RIPPLE_COLOURS[b], maxi(24, reach * 2)), true)
+		result.merge(fish_pixels(fish_shown(), _fish_facing, _run.fish.vertical), true)
+	if _run.splash == null and _run.fish == null:
 		return result
-	if _ripple_age >= 0.0:
+	if _ripple_age >= 0.0 and _run.splash != null:
 		var k: int = mini(floori(_ripple_age / RIPPLE_TIME * RIPPLE_COLOURS.size()), RIPPLE_COLOURS.size() - 1)
 		@warning_ignore("integer_division")
 		var radius: int = _run.splash.radius * (k + 1) / RIPPLE_COLOURS.size()
@@ -200,9 +279,26 @@ func pixels() -> Dictionary[Vector2i, Color]:
 
 
 ## The splash's preview for a planet thrown at `aim`: its reach, where it pushes each star, and the
-## ember trail of each it pushes out.
+## ember trail of each it pushes out; and the fish's: where it would swim, its bite, and the stars
+## it would eat.
 func _aim_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
+	if _run.fish != null:
+		var target: Vector2i = _run.fish_target(aim)
+		if target != _run.fish.at:
+			var way: int = signi((target.y - _run.fish.at.y) if _run.fish.vertical else (target.x - _run.fish.at.x))
+			for point: Vector2i in fish_pixels(target, way, _run.fish.vertical):
+				result[point] = Palette.M3
+		result.merge(ring_pixels(target, _run.fish.bite, Palette.M4, ceili(TAU * _run.fish.bite / REACH_GAP)), true)
+		for id: int in _run.launch_bites(aim):
+			var eaten: Star = _run.find_star(id)
+			if eaten == null:
+				continue
+			var toward: Vector2 = Vector2(target - eaten.position).normalized()
+			for dot: int in TRAIL_DOTS:
+				result[eaten.position + Vector2i((toward * (StarView.half_extent(eaten.size) + 3 + 2 * dot)).round())] = Palette.S4
+	if _run.splash == null:
+		return result
 	var kind: String = _run.loaded_pack if _run.loaded_pack != "" else _run.balance.pack_kinds()[0]
 	for at: Vector2i in _run.splash_points(kind, aim):
 		result.merge(ring_pixels(at, _run.splash.radius, Palette.M4, ceili(TAU * _run.splash.radius / REACH_GAP)), true)
@@ -223,6 +319,17 @@ func _aim_pixels() -> Dictionary[Vector2i, Color]:
 		for side: int in [-1, 1]:
 			for dy: int in [-1, 0, 1]:
 				result[to + Vector2i(side * size, dy)] = Palette.M5
+	return result
+
+
+## The fish at `at` on the water line, facing `facing` (1: +x, or +y on a line up and down; -1: back).
+static func fish_pixels(at: Vector2i, facing: int, vertical: bool) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var parts: Array = [[FISH_BACK, Palette.M5], [FISH_BELLY, Palette.M4], [[FISH_GLINT], Palette.M6], [[FISH_EYE], Palette.N1]]
+	for part: Array in parts:
+		for offset: Vector2i in part[0]:
+			var o := Vector2i(offset.x * (1 if facing >= 0 else -1), offset.y)
+			result[at + (Vector2i(o.y, o.x) if vertical else o)] = part[1]
 	return result
 
 

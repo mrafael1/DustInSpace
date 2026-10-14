@@ -143,6 +143,10 @@ const SEAM_HORIZONTAL_MESSAGE: String = "AIM HIGH TO PLAY LOW\nAIM LOW TO PLAY H
 const SEAM_CROSS_MESSAGE: String = "AIM AT ONE CORNER\nTO PLAY THE OPPOSITE"
 ## Pisces's splash, on the stage that brings it.
 const SPLASH_MESSAGE: String = "THE SPLASH PUSHES STARS\nOUT OF THE SKY"
+## Pisces's fish, on the North Fish.
+const FISH_MESSAGE: String = "THE FISH SWIMS TO YOUR\nTHROW AND EATS STARS"
+## A run's first star the fish ate.
+const FISH_LOSS_MESSAGE: String = "THE FISH ATE A STAR\nTHROW AWAY FROM STARS"
 ## A run's first star lost to the splash.
 const SPLASH_LOSS_MESSAGE: String = "THE SPLASH TOOK A STAR\nTHROW AWAY FROM STARS"
 const RULE_MESSAGE_TIME: float = 3.5
@@ -472,15 +476,15 @@ func _tell_loss(changes: Array) -> void:
 	show_message(said, RULE_MESSAGE_TIME, true)
 
 
-## A run's first star the splash pushed out of the sky says so, and what to do, once a run (never
-## for an intro's demo stars, nor over the stage's rule while it's still on show).
-func _tell_splash_loss(moves: Array) -> void:
-	if not _launch_shown or (message() != "" and message() == _stage_rule()) or _losses_told.has(SPLASH_LOSS_MESSAGE):
+## A run's first star the splash pushed out (or the fish ate: `said`) says so, and what to do, once
+## a run (never for an intro's demo stars, nor over the stage's rule while it's still on show).
+func _tell_splash_loss(moves: Array, said: String = SPLASH_LOSS_MESSAGE) -> void:
+	if not _launch_shown or (message() != "" and message() == _stage_rule()) or _losses_told.has(said):
 		return
 	for move: StarCurrent.Move in moves:
 		if move.drained:
-			_losses_told[SPLASH_LOSS_MESSAGE] = true
-			show_message(SPLASH_LOSS_MESSAGE, RULE_MESSAGE_TIME, true)
+			_losses_told[said] = true
+			show_message(said, RULE_MESSAGE_TIME, true)
 			return
 
 
@@ -500,6 +504,8 @@ static func seam_rule(run: RunState) -> String:
 		return ""
 	if run.scorpio.map.splash_intro and run.splash != null:
 		return SPLASH_MESSAGE
+	if run.fish != null:
+		return FISH_MESSAGE
 	match run.scorpio.map.seam:
 		StarMap.Seam.CROSS:
 			return SEAM_CROSS_MESSAGE
@@ -876,6 +882,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			# Pisces's splash: its first star lost says so (an intro's demo stars aside).
 			tell_current_rule()
 			_tell_splash_loss(event.args[1])
+			return
+		&"stars_bitten":
+			# Pisces's fish: its first star eaten says so (an intro's demo stars aside).
+			tell_current_rule()
+			_tell_splash_loss(event.args[1], FISH_LOSS_MESSAGE)
 			return
 		&"holes_drifted":
 			# Sagittarius's final: once the twins have merged, the hole they made drinks the light.
