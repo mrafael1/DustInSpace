@@ -124,6 +124,7 @@ var _arrival_sweep: bool = false
 @onready var _current: CurrentView = $CurrentLayer
 @onready var _gravity: GravityView = $GravityLayer
 @onready var _cords: CordView = $CordLayer
+@onready var _seam: SeamView = $SeamLayer
 @onready var _heat: HeatView = $HeatLayer
 @onready var _harvest: HarvestView = $HarvestLayer
 
@@ -432,6 +433,11 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			_cords.tie(event.args[0])
 		&"cords_cleared":
 			_cords.clear_cords()
+		&"planet_reflected":
+			_seam.splash(event.args[0], event.args[1])
+		&"reflect_intro_cleared":
+			# A beat to see the stars across the seam, then they go: no reward.
+			_clear_intro(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD * 2.0)
 		_:
 			return false
 	return true

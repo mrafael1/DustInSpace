@@ -28,6 +28,10 @@ const SAGITTARIUS_PART := "res://assets/art/sagittarius_part_%s.png"
 const PISCES_FIGURE := "res://assets/art/pisces_figure.png"
 const PISCES_PART := "res://assets/art/pisces_part_%s.png"
 
+## Pisces's seam: none, up and down the sky's middle (throw left, stars land right), or across it
+## (throw high, stars land low).
+enum Seam { NONE, VERTICAL, HORIZONTAL }
+
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
 var title: String = ""
@@ -103,7 +107,7 @@ var black_hole_twin: Vector2i = Vector2i.ZERO
 ## The light gauge: the hole drinks a share of each link's light, and bangs when it's full
 ## (balance.json's gauge and gauge_share).
 var black_hole_gauge: bool = false
-## Pisces's cords (chapter 6): every successful link leaves its string in the sky as a
+## Pisces's cords (chapter 6, a debug trial): every successful link leaves its string in the sky as a
 ## cord until the sky is cleared, and a traced link can't cross one (StarCords).
 var cords: bool = false
 ## Pisces's fish cord: the cord tying the two fish, in the sky from the start and splitting it. A
@@ -112,6 +116,9 @@ var cords: bool = false
 ## (not by a rekindle, the completion or a Big Bang). Only read when `cords` is on. Draws no random
 ## numbers; bursts and stars cross it freely.
 var fish_cord: Array[Vector2i] = []
+## Pisces's reflection: the sky is a mirror split by a seam through its middle (up and down, or across),
+## and a planet bursts at the reflection of where it's thrown: its stars land on the other side.
+var seam: Seam = Seam.NONE
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -953,11 +960,11 @@ static func pisces() -> StarMap:
 	return map
 
 
-## Pisces, stage 1: the Circlet, the western fish's ring. Its cords (its intro shows one tied, then a
-## step refused at it): every link leaves its string in the sky as a cord until the sky clears, and
-## no traced link can cross one. From gamma (big, lit, right) the ring runs round through kappa,
-## lambda, TX and iota to theta, open at the top right where 7 Psc is left out. Links in the ring's
-## middle wall it into pockets. Five to light. Strings are 29-35 px.
+## Pisces, stage 1: the Circlet, the western fish's ring. The reflection (its intro shows a planet
+## thrown on one side burst on the other): the seam runs up and down the sky's middle, and a planet
+## bursts at the reflection of where it's thrown. From gamma (big, lit, right) the ring runs round
+## through kappa, lambda, TX and iota to theta, open at the top right where 7 Psc is left out; the
+## seam runs through it, so each side needs throws from the other. Five to light. Strings 29-35 px.
 static func pisces_circlet() -> StarMap:
 	var map := StarMap.new()
 	map.id = "pisces_circlet"
@@ -967,14 +974,14 @@ static func pisces_circlet() -> StarMap:
 	map.sizes = [Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM]
 	map.starting_lit = [0]
 	map.painting = PISCES_PART % "circlet"
-	map.cords = true
+	map.seam = Seam.VERTICAL
 	return map
 
 
-## Pisces, stage 2: the West Cord. The fish's cord (its intro lays it across the sky): the cord tying
-## the fish is there from the start, splitting the sky, and it never goes; links still leave their
-## own cords. From iota (lit, upper right, where the Circlet ends) the cord runs down left through
-## omega, delta, epsilon and mu to nu. Five to light. Strings are 30-36 px.
+## Pisces, stage 2: the West Cord. The seam turns (its intro shows it): it runs across the sky's
+## middle, so a planet thrown high bursts low and one thrown low bursts high. From iota (lit, upper
+## right, where the Circlet ends) the cord runs down left through omega, delta, epsilon and mu to nu,
+## across the seam. Five to light. Strings are 30-36 px.
 static func pisces_west_cord() -> StarMap:
 	var map := StarMap.new()
 	map.id = "pisces_west_cord"
@@ -984,8 +991,7 @@ static func pisces_west_cord() -> StarMap:
 	map.sizes = [Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
 	map.starting_lit = [0]
 	map.painting = PISCES_PART % "west_cord"
-	map.cords = true
-	map.fish_cord = [Vector2i(0, 130), Vector2i(100, 214), Vector2i(179, 140)]
+	map.seam = Seam.HORIZONTAL
 	return map
 
 

@@ -164,6 +164,7 @@ func start_run(balance: Balance) -> bool:
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
 	($Sky/GravityLayer as GravityView).setup(run, _sequencer)
 	($Sky/CordLayer as CordView).setup(run, _sequencer)
+	($Sky/SeamLayer as SeamView).setup(run)
 	($Sky/HeatLayer as HeatView).setup(run, _sequencer)
 	($Sky/HarvestLayer as HarvestView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
@@ -195,6 +196,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_twins_intro()
 	# And the Head's light gauge: a link's light streaming into the hole.
 	run.play_gauge_intro()
+	# And a Pisces stage with a seam: a demo planet thrown on one side bursts on the other.
+	run.play_reflect_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)

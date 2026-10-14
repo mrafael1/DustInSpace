@@ -101,6 +101,11 @@ signal cord_tied(points: Array[Vector2i])
 ## Pisces's cords: the sky was cleared (the Sun rekindled, the figure completed, a Big Bang), and
 ## every link's cord with it (only when there was one). The fish's cord is never cleared.
 signal cords_cleared
+## Pisces's reflection: the planet thrown at `thrown` went into the mirror and bursts at `burst`, its
+## reflection across the seam (pack_split/pack_burst follow there).
+signal planet_reflected(thrown: Vector2i, burst: Vector2i)
+## Pisces's reflection intro is over: its demo `stars` (where its demo planet burst) leave. No reward.
+signal reflect_intro_cleared(stars: Array[Star])
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
 ## Its light then clears the sky: sky_cleared follows the landmark's events.
 signal sun_rekindled(landmark: int)
@@ -203,6 +208,8 @@ const SAFE_SPOT_GRID: int = 8
 const OPEN_CLEARANCE: int = 48
 ## XOR'd into the seed so star layout has its own RNG stream and can't shift pack contents.
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
+## Pisces's reflection intro: its demo stars' layout stream (XOR'd into the run seed).
+const REFLECT_INTRO_SEED_SALT: int = 0x7EF1
 ## Leo's heat intro: the stars it shows (one of each size), and how many times at most the heat acts
 ## on them. Its layout's own RNG stream (XOR'd into the run seed).
 const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
@@ -686,13 +693,17 @@ func launch(target: Vector2i) -> bool:
 	if is_over() or loaded_pack == "" or owned_packs.get(loaded_pack, 0) <= 0:
 		return false
 	var kind: String = loaded_pack
-	var burst: Vector2i = StarScatter.clamp_to_sky(target, sky_rect)
+	var thrown: Vector2i = StarScatter.clamp_to_sky(target, sky_rect)
+	# Pisces's reflection: the planet bursts across the seam from where it's thrown.
+	var burst: Vector2i = burst_centre(target)
 	if tutorial != null and not tutorial.allows_launch(burst, _tutorial_landmark_at()):
 		return false
 	_current_reserved = current_preview()
 	_gravity_reserved = gravity_preview()
 	owned_packs[kind] -= 1
-	pack_launched.emit(kind, burst)
+	pack_launched.emit(kind, thrown)
+	if thrown != burst:
+		planet_reflected.emit(thrown, burst)
 	if encounter != null and encounter.launched():
 		encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null:
@@ -1483,6 +1494,48 @@ func _tie_cord(linked: Array[Star]) -> void:
 		points.append(star.position)
 	cords.tie(points)
 	cord_tied.emit(points)
+
+
+## Where a planet thrown at `aim` bursts: the aim kept in the sky, or (Pisces's seam) its reflection
+## across the seam, kept in the sky. Pure.
+func burst_centre(aim: Vector2i) -> Vector2i:
+	var thrown: Vector2i = StarScatter.clamp_to_sky(aim, sky_rect)
+	if scorpio == null or scorpio.map.seam == StarMap.Seam.NONE:
+		return thrown
+	return StarScatter.clamp_to_sky(reflect(thrown), sky_rect)
+
+
+## Pisces's seam: where `point` falls across it (the sky's middle, where the map is drawn).
+func reflect(point: Vector2i) -> Vector2i:
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	match scorpio.map.seam:
+		StarMap.Seam.VERTICAL:
+			return Vector2i(2 * middle.x - point.x, point.y)
+		StarMap.Seam.HORIZONTAL:
+			return Vector2i(point.x, 2 * middle.y - point.y)
+	return point
+
+
+## Pisces's reflection intro, as a stage with a seam and intros opens: a demo planet is thrown into
+## the open sky's reflection and bursts across the seam, in the open sky; its stars stay a beat and
+## go. No pack used, no reward, no RNG drawn (its layout has its own stream).
+func play_reflect_intro() -> void:
+	if scorpio == null or scorpio.map.seam == StarMap.Seam.NONE or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	var burst: Vector2i = open_launch_spot(sky_rect.position.y)
+	var thrown: Vector2i = StarScatter.clamp_to_sky(reflect(burst), sky_rect)
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ REFLECT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, [] as Array[Vector2i], layout, scorpio.landmark_positions())
+	var born: Array[Star] = []
+	for i: int in spots.size():
+		born.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
+	hunt_intro_launched.emit(kind, thrown)
+	planet_reflected.emit(thrown, burst)
+	hunt_intro_burst.emit(burst, born.duplicate())
+	stars.clear()
+	reflect_intro_cleared.emit(born)
 
 
 ## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map).

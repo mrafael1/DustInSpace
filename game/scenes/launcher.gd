@@ -208,7 +208,8 @@ func twins_shown() -> int:
 ## Where the loaded pack will burst for the aim at burst_preview(): its one burst point, or each
 ## point a splitting pack bursts at (the core's StarScatter.split_points).
 func burst_points() -> Array[Vector2i]:
-	var aim: Vector2i = burst_preview()
+	# Pisces's seam: the stars land at the aim's reflection, so the ring shows there.
+	var aim: Vector2i = _run.burst_centre(burst_preview()) if _run != null else burst_preview()
 	var pack: Balance.PackDef = _run.balance.packs.get(shown_pack()) if _run != null else null
 	if pack == null or pack.bursts <= 1:
 		return [aim]

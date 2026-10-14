@@ -136,6 +136,9 @@ const TWINS_MESSAGE: String = "WHERE THE HOLES MEET\nA BIG BANG CLEARS ALL"
 const GAUGE_MESSAGE: String = "THE HOLE DRINKS ALL LIGHT\nFULL IT BANGS THE SKY"
 ## Pisces's cords (chapter 6 trial): every link leaves its string, and no link can cross one.
 const CORD_MESSAGE: String = "EVERY LINK LEAVES A CORD\nNO LINK CAN CROSS ONE"
+## Pisces's reflection: a planet bursts across the seam from where it's thrown, up and down or across.
+const SEAM_VERTICAL_MESSAGE: String = "AIM LEFT TO PLAY RIGHT\nAIM RIGHT TO PLAY LEFT"
+const SEAM_HORIZONTAL_MESSAGE: String = "AIM HIGH TO PLAY LOW\nAIM LOW TO PLAY HIGH"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
 ## no launch, other message or clear cuts it before it can be read; only another teaching line can.
@@ -384,7 +387,7 @@ func advance(delta: float) -> void:
 
 ## The run's current says its rule, once a run (Main calls it as the player first aims).
 func tell_current_rule() -> void:
-	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null and _run.cords == null):
+	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null and _run.cords == null and seam_rule(_run) == ""):
 		return
 	_current_told = true
 	# A final's title card is up, or about to be: the rule waits for it to go, so the two don't
@@ -413,7 +416,7 @@ func _stage_rule() -> String:
 		return hole_rule(_run.gravity)
 	if _run.cords != null:
 		return CORD_MESSAGE
-	return ""
+	return seam_rule(_run)
 
 
 ## The telescope aims a `kind` planet: on the launch that brings the harvest, a split planet's first
@@ -470,6 +473,18 @@ static func harvest_rule(harvest: StarHarvest) -> String:
 	if harvest.binds and harvest.ties:
 		return TIE_MESSAGE
 	return BIND_MESSAGE if harvest.binds else SCYTHE_MESSAGE % harvest.every
+
+
+## What Pisces's seam says: which way to aim for where the stars land ("" without a seam).
+static func seam_rule(run: RunState) -> String:
+	if run.scorpio == null:
+		return ""
+	match run.scorpio.map.seam:
+		StarMap.Seam.VERTICAL:
+			return SEAM_VERTICAL_MESSAGE
+		StarMap.Seam.HORIZONTAL:
+			return SEAM_HORIZONTAL_MESSAGE
+	return ""
 
 
 ## What the black hole's message says: it pulls stars in, or (hungry) it grows as it swallows.
@@ -825,7 +840,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed":
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed", &"planet_reflected":
 			# Virgo's, the current's and the breath's intros say their rule as the effect shows.
 			tell_current_rule()
 			return
