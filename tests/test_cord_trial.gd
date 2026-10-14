@@ -14,9 +14,9 @@ const CORD_POINTS: Array[Vector2i] = [Vector2i(30, 95), Vector2i(30, 115), Vecto
 const LEFT := Vector2i(18, 110)
 const RIGHT := Vector2i(44, 110)
 const BELOW := Vector2i(31, 150)
-const ROPE: Array[Color] = [Palette.N5, Palette.N6]
+const ROPE: Array[Color] = [Palette.C4, Palette.C2]
 const EMBER: Array[Color] = [Palette.S3, Palette.S4]
-const FISH: Array[Color] = [Palette.N6, Palette.N7, Palette.N8]
+const FISH: Array[Color] = [Palette.C4, Palette.C2, Palette.C1]
 
 var main: Main
 var run: RunState
@@ -77,20 +77,20 @@ func test_the_rule_is_said_as_the_trial_opens() -> void:
 		assert_lt(line.length(), 26, "fits the message line")
 
 
-func test_a_link_lays_a_dim_rope_once_its_flash_fades() -> void:
+func test_a_link_lays_an_old_gold_rope_once_its_flash_fades() -> void:
 	_start()
 	_tie_the_cord()
 	assert_true(view.pixels().is_empty(), "nothing while the link's collect flash plays")
 	view.advance(CordView.TIE_DELAY + CordView.TIE_TIME * 0.25)
-	assert_eq(view.pixels().get(CORD_POINTS[0]), Palette.N7, "laid solid from the first star picked")
+	assert_eq(view.pixels().get(CORD_POINTS[0]), Palette.C2, "laid solid from the first star picked")
 	view.advance(CordView.TIE_TIME + CordView.TIE_FLASH)
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
 	assert_eq(view.shown_count(), 2)
 	for p: Vector2i in LinkLayer.path_pixels(CORD_POINTS):
 		assert_true(not pixels.has(p) or ROPE.has(pixels[p]), "%s: the rope" % p)
 	for color: Color in pixels.values():
-		assert_has(ROPE, color, "never the lit strings' gold")
-	assert_eq(pixels[CORD_POINTS[1]], Palette.N6, "a knot where the middle star stood")
+		assert_has(ROPE, color, "never the lit strings' pale gold")
+	assert_eq(pixels[CORD_POINTS[1]], Palette.C2, "a knot where the middle star stood")
 	var gaps: int = LinkLayer.path_pixels(CORD_POINTS).filter(func(p: Vector2i) -> bool: return not pixels.has(p)).size()
 	assert_gt(gaps, 0, "dashed")
 
@@ -103,7 +103,7 @@ func test_the_rope_stays_on_the_palette_and_glows_ember_when_crossed() -> void:
 	for color: Color in hot.values():
 		assert_has(EMBER, color)
 	for color: Color in CordView.laying_pixels(Vector2i(30, 95), Vector2i(30, 135), 0.5).values():
-		assert_eq(color, Palette.N7)
+		assert_eq(color, Palette.C2)
 
 
 func test_a_cord_the_trace_would_cross_glows() -> void:
@@ -144,7 +144,7 @@ func test_a_big_bang_keeps_the_cords_until_its_freeze() -> void:
 	view.advance(BigBangSequence.FREEZE_AT - 0.05)
 	assert_has(ROPE, view.pixels()[CORD_POINTS[1]], "the bang still opens like a burst")
 	view.advance(0.1)
-	assert_eq(view.pixels()[CORD_POINTS[1]], Palette.N7, "at the freeze they flash")
+	assert_eq(view.pixels()[CORD_POINTS[1]], Palette.C2, "at the freeze they flash")
 	view.advance(CordView.CLEAR_FLASH + 0.01)
 	assert_true(view.pixels().is_empty(), "and go")
 
@@ -160,12 +160,12 @@ func test_the_fish_cord_is_drawn_as_the_trial_opens() -> void:
 		for p: Vector2i in LinkLayer.line_pixels(segment[0], segment[1]):
 			assert_true(pixels.has(p), "%s: unbroken" % p)
 	for color: Color in pixels.values():
-		assert_has(FISH, color, "cool, never gold")
+		assert_has(FISH, color, "old gold")
 	var knot: Vector2i = fish[0][1]
-	assert_eq(pixels[knot], Palette.N8, "the knot at Alrescha")
+	assert_eq(pixels[knot], Palette.C1, "the knot at Alrescha")
 	for corner: Vector2i in CordView.CORNERS:
-		assert_eq(pixels[knot + corner], Palette.N6, "a 3x3 knot")
-	assert_ne(pixels[fish[0][0]], Palette.N8, "no knot at its loose end")
+		assert_eq(pixels[knot + corner], Palette.C4, "a 3x3 knot")
+	assert_ne(pixels[fish[0][0]], Palette.C1, "no knot at its loose end")
 
 
 func test_the_fish_cord_glows_ember_where_a_trace_would_cross_it() -> void:
@@ -178,7 +178,7 @@ func test_the_fish_cord_glows_ember_where_a_trace_would_cross_it() -> void:
 		assert_has(EMBER, pixels[p], "%s: the crossed arm glows" % p)
 	assert_eq(pixels[fish[0][1]], Palette.S4, "its knot with it")
 	var other: Array[Vector2i] = LinkLayer.line_pixels(fish[1][0], fish[1][1])
-	assert_has(FISH, pixels[other[other.size() / 2]], "the other arm stays cool")
+	assert_has(FISH, pixels[other[other.size() / 2]], "the other arm stays gold")
 	view.tracing_step = [] as Array[Vector2i]
 	for color: Color in view.pixels().values():
 		assert_has(FISH, color)
@@ -195,7 +195,7 @@ func test_the_fish_cord_stays_through_a_clear_and_a_big_bang() -> void:
 	assert_eq(view.shown_count(), fish + 2)
 	run.cords.clear()
 	view.clear_cords()
-	assert_eq(view.pixels()[link[1]], Palette.N7, "the link's cord flashes")
+	assert_eq(view.pixels()[link[1]], Palette.C2, "the link's cord flashes")
 	for p: Vector2i in before:
 		if not LinkLayer.path_pixels(link).has(p):
 			assert_eq(view.pixels()[p], before[p], "%s: the fish's cord doesn't flash" % p)
@@ -220,7 +220,7 @@ func test_the_fish_cord_stays_through_a_clear_and_a_big_bang() -> void:
 
 func test_the_fish_cord_stays_on_the_palette() -> void:
 	for color: Color in CordView.fish_rope_pixels(Vector2i(0, 128), Vector2i(98, 176), false).values():
-		assert_has([Palette.N6, Palette.N7], color)
+		assert_has([Palette.C2, Palette.C4], color)
 	for color: Color in CordView.fish_rope_pixels(Vector2i(0, 128), Vector2i(98, 176), true).values():
 		assert_has(EMBER, color)
 	for color: Color in CordView.fish_knot_pixels(Vector2i(98, 176)).values():

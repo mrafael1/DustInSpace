@@ -2,36 +2,36 @@ class_name CordView
 extends Node2D
 ## Pisces's cords (chapter 6 trial): every link's string stays in the sky as a cord until the sky is
 ## cleared. Owns no rules: RunState.cords holds them; Sky plays cord_tied and cords_cleared here.
-## Look: a dim rope, never the gold of the lit strings (C1 with C0 pulses over a C5 glow): 1 px of N5
-## twisted with N6 every ROPE_PERIOD px, broken by a 1 px gap (dashed), with a small N6 knot where
-## each of its stars stood. A cord is laid as its link's collect flash fades (TIE_DELAY): it runs out
-## from the first star in pick order, solid N7 as it's drawn tight, then settles into the rope.
+## Look: an old-gold rope, darker than the pale gold of the links and lit strings (C1 with C0 pulses
+## over a C5 glow): 1 px of C4 twisted with C2 every ROPE_PERIOD px, broken by a 1 px gap (dashed),
+## with a small C2 knot where each of its stars stood. A cord is laid as its link's collect flash
+## fades (TIE_DELAY): it runs out from the first star in pick order, solid C2 as it's drawn tight,
+## then settles into the rope.
 ## While a traced step would cross a cord (`tracing_step`), that cord glows ember (S3 twisted with S4,
 ## no gaps), the colour of a refused link: the line can't pass it. A refused step (a tap as much as a
 ## drag) has the cords it crosses glow the same for the reject flash (flash_blocking). It's drawn
 ## under the map (the Sky's lowest layer), so a cord through a lit landmark or along a lit string
 ## never covers its gold. A clear (a rekindle, the
-## completion) flashes the cords N7 for CLEAR_FLASH and they're gone; a Big Bang keeps them until
+## completion) flashes the cords C2 for CLEAR_FLASH and they're gone; a Big Bang keeps them until
 ## its freeze, so its opening still looks like a normal burst.
 ## The fish's cord (RunState.cords' fixed segments, StarMap.fish_cord) is there as the stage opens and
-## never goes: not with a clear, not with a Big Bang. It reads as part of the sky, a step stronger than
-## a link's rope but as cool: unbroken, N7 twisted with N6 every other pixel (N5 vanished over the
-## horizon haze), under the strings' dotted N8, with a 3x3 knot at Alrescha (each bend of the
-## polyline: N8 heart, N7 arms, N6 corners) and no knots at its loose ends. It glows ember like a link's cord when a step would cross it (S4 twisted with S3, the knot
-## S4 with S3 corners).
+## never goes: not with a clear, not with a Big Bang. The same old gold, a step stronger than a link's
+## rope: unbroken, C2 twisted with C4 every other pixel, with a 3x3 knot at Alrescha (each bend of the
+## polyline: C1 heart, C2 arms, C4 corners) and no knots at its loose ends. It glows ember like a
+## link's cord when a step would cross it (S4 twisted with S3, the knot S4 with S3 corners).
 
-## The rope's pattern along its pixels: N6, N5, N5, then a gap.
+## The rope's pattern along its pixels: C2, C4, C4, then a gap.
 const ROPE_PERIOD: int = 4
 ## A cord is laid once its link's collect flash is half gone, over TIE_TIME (its two segments one
 ## after the other).
 const TIE_DELAY: float = LinkLayer.COLLECT_TIME * 0.5
 const TIE_TIME: float = 0.16
-## A laid cord shows solid N7 this long once it's tight, then the rope.
+## A laid cord shows solid C2 this long once it's tight, then the rope.
 const TIE_FLASH: float = 0.08
 const CLEAR_FLASH: float = 0.1
 const NEIGHBOURS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 const CORNERS: Array[Vector2i] = [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
-## The fish's cord's pattern: N7, N6, over again, with no gap.
+## The fish's cord's pattern: C2, C4, over again, with no gap.
 const FISH_PERIOD: int = 2
 
 ## The step being traced to the finger, [from, to] (empty: none): every cord it would cross glows.
@@ -208,7 +208,7 @@ func _fish_pixels() -> Dictionary[Vector2i, Color]:
 	return result
 
 
-## A stretch of the fish's cord from `a` to `b`: unbroken, N7 and N6 by turns from `a`; `hot`, S4
+## A stretch of the fish's cord from `a` to `b`: unbroken, C2 and C4 by turns from `a`; `hot`, S4
 ## and S3. No knots at its ends (fish_knot_pixels ties its bends).
 static func fish_rope_pixels(a: Vector2i, b: Vector2i, hot: bool) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
@@ -218,22 +218,22 @@ static func fish_rope_pixels(a: Vector2i, b: Vector2i, hot: bool) -> Dictionary[
 		if hot:
 			result[line[i]] = Palette.S4 if twist else Palette.S3
 		else:
-			result[line[i]] = Palette.N7 if twist else Palette.N6
+			result[line[i]] = Palette.C2 if twist else Palette.C4
 	return result
 
 
-## The fish's knot at Alrescha: 3x3, an N8 heart with N7 arms and N6 corners (hot: S4, S4, S3).
+## The fish's knot at Alrescha: 3x3, a C1 heart with C2 arms and C4 corners (hot: S4, S4, S3).
 static func fish_knot_pixels(at: Vector2i, hot: bool = false) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	for corner: Vector2i in CORNERS:
-		result[at + corner] = Palette.S3 if hot else Palette.N6
+		result[at + corner] = Palette.S3 if hot else Palette.C4
 	for n: Vector2i in NEIGHBOURS:
-		result[at + n] = Palette.S4 if hot else Palette.N7
-	result[at] = Palette.S4 if hot else Palette.N8
+		result[at + n] = Palette.S4 if hot else Palette.C2
+	result[at] = Palette.S4 if hot else Palette.C1
 	return result
 
 
-## A cord from `a` to `b` as a rope: N6, N5, N5, a gap, over again, from `a`, with a knot at each
+## A cord from `a` to `b` as a rope: C2, C4, C4, a gap, over again, from `a`, with a knot at each
 ## end; `hot` (a traced step would cross it), S4, S3, S3, S3 and no gap.
 static func rope_pixels(a: Vector2i, b: Vector2i, hot: bool) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
@@ -243,30 +243,30 @@ static func rope_pixels(a: Vector2i, b: Vector2i, hot: bool) -> Dictionary[Vecto
 		if hot:
 			result[line[i]] = Palette.S4 if phase == 0 else Palette.S3
 		elif phase == 0:
-			result[line[i]] = Palette.N6
+			result[line[i]] = Palette.C2
 		elif phase < ROPE_PERIOD - 1:
-			result[line[i]] = Palette.N5
+			result[line[i]] = Palette.C4
 	for end: Vector2i in [a, b]:
 		result.merge(knot_pixels(end, hot), true)
 	return result
 
 
-## A knot where a linked star stood: an N6 point with N5 arms (hot: S4 with S3 arms).
+## A knot where a linked star stood: a C2 point with C4 arms (hot: S4 with S3 arms).
 static func knot_pixels(at: Vector2i, hot: bool = false) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	for n: Vector2i in NEIGHBOURS:
-		result[at + n] = Palette.S3 if hot else Palette.N5
-	result[at] = Palette.S4 if hot else Palette.N6
+		result[at + n] = Palette.S3 if hot else Palette.C4
+	result[at] = Palette.S4 if hot else Palette.C2
 	return result
 
 
-## A cord being laid (or flashing as it's cleared): solid N7 from `a`, `share` (0 to 1) of the way.
+## A cord being laid (or flashing as it's cleared): solid C2 from `a`, `share` (0 to 1) of the way.
 static func laying_pixels(a: Vector2i, b: Vector2i, share: float) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	var line: Array[Vector2i] = LinkLayer.line_pixels(a, b)
 	var shown: int = ceili(line.size() * clampf(share, 0.0, 1.0))
 	for i: int in shown:
-		result[line[i]] = Palette.N7
+		result[line[i]] = Palette.C2
 	return result
 
 
