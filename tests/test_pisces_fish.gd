@@ -118,8 +118,23 @@ func test_the_bite_preview_counts_the_splash_first() -> void:
 	var lost: Array[int] = run.launch_splashes(bait)
 	assert_true(run.launch(bait))
 	assert_eq(eaten, preview, "the preview matches the bite")
-	if not lost.has(pushed.id):
-		assert_true(preview.has(pushed.id), "the splash pushed it into the bite")
+	assert_lt(run.splash.push, run.fish.bite + 6, "the setup: the splash leaves it short of the line")
+	assert_false(lost.has(pushed.id), "it survives the splash")
+	assert_true(preview.has(pushed.id), "the splash pushed it into the bite")
+
+
+func test_a_red_planet_baits_the_fish_where_it_sank_not_at_its_twins() -> void:
+	var run: RunState = _run()
+	run.owned_packs["red"] = 1
+	run.loaded_pack = "red"
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
+	var thrown: Vector2i = middle + Vector2i(-30, -40)
+	var swum: Array = []
+	run.fish_swam.connect(func(_from: Vector2i, to: Vector2i) -> void: swum.append(to))
+	var expected: Vector2i = run.fish_target(thrown)
+	assert_true(run.launch(thrown))
+	assert_eq(swum, [expected], "drawn to where the planet sank")
+	assert_eq(expected, middle + Vector2i(-30, 0))
 
 
 func test_the_north_fish_opens_by_showing_the_fish() -> void:
@@ -198,3 +213,17 @@ func test_the_fish_shows_on_the_line_swims_and_previews_its_bite() -> void:
 	assert_true(view.pixels().values().has(Palette.S4), "the star it would eat is marked")
 	view.aiming = false
 	assert_false(view.pixels().values().has(Palette.S4))
+
+
+func test_a_loss_line_still_being_read_isnt_overwritten_by_the_next() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var hud: Hud = main.get_node("HUD")
+	hud.set("_launch_shown", true)
+	hud.show_message("", 0.0, true)
+	var drained: Array[StarCurrent.Move] = [StarCurrent.Move.new(1, Vector2i(10, 100), Vector2i(-4, 100), true)]
+	hud.call("_tell_splash_loss", drained)
+	assert_eq(hud.message(), Hud.SPLASH_LOSS_MESSAGE)
+	hud.call("_tell_splash_loss", drained, Hud.FISH_LOSS_MESSAGE)
+	assert_eq(hud.message(), Hud.SPLASH_LOSS_MESSAGE, "the splash's line stays to be read")
+	assert_false((hud.get("_losses_told") as Dictionary).has(Hud.FISH_LOSS_MESSAGE), "the fish's waits for a later loss")

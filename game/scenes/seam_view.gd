@@ -290,13 +290,16 @@ func _aim_pixels() -> Dictionary[Vector2i, Color]:
 			for point: Vector2i in fish_pixels(target, way, _run.fish.vertical):
 				result[point] = Palette.M3
 		result.merge(ring_pixels(target, _run.fish.bite, Palette.M4, ceili(TAU * _run.fish.bite / REACH_GAP)), true)
+		# From where the splash leaves each star, as the bite catches it there.
+		var splashed: Dictionary[int, Vector2i] = _run.splash_preview(aim)
 		for id: int in _run.launch_bites(aim):
 			var eaten: Star = _run.find_star(id)
 			if eaten == null:
 				continue
-			var toward: Vector2 = Vector2(target - eaten.position).normalized()
+			var from: Vector2i = splashed.get(id, eaten.position)
+			var toward: Vector2 = Vector2(target - from).normalized()
 			for dot: int in TRAIL_DOTS:
-				result[eaten.position + Vector2i((toward * (StarView.half_extent(eaten.size) + 3 + 2 * dot)).round())] = Palette.S4
+				result[from + Vector2i((toward * (StarView.half_extent(eaten.size) + 3 + 2 * dot)).round())] = Palette.S4
 	if _run.splash == null:
 		return result
 	var kind: String = _run.loaded_pack if _run.loaded_pack != "" else _run.balance.pack_kinds()[0]

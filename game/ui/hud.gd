@@ -481,6 +481,10 @@ func _tell_loss(changes: Array) -> void:
 func _tell_splash_loss(moves: Array, said: String = SPLASH_LOSS_MESSAGE) -> void:
 	if not _launch_shown or (message() != "" and message() == _stage_rule()) or _losses_told.has(said):
 		return
+	# Another loss line is still being read (the splash's, as the fish bites): this one waits for a
+	# later loss, untold.
+	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, FISH_LOSS_MESSAGE]:
+		return
 	for move: StarCurrent.Move in moves:
 		if move.drained:
 			_losses_told[said] = true
