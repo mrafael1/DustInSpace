@@ -227,3 +227,92 @@ func test_a_loss_line_still_being_read_isnt_overwritten_by_the_next() -> void:
 	hud.call("_tell_splash_loss", drained, Hud.FISH_LOSS_MESSAGE)
 	assert_eq(hud.message(), Hud.SPLASH_LOSS_MESSAGE, "the splash's line stays to be read")
 	assert_false((hud.get("_losses_told") as Dictionary).has(Hud.FISH_LOSS_MESSAGE), "the fish's waits for a later loss")
+
+
+func test_every_third_launch_the_fish_also_leaps_at_the_nearest_star_in_reach() -> void:
+	var run: RunState = _run()
+	assert_eq(run.fish.jump_every, 3, "balance.json")
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
+	var jumped: Array = []
+	run.fish_jumped.connect(func(from: Vector2i, to: Vector2i) -> void: jumped.append([from, to]))
+	# Two launches far from anything: no leap yet.
+	for i: int in 2:
+		assert_false(run.fish.jumps_next())
+		run.load_pack("blue")
+		assert_true(run.launch(middle + Vector2i(0, 60)))
+		run.stars.clear()
+	assert_true(jumped.is_empty())
+	assert_true(run.fish.jumps_next(), "the third leaps")
+	var bait: Vector2i = middle + Vector2i(0, 60)
+	var under: Vector2i = run.fish_target(bait)
+	var reach: int = run.fish.jump_reach
+	var near: Star = run.add_star(Star.Size.SMALL, under + Vector2i(30, -40))
+	var nearer: Star = run.add_star(Star.Size.SMALL, under + Vector2i(-20, -36))
+	var out: Star = run.add_star(Star.Size.SMALL, under + Vector2i(0, -(reach + 10)))
+	run.load_pack("blue")
+	assert_eq(run.fish_leap(bait), nearer.position, "the nearest in reach")
+	var preview: Array[int] = run.launch_bites(bait)
+	var eaten: Array = []
+	var caught_at: Array = []
+	run.stars_bitten.connect(func(_at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
+		for move: StarCurrent.Move in moves:
+			eaten.append(move.star_id)
+			caught_at.append(move.to))
+	assert_true(run.launch(bait))
+	assert_eq(jumped, [[under, nearer.position]])
+	assert_eq(eaten, preview, "as the aim showed")
+	assert_true(eaten.has(nearer.id))
+	assert_eq(caught_at[eaten.find(nearer.id)], nearer.position, "caught where it leapt")
+	assert_not_null(run.find_star(out.id), "out of its reach")
+	assert_false(run.fish.jumps_next(), "then the count starts again")
+
+
+func test_a_leaping_launch_with_nothing_in_reach_only_bites() -> void:
+	var run: RunState = _run()
+	run.fish.launches = run.fish.jump_every - 1
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
+	var jumped: Array = []
+	run.fish_jumped.connect(func(from: Vector2i, to: Vector2i) -> void: jumped.append(to))
+	assert_eq(run.fish_leap(middle + Vector2i(0, 60)), StarCords.NO_CROSSING)
+	assert_true(run.launch(middle + Vector2i(0, 60)))
+	assert_true(jumped.is_empty())
+
+
+func test_the_intro_doesnt_count_toward_the_leap() -> void:
+	var run: RunState = _run()
+	run.play_reflect_intro()
+	assert_eq(run.fish.launches, 0)
+
+
+func test_the_fish_glows_before_it_leaps_and_arcs_out_to_the_star() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: SeamView = main.get_node("Sky/SeamLayer")
+	view.advance(1.0)
+	assert_false(view.pixels().values().has(Palette.S4), "no mark yet")
+	main.run.fish.launches = main.run.fish.jump_every - 1
+	view.queue_redraw()
+	var fish: Vector2i = main.run.fish.at
+	assert_eq(view.pixels().get(fish + Vector2i(0, -4)), Palette.S4, "an ember dot over it")
+	assert_true(view.pixels().values().has(Palette.M6), "it glows")
+	view.jump(fish, fish + Vector2i(20, -40))
+	view.advance(SeamView.JUMP_TIME / 2.0)
+	assert_eq(view.fish_shown(), fish + Vector2i(20, -40), "at the star at the top of its leap")
+	assert_true(view.is_biting(), "it bites there")
+	view.advance(SeamView.JUMP_TIME / 2.0 + 0.01)
+	assert_false(view.is_jumping())
+	assert_eq(view.fish_shown(), fish, "back on the line")
+	assert_lt(SeamView.leap_point(fish, fish + Vector2i(20, -40), 0.5).y, fish.y - 20, "the arc's middle, above the straight line")
+	assert_lt(SeamView.leap_point(fish, fish + Vector2i(40, -10), 0.5).y, fish.y - 5, "it bows up, out of the water")
+
+
+func test_the_leap_is_said_the_first_time_and_fits() -> void:
+	for line: String in Hud.JUMP_MESSAGE.split("\n"):
+		assert_lte(line.length(), 24, line)
+	var main: Main = _main()
+	_settle(main)
+	var hud: Hud = main.get_node("HUD")
+	hud.show_message("", 0.0, true)
+	main.run.fish.launches = main.run.fish.jump_every - 1
+	hud.call("_tell_jump")
+	assert_eq(hud.message(), Hud.JUMP_MESSAGE)
