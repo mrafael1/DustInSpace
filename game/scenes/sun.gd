@@ -266,9 +266,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	match event.type:
 		&"combo_collected":
 			_light_in_flight += event.args[3]
-		&"mirror_echoed":
-			# Pisces: an echo that paid sends its light too.
-			_light_in_flight += event.args[3]
 		&"sun_rekindled":
 			_rekindling = true
 			_ignite_when_landed()

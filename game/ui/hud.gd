@@ -132,11 +132,6 @@ const LION_MESSAGE: String = "THE LION GROWS TOO\nLINK BIG STARS FIRST"
 const HOLE_MESSAGE: String = "THE HOLE PULLS STARS IN\nSO AIM BEYOND THE STARS"
 const HUNGRY_MESSAGE: String = "THE HOLE GROWS WITH\nEVERY STAR IT SWALLOWS"
 const SWALLOW_LOSS_MESSAGE: String = "THE HOLE TOOK A STAR\nLINK MARKED ONES FIRST"
-## Pisces's mirror: links echo across the seam (with mirror_lights, echoes light stars too), and a
-## run's first lost echo says why.
-const MIRROR_MESSAGE: String = "LINKS ECHO IN THE MIRROR\nSTRAY ECHOES ARE LOST"
-const MIRROR_LIGHTS_MESSAGE: String = "ECHOES CAN LIGHT STARS\nSTRAY ECHOES ARE LOST"
-const ECHO_LOSS_MESSAGE: String = "AN ECHO WAS LOST\nMIND THE MIRROR SIDE"
 const TWINS_MESSAGE: String = "WHERE THE HOLES MEET\nA BIG BANG CLEARS ALL"
 const GAUGE_MESSAGE: String = "THE HOLE DRINKS ALL LIGHT\nFULL IT BANGS THE SKY"
 ## Pisces's cords (chapter 6 trial): every link leaves its string, and no link can cross one.
@@ -389,7 +384,7 @@ func advance(delta: float) -> void:
 
 ## The run's current says its rule, once a run (Main calls it as the player first aims).
 func tell_current_rule() -> void:
-	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null and _run.cords == null and _run.mirror == null):
+	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null and _run.cords == null):
 		return
 	_current_told = true
 	# A final's title card is up, or about to be: the rule waits for it to go, so the two don't
@@ -418,8 +413,6 @@ func _stage_rule() -> String:
 		return hole_rule(_run.gravity)
 	if _run.cords != null:
 		return CORD_MESSAGE
-	if _run.mirror != null:
-		return MIRROR_LIGHTS_MESSAGE if _run.mirror.lights else MIRROR_MESSAGE
 	return ""
 
 
@@ -467,14 +460,6 @@ func _tell_loss(changes: Array) -> void:
 		return
 	_losses_told[said] = true
 	show_message(said, RULE_MESSAGE_TIME, true)
-
-
-## Pisces's mirror: the run's first lost echo says why, once (after the launch, not over the rule).
-func _tell_echo_lost() -> void:
-	if _losses_told.has(ECHO_LOSS_MESSAGE) or (message() != "" and message() == _stage_rule()):
-		return
-	_losses_told[ECHO_LOSS_MESSAGE] = true
-	show_message(ECHO_LOSS_MESSAGE, RULE_MESSAGE_TIME, true)
 
 
 ## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,
@@ -799,11 +784,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"sky_cleared":
 			# Scorpio: the dust of the stars the Sun bursts streams in as they burst.
 			_dust_in_flight += event.args[1]
-		&"mirror_echoed":
-			# Pisces: an echo that paid streams its dust in like a link's; the first lost one says why.
-			_dust_in_flight += event.args[2]
-			if event.args[1] == Combos.INVALID:
-				_tell_echo_lost()
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			# The tutorial's link is made: its stars are gone, so the hand stops pointing at them.
@@ -845,7 +825,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed", &"mirror_intro_placed":
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed":
 			# Virgo's, the current's and the breath's intros say their rule as the effect shows.
 			tell_current_rule()
 			return
