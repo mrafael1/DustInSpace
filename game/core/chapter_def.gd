@@ -137,9 +137,33 @@ static func sagittarius() -> ChapterDef:
 	return def
 
 
+## Chapter 6: Pisces, the two fish tied by a cord knotted at Alrescha, whose links leave cords no
+## link can cross. Opens once Sagittarius's final is won; on the sky, the second lap, three signs on
+## from Sagittarius. Travelled along the cord from the western fish: the Circlet, the western cord,
+## the knot, the eastern cord, the northern fish, then the whole Pisces (stage 3 on aren't built yet).
+static func pisces() -> ChapterDef:
+	var def := ChapterDef.new()
+	def.id = "pisces"
+	def.title = "PISCES"
+	def.number = 6
+	def.stages = [
+		{"name": "CIRCLET", "map": "pisces_circlet", "piece": "circlet", "stars": [0, 1, 2, 3]},
+		{"name": "WEST CORD", "map": "pisces_west_cord", "piece": "west_cord", "stars": [4, 5, 6]},
+		{"name": "KNOT", "map": "", "piece": "knot", "stars": [7, 8]},
+		{"name": "EAST CORD", "map": "", "piece": "east_cord", "stars": [9, 10]},
+		{"name": "NORTH FISH", "map": "", "piece": "north_fish", "stars": [11, 12, 13]},
+		{"name": "PISCES", "map": "", "stars": []},
+	]
+	def.figure = StarMap.pisces()
+	def.final_at = Vector2i(92, 78)
+	def.piece = "res://assets/art/pisces_piece_%s.png"
+	def.unlocked_by = "sagittarius"
+	return def
+
+
 ## Every chapter, in campaign order.
 static func all() -> Array[ChapterDef]:
-	return [scorpio(), aquarius(), leo(), virgo(), sagittarius()]
+	return [scorpio(), aquarius(), leo(), virgo(), sagittarius(), pisces()]
 
 
 ## A won part's piece of the painting, or "" while it has no map (and so no piece).

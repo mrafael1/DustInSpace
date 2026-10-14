@@ -24,6 +24,9 @@ const VIRGO_PART := "res://assets/art/virgo_part_%s.png"
 ## Chapter 5's Sagittarius and its stages' paintings, once drawn (a missing one is left out).
 const SAGITTARIUS_FIGURE := "res://assets/art/sagittarius_figure.png"
 const SAGITTARIUS_PART := "res://assets/art/sagittarius_part_%s.png"
+## Chapter 6's Pisces and its stages' paintings, once drawn (a missing one is left out).
+const PISCES_FIGURE := "res://assets/art/pisces_figure.png"
+const PISCES_PART := "res://assets/art/pisces_part_%s.png"
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -100,7 +103,7 @@ var black_hole_twin: Vector2i = Vector2i.ZERO
 ## The light gauge: the hole drinks a share of each link's light, and bangs when it's full
 ## (balance.json's gauge and gauge_share).
 var black_hole_gauge: bool = false
-## Pisces's cords (chapter 6, a debug trial): every successful link leaves its string in the sky as a
+## Pisces's cords (chapter 6): every successful link leaves its string in the sky as a
 ## cord until the sky is cleared, and a traced link can't cross one (StarCords).
 var cords: bool = false
 ## Pisces's fish cord: the cord tying the two fish, in the sky from the start and splitting it. A
@@ -758,7 +761,6 @@ static func virgo_final() -> StarMap:
 	return map
 
 
-## The map for `id`, the full Scorpio for anything unknown.
 ## Chapter 5's full Sagittarius, the archer, east to the left as the sky shows it: the teapot of his
 ## body and bow with the arrow pointing right (Alnasl, its tip), his head up at the left and a hoof
 ## below. Thirteen stars at least 24 px apart, joined as a tree (the teapot's lid and handle open).
@@ -891,6 +893,77 @@ static func sagittarius_head() -> StarMap:
 	return map
 
 
+## Chapter 6's full Pisces, the two fish tied by a cord, east to the left as the sky shows it: the
+## western fish's Circlet at the right, the western cord running down left to the knot (Alrescha,
+## lowest), the eastern cord climbing from it to the northern fish at the upper left. Fourteen stars
+## at least 24 px apart, joined as a tree (the Circlet open where 7 Psc is left out, the northern
+## fish's triangle open between phi and tau).
+static func pisces() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces"
+	map.title = "PISCES"
+	# 0 gamma, 1 theta, 2 kappa, 3 lambda (the Circlet), 4 iota, 5 omega, 6 epsilon (the western
+	# cord), 7 Alrescha (the knot), 8 xi, 9 omicron, 10 eta (the eastern cord), 11 phi, 12 upsilon,
+	# 13 tau (the northern fish).
+	map.landmarks = [
+		Vector2i(160, 146), Vector2i(140, 128), Vector2i(150, 170), Vector2i(124, 170),
+		Vector2i(118, 144), Vector2i(94, 158), Vector2i(70, 174), Vector2i(28, 214),
+		Vector2i(52, 196), Vector2i(14, 188), Vector2i(22, 160), Vector2i(34, 134),
+		Vector2i(22, 110), Vector2i(46, 96),
+	]
+	map.segments = [
+		Vector2i(1, 4), Vector2i(4, 3), Vector2i(3, 2), Vector2i(2, 0), Vector2i(4, 5),
+		Vector2i(5, 6), Vector2i(6, 8), Vector2i(8, 7), Vector2i(7, 9), Vector2i(9, 10),
+		Vector2i(10, 11), Vector2i(11, 12), Vector2i(12, 13),
+	]
+	map.sizes = [
+		Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM,
+		Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.BIG,
+		Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL,
+		Star.Size.SMALL, Star.Size.SMALL,
+	]
+	map.starting_lit = [0]
+	map.painting = PISCES_FIGURE
+	return map
+
+
+## Pisces, stage 1: the Circlet, the western fish's ring. Its cords (its intro shows one tied, then a
+## step refused at it): every link leaves its string in the sky as a cord until the sky clears, and
+## no traced link can cross one. From gamma (big, lit, right) the ring runs round through kappa,
+## lambda, TX and iota to theta, open at the top right where 7 Psc is left out. Links in the ring's
+## middle wall it into pockets. Five to light. Strings are 29-35 px.
+static func pisces_circlet() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_circlet"
+	map.title = "CIRCLET"
+	map.landmarks = [Vector2i(127, 157), Vector2i(117, 191), Vector2i(83, 201), Vector2i(57, 183), Vector2i(56, 148), Vector2i(77, 128)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "circlet"
+	map.cords = true
+	return map
+
+
+## Pisces, stage 2: the West Cord. The fish's cord (its intro lays it across the sky): the cord tying
+## the fish is there from the start, splitting the sky, and it never goes; links still leave their
+## own cords. From iota (lit, upper right, where the Circlet ends) the cord runs down left through
+## omega, delta, epsilon and mu to nu. Five to light. Strings are 30-36 px.
+static func pisces_west_cord() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_west_cord"
+	map.title = "WEST CORD"
+	map.landmarks = [Vector2i(168, 98), Vector2i(143, 121), Vector2i(113, 132), Vector2i(92, 160), Vector2i(63, 169), Vector2i(40, 196)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "west_cord"
+	map.cords = true
+	map.fish_cord = [Vector2i(0, 130), Vector2i(100, 214), Vector2i(179, 140)]
+	return map
+
+
+## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
 		"stinger":
@@ -959,6 +1032,12 @@ static func by_id(p_id: String) -> StarMap:
 			return sagittarius_legs()
 		"sagittarius_head":
 			return sagittarius_head()
+		"pisces":
+			return pisces()
+		"pisces_circlet":
+			return pisces_circlet()
+		"pisces_west_cord":
+			return pisces_west_cord()
 	return scorpio()
 
 
