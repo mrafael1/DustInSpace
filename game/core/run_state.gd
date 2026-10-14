@@ -115,7 +115,10 @@ signal stars_splashed(at: Vector2i, moves: Array[StarCurrent.Move])
 signal splash_intro_placed(stars: Array[Star])
 ## Pisces's fish swam along the water line from `from` to `to` (drawn to the planet just thrown).
 signal fish_swam(from: Vector2i, to: Vector2i)
-## Pisces's fish bit at `at`, eating these stars (every move `drained`, `to` the fish), for nothing.
+## Pisces's fish leapt out of the water from `from` (on the line) at a star at `to`, and drops back.
+signal fish_jumped(from: Vector2i, to: Vector2i)
+## Pisces's fish bit at `at`, eating these stars (every move `drained`, `to` where it caught it: `at`,
+## or where it leapt), for nothing.
 ## Sent for every bite, even one that eats nothing, before the planet bursts.
 signal stars_bitten(at: Vector2i, moves: Array[StarCurrent.Move])
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
@@ -1767,25 +1770,58 @@ func launch_bites(aim: Vector2i) -> Array[int]:
 		return []
 	var standing: Array[Star] = []
 	standing.assign(_splash_chain(aim)[2])
-	return fish.bites(fish_target(aim), standing)
+	return _fish_meal(fish_target(aim), standing, true)[0]
+
+
+## Pure: where the fish leaps for a planet thrown at `aim` (StarCords.NO_CROSSING: it doesn't).
+func fish_leap(aim: Vector2i) -> Vector2i:
+	if fish == null or is_over():
+		return StarCords.NO_CROSSING
+	var standing: Array[Star] = []
+	standing.assign(_splash_chain(aim)[2])
+	return _fish_meal(fish_target(aim), standing, true)[1]
+
+
+## Pure: what the fish stopped at `point` eats of `standing`: [the ids (its bite there, then, on a
+## leaping launch, its leap's), where it leaps (StarCords.NO_CROSSING: it doesn't)]. `counted`: a
+## real launch, which may leap (an intro's never does).
+func _fish_meal(point: Vector2i, standing: Array[Star], counted: bool) -> Array:
+	var eaten: Array[int] = fish.bites(point, standing)
+	var leap: Vector2i = StarCords.NO_CROSSING
+	if counted and fish.jumps_next():
+		var left: Array[Star] = []
+		for star: Star in standing:
+			if not eaten.has(star.id):
+				left.append(star)
+		leap = fish.leap_target(point, left)
+		if leap != StarCords.NO_CROSSING:
+			eaten.append_array(fish.bites(leap, left))
+	return [eaten, leap]
 
 
 ## The fish: drawn to a planet that sank at `bait`, it swims toward it along the water line and
 ## eats the loose stars near where it stops.
-func _feed_fish(bait: Vector2i) -> void:
+func _feed_fish(bait: Vector2i, counted: bool = true) -> void:
 	var from: Vector2i = fish.at
 	var to: Vector2i = fish.swims_to(bait)
 	fish.move_to(to)
 	fish_swam.emit(from, to)
+	var meal: Array = _fish_meal(to, stars, counted)
+	var leap: Vector2i = meal[1]
+	var near: Array[int] = fish.bites(to, stars)
+	if leap != StarCords.NO_CROSSING:
+		fish_jumped.emit(to, leap)
 	var moves: Array[StarCurrent.Move] = []
 	var eaten: Array[Star] = []
-	for id: int in fish.bites(to, stars):
+	for id: int in meal[0]:
 		var star: Star = find_star(id)
 		eaten.append(star)
-		moves.append(StarCurrent.Move.new(id, star.position, to, true))
+		moves.append(StarCurrent.Move.new(id, star.position, to if near.has(id) else leap, true))
 	for star: Star in eaten:
 		stars.erase(star)
 	_orion_forget(eaten)
+	if counted:
+		fish.count_launch()
 	stars_bitten.emit(to, moves)
 
 
@@ -1796,7 +1832,10 @@ func _new_fish() -> Fish:
 	var vertical: bool = scorpio.map.seam == StarMap.Seam.VERTICAL
 	var low: int = inner.position.y if vertical else inner.position.x
 	var high: int = (inner.end.y if vertical else inner.end.x) - 1
-	return Fish.new(middle, balance.fish_step, balance.fish_bite, vertical, low, high)
+	var made := Fish.new(middle, balance.fish_step, balance.fish_bite, vertical, low, high)
+	made.jump_every = balance.fish_jump_every
+	made.jump_reach = balance.fish_jump_reach
+	return made
 
 
 ## Pisces's fish intro (play_reflect_intro on the North Fish): demo stars wait by the water line, a
@@ -1824,7 +1863,7 @@ func _fish_intro() -> void:
 	hunt_intro_launched.emit(kind, thrown)
 	planet_reflected.emit(thrown, burst)
 	var start: Vector2i = fish.at
-	_feed_fish(thrown)
+	_feed_fish(thrown, false)
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ REFLECT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
 	var occupied: Array[Vector2i] = []

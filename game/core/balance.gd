@@ -120,6 +120,10 @@ var splash_push: int = 0
 ## is none (step 0).
 var fish_step: int = 0
 var fish_bite: int = 0
+## Its leap: every fish_jump_every-th launch it also jumps at the nearest loose star within
+## fish_jump_reach px of where it stops. Optional in the block (0: it never jumps).
+var fish_jump_every: int = 0
+var fish_jump_reach: int = 0
 
 var errors: Array[String] = []
 
@@ -233,6 +237,9 @@ func _parse(data: Dictionary) -> void:
 		var fish: Dictionary = _read_dict(data, "fish", "")
 		fish_step = _read_int(fish, "step", "fish.", 1)
 		fish_bite = _read_int(fish, "bite", "fish.", 1)
+		if fish.has("jump_every"):
+			fish_jump_every = _read_int(fish, "jump_every", "fish.", 0)
+			fish_jump_reach = _read_int(fish, "jump_reach", "fish.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
 	if data.has("black_hole"):
