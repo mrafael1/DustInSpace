@@ -13,6 +13,12 @@ extends Node2D
 ## never covers its gold. A clear (a rekindle, the
 ## completion) flashes the cords N7 for CLEAR_FLASH and they're gone; a Big Bang keeps them until
 ## its freeze, so its opening still looks like a normal burst.
+## The fish's cord (RunState.cords' fixed segments, StarMap.fish_cord) is there as the stage opens and
+## never goes: not with a clear, not with a Big Bang. It reads as part of the sky, a step stronger than
+## a link's rope but as cool: unbroken, N7 twisted with N6 every other pixel (N5 vanished over the
+## horizon haze), under the strings' dotted N8, with a 3x3 knot at Alrescha (each bend of the
+## polyline: N8 heart, N7 arms, N6 corners) and no knots at its loose ends. It glows ember like a link's cord when a step would cross it (S4 twisted with S3, the knot
+## S4 with S3 corners).
 
 ## The rope's pattern along its pixels: N6, N5, N5, then a gap.
 const ROPE_PERIOD: int = 4
@@ -24,6 +30,9 @@ const TIE_TIME: float = 0.16
 const TIE_FLASH: float = 0.08
 const CLEAR_FLASH: float = 0.1
 const NEIGHBOURS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+const CORNERS: Array[Vector2i] = [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
+## The fish's cord's pattern: N7, N6, over again, with no gap.
+const FISH_PERIOD: int = 2
 
 ## The step being traced to the finger, [from, to] (empty: none): every cord it would cross glows.
 var tracing_step: Array[Vector2i] = []:
@@ -40,6 +49,8 @@ var _sequencer: EventSequencer
 ## (negative: still waiting for its link's flash).
 var _segments: Array[Array] = []
 var _ages: Array[float] = []
+## How many of _segments, at the front, are the fish's cord (never laid, never cleared).
+var _fixed: int = 0
 ## A clear playing: seconds until its flash starts (a Big Bang's freeze), then the flash's seconds
 ## left; -1 for none.
 var _clear_wait: float = -1.0
@@ -103,9 +114,14 @@ func hold_for_big_bang() -> void:
 		_clear_wait = maxf(_clear_wait, BigBangSequence.FREEZE_AT)
 
 
-## How many cord segments show now.
+## How many cord segments show now, the fish's cord's included.
 func shown_count() -> int:
 	return _segments.size()
+
+
+## How many of the segments shown are the fish's cord.
+func fish_count() -> int:
+	return _fixed
 
 
 ## Whether a cord is still being laid or cleared.
@@ -127,8 +143,8 @@ func advance(delta: float) -> void:
 		else:
 			_clear_left -= delta
 			if _clear_left < 0.0:
-				_segments.clear()
-				_ages.clear()
+				_segments.resize(_fixed)
+				_ages.resize(_fixed)
 				_clear_wait = -1.0
 	if _run != null and _run.cords != null and not is_playing() and (_sequencer == null or not _sequencer.is_busy()):
 		_sync()
@@ -137,9 +153,11 @@ func advance(delta: float) -> void:
 func _sync() -> void:
 	_segments.clear()
 	_ages.clear()
+	_fixed = 0
 	if _run == null or _run.cords == null:
 		return
 	_segments = _run.cords.segments()
+	_fixed = _run.cords.fixed_count()
 	for i: int in _segments.size():
 		_ages.append(TIE_TIME + TIE_FLASH)
 
@@ -153,7 +171,8 @@ func _draw() -> void:
 func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	var flashing: bool = _clear_left >= 0.0 and _clear_wait <= 0.0
-	for i: int in _segments.size():
+	result.merge(_fish_pixels(), true)
+	for i: int in range(_fixed, _segments.size()):
 		var a: Vector2i = _segments[i][0]
 		var b: Vector2i = _segments[i][1]
 		var age: float = _ages[i]
@@ -165,6 +184,52 @@ func pixels() -> Dictionary[Vector2i, Color]:
 			continue
 		var hot: bool = _crosses(tracing_step, a, b) or _crosses(_blocking_step, a, b)
 		result.merge(rope_pixels(a, b, hot), true)
+	return result
+
+
+## The fish's cord: each fixed segment as its rope, then a knot at each bend (Alrescha), hot if a
+## segment it ties is.
+func _fish_pixels() -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var ends: Dictionary[Vector2i, int] = {}
+	var hot_ends: Dictionary[Vector2i, bool] = {}
+	for i: int in _fixed:
+		var a: Vector2i = _segments[i][0]
+		var b: Vector2i = _segments[i][1]
+		var hot: bool = _crosses(tracing_step, a, b) or _crosses(_blocking_step, a, b)
+		result.merge(fish_rope_pixels(a, b, hot), true)
+		for end: Vector2i in [a, b]:
+			ends[end] = ends.get(end, 0) + 1
+			if hot:
+				hot_ends[end] = true
+	for end: Vector2i in ends:
+		if ends[end] > 1:
+			result.merge(fish_knot_pixels(end, hot_ends.has(end)), true)
+	return result
+
+
+## A stretch of the fish's cord from `a` to `b`: unbroken, N7 and N6 by turns from `a`; `hot`, S4
+## and S3. No knots at its ends (fish_knot_pixels ties its bends).
+static func fish_rope_pixels(a: Vector2i, b: Vector2i, hot: bool) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var line: Array[Vector2i] = LinkLayer.line_pixels(a, b)
+	for i: int in line.size():
+		var twist: bool = i % FISH_PERIOD == 0
+		if hot:
+			result[line[i]] = Palette.S4 if twist else Palette.S3
+		else:
+			result[line[i]] = Palette.N7 if twist else Palette.N6
+	return result
+
+
+## The fish's knot at Alrescha: 3x3, an N8 heart with N7 arms and N6 corners (hot: S4, S4, S3).
+static func fish_knot_pixels(at: Vector2i, hot: bool = false) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	for corner: Vector2i in CORNERS:
+		result[at + corner] = Palette.S3 if hot else Palette.N6
+	for n: Vector2i in NEIGHBOURS:
+		result[at + n] = Palette.S4 if hot else Palette.N7
+	result[at] = Palette.S4 if hot else Palette.N8
 	return result
 
 
