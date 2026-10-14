@@ -144,3 +144,48 @@ func _polygon(loop: Array[Vector2i]) -> PackedVector2Array:
 	for point: Vector2i in loop:
 		polygon.append(Vector2(point))
 	return polygon
+
+
+func test_a_cord_touching_the_way_back_but_off_the_loop_doesnt_snap() -> void:
+	var cords := StarCords.new(18)
+	cords.tie_fixed([Vector2i(0, 100), Vector2i(100, 100)] as Array[Vector2i])
+	# Its middle star stands on the fish's cord (a touch), its ends too far to knot.
+	var above: Array[Vector2i] = [Vector2i(40, 75), Vector2i(50, 100), Vector2i(60, 75)]
+	assert_null(cords.tie_net(above))
+	var net: StarCords.Net = cords.tie_net([Vector2i(30, 110), Vector2i(50, 140), Vector2i(70, 110)] as Array[Vector2i])
+	assert_not_null(net)
+	assert_eq(net.snapped.size(), 2, "only the closing link's cord")
+	assert_eq(cords.link_segments().size(), 2, "the cord above stays")
+
+
+func test_both_ends_knotted_at_one_point_close_a_net() -> void:
+	var cords := StarCords.new(18)
+	cords.tie_net([Vector2i(50, 50), Vector2i(100, 100), Vector2i(150, 50)] as Array[Vector2i])
+	var net: StarCords.Net = cords.tie_net([Vector2i(90, 112), Vector2i(100, 140), Vector2i(110, 112)] as Array[Vector2i])
+	assert_not_null(net, "the link and its two ties close round the corner")
+	assert_eq(net.loop.size(), 4)
+	assert_eq(net.snapped.size(), 2, "the corner's cord isn't on the loop")
+
+
+func test_a_star_on_the_nets_edge_isnt_caught() -> void:
+	var run: RunState = _run()
+	run.link(_add(run, POST, Star.Size.SMALL))
+	var on_edge: Star = run.add_star(Star.Size.SMALL, Vector2i(20, 120))
+	var inside: Star = run.add_star(Star.Size.SMALL, INSIDE)
+	var hook: Array[int] = _add(run, HOOK, Star.Size.MEDIUM)
+	var net: StarCords.Net = run.link_net(hook)
+	assert_not_null(net)
+	assert_eq(run.net_catch(net.loop, hook), [inside] as Array[Star], "the one on the post is on the edge")
+	assert_true(run.stars.has(on_edge))
+
+
+func test_no_net_intro_when_the_hook_cant_knot_at_this_reach() -> void:
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(Balance.DEFAULT_PATH))
+	data["cords"]["knot_reach"] = 5
+	var balance: Balance = Balance.from_dict(data)
+	var run := RunState.new(balance, Fixtures.rng(5), SKY, StarMap.pisces_circlet())
+	var placed: Array = []
+	run.cord_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append(stars))
+	run.play_cord_intro()
+	assert_true(placed.is_empty(), "no demo stars left behind")
+	assert_true(run.stars.is_empty())

@@ -1296,7 +1296,12 @@ func play_cord_intro() -> void:
 		fish_cord_laid.emit(_fish_cord())
 		return
 	var spots: Array[Vector2i] = cord_intro_spots()
-	if spots.is_empty() or cords.knot_reach <= 0:
+	if spots.is_empty():
+		return
+	# The hook must close its net at this knot reach, or there's nothing to show.
+	var trial := StarCords.new(cords.knot_reach)
+	trial.tie_net(spots.slice(0, 3))
+	if trial.tie_net(spots.slice(3, 6)) == null:
 		return
 	var shown: Array[Star] = []
 	for i: int in spots.size():
@@ -1611,9 +1616,21 @@ func net_catch(loop: Array[Vector2i], linked: Array[int] = []) -> Array[Star]:
 	for point: Vector2i in loop:
 		polygon.append(Vector2(point))
 	for star: Star in stars:
-		if not linked.has(star.id) and Geometry2D.is_point_in_polygon(Vector2(star.position), polygon):
+		if not linked.has(star.id) and not _on_loop(star.position, loop) and Geometry2D.is_point_in_polygon(Vector2(star.position), polygon):
 			caught.append(star)
 	return caught
+
+
+## Whether `at` lies exactly on one of `loop`'s edges (exact integer test: a star on the net's edge
+## isn't inside it).
+static func _on_loop(at: Vector2i, loop: Array[Vector2i]) -> bool:
+	for i: int in loop.size():
+		var a: Vector2i = loop[i]
+		var b: Vector2i = loop[(i + 1) % loop.size()]
+		var cross: int = (b.x - a.x) * (at.y - a.y) - (b.y - a.y) * (at.x - a.x)
+		if cross == 0 and at.x >= mini(a.x, b.x) and at.x <= maxi(a.x, b.x) and at.y >= mini(a.y, b.y) and at.y <= maxi(a.y, b.y):
+			return true
+	return false
 
 
 ## Pure: the net a valid link of `star_ids` (in pick order) would close, or null.

@@ -147,14 +147,17 @@ func _knots_for(points: Array[Vector2i]) -> Array[Array]:
 
 
 ## The shortest way along the cords and knots from `from` to `to` (points on cords), as the points
-## passed, both ends included; [] if they aren't joined. `extra`: knots not tied yet, whose points
-## split their cords too (so the way can start and end on them).
-func _cord_path(from: Vector2i, to: Vector2i, extra: Array[Array]) -> Array[Vector2i]:
+## passed, both ends included ([from] alone when they're the same point); [] if they aren't joined.
+## `extra`: knots not tied yet, whose points split their cords too (so the way can start and end on
+## them). `owners`, when given, gets each step's link (keyed by _step_key), a knot's being the link
+## it ties.
+func _cord_path(from: Vector2i, to: Vector2i, extra: Array[Array], owners: Dictionary = {}) -> Array[Vector2i]:
 	var edges: Dictionary[Vector2i, Array] = {}
 	var splits: Array[Array] = []
 	for k: int in _knot_targets.size():
 		splits.append([_knot_ends[2 * k + 1], _knot_targets[k]])
 		_join(edges, _knot_ends[2 * k], _knot_ends[2 * k + 1])
+		owners[_step_key(_knot_ends[2 * k], _knot_ends[2 * k + 1])] = _knot_owners[2 * k]
 	for knot: Array in extra:
 		splits.append([knot[1], knot[2]])
 	for i: int in count():
@@ -167,8 +170,11 @@ func _cord_path(from: Vector2i, to: Vector2i, extra: Array[Array]) -> Array[Vect
 		on.sort_custom(func(p: Vector2i, q: Vector2i) -> bool: return (p - a).length_squared() < (q - a).length_squared())
 		for j: int in range(1, on.size()):
 			_join(edges, on[j - 1], on[j])
-	if from == to or not edges.has(from) or not edges.has(to):
+			owners[_step_key(on[j - 1], on[j])] = _owners[i]
+	if not edges.has(from) or not edges.has(to):
 		return []
+	if from == to:
+		return [from]
 	# Dijkstra over the few points there are.
 	var best: Dictionary[Vector2i, float] = {from: 0.0}
 	var back: Dictionary[Vector2i, Vector2i] = {}
@@ -209,19 +215,21 @@ static func _join(edges: Dictionary[Vector2i, Array], a: Vector2i, b: Vector2i) 
 		edges[b].append(a)
 
 
-## The links (not the fish's) with a cord the way back between two `knots` passes along.
+## The links (not the fish's) whose cords or knots the way back between two `knots` passes along.
 func _net_owners(knots: Array[Array]) -> Array[int]:
 	var owners: Array[int] = []
-	var path: Array[Vector2i] = _cord_path(knots[1][1], knots[0][1], knots)
+	var by_step: Dictionary = {}
+	var path: Array[Vector2i] = _cord_path(knots[1][1], knots[0][1], knots, by_step)
 	for j: int in range(1, path.size()):
-		var mid: Vector2 = (Vector2(path[j - 1]) + Vector2(path[j])) * 0.5
-		for i: int in count():
-			if _owners[i] == FIXED or owners.has(_owners[i]):
-				continue
-			var on: Vector2 = Geometry2D.get_closest_point_to_segment(mid, Vector2(_ends[2 * i]), Vector2(_ends[2 * i + 1]))
-			if on.distance_to(mid) < 1.0:
-				owners.append(_owners[i])
+		var owner: int = by_step.get(_step_key(path[j - 1], path[j]), FIXED)
+		if owner != FIXED and not owners.has(owner):
+			owners.append(owner)
 	return owners
+
+
+## The same key for a step from `a` to `b` either way round.
+static func _step_key(a: Vector2i, b: Vector2i) -> Vector4i:
+	return Vector4i(a.x, a.y, b.x, b.y) if a < b else Vector4i(b.x, b.y, a.x, a.y)
 
 
 ## Removes the cords of `owners` and every knot from or into them, listing them in `net.snapped`.
