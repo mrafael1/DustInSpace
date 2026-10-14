@@ -68,6 +68,9 @@ signal landmark_put_out(at: Vector2i)
 signal landmark_kept(at: Vector2i)
 ## Virgo's binding intro: its demo combo collected (no payout). Feedback only (sound).
 signal intro_link_collected
+## Pisces's mirror: a link's echo across the seam paid, or was lost. Feedback only (sound).
+signal echo_collected
+signal echo_lost
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -124,6 +127,7 @@ var _arrival_sweep: bool = false
 @onready var _current: CurrentView = $CurrentLayer
 @onready var _gravity: GravityView = $GravityLayer
 @onready var _cords: CordView = $CordLayer
+@onready var _mirror: MirrorView = $MirrorLayer
 @onready var _heat: HeatView = $HeatLayer
 @onready var _harvest: HarvestView = $HarvestLayer
 
@@ -432,9 +436,48 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			_cords.tie(event.args[0])
 		&"cords_cleared":
 			_cords.clear_cords()
+		&"mirror_echoed":
+			_play_echo(event.args[0], event.args[1] != Combos.INVALID)
+		&"mirror_intro_placed":
+			_place_intro(event.args[0])
+		&"mirror_intro_linked":
+			_sequencer.hold(_mirror_intro(event.args[0], event.args[1], event.args[2]))
 		_:
 			return false
 	return true
+
+
+## Pisces's mirror: a link's echo across the seam took `echo`. Paid, it collects as a link does (the
+## line through its stars flares and they go, their constellation stars lighting with the link's);
+## lost, its loose stars go in an ember ring each, for nothing. Returns how long it plays.
+func _play_echo(echo: Array, paid: bool) -> float:
+	var points: Array[Vector2i] = []
+	for star: Star in echo:
+		points.append(star.position)
+	if paid:
+		_link_layer.flash_collected(points)
+		echo_collected.emit()
+	else:
+		_mirror.flash_lost(points)
+		echo_lost.emit()
+	for star: Star in echo:
+		var view: StarView = _views.get(star.id)
+		if view != null:
+			_views.erase(star.id)
+			view.dissolve()
+	var time: float = maxf(StarView.DISSOLVE_TIME, MirrorView.LOST_TIME)
+	_sequencer.hold(time)
+	return time
+
+
+## The mirror intro: the demo `link` is traced and collects, then its `echo` across the seam pays or
+## is lost as a real one does. Returns how long it all plays, with a beat to see it.
+func _mirror_intro(link: Array[int], echo: Array, paid: bool) -> float:
+	var trace: float = _trace_intro_link(link, -1, false)
+	var tween: Tween = create_tween()
+	tween.tween_interval(trace - StarView.DISSOLVE_TIME)
+	tween.tween_callback(_play_echo.bind(echo, paid))
+	return trace - StarView.DISSOLVE_TIME + maxf(StarView.DISSOLVE_TIME, MirrorView.LOST_TIME) + INTRO_HOLD
 
 
 ## Virgo's events: the harvest, the binding and their intro. True if `event` was one.
@@ -661,6 +704,24 @@ func _show_link() -> void:
 		_harvest.tracing_alone = _run.link_lights_alone(_gesture.selected) if full else -1
 		# Sagittarius's light gauge: a full, valid link that would fill it blinks it ember.
 		_gravity.tracing_fills = full and _run.link_fills_gauge(_gesture.selected)
+		_show_echo(full)
+
+
+## Pisces's mirror while tracing: where each picked star's echo lands, the stars the echo would
+## take, and (once the link is whole and valid, `full`) whether it pays or is lost.
+func _show_echo(full: bool) -> void:
+	if _run.mirror == null:
+		return
+	var ghosts: Array[Vector2i] = []
+	for at: Vector2i in _positions_of_ids(_gesture.selected):
+		ghosts.append(_run.mirror.mirror(at))
+	var echo: Array[Star] = _run.link_echo(_gesture.selected)
+	var marks: Array[Vector2i] = []
+	for star: Star in echo:
+		marks.append(star.position)
+	_mirror.ghosts = ghosts
+	_mirror.echo_marks = marks
+	_mirror.echo_outcome = 0 if not full else (1 if StarMirror.combo_of(echo) != Combos.INVALID else -1)
 
 
 ## `to`, or where the step from `from` toward it meets the link's reach (on whole pixels).

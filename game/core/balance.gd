@@ -110,6 +110,9 @@ var black_hole_gauge_share: int = 0
 ## A stage's own tuning (by StarMap id: any of "pull", "max_step", "horizon", "hunger",
 ## "max_horizon", "drift", "merge_horizon", "gauge", "gauge_share"), else the block's.
 var black_hole_stages: Dictionary[String, Dictionary] = {}
+## Pisces's mirror (chapter 6): how far from a link star's mirror spot a star still echoes it.
+## Optional: without a "mirror" block, 0 (only a star exactly there echoes).
+var mirror_echo_reach: int = 0
 
 var errors: Array[String] = []
 
@@ -217,6 +220,8 @@ func _parse(data: Dictionary) -> void:
 				current_steps[str(map_id)] = _read_int(stages, map_id, "currents.stages.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
+	if data.has("mirror"):
+		mirror_echo_reach = _read_int(_read_dict(data, "mirror", ""), "echo_reach", "mirror.", 0)
 	if data.has("black_hole"):
 		var hole: Dictionary = _read_dict(data, "black_hole", "")
 		black_hole_pull = _read_int(hole, "pull", "black_hole.", 1)

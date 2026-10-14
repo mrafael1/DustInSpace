@@ -101,6 +101,18 @@ signal cord_tied(points: Array[Vector2i])
 ## Pisces's cords: the sky was cleared (the Sun rekindled, the figure completed, a Big Bang), and
 ## every link's cord with it (only when there was one). The fish's cord is never cleared.
 signal cords_cleared
+## Pisces's mirror intro, as a stage with the mirror and intros opens: demo `stars` appear (copies as
+## placed), a combo on one side of the seam and what stands at its mirror spots.
+signal mirror_intro_placed(stars: Array[Star])
+## The mirror intro: the demo combo (`link`, its ids in pick order) is linked, and its `echo` across
+## the seam pays (`paid`: three that match) or is lost. No reward; the sky is empty after.
+signal mirror_intro_linked(link: Array[int], echo: Array[Star], paid: bool)
+## Pisces's mirror: a link echoed across the seam and took `echo` (copies; loose stars and, on a
+## stage whose echoes light, unlit constellation stars, in the order they echo the link's). As
+## `combo` (three that match) it paid `dust` and `light` and lit its constellation stars; as
+## Combos.INVALID its loose stars were lost for nothing (its constellation stars stay as they were).
+## Comes after the link's combo_collected.
+signal mirror_echoed(echo: Array[Star], combo: String, dust: int, light: int)
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
 ## Its light then clears the sky: sky_cleared follows the landmark's events.
 signal sun_rekindled(landmark: int)
@@ -226,6 +238,12 @@ const HOLE_INTRO_WAYS: int = 32
 ## hole's ring (so they don't read as falling in).
 const GAUGE_INTRO_GAP: int = 18
 const GAUGE_INTRO_HOLE_CLEARANCE: int = 16
+## Pisces's mirror intro: the demo combo's triangle (from its spot), at least
+## MIRROR_INTRO_SEAM_CLEARANCE px from the seam and MIRROR_INTRO_CLEARANCE from every constellation
+## star (its mirror spots too).
+const MIRROR_INTRO_COMBO: Array[Vector2i] = [Vector2i(-12, -8), Vector2i(8, -12), Vector2i(0, 10)]
+const MIRROR_INTRO_SEAM_CLEARANCE: int = 24
+const MIRROR_INTRO_CLEARANCE: int = 20
 const HOLE_INTRO_STRING_CLEARANCE: float = 10.0
 const HOLE_INTRO_PULLS: int = 2
 const CURRENT_INTRO_ACROSS: Array[int] = [0, 6, -6]
@@ -274,6 +292,8 @@ var gravity: StarGravity
 ## Pisces's cords (chapter 6, a debug trial): null on a map without them. The map's fish cord
 ## (StarMap.fish_cord, shifted) is tied fixed from the start.
 var cords: StarCords
+## Pisces's mirror: null on a map without it. Its seam is the sky's middle where the map is drawn.
+var mirror: StarMirror
 ## Bound sheaves: the landmarks bound to the figure (lit at the start, or still lit at a harvest).
 var _bound: Array[bool] = []
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
@@ -331,6 +351,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.cords:
 			cords = StarCords.new()
 			cords.tie_fixed(_fish_cord())
+		if scorpio.map.mirror:
+			mirror = StarMirror.new(Scorpio.HOME_SKY.position.x * 2 + Scorpio.HOME_SKY.size.x + 2 * scorpio.shift.x, balance.mirror_echo_reach, scorpio.map.mirror_lights)
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -943,8 +965,10 @@ func link(star_ids: Array[int]) -> String:
 	var drunk: int = gravity.drinks(reward.light) if gravity != null else 0
 	light += reward.light - drunk
 	combo_collected.emit(combo, linked, paid, reward.light - drunk)
+	# Pisces: the link echoes across the seam, before the Sun can clear what it takes.
+	var echoed: Array[Star] = _echo(linked) if mirror != null else ([] as Array[Star])
 	if scorpio != null:
-		for star: Star in linked:
+		for star: Star in linked + echoed:
 			if scorpio.is_landmark(star.id):
 				_light_landmark(Scorpio.landmark_index(star.id))
 		# The last landmark lit is the win: no rekindle on top of it.
@@ -1483,6 +1507,116 @@ func _tie_cord(linked: Array[Star]) -> void:
 		points.append(star.position)
 	cords.tie(points)
 	cord_tied.emit(points)
+
+
+## Pisces's mirror: a link through `linked` echoes across the seam (StarMirror.echo). Three that
+## match pay like a link (dust and light; returns them, so the link lights their constellation
+## stars); any other echo's loose stars are lost for nothing (returns none).
+func _echo(linked: Array[Star]) -> Array[Star]:
+	var echo: Array[Star] = mirror.echo(_points_of(linked), _echo_candidates([] as Array[int]))
+	if echo.is_empty():
+		return []
+	var shown: Array[Star] = []
+	for star: Star in echo:
+		shown.append(Star.new(star.id, star.size, star.position))
+		stars.erase(star)
+	_orion_forget(echo)
+	var combo: String = StarMirror.combo_of(echo)
+	if combo == Combos.INVALID:
+		mirror_echoed.emit(shown, combo, 0, 0)
+		return []
+	var paid: int = link_dust(combo)
+	var shine: int = balance.combos[combo].light
+	dust += paid
+	light += shine
+	mirror_echoed.emit(shown, combo, paid, shine)
+	return echo
+
+
+## Pisces's mirror: what can echo a link: the loose stars (and, where echoes light, the unlit
+## constellation stars), but for `excluded` (ids).
+func _echo_candidates(excluded: Array[int]) -> Array[Star]:
+	var candidates: Array[Star] = []
+	for star: Star in stars:
+		if not excluded.has(star.id):
+			candidates.append(star)
+	if mirror.lights and scorpio != null:
+		for star: Star in scorpio.unlit_stars():
+			if not excluded.has(star.id):
+				candidates.append(star)
+	return candidates
+
+
+## Pure: the echo a link of `star_ids` (in pick order, any length so far) would take across the seam
+## ([] without a mirror).
+func link_echo(star_ids: Array[int]) -> Array[Star]:
+	if mirror == null or is_over():
+		return []
+	var points: Array[Vector2i] = []
+	for id: int in star_ids:
+		var star: Star = _link_star(id)
+		if star != null:
+			points.append(star.position)
+	return mirror.echo(points, _echo_candidates(star_ids))
+
+
+static func _points_of(some: Array[Star]) -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	for star: Star in some:
+		points.append(star.position)
+	return points
+
+
+## Pisces's mirror intro, as a stage with the mirror and intros opens: a combo of one of each size
+## appears on one side of the seam with the same combo at its mirror spots; it's linked and its echo
+## pays. Then the combo again with a lone star at its first mirror spot: linked, the echo is lost. No
+## reward, no pack used, no RNG drawn; the sky is empty after.
+func play_mirror_intro() -> void:
+	if mirror == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	var spots: Array[Vector2i] = mirror_intro_spots()
+	if spots.is_empty():
+		return
+	for echoed: int in [3, 1]:
+		var shown: Array[Star] = []
+		var link: Array[int] = []
+		for i: int in 3:
+			var star: Star = add_star(HEAT_INTRO_SIZES[i], spots[i])
+			shown.append(Star.new(star.id, star.size, star.position))
+			link.append(star.id)
+		var echo: Array[Star] = []
+		for i: int in echoed:
+			var star: Star = add_star(HEAT_INTRO_SIZES[i], mirror.mirror(spots[i]))
+			shown.append(Star.new(star.id, star.size, star.position))
+			echo.append(shown[-1])
+		mirror_intro_placed.emit(shown)
+		stars.clear()
+		mirror_intro_linked.emit(link, echo, StarMirror.combo_of(echo) != Combos.INVALID)
+
+
+## Where the mirror intro's combo stands: a small triangle on the open side of the seam, it and its
+## mirror spots inside the sky and clear of the figure and of each other ([] if it doesn't fit).
+func mirror_intro_spots() -> Array[Vector2i]:
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
+	@warning_ignore("integer_division")
+	var seam: int = mirror.axis / 2
+	for y: int in range(inner.position.y + 16, inner.end.y - 16, 8):
+		for x: int in range(inner.position.x + 16, seam - MIRROR_INTRO_SEAM_CLEARANCE, 8):
+			var spots: Array[Vector2i] = []
+			for offset: Vector2i in MIRROR_INTRO_COMBO:
+				spots.append(Vector2i(x, y) + offset)
+			var all: Array[Vector2i] = spots.duplicate()
+			for spot: Vector2i in spots:
+				all.append(mirror.mirror(spot))
+			var clear: bool = true
+			for spot: Vector2i in all:
+				clear = clear and inner.has_point(spot)
+				for landmark: Vector2i in landmarks:
+					clear = clear and spot.distance_to(landmark) >= MIRROR_INTRO_CLEARANCE
+			if clear:
+				return spots
+	return []
 
 
 ## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map).

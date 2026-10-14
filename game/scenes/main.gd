@@ -164,6 +164,7 @@ func start_run(balance: Balance) -> bool:
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
 	($Sky/GravityLayer as GravityView).setup(run, _sequencer)
 	($Sky/CordLayer as CordView).setup(run, _sequencer)
+	($Sky/MirrorLayer as MirrorView).setup(run)
 	($Sky/HeatLayer as HeatView).setup(run, _sequencer)
 	($Sky/HarvestLayer as HarvestView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
@@ -195,6 +196,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_twins_intro()
 	# And the Head's light gauge: a link's light streaming into the hole.
 	run.play_gauge_intro()
+	# And a Pisces stage with the mirror: an echo that pays, then one that's lost.
+	run.play_mirror_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
@@ -383,6 +386,8 @@ func _wire_sound() -> void:
 	_sky.landmark_put_out.connect(func(_at: Vector2i) -> void: _sfx.play(&"crop", 1.0))
 	_sky.landmark_kept.connect(func(_at: Vector2i) -> void: _sfx.play(&"star_select", 1.5))
 	_sky.intro_link_collected.connect(_sfx.play.bind(&"link_collect", 1.0))
+	_sky.echo_collected.connect(_sfx.play.bind(&"link_collect", 1.25))
+	_sky.echo_lost.connect(_sfx.play.bind(&"link_reject", 0.8))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)

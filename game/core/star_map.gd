@@ -115,6 +115,12 @@ var fish_cord: Array[Vector2i] = []
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
+## Pisces's mirror (StarMirror): every link echoes across the sky's middle, taking the loose stars at
+## its stars' mirror spots (within balance.json's mirror.echo_reach): a combo there pays, else they're
+## lost. With mirror_lights, unlit constellation stars at a mirror spot count too, and light if the
+## echo pays.
+var mirror: bool = false
+var mirror_lights: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -953,11 +959,11 @@ static func pisces() -> StarMap:
 	return map
 
 
-## Pisces, stage 1: the Circlet, the western fish's ring. Its cords (its intro shows one tied, then a
-## step refused at it): every link leaves its string in the sky as a cord until the sky clears, and
-## no traced link can cross one. From gamma (big, lit, right) the ring runs round through kappa,
-## lambda, TX and iota to theta, open at the top right where 7 Psc is left out. Links in the ring's
-## middle wall it into pockets. Five to light. Strings are 29-35 px.
+## Pisces, stage 1: the Circlet, the western fish's ring. The mirror (its intro shows an echo paid,
+## then one lost): every link echoes across the sky's middle, taking the loose stars at its stars'
+## mirror spots; three that match pay like a link, anything else is lost. From gamma (big, lit,
+## right) the ring runs round through kappa, lambda, TX and iota to theta, open at the top right
+## where 7 Psc is left out; the seam runs through the ring. Five to light. Strings are 29-35 px.
 static func pisces_circlet() -> StarMap:
 	var map := StarMap.new()
 	map.id = "pisces_circlet"
@@ -967,14 +973,14 @@ static func pisces_circlet() -> StarMap:
 	map.sizes = [Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM]
 	map.starting_lit = [0]
 	map.painting = PISCES_PART % "circlet"
-	map.cords = true
+	map.mirror = true
 	return map
 
 
-## Pisces, stage 2: the West Cord. The fish's cord (its intro lays it across the sky): the cord tying
-## the fish is there from the start, splitting the sky, and it never goes; links still leave their
-## own cords. From iota (lit, upper right, where the Circlet ends) the cord runs down left through
-## omega, delta, epsilon and mu to nu. Five to light. Strings are 30-36 px.
+## Pisces, stage 2: the West Cord. The mirror, and echoes light stars (no intro: said at the first aim): an
+## unlit constellation star at a mirror spot counts in the echo, and lights if the echo pays. From
+## iota (lit, upper right, where the Circlet ends) the cord runs down left through omega, delta,
+## epsilon and mu to nu, across the seam. Five to light. Strings are 30-36 px.
 static func pisces_west_cord() -> StarMap:
 	var map := StarMap.new()
 	map.id = "pisces_west_cord"
@@ -984,8 +990,9 @@ static func pisces_west_cord() -> StarMap:
 	map.sizes = [Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
 	map.starting_lit = [0]
 	map.painting = PISCES_PART % "west_cord"
-	map.cords = true
-	map.fish_cord = [Vector2i(0, 130), Vector2i(100, 214), Vector2i(179, 140)]
+	map.mirror = true
+	map.mirror_lights = true
+	map.intros = false
 	return map
 
 

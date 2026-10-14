@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://game/scenes/sky.gd" id="1_sky"]
 [ext_resource type="Script" path="res://game/scenes/constellation_view.gd" id="9_constellation"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://game/scenes/harvest_view.gd" id="6_harvest"]
 [ext_resource type="Script" path="res://game/scenes/gravity_view.gd" id="7_gravity"]
 [ext_resource type="Script" path="res://game/scenes/cord_view.gd" id="8_cord"]
+[ext_resource type="Script" path="res://game/scenes/mirror_view.gd" id="10_mirror"]
 
 [node name="Sky" type="Node2D"]
 script = ExtResource("1_sky")
@@ -34,6 +35,9 @@ script = ExtResource("5_heat")
 
 [node name="LinkLayer" type="Node2D" parent="."]
 script = ExtResource("2_link_layer")
+
+[node name="MirrorLayer" type="Node2D" parent="."]
+script = ExtResource("10_mirror")
 
 [node name="StarLayer" type="Node2D" parent="."]
 

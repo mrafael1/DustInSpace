@@ -185,17 +185,21 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			p.payout = _payouts
 			dust_payout_launched.emit(_payouts, p.amount, [Vector2i(p.from)] as Array[Vector2i], p.delay)
 		return
-	if event.type != &"combo_collected":
+	# A link's combo, or Pisces's mirror echo that paid (its stars, then its dust and light).
+	var echoed: bool = event.type == &"mirror_echoed"
+	if event.type != &"combo_collected" and not echoed:
 		return
 	var sources: Array[Vector2i] = []
-	for star: Star in event.args[1]:
+	for star: Star in event.args[0 if echoed else 1]:
 		sources.append(star.position)
-	if sources.is_empty():
+	var dust: int = event.args[2]
+	var light: int = event.args[3]
+	if sources.is_empty() or dust + light == 0:
 		return
 	var n: int = _particles.size()
-	_launch(Kind.DUST, event.args[2], sources, dust_target)
+	_launch(Kind.DUST, dust, sources, dust_target)
 	var dust_end: int = _particles.size()
-	_launch(Kind.LIGHT, event.args[3], sources, light_target)
+	_launch(Kind.LIGHT, light, sources, light_target)
 	# Stagger dust and light together, in launch order, from this combo's first particle.
 	for i: int in range(n, _particles.size()):
 		_particles[i].delay = LAUNCH_DELAY + STAGGER * (i - n)
@@ -203,7 +207,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		_payouts += 1
 		for i: int in range(n, dust_end):
 			_particles[i].payout = _payouts
-		dust_payout_launched.emit(_payouts, event.args[2], sources, 0.0)
+		dust_payout_launched.emit(_payouts, dust, sources, 0.0)
 
 
 func _payout_in_flight(payout: int) -> bool:
