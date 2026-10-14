@@ -14,6 +14,7 @@ extends SceneTree
 ## catch in its value (link-first over each order it can be traced in, the knotting ends first and
 ## last); careless stays net-blind.
 ## --no-nets: the cords without nets (the map's nets flag off), for an A/B.
+## --knot-reach=N, --net-dust=N: what-ifs for balance.json's cords.knot_reach and net_dust_per_star.
 ## --keep-cords: a what-if, in the tool only: cords outlast the sky's clears (re-tied at once on
 ## cords_cleared), so they stay the whole stage (the plan's open question); the planner then counts
 ## a clearing link's cords too.
@@ -43,6 +44,9 @@ var _policies: Array[String] = POLICIES.duplicate()
 var _policy: String = ""
 var _keep_cords: bool = false
 var _no_nets: bool = false
+## What-ifs for the net's tuning, over balance.json's (-1: as balance.json has it).
+var _knot_reach: int = -1
+var _net_dust_what_if: int = -1
 ## Whether --fish was given, and its polyline (empty for none).
 var _fish_set: bool = false
 var _fish: Array[Vector2i] = []
@@ -60,6 +64,10 @@ func _initialize() -> void:
 			_keep_cords = true
 		elif argument == "--no-nets":
 			_no_nets = true
+		elif argument.begins_with("--knot-reach="):
+			_knot_reach = argument.trim_prefix("--knot-reach=").to_int()
+		elif argument.begins_with("--net-dust="):
+			_net_dust_what_if = argument.trim_prefix("--net-dust=").to_int()
 		elif argument.begins_with("--fish="):
 			if not _parse_fish(argument.trim_prefix("--fish=")):
 				push_error("Bad --fish '%s' (want x,y;x,y;... or none)" % argument)
@@ -71,6 +79,10 @@ func _initialize() -> void:
 			quit(1)
 			return
 	_balance = Balance.load_file()
+	if _knot_reach >= 0:
+		_balance.cord_knot_reach = _knot_reach
+	if _net_dust_what_if >= 0:
+		_balance.cord_net_dust_per_star = _net_dust_what_if
 	_simulate.call_deferred()
 
 
