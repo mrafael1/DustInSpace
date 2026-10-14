@@ -117,7 +117,8 @@ var cords: bool = false
 ## numbers; bursts and stars cross it freely.
 var fish_cord: Array[Vector2i] = []
 ## Pisces's reflection: the sky is a mirror split by a seam through its middle (up and down, or across),
-## and a planet bursts at the reflection of where it's thrown: its stars land on the other side.
+## and a planet bursts at the reflection of where it's thrown: its stars land on the other side. No
+## link can step across the seam (RunState.can_step).
 var seam: Seam = Seam.NONE
 ## Pisces's splash: a thrown planet sinking into the mirror pushes the loose stars round where it went
 ## in outward (balance.json's splash); one pushed out of the sky is lost.
@@ -1002,10 +1003,11 @@ static func pisces_west_cord() -> StarMap:
 
 
 ## Pisces, stage 3: the Knot, where the two cords tie at Alrescha. The splash (its intro shows it):
-## the planet splashes where it sinks, pushing the loose stars round it outward, and one pushed out of
-## the sky is lost. The seam runs up and down, as on the Circlet. From nu (lit, right, where the West
-## Cord ends) the cord runs down left through xi to Alrescha (big, the knot, lowest left), then turns
-## back up right through omicron and pi to eta, a V opening right, across the seam. Five to light.
+## the planet splashes where it sinks (a red's twins, each where it is), pushing the loose stars round
+## it outward, and one pushed out of the sky is lost. The seam runs up and down, as on the Circlet.
+## From nu (lit, right, where the West Cord ends) the cord runs down left through xi to Alrescha
+## (big, the knot, lowest left), then turns back up right through omicron and pi to eta, a V opening
+## right, across the seam. Five to light.
 ## Strings are 32-36 px.
 static func pisces_knot() -> StarMap:
 	var map := StarMap.new()

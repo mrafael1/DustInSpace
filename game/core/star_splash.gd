@@ -1,8 +1,8 @@
 class_name StarSplash
 extends RefCounted
-## Pisces's splash (chapter 6): a thrown planet sinking into the mirror splashes where it went in,
-## pushing the loose stars round that point outward; a star pushed out of the sky is lost, for
-## nothing. No randomness, nodes or rewards. Its moves are StarCurrent.Moves (a lost one `drained`,
+## Pisces's splash (chapter 6): a thrown planet sinking into the mirror splashes where it went in (a
+## split planet's twins, each where it is), pushing the loose stars round that point outward; a star
+## pushed out of the sky is lost, for nothing. No randomness, nodes or rewards. Its moves are StarCurrent.Moves (a lost one `drained`,
 ## `to` where it would have gone, past the sky's edge).
 
 var radius: int

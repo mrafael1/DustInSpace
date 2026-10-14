@@ -106,7 +106,8 @@ signal cords_cleared
 signal planet_reflected(thrown: Vector2i, burst: Vector2i)
 ## Pisces's reflection intro is over: its demo `stars` (where its demo planet burst) leave. No reward.
 signal reflect_intro_cleared(stars: Array[Star])
-## Pisces's splash: the planet that went into the mirror at `at` splashed there, pushing these
+## Pisces's splash: a planet that went into the mirror (or a split planet's twin) splashed at `at`,
+## pushing these
 ## stars outward (a move `drained`: pushed out of the sky, for nothing). Sent for every splash, even
 ## one that moves nothing, before the planet bursts.
 signal stars_splashed(at: Vector2i, moves: Array[StarCurrent.Move])
@@ -199,7 +200,7 @@ enum Outcome { PLAYING, WON, LOST }
 enum LossReason { NO_PACKS, NO_DUST, NO_COMBINATION }
 ## Why the picks of a link being traced can't stand, for the views to explain (#91): none, or a
 ## second constellation star in one link (Scorpio.LANDMARKS_PER_COMBO).
-enum PickRefusal { NONE, SECOND_LANDMARK }
+enum PickRefusal { NONE, SECOND_LANDMARK, ACROSS_SEAM }
 
 
 ## The hunt's encounter: a safe launch spot keeps every burst point of the loaded pack this far
@@ -394,10 +395,39 @@ func in_reach(a: Vector2i, b: Vector2i) -> bool:
 	return reach <= 0 or (b - a).length_squared() <= reach * reach
 
 
-## Whether a traced link can step from `a` to `b`: in reach, and on a map with cords, crossing none
-## (touching one is fine).
+## Whether a traced link can step from `a` to `b`: in reach, on a map with cords crossing none
+## (touching one is fine), and on Pisces's mirror not across the seam.
 func can_step(a: Vector2i, b: Vector2i) -> bool:
-	return in_reach(a, b) and (cords == null or not cords.crosses(a, b))
+	return in_reach(a, b) and (cords == null or not cords.crosses(a, b)) and not crosses_seam(a, b)
+
+
+## Whether this run's sky has Pisces's seam.
+func has_seam() -> bool:
+	return scorpio != null and scorpio.map.seam != StarMap.Seam.NONE
+
+
+## Pisces: whether a step from `a` to `b` crosses the seam, from one side strictly to the other (a
+## star on the seam itself is on both sides).
+func crosses_seam(a: Vector2i, b: Vector2i) -> bool:
+	return seam_crossing(a, b) != StarCords.NO_CROSSING
+
+
+## Pisces: where a step from `a` to `b` first crosses the seam (StarCords.NO_CROSSING: it doesn't).
+func seam_crossing(a: Vector2i, b: Vector2i) -> Vector2i:
+	if not has_seam():
+		return StarCords.NO_CROSSING
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	var seam: StarMap.Seam = scorpio.map.seam
+	var best: Vector2i = StarCords.NO_CROSSING
+	if seam != StarMap.Seam.HORIZONTAL and signi(a.x - middle.x) * signi(b.x - middle.x) < 0:
+		var t: float = float(middle.x - a.x) / float(b.x - a.x)
+		best = Vector2i(middle.x, roundi(lerpf(a.y, b.y, t)))
+	if seam != StarMap.Seam.VERTICAL and signi(a.y - middle.y) * signi(b.y - middle.y) < 0:
+		var t: float = float(middle.y - a.y) / float(b.y - a.y)
+		var point := Vector2i(roundi(lerpf(a.x, b.x, t)), middle.y)
+		if best == StarCords.NO_CROSSING or (point - a).length_squared() < (best - a).length_squared():
+			best = point
+	return best
 
 
 ## Whether every step of a link, in pick order, can be traced (can_step). Unknown ids are skipped.
@@ -719,9 +749,6 @@ func launch(target: Vector2i) -> bool:
 	pack_launched.emit(kind, thrown)
 	if thrown != burst:
 		planet_reflected.emit(thrown, burst)
-	# Pisces's splash: the planet splashes where it sinks, before it bursts across the seam.
-	if splash != null:
-		_splash(thrown)
 	if encounter != null and encounter.launched():
 		encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null:
@@ -745,6 +772,11 @@ func launch(target: Vector2i) -> bool:
 		points = StarScatter.split_points(burst, pack.burst_spread, pack.bursts, sky_rect)
 		# A Big Bang splits too, so it opens like any red pack and keeps its surprise.
 		pack_split.emit(kind, burst, points)
+	# Pisces's splash, before any star lands: a planet splashes where it sinks; a split one, where each
+	# twin is, once it has split.
+	if splash != null:
+		for point: Vector2i in splash_points(kind, target):
+			_splash(point)
 	if result.big_bang:
 		_big_bang(burst)
 	elif pack.bursts > 1:
@@ -1181,7 +1213,7 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 	for i: int in sizes.size():
 		var star: Star = add_star(sizes[i] as Star.Size, positions[i])
 		# Core positions change immediately. Record the burst's pre-current positions for views.
-		born.append(Star.new(star.id, star.size, star.position) if current != null or gravity != null else star)
+		born.append(Star.new(star.id, star.size, star.position) if current != null or gravity != null or splash != null else star)
 	pack_burst.emit(kind, burst, born)
 
 
@@ -1635,13 +1667,38 @@ func _splash_intro_offsets() -> Array[Vector2i]:
 	return turned
 
 
-## Pure: where each loose star the splash of a planet thrown at `aim` moves (stars it leaves alone
-## left out; one it pushes out of the sky: past the edge). Empty without a splash, or once the run
-## is over.
+## Pure: where a `kind` planet thrown at `aim` splashes: where it sinks (the aim, kept in the sky),
+## or for a split planet each point its twins burst at (in order), never where it was thrown.
+func splash_points(kind: String, aim: Vector2i) -> Array[Vector2i]:
+	var pack: Balance.PackDef = balance.packs.get(kind)
+	if pack != null and pack.bursts > 1:
+		return StarScatter.split_points(burst_centre(aim), pack.burst_spread, pack.bursts, sky_rect)
+	return [StarScatter.clamp_to_sky(aim, sky_rect)]
+
+
+## Pure: where each loose star the splashes of the loaded planet thrown at `aim` move it (stars they
+## leave alone left out; one pushed out of the sky: past the edge). A split planet's twins splash in
+## turn, each on the stars as the one before left them (all before any star lands). Empty without a
+## splash, or once the run is over.
 func splash_preview(aim: Vector2i) -> Dictionary[int, Vector2i]:
+	var result: Dictionary[int, Vector2i] = {}
 	if splash == null or is_over():
-		return {}
-	return splash.preview(StarScatter.clamp_to_sky(aim, sky_rect), stars, sky_rect, scorpio.landmark_positions())
+		return result
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	var standing: Array[Star] = []
+	for star: Star in stars:
+		standing.append(Star.new(star.id, star.size, star.position))
+	for point: Vector2i in splash_points(kind, aim):
+		var moved: Dictionary[int, Vector2i] = splash.preview(point, standing, sky_rect, scorpio.landmark_positions())
+		var left: Array[Star] = []
+		for star: Star in standing:
+			if moved.has(star.id):
+				result[star.id] = moved[star.id]
+				star.position = moved[star.id]
+			if not StarSplash.leaves(star.position, sky_rect):
+				left.append(star)
+		standing = left
+	return result
 
 
 ## Pure: the loose stars a planet thrown at `aim` splashes out of the sky.

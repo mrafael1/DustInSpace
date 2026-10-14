@@ -155,6 +155,7 @@ const ARRIVAL_TIME: float = 2.2
 ## It stays RULE_TIME, and the same reason again within RULE_QUIET says nothing new.
 const REFUSAL_MESSAGES: Dictionary = {
 	RunState.PickRefusal.SECOND_LANDMARK: "ONE CONSTELLATION STAR\nPER LINK",
+	RunState.PickRefusal.ACROSS_SEAM: "NO LINK CAN CROSS\nTHE WATER LINE",
 }
 const RULE_TIME: float = 2.5
 const RULE_QUIET: float = 3.0

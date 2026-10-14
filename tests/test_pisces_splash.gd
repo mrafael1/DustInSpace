@@ -138,6 +138,35 @@ func test_a_launch_splashes_where_its_thrown_before_it_bursts() -> void:
 	assert_eq(run.dust, dust, "a lost star pays nothing")
 
 
+func test_a_red_planet_splashes_where_its_twins_are_not_where_its_thrown() -> void:
+	var run: RunState = _run(StarMap.pisces_knot())
+	run.owned_packs["red"] = 1
+	run.loaded_pack = "red"
+	var thrown := Vector2i(60, 120)
+	var twins: Array[Vector2i] = run.splash_points("red", thrown)
+	assert_eq(twins.size(), 2, "one splash a twin")
+	assert_false(twins.has(thrown))
+	assert_eq(run.splash_points("blue", thrown), [thrown] as Array[Vector2i], "a blue splashes where it sinks")
+	# A star beside each twin, and one beside the throw that no splash reaches.
+	var by_twin: Star = run.add_star(Star.Size.SMALL, twins[0] + Vector2i(0, 18))
+	var by_throw: Star = run.add_star(Star.Size.SMALL, thrown + Vector2i(0, -18))
+	var preview: Dictionary[int, Vector2i] = run.splash_preview(thrown)
+	var order: Array[String] = []
+	var at: Array[Vector2i] = []
+	run.pack_split.connect(func(_k: String, _a: Vector2i, _p: Array[Vector2i]) -> void: order.append("split"))
+	run.stars_splashed.connect(func(point: Vector2i, _m: Array[StarCurrent.Move]) -> void:
+		order.append("splashed")
+		at.append(point))
+	run.pack_burst.connect(func(_k: String, _a: Vector2i, _s: Array[Star]) -> void: order.append("burst"))
+	var by_throw_at: Vector2i = by_throw.position
+	assert_true(run.launch(thrown))
+	assert_eq(order, ["split", "splashed", "splashed", "burst", "burst"] as Array[String], "it splits, each twin splashes, then both burst")
+	assert_eq(at, twins)
+	assert_eq(by_throw.position, by_throw_at, "nothing splashes where it was thrown")
+	assert_ne(by_twin.position, twins[0] + Vector2i(0, 18), "the twin's splash pushed its star")
+	assert_eq(by_twin.position, preview[by_twin.id], "as the aim showed")
+
+
 func test_a_splash_that_reaches_nothing_still_shows() -> void:
 	var run: RunState = _run(StarMap.pisces_knot())
 	var shown: Array = []
@@ -258,3 +287,56 @@ func test_the_seam_view_draws_both_seams_the_ripple_and_the_aims_preview() -> vo
 	assert_eq(main.run.launch_splashes(view.aim), [edge.id] as Array[int])
 	view.aiming = false
 	assert_false(view.pixels().values().has(Palette.S4), "only while aiming")
+
+
+func test_no_link_steps_across_the_seam() -> void:
+	var circlet: RunState = _run(StarMap.pisces_circlet())
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + circlet.scorpio.shift
+	assert_true(circlet.crosses_seam(middle + Vector2i(-10, 0), middle + Vector2i(10, 4)), "left to right")
+	assert_false(circlet.can_step(middle + Vector2i(-10, 0), middle + Vector2i(10, 4)))
+	assert_true(circlet.can_step(middle + Vector2i(-30, 0), middle + Vector2i(-10, 20)), "same side")
+	assert_false(circlet.crosses_seam(middle + Vector2i(0, -10), middle + Vector2i(10, 10)), "a star on the seam is on both sides")
+	assert_eq(circlet.seam_crossing(middle + Vector2i(-10, 0), middle + Vector2i(10, 20)), middle + Vector2i(0, 10))
+	var west: RunState = _run(StarMap.pisces_west_cord())
+	assert_true(west.crosses_seam(middle + Vector2i(0, -8), middle + Vector2i(4, 8)), "high to low")
+	assert_false(west.crosses_seam(middle + Vector2i(-10, -8), middle + Vector2i(10, -8)), "along it")
+	var east: RunState = _run(StarMap.pisces_east_cord())
+	assert_true(east.crosses_seam(middle + Vector2i(-10, -8), middle + Vector2i(10, -8)), "both seams: across")
+	assert_true(east.crosses_seam(middle + Vector2i(-10, -8), middle + Vector2i(-10, 8)), "and up and down")
+	assert_false(_run(StarMap.heart()).crosses_seam(Vector2i(80, 160), Vector2i(100, 160)), "no seam elsewhere")
+
+
+func test_a_link_across_the_seam_is_refused_and_uses_nothing() -> void:
+	var run: RunState = _run(StarMap.pisces_knot())
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
+	var a: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(-40, -50))
+	var b: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(-14, -50))
+	var c: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(12, -50))
+	var across: Array[int] = [a.id, b.id, c.id]
+	assert_false(run.link_in_reach(across))
+	assert_false(run.valid_links().has(across), "never offered")
+	var dust: int = run.dust
+	assert_eq(run.link(across), Combos.INVALID)
+	assert_eq(run.stars.size(), 3, "nothing used")
+	assert_eq(run.dust, dust)
+	var d: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(-40, -24))
+	assert_ne(run.link([a.id, b.id, d.id] as Array[int]), Combos.INVALID, "the same link on one side pays")
+
+
+func test_the_refusal_says_why_and_fits() -> void:
+	var text: String = Hud.REFUSAL_MESSAGES[RunState.PickRefusal.ACROSS_SEAM]
+	for line: String in text.split("\n"):
+		assert_lte(line.length(), 24, line)
+
+
+func test_a_step_refused_at_the_seam_lights_it() -> void:
+	var main: Main = _main("pisces_circlet")
+	_settle(main)
+	var view: SeamView = main.get_node("Sky/SeamLayer")
+	var before: Dictionary[Vector2i, Color] = view.pixels()
+	view.flash_block(LinkLayer.REJECT_TIME)
+	assert_true(view.is_blocking())
+	var lit: Dictionary[Vector2i, Color] = view.pixels()
+	assert_gt(lit.values().count(SeamView.GLINT_COLOUR), before.values().count(SeamView.GLINT_COLOUR), "the line glows")
+	view.advance(LinkLayer.REJECT_TIME + 0.01)
+	assert_false(view.is_blocking())

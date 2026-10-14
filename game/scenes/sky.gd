@@ -44,6 +44,8 @@ signal link_traced(ids: Array[int])
 signal link_refused(reason: RunState.PickRefusal)
 ## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
 signal step_refused
+## A link step was refused for crossing Pisces's seam (it says why once a while).
+signal seam_refused(reason: RunState.PickRefusal)
 ## The player let a traced link go: the drag was released away from its last star, so nothing was
 ## linked and the selection is gone. Feedback only (sound).
 signal link_cancelled
@@ -636,6 +638,10 @@ func _on_join_refused(ids: Array[int], id: int) -> void:
 	# A tap is refused with no trace to the finger: the cord it would cross glows with the shake.
 	if ends.size() == 2 and _run != null and _run.cords != null and _run.cords.crosses(ends[0], ends[1]):
 		_cords.flash_blocking(ends[0], ends[1], LinkLayer.REJECT_TIME)
+	# Pisces: the water line glows with the shake, and the line says why.
+	if ends.size() == 2 and _run != null and _run.crosses_seam(ends[0], ends[1]):
+		_seam.flash_block(LinkLayer.REJECT_TIME)
+		seam_refused.emit(RunState.PickRefusal.ACROSS_SEAM)
 	step_refused.emit()
 
 
@@ -660,6 +666,13 @@ func _show_link() -> void:
 			step = [points[-1], reached]
 			cut = _run.cords.crossing(points[-1], reached)
 			loose = loose or cut != StarCords.NO_CROSSING
+		if not points.is_empty() and _run.has_seam():
+			# Pisces: the line breaks where it would cross the seam within the reach.
+			var within: Vector2i = _reach_end(points[-1], _finger)
+			var at: Vector2i = _run.seam_crossing(points[-1], within)
+			if at != StarCords.NO_CROSSING and (cut == StarCords.NO_CROSSING or (at - points[-1]).length_squared() < (cut - points[-1]).length_squared()):
+				cut = at
+				loose = true
 		reach = _run.link_reach()
 		points.append(_finger)
 	_link_layer.show_path(points, loose, reach, letting_go, cut)

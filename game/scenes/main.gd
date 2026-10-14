@@ -111,6 +111,7 @@ func _ready() -> void:
 	_sky.link_traced.connect(_hud.follow_link)
 	# A refused pick: the line says why (#91), instead of the shake and buzz of a wrong link.
 	_sky.link_refused.connect(_hud.explain_refusal)
+	_sky.seam_refused.connect(_hud.explain_refusal)
 	# The idle hint (#90) shows a link in the sky. It holds still while payouts fly or the Sun
 	# ignites, and while the tutorial's own hand is out (one hand at a time).
 	_idle_hint.sky = _sky
