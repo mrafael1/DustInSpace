@@ -151,6 +151,20 @@ func test_an_unmatched_echo_leaves_a_constellation_star_as_it_was() -> void:
 	assert_false(run.scorpio.is_lit(2), "an echo of one isn't a combo")
 
 
+func test_a_constellation_star_by_the_seam_never_echoes_its_own_link() -> void:
+	var run: RunState = _run(StarMap.pisces_west_cord())
+	# Landmark 3 (medium) stands 2 px off the seam: its mirror spot is within reach of itself.
+	var at: Vector2i = run.scorpio.landmark_position(3)
+	assert_lt(run.mirror.mirror(at).distance_to(at), float(run.mirror.reach))
+	var link: Array[int] = [run.add_star(Star.Size.SMALL, at + Vector2i(-12, 8)).id, Scorpio.landmark_id(3), run.add_star(Star.Size.BIG, at + Vector2i(-14, -10)).id]
+	assert_true(run.link_echo(link).is_empty(), "the preview takes nothing")
+	var echoed: Array = []
+	run.mirror_echoed.connect(func(stars: Array[Star], combo: String, dust: int, light: int) -> void: echoed.append(stars))
+	assert_eq(run.link(link), "sequence")
+	assert_true(echoed.is_empty(), "and nor does the link")
+	assert_true(run.scorpio.is_lit(3))
+
+
 func test_the_circlet_opens_with_an_echo_paid_then_one_lost() -> void:
 	var run: RunState = _run(StarMap.pisces_circlet())
 	var placed: Array = []

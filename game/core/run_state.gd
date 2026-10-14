@@ -1513,7 +1513,7 @@ func _tie_cord(linked: Array[Star]) -> void:
 ## match pay like a link (dust and light; returns them, so the link lights their constellation
 ## stars); any other echo's loose stars are lost for nothing (returns none).
 func _echo(linked: Array[Star]) -> Array[Star]:
-	var echo: Array[Star] = mirror.echo(_points_of(linked), _echo_candidates([] as Array[int]))
+	var echo: Array[Star] = mirror.echo(_points_of(linked), _echo_candidates(_ids_of(linked)))
 	if echo.is_empty():
 		return []
 	var shown: Array[Star] = []
@@ -1558,6 +1558,13 @@ func link_echo(star_ids: Array[int]) -> Array[Star]:
 		if star != null:
 			points.append(star.position)
 	return mirror.echo(points, _echo_candidates(star_ids))
+
+
+static func _ids_of(some: Array[Star]) -> Array[int]:
+	var ids: Array[int] = []
+	for star: Star in some:
+		ids.append(star.id)
+	return ids
 
 
 static func _points_of(some: Array[Star]) -> Array[Vector2i]:
