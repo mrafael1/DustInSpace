@@ -250,6 +250,42 @@ The cords must not look like the constellation's strings, which are gold once li
 
 To find. One idea is **the net**: a closed pocket of cords whose stars all link out in one sweep. This must not auto-complete landmarks.
 
+### Step B: the debug trial (2026-10-14)
+
+Built in the core, debug only (`StarCords`, `StarMap.cords`, `StarMap.cord_trial`). A successful link leaves its two steps, in pick order, as a cord. A link step that properly crosses a cord is refused: the trace refuses at that star (the step's shake and `link_reject`), and `link()` rejects it, using nothing up. Touching a cord doesn't block: a shared end, a star standing on a cord, a step through a cord's knot, or a collinear overlap. Cords last until the sky clears (Sun rekindle, completion or any Big Bang), so the link that rekindles the Sun leaves none. Bursts and stars cross cords freely, and cords draw no random numbers. The loss check counts only combos that can be traced: a trio links if some choice of middle star gives two steps in reach that cross no cord.
+
+On the chart, P opens the trial and shift+P opens it with cords off; CORD ON/OFF replays the same seed. The layout is the Heart without its hunt, as the hole's trial was. The cues are minimal:
+- A cord is laid solid N7 from the first star as the link's flash fades, then rests as a dim dashed rope (N6/N5) with knots, drawn under the figure and the stars.
+- While dragging, the line to the finger breaks at the first crossing (the reach's spark and dots), and the cord it would cross glows ember. A tapped step a cord refuses flashes that cord with the shake.
+- The rule line shows as the trial opens: EVERY LINK LEAVES A CORD / NO LINK CAN CROSS ONE.
+
+### Step C: spatial bots (2026-10-14)
+
+`tools/cords/playtest.gd`, paired seeds, with these policies:
+- *link-first*: gravity's scoring.
+- *careless*: the first link found.
+- *launch-first*: hoards.
+- *planner*: links first and scores each link and each choice of middle star by the traceable links and landmarks its cord would cut off. It aims on a clear line to the landmark.
+- *planner-hoard*: the planner's choices with hoarding.
+
+The trial's layout, 300 seeds. Every bot wins 100% with cords off:
+
+| | Won (on) | Packs/win off → on | Links blocked per board (on) |
+|---|---|---|---|
+| Link-first | 100% | 4.01 → 4.37 | 4.1 |
+| Careless | 99.0% | 6.87 → 7.48 | 7.9 |
+| Hoard (launch-first) | 100% | 4.83 → 4.97 | 7.4 |
+| Planner | 100% | 4.26 | 3.5 |
+| Planner, hoarding | 100% | 4.71 | 0.4 |
+
+With cords kept for the whole stage (`--keep-cords`, a what-if in the tool), careless wins 94.3%, hoarding 99.7%, and the rest 100%. A sweep at 150 seeds (Aquarius's Body, Leo's Haunch, the whole Virgo, the whole Scorpio) gave the same picture. Only careless lost (95-99%), and all of its losses were to cords. Bigger figures cost more packs (link-first +0.9 packs on the whole Scorpio), and the planner won back about half of that.
+
+**The gate fails on stakes.** On a threat-free figure, the cords cost good play packs but never the run. Every loss came from careless linking, and planning cut blocked links a lot without moving a win rate. That is Virgo's step C result (the harvest needed a tighter economy and bound sheaves to bite). Levers to try next, one at a time with the bots:
+- a tighter economy;
+- cords that last the stage;
+- a cord that blocks a step passing within a pixel or two;
+- the plan's twists, such as the fish's cord splitting the sky from the start.
+
 ## Steps and gates
 
 As before, one experiment at a time. Chapter 5 and 6 work waits until chapter 4 has passed or been dropped.
