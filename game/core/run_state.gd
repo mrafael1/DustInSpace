@@ -113,8 +113,6 @@ signal reflect_intro_cleared(stars: Array[Star])
 signal stars_splashed(at: Vector2i, moves: Array[StarCurrent.Move])
 ## Pisces's splash or fish intro: its demo `stars` are placed by where its demo planet will be thrown.
 signal splash_intro_placed(stars: Array[Star])
-## Pisces's fish swam along the water line from `from` to `to` (drawn to the planet just thrown).
-signal fish_swam(from: Vector2i, to: Vector2i)
 ## Pisces's fish leapt out of the water from `from` (on the line) at a star at `to`, eating the
 ## `caught` stars there (already gone with stars_bitten, just before), and drops back with them.
 signal fish_jumped(from: Vector2i, to: Vector2i, caught: Array[int])
@@ -362,7 +360,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 				gravity.set_gauge(hole.gauge, hole.gauge_share)
 		if scorpio.map.splash and balance.splash_radius > 0:
 			splash = StarSplash.new(balance.splash_radius, balance.splash_push, seam_hit)
-		if scorpio.map.fish and scorpio.map.seam != StarMap.Seam.NONE and scorpio.map.seam != StarMap.Seam.CROSS and balance.fish_step > 0:
+		if scorpio.map.fish and scorpio.map.seam != StarMap.Seam.NONE and scorpio.map.seam != StarMap.Seam.CROSS and balance.fish_bite > 0:
 			fish = _new_fish()
 		if scorpio.map.cords:
 			cords = StarCords.new()
@@ -790,9 +788,9 @@ func launch(target: Vector2i) -> bool:
 	if splash != null:
 		for point: Vector2i in splash_points(kind, target):
 			_splash(point)
-	# Pisces's fish: drawn to the planet as bait, it swims toward where it sank and bites there.
+	# Pisces's fish: every jump_every-th launch it leaps at the nearest star, once the splash is done.
 	if fish != null:
-		_feed_fish(thrown)
+		_feed_fish(fish.jumps_next(), true)
 	if result.big_bang:
 		_big_bang(burst)
 	elif pack.bursts > 1:
@@ -1757,124 +1755,91 @@ func _splash_chain(aim: Vector2i) -> Array:
 	return [result, lost, standing]
 
 
-## Pure: where the fish swims for a planet thrown at `aim` (where it sinks, the aim kept in the sky).
-## Its own spot without a fish.
-func fish_target(aim: Vector2i) -> Vector2i:
-	if fish == null:
-		return Vector2i.ZERO
-	return fish.swims_to(StarScatter.clamp_to_sky(aim, sky_rect))
-
-
 ## Pure: the loose stars the fish eats for a planet thrown at `aim`, once its splashes have played.
 func launch_bites(aim: Vector2i) -> Array[int]:
-	if fish == null or is_over():
+	if fish == null or is_over() or not fish.jumps_next():
 		return []
 	var standing: Array[Star] = []
 	standing.assign(_splash_chain(aim)[2])
-	return _fish_meal(fish_target(aim), standing, true)[0]
+	return _fish_meal(standing)[0]
 
 
 ## Pure: where the fish leaps for a planet thrown at `aim` (StarCords.NO_CROSSING: it doesn't).
 func fish_leap(aim: Vector2i) -> Vector2i:
-	if fish == null or is_over():
+	if fish == null or is_over() or not fish.jumps_next():
 		return StarCords.NO_CROSSING
 	var standing: Array[Star] = []
 	standing.assign(_splash_chain(aim)[2])
-	return _fish_meal(fish_target(aim), standing, true)[1]
+	return _fish_meal(standing)[1]
 
 
-## Pure: what the fish stopped at `point` eats of `standing`: [the ids (its bite there, then, on a
-## leaping launch, its leap's), where it leaps (StarCords.NO_CROSSING: it doesn't)]. `counted`: a
-## real launch, which may leap (an intro's never does).
-func _fish_meal(point: Vector2i, standing: Array[Star], counted: bool) -> Array:
-	var eaten: Array[int] = fish.bites(point, standing)
-	var leap: Vector2i = StarCords.NO_CROSSING
-	if counted and fish.jumps_next():
-		var left: Array[Star] = []
-		for star: Star in standing:
-			if not eaten.has(star.id):
-				left.append(star)
-		leap = fish.leap_target(point, left)
-		if leap != StarCords.NO_CROSSING:
-			eaten.append_array(fish.bites(leap, left))
+## Pure: what the fish eats of `standing` when it leaps: [the ids within its bite of the star it
+## leaps at, where it leaps (StarCords.NO_CROSSING: nothing in reach, it stays)].
+func _fish_meal(standing: Array[Star]) -> Array:
+	var leap: Vector2i = fish.leap_target(standing)
+	var eaten: Array[int] = []
+	if leap != StarCords.NO_CROSSING:
+		eaten = fish.bites(leap, standing)
 	return [eaten, leap]
 
 
-## The fish: drawn to a planet that sank at `bait`, it swims toward it along the water line and
-## eats the loose stars near where it stops.
-func _feed_fish(bait: Vector2i, counted: bool = true) -> void:
-	var from: Vector2i = fish.at
-	var to: Vector2i = fish.swims_to(bait)
-	fish.move_to(to)
-	fish_swam.emit(from, to)
-	var meal: Array = _fish_meal(to, stars, counted)
+## The fish after a launch: when it `leaps`, it jumps at the nearest loose star in reach and eats
+## it and the stars round it. stars_bitten is said every launch (an empty meal when it stays), so
+## the HUD can say what's next. `counted`: a real launch (an intro's isn't).
+func _feed_fish(leaps: bool, counted: bool) -> void:
+	var meal: Array = _fish_meal(stars) if leaps else [[] as Array[int], StarCords.NO_CROSSING]
 	var leap: Vector2i = meal[1]
-	var near: Array[int] = fish.bites(to, stars)
 	var moves: Array[StarCurrent.Move] = []
 	var eaten: Array[Star] = []
 	var caught: Array[int] = []
 	for id: int in meal[0]:
 		var star: Star = find_star(id)
 		eaten.append(star)
-		moves.append(StarCurrent.Move.new(id, star.position, to if near.has(id) else leap, true))
-		if not near.has(id):
-			caught.append(id)
+		moves.append(StarCurrent.Move.new(id, star.position, leap, true))
+		caught.append(id)
 	for star: Star in eaten:
 		stars.erase(star)
 	_orion_forget(eaten)
 	if counted:
 		fish.count_launch()
-	# Its bite at the line, then its leap at the stars it caught.
-	stars_bitten.emit(to, moves)
+	stars_bitten.emit(fish.at, moves)
 	if leap != StarCords.NO_CROSSING:
-		fish_jumped.emit(to, leap, caught)
+		fish_jumped.emit(fish.at, leap, caught)
 
 
-## A fish waiting at the water line's middle, free along the whole line.
+## A fish waiting at the water line's middle.
 func _new_fish() -> Fish:
 	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
-	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
 	var vertical: bool = scorpio.map.seam == StarMap.Seam.VERTICAL
-	var low: int = inner.position.y if vertical else inner.position.x
-	var high: int = (inner.end.y if vertical else inner.end.x) - 1
-	var made := Fish.new(middle, balance.fish_step, balance.fish_bite, vertical, low, high)
-	made.jump_every = balance.fish_jump_every
-	made.jump_reach = balance.fish_jump_reach
-	return made
+	return Fish.new(middle, balance.fish_bite, vertical, balance.fish_jump_every, balance.fish_jump_reach)
 
 
-## Pisces's fish intro (play_reflect_intro on the North Fish): demo stars wait by the water line, a
-## step from the fish; a demo planet is thrown above them as bait, and the fish swims to it and eats
-## the two nearest the line, then the planet bursts across the seam; the third star and the burst's
-## go after a beat, and the fish swims back. No pack, no reward, no RNG drawn from the run; no splash
-## shown (the Knot showed it).
+## Pisces's fish intro (play_reflect_intro on the North Fish): three demo stars wait by the fish,
+## one near; a demo planet is thrown past them and the fish leaps at the near one and eats it, then
+## the planet bursts across the seam; the other two and the burst's go after a beat. No pack, no
+## reward, no RNG drawn from the run, and it doesn't count toward the leap; no splash shown (the Knot
+## showed it).
 func _fish_intro() -> void:
-	var thrown: Vector2i = fish_intro_bait()
-	var under: Vector2i = fish.swims_to(thrown)
-	var across: Vector2i = Vector2i.RIGHT if fish.vertical else Vector2i.DOWN
-	var along: Vector2i = Vector2i.DOWN if fish.vertical else Vector2i.RIGHT
-	# The bank of the line the bait was thrown over (-1: before it, 1: past it).
-	var off: Vector2i = thrown - under
-	var bank: int = -signi(off.x * across.x + off.y * across.y)
+	var layout: Array[Vector2i] = fish_intro_layout()
 	var demo: Array[Star] = []
-	for offset: Vector2i in [along * -8 - across * 14 * bank, along * 10 + across * 12 * bank, along * 4 - across * 46 * bank]:
-		demo.append(add_star(HEAT_INTRO_SIZES[demo.size()], under + offset))
+	for i: int in 3:
+		demo.append(add_star(HEAT_INTRO_SIZES[i], layout[i + 1]))
 	var shown: Array[Star] = []
 	for star: Star in demo:
 		shown.append(Star.new(star.id, star.size, star.position))
 	splash_intro_placed.emit(shown)
+	var thrown: Vector2i = layout[0]
 	var burst: Vector2i = StarScatter.clamp_to_sky(reflect(thrown), sky_rect)
 	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
 	hunt_intro_launched.emit(kind, thrown)
 	planet_reflected.emit(thrown, burst)
-	var start: Vector2i = fish.at
-	_feed_fish(thrown, false)
-	var layout := RandomNumberGenerator.new()
-	layout.seed = run_seed ^ REFLECT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	_feed_fish(true, false)
+	var spread := RandomNumberGenerator.new()
+	spread.seed = run_seed ^ REFLECT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
 	var occupied: Array[Vector2i] = []
 	for star: Star in stars:
 		occupied.append(star.position)
-	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, occupied, layout, scorpio.landmark_positions())
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, occupied, spread, scorpio.landmark_positions())
 	var born: Array[Star] = []
 	for i: int in spots.size():
 		born.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
@@ -1882,27 +1847,24 @@ func _fish_intro() -> void:
 	var left: Array[Star] = stars.duplicate()
 	stars.clear()
 	reflect_intro_cleared.emit(left)
-	var went: Vector2i = fish.at
-	fish.move_to(start)
-	fish_swam.emit(went, start)
 
 
-## Pure: where the fish intro's demo planet is thrown: a full swim from the fish along the line, on
-## the side (and the bank of the line) whose demo stars keep furthest from the figure, 30 px off the
-## line.
-func fish_intro_bait() -> Vector2i:
+## Pure: the fish intro's layout: [where its demo planet is thrown, the star near the fish (the one
+## it leaps at), the two further off (in its reach, out of its bite there)], on the side and bank of
+## the line whose demo stars keep furthest from the figure.
+func fish_intro_layout() -> Array[Vector2i]:
 	var across: Vector2i = Vector2i.RIGHT if fish.vertical else Vector2i.DOWN
 	var along: Vector2i = Vector2i.DOWN if fish.vertical else Vector2i.RIGHT
-	var best: Vector2i = fish.at + along * -fish.step - across * 30
+	var best: Array[Vector2i] = []
 	var best_clearance: int = -1
 	for way: int in [-1, 1]:
 		for bank: int in [-1, 1]:
-			var under: Vector2i = fish.at + along * way * fish.step
-			var points: Array[Vector2i] = [under + along * -8 - across * 14 * bank, under + along * 10 + across * 12 * bank, under + along * 4 - across * 46 * bank]
+			var points: Array[Vector2i] = [fish.at + along * way * 6 - across * bank * 24, fish.at - along * way * 30 - across * bank * 40, fish.at + along * way * 34 - across * bank * 44]
 			var clearance: int = _clearance(points, scorpio.landmark_positions())
 			if clearance > best_clearance:
 				best_clearance = clearance
-				best = under - across * 30 * bank
+				best = [fish.at - along * way * 60 - across * bank * 30] as Array[Vector2i]
+				best.append_array(points)
 	return best
 
 

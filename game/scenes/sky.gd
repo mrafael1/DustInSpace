@@ -444,13 +444,8 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			_place_intro(event.args[0])
 		&"stars_splashed":
 			_splash(event.args[0], event.args[1])
-		&"fish_swam":
-			_seam.swim(event.args[0], event.args[1])
-			_sequencer.hold(SeamView.SWIM_TIME)
 		&"fish_jumped":
 			_leap(event.args[0], event.args[1], event.args[2])
-		&"stars_bitten":
-			_bite(event.args[0], event.args[1])
 		&"reflect_intro_cleared":
 			# A beat to see the stars across the seam, then they go: no reward.
 			_sequencer.hold(INTRO_HOLD * 2.0 + StarView.DISSOLVE_TIME)
@@ -909,23 +904,6 @@ func _swallow(ids: Array, at: Vector2i) -> void:
 		_seam.carry()
 		_halo_layer.queue_redraw()
 		star_drained.emit(at)
-
-
-## Pisces's fish bites at `at`: its ring snaps in, and every star it eats there drifts into it and
-## cuts out in droplets, for nothing (one it catches leaping goes with the leap).
-func _bite(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
-	_seam.bite(at)
-	for move: StarCurrent.Move in moves:
-		var view: StarView = _views.get(move.star_id)
-		# A star the fish catches leaping waits for the leap (fish_jumped follows).
-		if view == null or move.to != at:
-			continue
-		_views.erase(move.star_id)
-		view.drained.connect(func(v: StarView) -> void:
-			_seam.flash_loss(Vector2i(v.position))
-			star_drained.emit(Vector2i(v.position)))
-		view.drain_to(move.to)
-	_sequencer.hold(maxf(SeamView.BITE_TIME, StarView.DRIFT_TIME if not moves.is_empty() else 0.0))
 
 
 ## The black hole (chapter 5 trial): every fallen star drifts; a swallowed one drifts to the horizon

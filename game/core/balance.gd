@@ -115,13 +115,11 @@ var black_hole_stages: Dictionary[String, Dictionary] = {}
 ## sky is lost. Optional: without a "splash" block there is none (radius 0).
 var splash_radius: int = 0
 var splash_push: int = 0
-## Pisces's fish (the North Fish): px it swims along the water line a launch toward the planet
-## thrown as bait, and how near where it stops it eats stars. Optional: without a "fish" block there
-## is none (step 0).
-var fish_step: int = 0
+## Pisces's fish (the North Fish): how near the star it leaps at it eats stars. Optional: without a
+## "fish" block there is none (bite 0).
 var fish_bite: int = 0
-## Its leap: every fish_jump_every-th launch it also jumps at the nearest loose star within
-## fish_jump_reach px of where it stops. Optional in the block (0: it never jumps).
+## Its leap: every fish_jump_every-th launch it jumps at the nearest loose star within
+## fish_jump_reach px of it.
 var fish_jump_every: int = 0
 var fish_jump_reach: int = 0
 
@@ -235,11 +233,9 @@ func _parse(data: Dictionary) -> void:
 		splash_push = _read_int(splash, "push", "splash.", 1)
 	if data.has("fish"):
 		var fish: Dictionary = _read_dict(data, "fish", "")
-		fish_step = _read_int(fish, "step", "fish.", 1)
 		fish_bite = _read_int(fish, "bite", "fish.", 1)
-		if fish.has("jump_every"):
-			fish_jump_every = _read_int(fish, "jump_every", "fish.", 0)
-			fish_jump_reach = _read_int(fish, "jump_reach", "fish.", 1)
+		fish_jump_every = _read_int(fish, "jump_every", "fish.", 1)
+		fish_jump_reach = _read_int(fish, "jump_reach", "fish.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
 	if data.has("black_hole"):

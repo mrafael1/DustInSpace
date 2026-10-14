@@ -126,9 +126,9 @@ var splash: bool = false
 ## The stage that brings the splash: it opens by showing it (a demo throw splashing demo stars, one
 ## out of the sky) instead of the plain reflection intro, and its rule line is the splash's.
 var splash_intro: bool = false
-## Pisces's fish (the North Fish): a fish swims under the water line toward each planet thrown, as
-## bait, and eats the loose stars near where it stops (balance.json's fish). Its stage opens by
-## showing it, and its rule line is the fish's.
+## Pisces's fish (the North Fish): a fish waits on the water line and every few launches leaps at
+## the nearest loose star and eats it (balance.json's fish). Its stage opens by showing it, and its
+## rule line is the fish's.
 var fish: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
@@ -1047,9 +1047,9 @@ static func pisces_east_cord() -> StarMap:
 	return map
 
 
-## Pisces, stage 5: the North Fish. The fish (its intro shows it): a fish swims under the water line,
-## which runs across the sky, drawn to each planet thrown as bait; it swims toward it and eats the
-## loose stars near where it stops. The splash goes on. From phi (lit, lower right, where the East
+## Pisces, stage 5: the North Fish. The fish (its intro shows it): a fish waits still on the water
+## line, which runs across the sky, and every second launch leaps at the nearest loose star and eats
+## it and the stars round it. The splash goes on. From phi (lit, lower right, where the East
 ## Cord ends) the northern fish runs up left through upsilon and tau (big) to 68 Psc, then turns
 ## back right through 65 Psc to sigma: an open loop, across the line. Five to light. Strings are
 ## 31-33 px.

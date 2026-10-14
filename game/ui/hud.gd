@@ -144,11 +144,11 @@ const SEAM_CROSS_MESSAGE: String = "AIM AT ONE CORNER\nTO PLAY THE OPPOSITE"
 ## Pisces's splash, on the stage that brings it.
 const SPLASH_MESSAGE: String = "THE SPLASH PUSHES STARS\nOUT OF THE SKY"
 ## Pisces's fish, on the North Fish.
-const FISH_MESSAGE: String = "THE FISH SWIMS TO YOUR\nTHROW AND EATS STARS"
+const FISH_MESSAGE: String = "THE FISH JUMPS EVERY %d\nTHROWS AND EATS A STAR"
 ## The first time a run's fish is about to leap.
 const JUMP_MESSAGE: String = "THE FISH WILL JUMP\nAT THE NEXT THROW"
 ## A run's first star the fish ate.
-const FISH_LOSS_MESSAGE: String = "THE FISH ATE A STAR\nTHROW AWAY FROM STARS"
+const FISH_LOSS_MESSAGE: String = "THE FISH ATE A STAR\nLINK STARS NEAR IT FIRST"
 ## A run's first star lost to the splash.
 const SPLASH_LOSS_MESSAGE: String = "THE SPLASH TOOK A STAR\nTHROW AWAY FROM STARS"
 const RULE_MESSAGE_TIME: float = 3.5
@@ -522,7 +522,7 @@ static func seam_rule(run: RunState) -> String:
 	if run.scorpio.map.splash_intro and run.splash != null:
 		return SPLASH_MESSAGE
 	if run.fish != null:
-		return FISH_MESSAGE
+		return FISH_MESSAGE % run.fish.jump_every
 	match run.scorpio.map.seam:
 		StarMap.Seam.CROSS:
 			return SEAM_CROSS_MESSAGE

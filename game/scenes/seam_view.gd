@@ -10,15 +10,13 @@ extends Node2D
 ## thrown point in hard steps (N8, N7, N6) over SPLASH_TIME, as the planet sinks into the mirror;
 ## the stars come out across the seam with the burst. Both seams (a cross) draw both lines. No link
 ## can cross the seam: a step refused for it lights the line (M5) for the rejection's shake.
-## The fish (the North Fish): a fish on the water line (M5 back and tail, M4 belly, M6 glint, N1
-## eye), facing the way it last swam. It glides to where it swims over SWIM_TIME, then bites: a ring snaps in to
-## its bite (M5, M4, M3) over BITE_TIME as the stars it eats drift into it. While aiming, a ghost of
-## it (M3) waits where it would swim, its bite ringed in M4 dots, and ember dots run from each star it
-## would eat toward it. Its leap: on the launch before it jumps it glows red (an S4 back, S3 belly);
-## jumping, it arcs out of the water to the star and back over JUMP_TIME, a ring snapping in
-## where it lands as the star vanishes into its mouth; it carries it back (an M6 glint at its mouth)
-## and the water splashes in droplets as it dives. While aiming that launch, M4 dots arc to the star
-## it would leap at.
+## The fish (the North Fish): a fish still on the water line's middle (M5 back and tail, M4 belly,
+## M6 glint, N1 eye), facing the way it last leapt. On the launch before it leaps it glows red (an
+## S4 back, S3 belly); leaping, it arcs out of the water to the star and back over JUMP_TIME, a ring
+## snapping in to its bite (M5, M4, M3) over BITE_TIME where it lands as the stars there vanish into
+## its mouth; it carries them back (an M6 glint at its mouth) and the water splashes in droplets as
+## it dives. While aiming that launch, M4 dots arc to the star it would leap at and ring its bite
+## there, and ember dots run from each star it would eat toward it.
 ## The splash (from the Knot): where the planet went in, a water ring spreads out to the splash's
 ## reach in hard steps (M5, M4, M3) over RIPPLE_TIME as the stars it pushes drift; a star pushed out
 ## of the sky, or onto the water line, cuts out there in a burst of droplets (M5, then M4) over
@@ -40,7 +38,6 @@ const SPLASH_TIME: float = 0.3
 const SPLASH_RADII: Array[int] = [7, 5, 3]
 const SPLASH_COLOURS: Array[Color] = [Palette.N8, Palette.N7, Palette.N6]
 const RIPPLE_TIME: float = 0.3
-const SWIM_TIME: float = 0.4
 const JUMP_TIME: float = 0.5
 ## How high the leap arcs off the straight line between its ends, px.
 const JUMP_ARC: int = 10
@@ -82,11 +79,7 @@ var _splash_age: float = -1.0
 ## The splash's ripple playing: where, and the seconds since it began (-1: none).
 var _ripple_at: Vector2i = Vector2i.ZERO
 var _ripple_age: float = -1.0
-## The fish shown: where it swims from and to, the seconds into the swim (-1: still), the way it
-## faces along the line (1 or -1).
-var _fish_from: Vector2i = Vector2i.ZERO
-var _fish_to: Vector2i = Vector2i.ZERO
-var _swim_age: float = -1.0
+## The way the fish faces along the line (1 or -1).
 var _fish_facing: int = -1
 ## The leap playing: from the line, to the star, and the seconds since it began (-1: none).
 var _jump_from: Vector2i = Vector2i.ZERO
@@ -110,13 +103,10 @@ func setup(run: RunState) -> void:
 	_splash_age = -1.0
 	_ripple_age = -1.0
 	_blocking_left = 0.0
-	_swim_age = -1.0
 	_bite_age = -1.0
 	_jump_age = -1.0
+	_carrying = false
 	_fish_facing = -1
-	if run.fish != null:
-		_fish_from = run.fish.at
-		_fish_to = run.fish.at
 	_losses.clear()
 	aiming = false
 	_time = 0.0
@@ -156,21 +146,13 @@ func is_rippling() -> bool:
 	return _ripple_age >= 0.0
 
 
-## The fish swims along the water line from `from` to `to`.
-func swim(from: Vector2i, to: Vector2i) -> void:
-	_fish_from = from
-	_fish_to = to
-	var along: int = (to.y - from.y) if _run != null and _run.fish != null and _run.fish.vertical else (to.x - from.x)
-	if along != 0:
-		_fish_facing = signi(along)
-	_swim_age = 0.0
-	queue_redraw()
-
-
-## The fish leaps out of the water from `from` at a star at `to`, and drops back.
+## The fish leaps out of the water from `from` at a star at `to`, and drops back, facing it.
 func jump(from: Vector2i, to: Vector2i) -> void:
 	_jump_from = from
 	_jump_to = to
+	var along: int = (to.y - from.y) if _run != null and _run.fish != null and _run.fish.vertical else (to.x - from.x)
+	if along != 0:
+		_fish_facing = signi(along)
 	_jump_age = 0.0
 	_carrying = false
 	queue_redraw()
@@ -204,19 +186,13 @@ static func leap_point(from: Vector2i, to: Vector2i, k: float) -> Vector2i:
 	return Vector2i((Vector2(from).lerp(Vector2(to), k) + bow).round())
 
 
-## Where the fish is drawn now: gliding from where it swam from to where it swims, or (leaping) out
-## to the star and back, on whole pixels.
+## Where the fish is drawn now: its spot on the line, or (leaping) out to the star and back, on
+## whole pixels.
 func fish_shown() -> Vector2i:
 	if _jump_age >= 0.0:
 		var t: float = clampf(_jump_age / JUMP_TIME, 0.0, 1.0)
 		return leap_point(_jump_from, _jump_to, 1.0 - absf(1.0 - 2.0 * t))
-	if _swim_age < 0.0:
-		return _fish_to
-	return Vector2i(Vector2(_fish_from).lerp(Vector2(_fish_to), clampf(_swim_age / SWIM_TIME, 0.0, 1.0)).round())
-
-
-func is_swimming() -> bool:
-	return _swim_age >= 0.0
+	return _run.fish.at
 
 
 ## The fish bites at `at`: a ring snaps in to its bite.
@@ -270,11 +246,6 @@ func advance(delta: float) -> void:
 		_ripple_age += delta
 		if _ripple_age >= RIPPLE_TIME:
 			_ripple_age = -1.0
-		queue_redraw()
-	if _swim_age >= 0.0:
-		_swim_age += delta
-		if _swim_age >= SWIM_TIME:
-			_swim_age = -1.0
 		queue_redraw()
 	if _bite_age >= 0.0:
 		_bite_age += delta
@@ -332,7 +303,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		var shown: Vector2i = fish_shown()
 		var fish: Dictionary[Vector2i, Color] = fish_pixels(shown, _fish_facing, _run.fish.vertical)
 		# It leaps next launch: it glows red.
-		if _run.fish.jumps_next() and not is_swimming() and not is_jumping() and not _run.is_over():
+		if _run.fish.jumps_next() and not is_jumping() and not _run.is_over():
 			for point: Vector2i in fish:
 				if fish[point] == Palette.M5 or fish[point] == Palette.M6:
 					fish[point] = Palette.S4
@@ -358,32 +329,26 @@ func pixels() -> Dictionary[Vector2i, Color]:
 
 
 ## The splash's preview for a planet thrown at `aim`: its reach, where it pushes each star, and the
-## ember trail of each it pushes out; and the fish's: where it would swim, its bite, and the stars
-## it would eat.
+## ember trail of each it pushes out; and, on a leaping launch, the fish's: its leap, its bite
+## there, and the stars it would eat.
 func _aim_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	if _run.fish != null:
-		var target: Vector2i = _run.fish_target(aim)
-		if target != _run.fish.at:
-			var way: int = signi((target.y - _run.fish.at.y) if _run.fish.vertical else (target.x - _run.fish.at.x))
-			for point: Vector2i in fish_pixels(target, way, _run.fish.vertical):
-				result[point] = Palette.M3
-		result.merge(ring_pixels(target, _run.fish.bite, Palette.M4, ceili(TAU * _run.fish.bite / REACH_GAP)), true)
+		var target: Vector2i = _run.fish.at
 		var leap: Vector2i = _run.fish_leap(aim)
 		if leap != StarCords.NO_CROSSING:
 			var length: int = maxi(1, roundi(Vector2(leap - target).length()))
 			for d: int in range(0, length, 3):
 				result[leap_point(target, leap, float(d) / length)] = Palette.M4
 			result.merge(ring_pixels(leap, _run.fish.bite, Palette.M4, ceili(TAU * _run.fish.bite / REACH_GAP)), true)
-		# From where the splash leaves each star, as the bite (or the leap) catches it there.
+		# From where the splash leaves each star, as the leap catches it there.
 		var splashed: Dictionary[int, Vector2i] = _run.splash_preview(aim)
 		for id: int in _run.launch_bites(aim):
 			var eaten: Star = _run.find_star(id)
 			if eaten == null:
 				continue
 			var from: Vector2i = splashed.get(id, eaten.position)
-			var catcher: Vector2i = target if leap == StarCords.NO_CROSSING or from.distance_squared_to(target) <= _run.fish.bite * _run.fish.bite else leap
-			var toward: Vector2 = Vector2(catcher - from).normalized()
+			var toward: Vector2 = Vector2(leap - from).normalized()
 			for dot: int in TRAIL_DOTS:
 				result[from + Vector2i((toward * (StarView.half_extent(eaten.size) + 3 + 2 * dot)).round())] = Palette.S4
 	if _run.splash == null:
