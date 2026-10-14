@@ -126,6 +126,10 @@ var splash: bool = false
 ## The stage that brings the splash: it opens by showing it (a demo throw splashing demo stars, one
 ## out of the sky) instead of the plain reflection intro, and its rule line is the splash's.
 var splash_intro: bool = false
+## Pisces's fish (the North Fish): a fish swims under the water line toward each planet thrown, as
+## bait, and eats the loose stars near where it stops (balance.json's fish). Its stage opens by
+## showing it, and its rule line is the fish's.
+var fish: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -1043,6 +1047,27 @@ static func pisces_east_cord() -> StarMap:
 	return map
 
 
+## Pisces, stage 5: the North Fish. The fish (its intro shows it): a fish swims under the water line,
+## which runs across the sky, drawn to each planet thrown as bait; it swims toward it and eats the
+## loose stars near where it stops. The splash goes on. From phi (lit, lower right, where the East
+## Cord ends) the northern fish runs up left through upsilon and tau (big) to 68 Psc, then turns
+## back right through 65 Psc to sigma: an open loop, across the line. Five to light. Strings are
+## 31-33 px.
+static func pisces_north_fish() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_north_fish"
+	map.title = "NORTH FISH"
+	map.landmarks = [Vector2i(128, 186), Vector2i(100, 172), Vector2i(72, 156), Vector2i(52, 130), Vector2i(80, 116), Vector2i(110, 128)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "north_fish"
+	map.seam = Seam.HORIZONTAL
+	map.splash = true
+	map.fish = true
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -1124,6 +1149,8 @@ static func by_id(p_id: String) -> StarMap:
 			return pisces_knot()
 		"pisces_east_cord":
 			return pisces_east_cord()
+		"pisces_north_fish":
+			return pisces_north_fish()
 	return scorpio()
 
 

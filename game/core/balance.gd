@@ -115,6 +115,11 @@ var black_hole_stages: Dictionary[String, Dictionary] = {}
 ## sky is lost. Optional: without a "splash" block there is none (radius 0).
 var splash_radius: int = 0
 var splash_push: int = 0
+## Pisces's fish (the North Fish): px it swims along the water line a launch toward the planet
+## thrown as bait, and how near where it stops it eats stars. Optional: without a "fish" block there
+## is none (step 0).
+var fish_step: int = 0
+var fish_bite: int = 0
 
 var errors: Array[String] = []
 
@@ -224,6 +229,10 @@ func _parse(data: Dictionary) -> void:
 		var splash: Dictionary = _read_dict(data, "splash", "")
 		splash_radius = _read_int(splash, "radius", "splash.", 1)
 		splash_push = _read_int(splash, "push", "splash.", 1)
+	if data.has("fish"):
+		var fish: Dictionary = _read_dict(data, "fish", "")
+		fish_step = _read_int(fish, "step", "fish.", 1)
+		fish_bite = _read_int(fish, "bite", "fish.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
 	if data.has("black_hole"):
