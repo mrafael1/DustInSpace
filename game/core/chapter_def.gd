@@ -136,10 +136,10 @@ static func sagittarius() -> ChapterDef:
 	return def
 
 
-## Chapter 6: Pisces, the two fish tied by a cord knotted at Alrescha, whose links leave cords no
-## link can cross. Opens once Sagittarius's final is won; on the sky, the second lap, three signs on
+## Chapter 6: Pisces, the two fish tied by a cord knotted at Alrescha, its sky a mirror: a planet
+## bursts across a seam from where it's thrown (and from the Knot, splashes where it sinks). Opens once Sagittarius's final is won; on the sky, the second lap, three signs on
 ## from Sagittarius. Travelled along the cord from the western fish: the Circlet, the western cord,
-## the knot, the eastern cord, the northern fish, then the whole Pisces (stage 3 on aren't built yet).
+## the knot, the eastern cord, the northern fish, then the whole Pisces (stage 5 on aren't built yet).
 static func pisces() -> ChapterDef:
 	var def := ChapterDef.new()
 	def.id = "pisces"
@@ -148,8 +148,8 @@ static func pisces() -> ChapterDef:
 	def.stages = [
 		{"name": "CIRCLET", "map": "pisces_circlet", "piece": "circlet", "stars": [0, 1, 2, 3]},
 		{"name": "WEST CORD", "map": "pisces_west_cord", "piece": "west_cord", "stars": [4, 5, 6]},
-		{"name": "KNOT", "map": "", "piece": "knot", "stars": [7, 8]},
-		{"name": "EAST CORD", "map": "", "piece": "east_cord", "stars": [9, 10]},
+		{"name": "KNOT", "map": "pisces_knot", "piece": "knot", "stars": [7, 8]},
+		{"name": "EAST CORD", "map": "pisces_east_cord", "piece": "east_cord", "stars": [9, 10]},
 		{"name": "NORTH FISH", "map": "", "piece": "north_fish", "stars": [11, 12, 13]},
 		{"name": "PISCES", "map": "", "stars": []},
 	]

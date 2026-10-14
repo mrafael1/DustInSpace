@@ -28,9 +28,9 @@ const SAGITTARIUS_PART := "res://assets/art/sagittarius_part_%s.png"
 const PISCES_FIGURE := "res://assets/art/pisces_figure.png"
 const PISCES_PART := "res://assets/art/pisces_part_%s.png"
 
-## Pisces's seam: none, up and down the sky's middle (throw left, stars land right), or across it
-## (throw high, stars land low).
-enum Seam { NONE, VERTICAL, HORIZONTAL }
+## Pisces's seam: none, up and down the sky's middle (throw left, stars land right), across it
+## (throw high, stars land low), or both crossing at the middle (stars land in the opposite corner).
+enum Seam { NONE, VERTICAL, HORIZONTAL, CROSS }
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -119,6 +119,12 @@ var fish_cord: Array[Vector2i] = []
 ## Pisces's reflection: the sky is a mirror split by a seam through its middle (up and down, or across),
 ## and a planet bursts at the reflection of where it's thrown: its stars land on the other side.
 var seam: Seam = Seam.NONE
+## Pisces's splash: a thrown planet sinking into the mirror pushes the loose stars round where it went
+## in outward (balance.json's splash); one pushed out of the sky is lost.
+var splash: bool = false
+## The stage that brings the splash: it opens by showing it (a demo throw splashing demo stars, one
+## out of the sky) instead of the plain reflection intro, and its rule line is the splash's.
+var splash_intro: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -995,6 +1001,46 @@ static func pisces_west_cord() -> StarMap:
 	return map
 
 
+## Pisces, stage 3: the Knot, where the two cords tie at Alrescha. The splash (its intro shows it):
+## the planet splashes where it sinks, pushing the loose stars round it outward, and one pushed out of
+## the sky is lost. The seam runs up and down, as on the Circlet. From nu (lit, right, where the West
+## Cord ends) the cord runs down left through xi to Alrescha (big, the knot, lowest left), then turns
+## back up right through omicron and pi to eta, a V opening right, across the seam. Five to light.
+## Strings are 32-36 px.
+static func pisces_knot() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_knot"
+	map.title = "KNOT"
+	map.landmarks = [Vector2i(108, 176), Vector2i(76, 190), Vector2i(44, 196), Vector2i(64, 166), Vector2i(86, 142), Vector2i(110, 118)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "knot"
+	map.seam = Seam.VERTICAL
+	map.splash = true
+	map.splash_intro = true
+	return map
+
+
+## Pisces, stage 4: the East Cord. Both seams at once (its intro shows it): they cross at the sky's
+## middle, so a planet bursts in the corner opposite where it's thrown, and it still splashes where
+## it sinks. From eta (lit, lower left, where the Knot ends) the cord climbs right through rho to
+## chi at the middle, then on to psi1 (right) with phi above chi, toward the northern fish; across
+## both seams. Four to light. Strings are 32-36 px.
+static func pisces_east_cord() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_east_cord"
+	map.title = "EAST CORD"
+	map.landmarks = [Vector2i(50, 206), Vector2i(62, 176), Vector2i(92, 156), Vector2i(124, 150), Vector2i(100, 124)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(2, 4)]
+	map.sizes = [Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "east_cord"
+	map.seam = Seam.CROSS
+	map.splash = true
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -1072,6 +1118,10 @@ static func by_id(p_id: String) -> StarMap:
 			return pisces_circlet()
 		"pisces_west_cord":
 			return pisces_west_cord()
+		"pisces_knot":
+			return pisces_knot()
+		"pisces_east_cord":
+			return pisces_east_cord()
 	return scorpio()
 
 

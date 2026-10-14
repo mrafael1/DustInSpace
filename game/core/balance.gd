@@ -110,6 +110,11 @@ var black_hole_gauge_share: int = 0
 ## A stage's own tuning (by StarMap id: any of "pull", "max_step", "horizon", "hunger",
 ## "max_horizon", "drift", "merge_horizon", "gauge", "gauge_share"), else the block's.
 var black_hole_stages: Dictionary[String, Dictionary] = {}
+## Pisces's splash (chapter 6): a planet sinking into the mirror pushes every loose star within
+## splash_radius px of where it went in splash_push px straight away from it; one pushed out of the
+## sky is lost. Optional: without a "splash" block there is none (radius 0).
+var splash_radius: int = 0
+var splash_push: int = 0
 
 var errors: Array[String] = []
 
@@ -215,6 +220,10 @@ func _parse(data: Dictionary) -> void:
 			var stages: Dictionary = _read_dict(currents, "stages", "currents.")
 			for map_id: Variant in stages:
 				current_steps[str(map_id)] = _read_int(stages, map_id, "currents.stages.", 1)
+	if data.has("splash"):
+		var splash: Dictionary = _read_dict(data, "splash", "")
+		splash_radius = _read_int(splash, "radius", "splash.", 1)
+		splash_push = _read_int(splash, "push", "splash.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
 	if data.has("black_hole"):
