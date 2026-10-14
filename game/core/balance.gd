@@ -110,6 +110,11 @@ var black_hole_gauge_share: int = 0
 ## A stage's own tuning (by StarMap id: any of "pull", "max_step", "horizon", "hunger",
 ## "max_horizon", "drift", "merge_horizon", "gauge", "gauge_share"), else the block's.
 var black_hole_stages: Dictionary[String, Dictionary] = {}
+## Pisces's nets (chapter 6): a link whose first or last star stands within cord_knot_reach px of a
+## cord knots into it; a knot that closes a loop of cords catches every loose star inside for
+## cord_net_dust_per_star dust each. Optional: without a "cords" block, no knots (reach 0).
+var cord_knot_reach: int = 0
+var cord_net_dust_per_star: int = 0
 
 var errors: Array[String] = []
 
@@ -217,6 +222,10 @@ func _parse(data: Dictionary) -> void:
 				current_steps[str(map_id)] = _read_int(stages, map_id, "currents.stages.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
+	if data.has("cords"):
+		var cords: Dictionary = _read_dict(data, "cords", "")
+		cord_knot_reach = _read_int(cords, "knot_reach", "cords.", 0)
+		cord_net_dust_per_star = _read_int(cords, "net_dust_per_star", "cords.", 0)
 	if data.has("black_hole"):
 		var hole: Dictionary = _read_dict(data, "black_hole", "")
 		black_hole_pull = _read_int(hole, "pull", "black_hole.", 1)

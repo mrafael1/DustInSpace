@@ -112,6 +112,9 @@ var cords: bool = false
 ## (not by a rekindle, the completion or a Big Bang). Only read when `cords` is on. Draws no random
 ## numbers; bursts and stars cross it freely.
 var fish_cord: Array[Vector2i] = []
+## Pisces's nets: a link's ends knot into the cords within balance.json's cords.knot_reach, and a
+## closed loop of cords catches the loose stars inside (StarCords.tie_net). Only read with `cords`.
+var nets: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -968,6 +971,7 @@ static func pisces_circlet() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = PISCES_PART % "circlet"
 	map.cords = true
+	map.nets = true
 	return map
 
 
@@ -985,6 +989,7 @@ static func pisces_west_cord() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = PISCES_PART % "west_cord"
 	map.cords = true
+	map.nets = true
 	map.fish_cord = [Vector2i(179, 142), Vector2i(30, 150), Vector2i(100, 249)]
 	return map
 

@@ -101,6 +101,10 @@ signal cord_tied(points: Array[Vector2i])
 ## Pisces's cords: the sky was cleared (the Sun rekindled, the figure completed, a Big Bang), and
 ## every link's cord with it (only when there was one). The fish's cord is never cleared.
 signal cords_cleared
+## Pisces's nets: a link knotted its cord into others and closed a net through `loop` (its points in
+## order). The loose stars inside (`caught`, copies) are taken for `dust`, and the cords in the loop
+## (`snapped`, each [from, to]) snapped. Comes after the link's combo_collected.
+signal net_closed(loop: Array[Vector2i], caught: Array[Star], dust: int, snapped: Array[Array])
 ## Pisces's cord intro, as a stage with link cords opens: demo `stars` appear (copies as placed): a
 ## combo of one of each size, and a pair either side of where its cord will run.
 signal cord_intro_placed(stars: Array[Star])
@@ -348,7 +352,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			if scorpio.map.black_hole_gauge and hole.gauge > 0:
 				gravity.set_gauge(hole.gauge, hole.gauge_share)
 		if scorpio.map.cords:
-			cords = StarCords.new()
+			cords = StarCords.new(balance.cord_knot_reach if scorpio.map.nets else 0)
 			cords.tie_fixed(_fish_cord())
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
@@ -952,9 +956,9 @@ func link(star_ids: Array[int]) -> String:
 	for star: Star in linked:
 		stars.erase(star)
 	_orion_forget(linked)
-	# Pisces: the string stays as a cord (a clear this link brings takes it with the rest).
-	if cords != null:
-		_tie_cord(linked)
+	# Pisces: the string stays as a cord (a clear this link brings takes it with the rest); knotted
+	# into others, it may close a net.
+	var net: StarCords.Net = _tie_cord(linked) if cords != null else null
 	var reward: Balance.ComboReward = balance.combos[combo]
 	var paid: int = link_dust(combo)
 	dust += paid
@@ -962,6 +966,9 @@ func link(star_ids: Array[int]) -> String:
 	var drunk: int = gravity.drinks(reward.light) if gravity != null else 0
 	light += reward.light - drunk
 	combo_collected.emit(combo, linked, paid, reward.light - drunk)
+	# A net catches its stars before the Sun can clear them.
+	if net != null:
+		_catch_net(net)
 	if scorpio != null:
 		for star: Star in linked:
 			if scorpio.is_landmark(star.id):
@@ -1558,13 +1565,52 @@ func _big_bang(burst: Vector2i) -> void:
 	big_bang_started.emit(burst, cleared, gain)
 
 
-## Pisces: a link's string stays in the sky as a cord through its stars, in pick order.
-func _tie_cord(linked: Array[Star]) -> void:
+## Pisces: a link's string stays in the sky as a cord through its stars, in pick order, knotted into
+## the cords its ends reach; returns the net that closes, if any.
+func _tie_cord(linked: Array[Star]) -> StarCords.Net:
 	var points: Array[Vector2i] = []
 	for star: Star in linked:
 		points.append(star.position)
-	cords.tie(points)
+	var net: StarCords.Net = cords.tie_net(points)
 	cord_tied.emit(points)
+	return net
+
+
+## Pisces: a net closed: the loose stars inside its loop are taken, each paying its dust.
+func _catch_net(net: StarCords.Net) -> void:
+	var caught: Array[Star] = net_catch(net.loop)
+	var shown: Array[Star] = []
+	for star: Star in caught:
+		stars.erase(star)
+		shown.append(Star.new(star.id, star.size, star.position))
+	_orion_forget(caught)
+	var gain: int = balance.cord_net_dust_per_star * caught.size()
+	dust += gain
+	net_closed.emit(net.loop, shown, gain, net.snapped)
+
+
+## Pure: the loose stars inside a net's `loop`, but for those of the link closing it (`linked`, ids).
+func net_catch(loop: Array[Vector2i], linked: Array[int] = []) -> Array[Star]:
+	var caught: Array[Star] = []
+	if loop.size() < 3:
+		return caught
+	var polygon := PackedVector2Array()
+	for point: Vector2i in loop:
+		polygon.append(Vector2(point))
+	for star: Star in stars:
+		if not linked.has(star.id) and Geometry2D.is_point_in_polygon(Vector2(star.position), polygon):
+			caught.append(star)
+	return caught
+
+
+## Pure: the net a valid link of `star_ids` (in pick order) would close, or null.
+func link_net(star_ids: Array[int]) -> StarCords.Net:
+	if cords == null or cords.knot_reach <= 0 or is_over() or combo_for(star_ids) == Combos.INVALID:
+		return null
+	var points: Array[Vector2i] = []
+	for star: Star in _stars_for_link(star_ids):
+		points.append(star.position)
+	return cords.find_net(points)
 
 
 ## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map).
