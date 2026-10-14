@@ -10,6 +10,8 @@ extends RefCounted
 ## two drift `drift` px toward each other along the line between them (a fixed path); when the next
 ## drift would make their horizons touch, they merge at the middle into one hole of `merge_horizon`
 ## (the run plays it as a Big Bang).
+## Twins never grow or drink: a hungry hole or a gauge works once they've merged (the final's second
+## act).
 ## A hole with a light gauge (set_gauge) drinks `gauge_share` percent of each link's light (rounded
 ## down; the rest goes to the Sun); when `absorbed` reaches `capacity` it's full (the run plays it as
 ## a Big Bang) and empties.
@@ -98,7 +100,7 @@ func has_gauge() -> bool:
 
 ## How much of a link's `light` the hole drinks (0 without a gauge).
 func drinks(light: int) -> int:
-	return light * gauge_share / 100 if has_gauge() else 0
+	return light * gauge_share / 100 if has_gauge() and not has_twins() else 0
 
 
 ## Whether drinking `amount` more light fills the gauge.
@@ -137,6 +139,8 @@ func copy() -> StarGravity:
 
 ## The hole swallowed `count` stars: a hungry one grows (up to max_horizon). Returns how much.
 func feed(count: int) -> int:
+	if has_twins():
+		return 0
 	var before: int = horizon
 	horizon = mini(horizon + hunger * count, max_horizon)
 	return horizon - before

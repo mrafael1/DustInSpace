@@ -43,8 +43,7 @@ func test_sagittarius_is_chapter_5_after_virgo_on_the_ring() -> void:
 	for stage: int in BUILT.size():
 		assert_eq(chapter.map_id(stage), BUILT[stage])
 		assert_true(chapter.has_stage(stage))
-	for stage: int in range(BUILT.size(), Chapter.stage_count()):
-		assert_false(chapter.has_stage(stage), "the final isn't built yet")
+	assert_eq(chapter.map_id(Chapter.FINAL), "sagittarius_final", "every stage is built")
 	assert_eq(ChapterSelect.sky_x("sagittarius") - ChapterSelect.sky_x("virgo"), 3 * ChapterSelect.SKY_SPAN, "three signs on, round the ring")
 
 
@@ -451,3 +450,91 @@ func test_a_full_gauges_big_bang_plays_the_void_not_the_reward() -> void:
 	assert_true(big_bang.is_losing())
 	assert_has(played, &"big_bang_void")
 	assert_does_not_have(played, &"big_bang_bang")
+
+
+func test_the_final_is_the_whole_archer_with_every_power_of_the_hole() -> void:
+	var map: StarMap = StarMap.sagittarius_final()
+	var figure: StarMap = StarMap.sagittarius()
+	assert_eq(map.landmarks, figure.landmarks, "the chart's own figure")
+	assert_eq(map.count() - map.starting_lit.size(), 12, "twelve to light")
+	assert_true(map.black_hole and map.black_hole_twins and map.black_hole_hungry and map.black_hole_gauge)
+	assert_true(map.big_bang_finale)
+	assert_ne(map.arrival_epithet, "", "it arrives with its title card")
+
+
+func test_the_finals_twins_run_down_a_clear_corridor_and_merge_at_the_teapots_heart() -> void:
+	var run: RunState = _run(StarMap.sagittarius_final())
+	var hole: StarGravity = run.gravity.copy()
+	var tuning: Dictionary = Balance.load_file().black_hole_for("sagittarius_final")
+	for launch: int in hole.launches_to_merge():
+		for c: Vector2i in hole.centers:
+			for landmark: Vector2i in run.scorpio.landmark_positions():
+				assert_gt(Vector2(landmark).distance_to(Vector2(c)), hole.horizon + GravityView.RING_GAP + 4.0, "launch %d: the corridor is clear" % launch)
+		hole.drift_holes()
+	assert_false(hole.has_twins())
+	for landmark: Vector2i in run.scorpio.landmark_positions():
+		assert_gt(Vector2(landmark).distance_to(Vector2(hole.center)), tuning.max_horizon + GravityView.RING_GAP + 8.0, "the merged hole, at its widest, keeps clear")
+
+
+func test_the_twins_neither_grow_nor_drink_until_they_merge() -> void:
+	var run: RunState = _run(StarMap.sagittarius_final())
+	assert_eq(run.gravity.drinks(25), 0, "act one: no gauge yet")
+	assert_eq(run.gravity.feed(3), 0, "and no hunger")
+	var light: int = run.light
+	run.link(_head_link(run, Star.Size.MEDIUM, Vector2i(20, 236)))
+	assert_eq(run.light, light + run.balance.combos["medium_triple"].light, "the Sun still fills while the twins roam")
+	while run.gravity.has_twins():
+		run.gravity.drift_holes()
+	assert_eq(run.gravity.drinks(25), 25, "act two: the merged hole drinks all the light")
+	assert_eq(run.gravity.feed(1), 1, "and grows as it swallows")
+
+
+func test_winning_the_final_ends_in_the_big_bang_a_jackpot_before_the_figure_rises() -> void:
+	var run: RunState = _run(StarMap.sagittarius_final())
+	while run.gravity.has_twins():
+		run.gravity.drift_holes()
+	for i: int in run.scorpio.map.count():
+		if i != 12:
+			run.scorpio.light(i)
+	var events: Array[String] = []
+	var banged: Array = []
+	run.big_bang_started.connect(func(at: Vector2i, cleared: Array[Star], dust: int) -> void:
+		events.append("bang")
+		banged.append([at, cleared.size(), dust]))
+	run.sky_cleared.connect(func(_stars: Array[Star], _dust: int) -> void: events.append("cleared"))
+	run.constellation_completed.connect(func() -> void: events.append("completed"))
+	run.run_won.connect(func() -> void: events.append("won"))
+	var leftover: Star = run.add_star(Star.Size.BIG, Vector2i(160, 100))
+	var hoof: Star = run.scorpio.landmark_star(12)
+	var a: Star = run.add_star(hoof.size, hoof.position + Vector2i(-20, 0))
+	var b: Star = run.add_star(hoof.size, hoof.position + Vector2i(20, 0))
+	assert_ne(run.link([a.id, hoof.id, b.id] as Array[int]), Combos.INVALID)
+	assert_eq(events, ["bang", "completed", "won"], "the hole bangs, then the figure completes")
+	assert_eq(banged[0][0], run.gravity.center)
+	assert_eq(banged[0][1], 1, "it took the star left in the sky")
+	assert_gt(banged[0][2], 0, "and pays out like a jackpot (the rewarding bang)")
+	assert_null(run.find_star(leftover.id))
+
+
+func test_the_hole_is_gone_once_the_finals_big_bang_has_won() -> void:
+	var main: Main = _main("sagittarius_final")
+	_settle(main)
+	var view: GravityView = main.get_node("Sky/GravityLayer")
+	assert_false(view.pixels().is_empty(), "the twins show while it plays")
+	main.run.outcome = RunState.Outcome.WON
+	assert_false(view.banged_out(), "it stays until the Big Bang begins")
+	view.vanish()
+	assert_true(view.banged_out())
+	assert_true(view.pixels().is_empty(), "it went into the Big Bang")
+
+
+func test_once_the_finals_twins_merge_the_hud_says_the_hole_drinks_the_light() -> void:
+	var main: Main = _main("sagittarius_final")
+	_settle(main)
+	var hud: Hud = main.get_node("HUD")
+	main.run.holes_drifted.emit([Vector2i(106, 156), Vector2i(106, 196)] as Array[Vector2i], [Vector2i(106, 176)] as Array[Vector2i], true)
+	main.run.gravity.drift_holes()
+	main.run.gravity.drift_holes()
+	main.run.gravity.drift_holes()
+	_settle(main)
+	assert_eq(hud.message(), Hud.GAUGE_MESSAGE)

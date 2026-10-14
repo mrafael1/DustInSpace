@@ -830,6 +830,11 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			tell_current_rule()
 			_tell_loss(event.args[0])
 			return
+		&"holes_drifted":
+			# Sagittarius's final: once the twins have merged, the hole they made drinks the light.
+			if event.args[2] and _run != null and _run.gravity != null and _run.gravity.has_gauge():
+				show_message(GAUGE_MESSAGE, RULE_MESSAGE_TIME, true)
+			return
 		&"heat_breathed":
 			_tell_loss(event.args[1])
 			return
