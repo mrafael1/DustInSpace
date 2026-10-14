@@ -134,14 +134,8 @@ const HUNGRY_MESSAGE: String = "THE HOLE GROWS WITH\nEVERY STAR IT SWALLOWS"
 const SWALLOW_LOSS_MESSAGE: String = "THE HOLE TOOK A STAR\nLINK MARKED ONES FIRST"
 const TWINS_MESSAGE: String = "WHERE THE HOLES MEET\nA BIG BANG CLEARS ALL"
 const GAUGE_MESSAGE: String = "THE HOLE DRINKS ALL LIGHT\nFULL IT BANGS THE SKY"
-## Pisces's cords: every link leaves its string, and no link can cross one; with the fish's cord in
-## the sky, that it's a cord too and never goes.
+## Pisces's cords (chapter 6 trial): every link leaves its string, and no link can cross one.
 const CORD_MESSAGE: String = "EVERY LINK LEAVES A CORD\nNO LINK CAN CROSS ONE"
-const FISH_CORD_MESSAGE: String = "NO LINK CAN CROSS A CORD\nTHE FISH CORD NEVER GOES"
-## Pisces's nets: knot cords into a closed loop to catch the stars inside (with the fish's cord, it
-## stays and nets close against it too).
-const NET_MESSAGE: String = "CLOSE CORDS INTO A NET\nTO CATCH STARS INSIDE"
-const FISH_NET_MESSAGE: String = "THE FISH CORD NEVER GOES\nNET STARS AGAINST IT"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
 ## no launch, other message or clear cuts it before it can be read; only another teaching line can.
@@ -418,7 +412,7 @@ func _stage_rule() -> String:
 	if _run.gravity != null:
 		return hole_rule(_run.gravity)
 	if _run.cords != null:
-		return cord_rule(_run.cords)
+		return CORD_MESSAGE
 	return ""
 
 
@@ -485,14 +479,6 @@ static func hole_rule(hole: StarGravity) -> String:
 	if hole.has_gauge():
 		return GAUGE_MESSAGE
 	return HUNGRY_MESSAGE if hole.hunger > 0 else HOLE_MESSAGE
-
-
-## What the cords' message says: links leave cords, or (a fish's cord in the sky) it never goes; with
-## nets, that a closed loop of cords catches the stars inside.
-static func cord_rule(cords: StarCords) -> String:
-	if cords.knot_reach > 0:
-		return FISH_NET_MESSAGE if cords.fixed_count() > 0 else NET_MESSAGE
-	return FISH_CORD_MESSAGE if cords.fixed_count() > 0 else CORD_MESSAGE
 
 
 ## What the heat's message says: it grows or shrinks stars (or both, by turns), and whether it
@@ -798,9 +784,6 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"sky_cleared":
 			# Scorpio: the dust of the stars the Sun bursts streams in as they burst.
 			_dust_in_flight += event.args[1]
-		&"net_closed":
-			# Pisces: a net's catch streams in as its stars burst.
-			_dust_in_flight += event.args[2]
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			# The tutorial's link is made: its stars are gone, so the hand stops pointing at them.
@@ -842,7 +825,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed", &"cord_intro_placed", &"fish_cord_laid":
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed":
 			# Virgo's, the current's and the breath's intros say their rule as the effect shows.
 			tell_current_rule()
 			return

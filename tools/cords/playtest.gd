@@ -8,13 +8,7 @@ extends SceneTree
 ## owned pack before linking (hoards); planner links first, choosing the link and its middle star by
 ## what its cords would wall off (other links blocked, landmarks cut off), and aims where the burst
 ## isn't walled off from that landmark; planner-hoard chooses as the planner and hoards.
-## netter links first as the planner, but ranks links by the dust their net would catch first and,
-## among links closing none, prefers those whose ends land within knot reach of a cord (a net set up).
-## The planners and the netter only run with cords on. Every bot but careless counts a link's net
-## catch in its value (link-first over each order it can be traced in, the knotting ends first and
-## last); careless stays net-blind.
-## --no-nets: the cords without nets (the map's nets flag off), for an A/B.
-## --knot-reach=N, --net-dust=N: what-ifs for balance.json's cords.knot_reach and net_dust_per_star.
+## The planners only run with cords on.
 ## --keep-cords: a what-if, in the tool only: cords outlast the sky's clears (re-tied at once on
 ## cords_cleared), so they stay the whole stage (the plan's open question); the planner then counts
 ## a clearing link's cords too.
@@ -22,15 +16,11 @@ extends SceneTree
 ## map's; --fish=none removes it. Quote it in a shell ("--fish=0,128;98,176;179,132"). Only used with
 ## cords on. The results file then carries the polyline in its name.
 
-const POLICIES: Array[String] = ["link-first", "careless", "launch-first", "planner", "planner-hoard", "netter"]
+const POLICIES: Array[String] = ["link-first", "careless", "launch-first", "planner", "planner-hoard"]
 ## The planner's weights: a link's dust and light, plus these.
 const LANDMARK_WEIGHT: int = 100
 const BLOCKED_WEIGHT: int = 25
 const CUT_OFF_WEIGHT: int = 150
-## The netter: a net's catch dust ranks first (times this), then the planner's score; an end that
-## knots into a cord without closing a net adds SETUP_WEIGHT.
-const NET_RANK: int = 1000
-const SETUP_WEIGHT: int = 20
 ## The planner looks this far round its landmark for an aim whose line to it crosses no cord.
 const AIM_SEARCH: int = 48
 const AIM_GRID: int = 4
@@ -43,10 +33,6 @@ var _map: String = "cord_trial"
 var _policies: Array[String] = POLICIES.duplicate()
 var _policy: String = ""
 var _keep_cords: bool = false
-var _no_nets: bool = false
-## What-ifs for the net's tuning, over balance.json's (-1: as balance.json has it).
-var _knot_reach: int = -1
-var _net_dust_what_if: int = -1
 ## Whether --fish was given, and its polyline (empty for none).
 var _fish_set: bool = false
 var _fish: Array[Vector2i] = []
@@ -62,12 +48,6 @@ func _initialize() -> void:
 			_policies.assign(argument.trim_prefix("--policies=").split(","))
 		elif argument == "--keep-cords":
 			_keep_cords = true
-		elif argument == "--no-nets":
-			_no_nets = true
-		elif argument.begins_with("--knot-reach="):
-			_knot_reach = argument.trim_prefix("--knot-reach=").to_int()
-		elif argument.begins_with("--net-dust="):
-			_net_dust_what_if = argument.trim_prefix("--net-dust=").to_int()
 		elif argument.begins_with("--fish="):
 			if not _parse_fish(argument.trim_prefix("--fish=")):
 				push_error("Bad --fish '%s' (want x,y;x,y;... or none)" % argument)
@@ -79,30 +59,22 @@ func _initialize() -> void:
 			quit(1)
 			return
 	_balance = Balance.load_file()
-	if _knot_reach >= 0:
-		_balance.cord_knot_reach = _knot_reach
-	if _net_dust_what_if >= 0:
-		_balance.cord_net_dust_per_star = _net_dust_what_if
 	_simulate.call_deferred()
 
 
 func _simulate() -> void:
 	var started: int = Time.get_ticks_msec()
-	var nets: bool = _layout(true).nets
-	print("Paired seeds 1..%d; %s; reach %d%s; fish %s; nets %s (knot reach %d, %d dust a star)" % [_runs, _map, _balance.scorpio_max_link_distance,
-		"; cords kept through clears" if _keep_cords else "", _fish_text(_layout(true).fish_cord), nets, _balance.cord_knot_reach,
-		_balance.cord_net_dust_per_star])
-	print("%-13s %-5s %6s %5s %6s %9s %9s %8s %10s %7s %13s %13s %12s %6s" % ["policy", "cords", "won%", "lost", "capped", "packs/win", "cords/run",
-		"nets/run", "caught/run", "refused", "blocked/board", "lost_to_cords", "strand/loss", "secs"])
+	print("Paired seeds 1..%d; %s; reach %d%s; fish %s" % [_runs, _map, _balance.scorpio_max_link_distance, "; cords kept through clears" if _keep_cords else "",
+		_fish_text(_layout(true).fish_cord)])
+	print("%-13s %-5s %6s %5s %6s %9s %9s %7s %13s %13s %12s %6s" % ["policy", "cords", "won%", "lost", "capped", "packs/win", "cords/run", "refused", "blocked/board", "lost_to_cords", "strand/loss", "secs"])
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
 		for enabled: bool in [false, true]:
-			if _plans(policy) and not enabled:
+			if policy.begins_with("planner") and not enabled:
 				continue
 			var row_started: int = Time.get_ticks_msec()
 			var row: Dictionary = {"map": _map, "fish": _fish_text(_layout(true).fish_cord), "keep_cords": _keep_cords, "policy": policy, "cords": enabled, "runs": _runs, "wins": 0, "losses": 0, "capped": 0,
-				"nets": nets, "packs_in_wins": 0, "cords_tied": 0, "nets_closed": 0, "caught": 0, "refused": 0, "boards": 0, "blocked": 0,
-				"lost_to_cords": 0, "stranded": 0}
+				"packs_in_wins": 0, "cords_tied": 0, "refused": 0, "boards": 0, "blocked": 0, "lost_to_cords": 0, "stranded": 0}
 			for seed_value: int in range(1, _runs + 1):
 				_play(seed_value, enabled, policy, row)
 				if seed_value % 20 == 0:
@@ -112,24 +84,20 @@ func _simulate() -> void:
 			row["win_rate"] = snappedf(100.0 * row.wins / _runs, 0.1)
 			row["packs_per_win"] = snappedf(float(row.packs_in_wins) / maxi(1, row.wins), 0.01)
 			row["cords_per_run"] = snappedf(float(row.cords_tied) / _runs, 0.01)
-			row["nets_per_run"] = snappedf(float(row.nets_closed) / _runs, 0.01)
-			row["caught_per_run"] = snappedf(float(row.caught) / _runs, 0.01)
 			row["blocked_per_board"] = snappedf(float(row.blocked) / maxi(1, row.boards), 0.001)
 			row["stranded_per_loss"] = snappedf(float(row.stranded) / maxi(1, row.losses), 0.01)
 			row["seconds"] = snappedf((Time.get_ticks_msec() - row_started) / 1000.0, 0.1)
-			for key: String in ["packs_in_wins", "cords_tied", "nets_closed", "caught", "blocked", "stranded"]:
+			for key: String in ["packs_in_wins", "cords_tied", "blocked", "stranded"]:
 				row.erase(key)
 			rows.append(row)
-			print("%-13s %-5s %6.1f %5d %6d %9.2f %9.2f %8.2f %10.2f %7d %13.3f %13d %12.2f %6.1f" % [policy, enabled, row.win_rate, row.losses,
-				row.capped, row.packs_per_win, row.cords_per_run, row.nets_per_run, row.caught_per_run, row.refused, row.blocked_per_board,
-				row.lost_to_cords, row.stranded_per_loss, row.seconds])
+			print("%-13s %-5s %6.1f %5d %6d %9.2f %9.2f %7d %13.3f %13d %12.2f %6.1f" % [policy, enabled, row.win_rate, row.losses, row.capped,
+				row.packs_per_win, row.cords_per_run, row.refused, row.blocked_per_board, row.lost_to_cords, row.stranded_per_loss, row.seconds])
 	print("Total %.1f s" % ((Time.get_ticks_msec() - started) / 1000.0))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/cords/out"))
 	var fish_suffix: String = ""
 	if _fish_set:
 		fish_suffix = "-fish_" + (_fish_text(_fish).replace(";", "_").replace(",", "-") if not _fish.is_empty() else "none")
-	var file: FileAccess = FileAccess.open("res://tools/cords/out/results-%s%s%s%s.json" % [_map, "-kept" if _keep_cords else "",
-		"-nonets" if _no_nets else "", fish_suffix], FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open("res://tools/cords/out/results-%s%s%s.json" % [_map, "-kept" if _keep_cords else "", fish_suffix], FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
 	quit()
 
@@ -143,9 +111,7 @@ func _layout(enabled: bool) -> StarMap:
 
 func _base_layout(enabled: bool) -> StarMap:
 	if _map == "cord_trial":
-		var trial: StarMap = StarMap.cord_trial(enabled)
-		trial.nets = trial.nets and not _no_nets
-		return trial
+		return StarMap.cord_trial(enabled)
 	# A borrowed layout: its own rules off, the cords set.
 	var map: StarMap = StarMap.by_id(_map)
 	map.heat_change = 0
@@ -162,8 +128,6 @@ func _base_layout(enabled: bool) -> StarMap:
 	map.black_hole_twins = false
 	map.black_hole_gauge = false
 	map.cords = enabled
-	# The map's own nets (only read with cords on), unless --no-nets.
-	map.nets = map.nets and not _no_nets
 	return map
 
 
@@ -197,11 +161,8 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
 	var packs: int = 0
 	var hoards: bool = policy in ["launch-first", "planner-hoard"]
-	var plans: bool = _plans(policy)
+	var plans: bool = policy.begins_with("planner")
 	run.cord_tied.connect(func(_points: Array[Vector2i]) -> void: row.cords_tied += 1)
-	run.net_closed.connect(func(_loop: Array[Vector2i], caught: Array[Star], _dust: int, _snapped: Array[Array]) -> void:
-		row.nets_closed += 1
-		row.caught += caught.size())
 	run.link_rejected.connect(func(_ids: Array[int]) -> void: row.refused += 1)
 	if _keep_cords and run.cords != null:
 		# The closures hold the cords, not the run (no reference cycle).
@@ -269,21 +230,10 @@ func _count_blocked(run: RunState, row: Dictionary) -> void:
 	row.blocked += free - aware
 
 
-## Whether `policy` plans its links (and aims): the planners and the netter.
-static func _plans(policy: String) -> bool:
-	return policy.begins_with("planner") or policy == "netter"
-
-
-## Whether this run's cords knot (nets on).
-static func _nets_on(run: RunState) -> bool:
-	return run.cords != null and run.cords.knot_reach > 0
-
-
 func _choose_link(run: RunState, plans: bool) -> Array[int]:
 	if plans:
 		return _planned_link(run)
-	# Careless stays net-blind; the others weigh every order when the ends can knot.
-	var links: Array[Array] = run.valid_links(_policy != "careless" and _nets_on(run))
+	var links: Array[Array] = run.valid_links()
 	if links.is_empty():
 		return [] as Array[int]
 	if _policy == "careless":
@@ -317,7 +267,7 @@ func _clear_aim(run: RunState, spot: Vector2i, landmark: Vector2i) -> bool:
 	return run.is_safe_launch(spot) and not run.cords.crosses(spot, landmark)
 
 
-## The best link by dust, light and landmarks (as tools/gravity/playtest.gd), and its net's catch.
+## The best link by dust, light and landmarks (as tools/gravity/playtest.gd).
 func _best_link(run: RunState, links: Array[Array]) -> Array[int]:
 	var best: Array[int] = []
 	var best_score: int = -1
@@ -337,38 +287,13 @@ func _link_value(run: RunState, ids: Array[int]) -> int:
 	for id: int in ids:
 		if run.scorpio.is_landmark(id):
 			score += LANDMARK_WEIGHT
-	return score + _net_dust(run, ids)
-
-
-## The dust the net a link of `ids` (pick order) would close catches: 0 without one.
-func _net_dust(run: RunState, ids: Array[int]) -> int:
-	if not _nets_on(run):
-		return 0
-	var net: StarCords.Net = run.link_net(ids)
-	if net == null:
-		return 0
-	return run.balance.cord_net_dust_per_star * run.net_catch(net.loop, ids).size()
-
-
-## How many of a link's ends (its first and last star) stand within knot reach of a cord.
-func _knotted_ends(run: RunState, points: Array[Vector2i]) -> int:
-	var ends: int = 0
-	var reach: float = float(run.cords.knot_reach) + 0.001
-	for end: Vector2i in [points[0], points[-1]]:
-		for segment: Array in run.cords.segments():
-			var on: Vector2 = Geometry2D.get_closest_point_to_segment(Vector2(end), Vector2(segment[0]), Vector2(segment[1]))
-			if on.distance_to(Vector2(end)) < reach:
-				ends += 1
-				break
-	return ends
+	return score
 
 
 ## The planner: over every link and every order it can be traced in, its value less what its two
 ## new cords would wall off: other links (disjoint stars) traceable now that no longer would be, and
 ## unlit landmarks left with none. A link that clears the sky takes its cords with it (not with
-## --keep-cords, where they're tied again). Its value counts the net it would close, so among a
-## trio's orders the one whose ends close a net wins. The netter ranks by the net's catch first,
-## then this score plus SETUP_WEIGHT for each end knotting into a cord when it closes no net.
+## --keep-cords, where they're tied again).
 func _planned_link(run: RunState) -> Array[int]:
 	var orders: Array[Array] = run.valid_links(true)
 	if orders.is_empty():
@@ -387,11 +312,6 @@ func _planned_link(run: RunState) -> Array[int]:
 		var ids: Array[int] = []
 		ids.assign(order)
 		var score: int = _link_value(run, ids)
-		if _policy == "netter" and _nets_on(run):
-			var caught: int = _net_dust(run, ids)
-			score += NET_RANK * caught
-			if caught == 0 and run.link_net(ids) == null:
-				score += SETUP_WEIGHT * _knotted_ends(run, _positions(run, order))
 		if _keep_cords or not _clears_sky(run, ids):
 			var points: Array[Vector2i] = _positions(run, order)
 			var blocked: int = 0

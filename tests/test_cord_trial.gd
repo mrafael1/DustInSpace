@@ -72,10 +72,9 @@ func test_controls_name_the_cords() -> void:
 
 func test_the_rule_is_said_as_the_trial_opens() -> void:
 	_start()
-	assert_eq((main.get_node("HUD") as Hud).message(), Hud.FISH_CORD_MESSAGE, "the trial has the fish's cord")
-	for message: String in [Hud.CORD_MESSAGE, Hud.FISH_CORD_MESSAGE]:
-		for line: String in message.split("\n"):
-			assert_lt(line.length(), 25, "fits the message line")
+	assert_eq((main.get_node("HUD") as Hud).message(), Hud.CORD_MESSAGE)
+	for line: String in Hud.CORD_MESSAGE.split("\n"):
+		assert_lt(line.length(), 26, "fits the message line")
 
 
 func test_a_link_lays_an_old_gold_rope_once_its_flash_fades() -> void:

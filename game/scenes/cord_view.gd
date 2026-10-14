@@ -18,9 +18,7 @@ extends Node2D
 ## never goes: not with a clear, not with a Big Bang. The same old gold, a step stronger than a link's
 ## rope: unbroken, C2 twisted with C4 every other pixel, with a 3x3 knot at Alrescha (each bend of the
 ## polyline: C1 heart, C2 arms, C4 corners) and no knots at its loose ends. It glows ember like a
-## link's cord when a step would cross it (S4 twisted with S3, the knot S4 with S3 corners). On a
-## stage with intros it's hidden until its intro lays it (lay_fish): solid C2 from its first end
-## through the knot to the last over FISH_LAY_TIME, then the rope and the knot.
+## link's cord when a step would cross it (S4 twisted with S3, the knot S4 with S3 corners).
 
 ## The rope's pattern along its pixels: C2, C4, C4, then a gap.
 const ROPE_PERIOD: int = 4
@@ -35,21 +33,12 @@ const NEIGHBOURS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, 
 const CORNERS: Array[Vector2i] = [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
 ## The fish's cord's pattern: C2, C4, over again, with no gap.
 const FISH_PERIOD: int = 2
-const FISH_LAY_TIME: float = 0.7
-## A net closing: its loop flashes C0 then C1 over NET_FLASH, then the cords in it are gone.
-const NET_FLASH: float = 0.36
 
 ## The step being traced to the finger, [from, to] (empty: none): every cord it would cross glows.
 var tracing_step: Array[Vector2i] = []:
 	set(value):
 		if tracing_step != value:
 			tracing_step = value.duplicate()
-			queue_redraw()
-## The loop a full, valid link being traced would close as a net (empty: none), dotted C1.
-var net_preview: Array[Vector2i] = []:
-	set(value):
-		if net_preview != value:
-			net_preview = value.duplicate()
 			queue_redraw()
 ## A refused step, [from, to] (empty: none), whose crossed cords glow for `_blocking_left` seconds.
 var _blocking_step: Array[Vector2i] = []
@@ -66,16 +55,6 @@ var _fixed: int = 0
 ## left; -1 for none.
 var _clear_wait: float = -1.0
 var _clear_left: float = -1.0
-## The fish's cord's intro: hidden until it's laid (lay_fish), then the seconds since it began to be
-## laid; -1 once it's whole.
-var _fish_hidden: bool = false
-var _fish_age: float = -1.0
-## The knots shown, each [the star's end, the point on the cord it's tied to].
-var _knots: Array[Array] = []
-## A net closing: its loop, the segments that snap with it, and its flash's seconds left (-1: none).
-var _net_loop: Array[Vector2i] = []
-var _net_snapped: Array[Array] = []
-var _net_left: float = -1.0
 
 
 func _ready() -> void:
@@ -90,12 +69,6 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_blocking_left = 0.0
 	_clear_wait = -1.0
 	_clear_left = -1.0
-	_fish_hidden = run.cord_intro_due() and run.cords.fixed_count() > 0
-	_fish_age = -1.0
-	net_preview = [] as Array[Vector2i]
-	_net_left = -1.0
-	_net_loop.clear()
-	_net_snapped.clear()
 	_sync()
 	set_process(run.cords != null)
 	queue_redraw()
@@ -113,13 +86,6 @@ func tie(points: Array[Vector2i]) -> void:
 			continue
 		_segments.append([points[i - 1], points[i]] as Array[Vector2i])
 		_ages.append(-TIE_DELAY - (i - 1) * TIE_TIME * 0.5)
-	queue_redraw()
-
-
-## The fish's cord's intro: it's laid across the sky now, from its first end to its last.
-func lay_fish() -> void:
-	_fish_hidden = false
-	_fish_age = 0.0
 	queue_redraw()
 
 
@@ -160,25 +126,17 @@ func fish_count() -> int:
 
 ## Whether a cord is still being laid or cleared.
 func is_playing() -> bool:
-	return _clear_left >= 0.0 or _fish_age >= 0.0 or _net_left >= 0.0 or _ages.any(func(age: float) -> bool: return age < TIE_TIME + TIE_FLASH)
+	return _clear_left >= 0.0 or _ages.any(func(age: float) -> bool: return age < TIE_TIME + TIE_FLASH)
 
 
 ## Lays and clears the cords. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	for i: int in _ages.size():
 		_ages[i] += delta
-	if _fish_age >= 0.0:
-		_fish_age += delta
-		if _fish_age >= FISH_LAY_TIME:
-			_fish_age = -1.0
 	if _blocking_left > 0.0:
 		_blocking_left -= delta
 		if _blocking_left <= 0.0:
 			_blocking_step.clear()
-	if _net_left >= 0.0:
-		_net_left -= delta
-		if _net_left < 0.0:
-			_snap_net()
 	if _clear_left >= 0.0:
 		if _clear_wait > 0.0:
 			_clear_wait -= delta
@@ -187,7 +145,6 @@ func advance(delta: float) -> void:
 			if _clear_left < 0.0:
 				_segments.resize(_fixed)
 				_ages.resize(_fixed)
-				_knots.clear()
 				_clear_wait = -1.0
 	if _run != null and _run.cords != null and not is_playing() and (_sequencer == null or not _sequencer.is_busy()):
 		_sync()
@@ -196,13 +153,11 @@ func advance(delta: float) -> void:
 func _sync() -> void:
 	_segments.clear()
 	_ages.clear()
-	_knots.clear()
 	_fixed = 0
 	if _run == null or _run.cords == null:
 		return
 	_segments = _run.cords.segments()
 	_fixed = _run.cords.fixed_count()
-	_knots = _run.cords.knots()
 	for i: int in _segments.size():
 		_ages.append(TIE_TIME + TIE_FLASH)
 
@@ -229,75 +184,13 @@ func pixels() -> Dictionary[Vector2i, Color]:
 			continue
 		var hot: bool = _crosses(tracing_step, a, b) or _crosses(_blocking_step, a, b)
 		result.merge(rope_pixels(a, b, hot), true)
-	if not flashing:
-		for knot: Array in _knots:
-			result.merge(tie_pixels(knot[0], knot[1]), true)
-	for i: int in net_preview.size():
-		result.merge(preview_pixels(net_preview[i], net_preview[(i + 1) % net_preview.size()]), true)
-	if _net_left >= 0.0:
-		var colour: Color = Palette.C0 if _net_left > NET_FLASH * 0.5 else Palette.C1
-		for i: int in _net_loop.size():
-			for p: Vector2i in LinkLayer.line_pixels(_net_loop[i], _net_loop[(i + 1) % _net_loop.size()]):
-				result[p] = colour
 	return result
-
-
-## A knot: a solid C2 tie from where a link's end star stood to its point on the cord, with a knot
-## there (as a link's cord's).
-static func tie_pixels(end: Vector2i, on: Vector2i) -> Dictionary[Vector2i, Color]:
-	var result: Dictionary[Vector2i, Color] = {}
-	for p: Vector2i in LinkLayer.line_pixels(end, on):
-		result[p] = Palette.C2
-	result.merge(knot_pixels(on), true)
-	return result
-
-
-## A stretch of a net a traced link would close: dotted C1 (every other pixel), from `a` to `b`.
-static func preview_pixels(a: Vector2i, b: Vector2i) -> Dictionary[Vector2i, Color]:
-	var result: Dictionary[Vector2i, Color] = {}
-	var line: Array[Vector2i] = LinkLayer.line_pixels(a, b)
-	for i: int in line.size():
-		if i % 2 == 0:
-			result[line[i]] = Palette.C1
-	return result
-
-
-## A net closed: its loop flashes (NET_FLASH), then the cords in it (`snapped`) are gone.
-func close_net(loop: Array[Vector2i], snapped: Array[Array]) -> void:
-	_net_loop = loop.duplicate()
-	_net_snapped = snapped.duplicate(true)
-	_net_left = NET_FLASH
-	net_preview = [] as Array[Vector2i]
-	queue_redraw()
-
-
-## Whether a net's flash is playing.
-func is_closing_net() -> bool:
-	return _net_left >= 0.0
-
-
-## The net's flash is over: its cords go from the shown ones, and every knot into or out of them.
-func _snap_net() -> void:
-	for snapped: Array in _net_snapped:
-		for i: int in range(_segments.size() - 1, _fixed - 1, -1):
-			if _segments[i][0] == snapped[0] and _segments[i][1] == snapped[1]:
-				_segments.remove_at(i)
-				_ages.remove_at(i)
-				break
-	_knots = _knots.filter(func(knot: Array) -> bool: return not _net_snapped.any(func(s: Array) -> bool:
-		return knot[0] == s[0] or knot[0] == s[1] or Geometry2D.get_closest_point_to_segment(Vector2(knot[1]), Vector2(s[0]), Vector2(s[1])).distance_to(Vector2(knot[1])) < 1.0))
-	_net_loop.clear()
-	_net_snapped.clear()
 
 
 ## The fish's cord: each fixed segment as its rope, then a knot at each bend (Alrescha), hot if a
 ## segment it ties is.
 func _fish_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	if _fish_hidden:
-		return result
-	if _fish_age >= 0.0:
-		return _fish_laying_pixels(_fish_age / FISH_LAY_TIME)
 	var ends: Dictionary[Vector2i, int] = {}
 	var hot_ends: Dictionary[Vector2i, bool] = {}
 	for i: int in _fixed:
@@ -312,23 +205,6 @@ func _fish_pixels() -> Dictionary[Vector2i, Color]:
 	for end: Vector2i in ends:
 		if ends[end] > 1:
 			result.merge(fish_knot_pixels(end, hot_ends.has(end)), true)
-	return result
-
-
-## The fish's cord being laid: solid C2 along its segments in order, `share` (0 to 1) of its length.
-func _fish_laying_pixels(share: float) -> Dictionary[Vector2i, Color]:
-	var result: Dictionary[Vector2i, Color] = {}
-	var lengths: Array[float] = []
-	var total: float = 0.0
-	for i: int in _fixed:
-		lengths.append(Vector2(_segments[i][0]).distance_to(Vector2(_segments[i][1])))
-		total += lengths[i]
-	var left: float = total * clampf(share, 0.0, 1.0)
-	for i: int in _fixed:
-		if left <= 0.0:
-			break
-		result.merge(laying_pixels(_segments[i][0], _segments[i][1], minf(left / maxf(lengths[i], 1.0), 1.0)), true)
-		left -= lengths[i]
 	return result
 
 

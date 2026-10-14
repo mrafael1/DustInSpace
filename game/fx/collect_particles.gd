@@ -170,23 +170,16 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		for i: int in range(n0, _particles.size()):
 			_particles[i].delay = BigBangSequence.BANG_AT + STAGGER * (i - n0)
 		return
-	if event.type == &"sky_cleared" or event.type == &"net_closed":
-		# Scorpio: each star the Sun bursts sends its dust as it bursts (SkyView's order and stagger);
-		# Pisces's net: each star it caught, once the net's flash is over.
-		var caught: Array[Star] = []
-		caught.assign(event.args[0] if event.type == &"sky_cleared" else event.args[1])
-		var amount: int = event.args[1] if event.type == &"sky_cleared" else event.args[2]
-		var wait: float = 0.0 if event.type == &"sky_cleared" else CordView.NET_FLASH
+	if event.type == &"sky_cleared":
+		# Scorpio: each star the Sun bursts sends its dust as it bursts (SkyView's order and stagger).
 		var burst: Array[Vector2i] = []
-		for star: Star in SkyView.explode_order(caught):
+		for star: Star in SkyView.explode_order(event.args[0]):
 			burst.append(star.position)
-		if burst.is_empty():
-			return
 		var first: int = _particles.size()
-		_launch(Kind.DUST, amount, burst, dust_target, burst.size())
+		_launch(Kind.DUST, event.args[1], burst, dust_target, burst.size())
 		for i: int in range(first, _particles.size()):
 			var p: Particle = _particles[i]
-			p.delay = wait + SkyView.EXPLODE_STAGGER * (i - first)
+			p.delay = SkyView.EXPLODE_STAGGER * (i - first)
 			# Each burst star's dust is its own payout, shown as the star bursts.
 			_payouts += 1
 			p.payout = _payouts

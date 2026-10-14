@@ -103,38 +103,45 @@ func test_the_fish_cord_splits_the_west_cord_clear_of_its_stars() -> void:
 	assert_eq(run.cords.link_count(), 0)
 
 
-func test_the_circlet_opens_by_acting_a_net_out() -> void:
+func test_the_circlet_opens_by_showing_a_link_leave_a_cord_and_a_step_refused_at_it() -> void:
 	var run: RunState = _run(StarMap.pisces_circlet())
 	var placed: Array[Star] = []
 	var linked: Array = []
-	var netted: Array = []
+	var refused: Array = []
+	var cleared: Array[Star] = []
 	run.cord_intro_placed.connect(func(stars: Array[Star]) -> void: placed.assign(stars))
 	run.cord_intro_linked.connect(func(link: Array[int], points: Array[Vector2i]) -> void: linked.append([link, points]))
-	run.cord_intro_netted.connect(func(link: Array[int], points: Array[Vector2i], loop: Array[Vector2i], snapped: Array[Array], caught: Array[Star]) -> void: netted.append([link, points, loop, snapped, caught]))
+	run.cord_intro_refused.connect(func(link: Array[int], cut: Vector2i) -> void: refused.append([link, cut]))
+	run.cord_intro_cleared.connect(func(stars: Array[Star]) -> void: cleared.assign(stars))
 	var packs: Dictionary = run.owned_packs.duplicate()
 	var state: int = (run.get("_rng") as RandomNumberGenerator).state
 	run.play_cord_intro()
-	assert_eq(placed.size(), 8, "two combos and two stars to catch")
-	assert_eq(linked.size(), 1, "the post")
-	assert_eq(netted.size(), 1, "the hook closes a net")
-	for ids: Array in [linked[0][0], netted[0][0]]:
-		var sizes: Array[int] = []
-		for star: Star in placed:
-			if ids.has(star.id):
-				sizes.append(star.size)
-		sizes.sort()
-		assert_eq(sizes, [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG], "one of each size: a combo")
-	var loop: Array[Vector2i] = netted[0][2]
-	var polygon := PackedVector2Array()
-	for point: Vector2i in loop:
-		polygon.append(Vector2(point))
-	var caught: Array[Star] = netted[0][4]
-	assert_eq(caught.size(), 2)
-	for star: Star in caught:
-		assert_true(Geometry2D.is_point_in_polygon(Vector2(star.position), polygon), "caught inside the net")
-	assert_eq((netted[0][3] as Array).size(), 4, "both demo cords snap")
+	assert_eq(placed.size(), 5, "a combo and a pair")
+	assert_eq(linked.size(), 1)
+	var link: Array[int] = linked[0][0]
+	var points: Array[Vector2i] = linked[0][1]
+	assert_eq(link.size(), 3)
+	var sizes: Array[int] = []
+	for star: Star in placed:
+		if link.has(star.id):
+			sizes.append(star.size)
+	sizes.sort()
+	assert_eq(sizes, [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG], "one of each size: a combo")
+	assert_eq(points.size(), 3)
+	assert_eq(refused.size(), 1)
+	var cut: Vector2i = refused[0][1]
+	assert_ne(cut, StarCords.NO_CROSSING, "the pair's step meets the demo cord")
+	var demo := StarCords.new()
+	demo.tie(points)
+	var pair: Array[int] = refused[0][0]
+	var ends: Array[Vector2i] = []
+	for star: Star in placed:
+		if pair.has(star.id):
+			ends.append(star.position)
+	assert_true(demo.crosses(ends[0], ends[1]), "the pair stands either side of it")
+	assert_eq(cleared.size(), 2, "the pair leaves")
 	assert_true(run.stars.is_empty(), "the sky is empty for the run")
-	assert_eq(run.cords.count(), 0, "the run's cords don't change")
+	assert_eq(run.cords.link_count(), 0, "the run's cords don't change")
 	assert_eq(run.owned_packs, packs, "no pack used")
 	assert_eq(run.dust, 100, "no reward")
 	assert_eq((run.get("_rng") as RandomNumberGenerator).state, state, "no RNG drawn")
@@ -143,13 +150,13 @@ func test_the_circlet_opens_by_acting_a_net_out() -> void:
 func test_the_cord_intro_stars_stand_in_the_sky_clear_of_the_figure() -> void:
 	var run: RunState = _run(StarMap.pisces_circlet())
 	var spots: Array[Vector2i] = run.cord_intro_spots()
-	assert_eq(spots.size(), 8)
+	assert_eq(spots.size(), 5)
 	for i: int in spots.size():
 		assert_true(StarScatter.inner_rect(SKY).has_point(spots[i]))
 		for landmark: Vector2i in run.scorpio.landmark_positions():
 			assert_gte(spots[i].distance_to(landmark), float(StarScatter.MIN_SPACING), "clear of the figure")
 		for j: int in range(i + 1, spots.size()):
-			assert_gte(spots[i].distance_to(spots[j]), 12.0, "%d and %d apart (placed, not scattered: never overlapping)" % [i, j])
+			assert_gte(spots[i].distance_to(spots[j]), float(StarScatter.MIN_SPACING), "%d and %d apart" % [i, j])
 
 
 func test_the_cord_intro_plays_only_as_a_stage_with_intros_opens() -> void:
@@ -203,9 +210,9 @@ func test_the_fish_cord_is_hidden_until_its_intro_lays_it() -> void:
 
 
 func test_each_stage_says_its_rule_in_a_line_that_fits() -> void:
-	assert_eq(Hud.cord_rule(_run(StarMap.pisces_circlet()).cords), Hud.NET_MESSAGE)
-	assert_eq(Hud.cord_rule(_run(StarMap.pisces_west_cord()).cords), Hud.FISH_NET_MESSAGE)
-	for text: String in [Hud.NET_MESSAGE, Hud.FISH_NET_MESSAGE]:
+	assert_eq(Hud.cord_rule(_run(StarMap.pisces_circlet()).cords), Hud.CORD_MESSAGE)
+	assert_eq(Hud.cord_rule(_run(StarMap.pisces_west_cord()).cords), Hud.FISH_CORD_MESSAGE)
+	for text: String in [Hud.CORD_MESSAGE, Hud.FISH_CORD_MESSAGE]:
 		for line: String in text.split("\n"):
 			assert_lte(line.length(), 24, line)
 
@@ -222,12 +229,12 @@ func test_each_stage_says_its_rule_as_its_intro_shows_it() -> void:
 	while sequencer.is_busy() and Time.get_ticks_msec() - start < 10000:
 		await get_tree().process_frame
 		most = maxi(most, sky.star_count())
-		said = said or hud.message() == Hud.NET_MESSAGE
+		said = said or hud.message() == Hud.CORD_MESSAGE
 	assert_false(sequencer.is_busy(), "it ends")
-	assert_eq(most, 8, "two combos and the two to catch at most")
+	assert_eq(most, 5, "a combo and a pair at most")
 	assert_true(said, "the rule is said as the intro shows it")
 	assert_eq(sky.star_count(), 0, "the demo stars are gone")
 	assert_eq(circlet.run.cords.link_count(), 0)
 	var west: Main = _main("pisces_west_cord")
 	_settle(west)
-	assert_eq((west.get_node("HUD") as Hud).message(), Hud.FISH_NET_MESSAGE)
+	assert_eq((west.get_node("HUD") as Hud).message(), Hud.FISH_CORD_MESSAGE)
