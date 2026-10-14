@@ -959,7 +959,7 @@ static func pisces_west_cord() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = PISCES_PART % "west_cord"
 	map.cords = true
-	map.fish_cord = [Vector2i(0, 130), Vector2i(100, 214), Vector2i(179, 140)]
+	map.fish_cord = [Vector2i(179, 142), Vector2i(30, 150), Vector2i(100, 249)]
 	return map
 
 
