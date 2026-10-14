@@ -104,12 +104,10 @@ func test_a_splash_pushes_a_star_by_the_edge_out_of_the_sky() -> void:
 func test_a_blocked_star_goes_as_far_as_it_has_room() -> void:
 	var splash := StarSplash.new(30, 14)
 	var pushed := Star.new(1, Star.Size.SMALL, Vector2i(100, 160))
-	var beyond := Star.new(2, Star.Size.SMALL, Vector2i(130, 160))
+	var beyond := Star.new(2, Star.Size.SMALL, Vector2i(124, 160))
 	var moved: Dictionary[int, Vector2i] = splash.preview(Vector2i(90, 160), [pushed, beyond] as Array[Star], SKY, [] as Array[Vector2i])
 	assert_false(moved.has(2), "out of reach")
-	var to: Vector2i = moved.get(1, pushed.position)
-	assert_gt(to.x, 100, "it moves on")
-	assert_gte(to.distance_to(beyond.position), float(StarScatter.MIN_SPACING), "never onto another star")
+	assert_eq(moved.get(1), Vector2i(124 - StarScatter.MIN_SPACING, 160), "short of its full push, as far as it has room")
 	var landmark: Array[Vector2i] = [Vector2i(104, 160)]
 	var held: Dictionary[int, Vector2i] = splash.preview(Vector2i(90, 160), [pushed] as Array[Star], SKY, landmark)
 	assert_false(held.has(1), "with no room at all it stays")
@@ -175,6 +173,9 @@ func test_the_knot_opens_by_showing_the_splash() -> void:
 	var state: int = (run.get("_rng") as RandomNumberGenerator).state
 	run.play_reflect_intro()
 	assert_eq((placed[0] as Array).size(), 3, "demo stars by the edge")
+	var spot: Vector2i = run.splash_intro_spot()
+	for i: int in 3:
+		assert_eq((placed[0][i] as Star).position, spot + RunState.SPLASH_INTRO_STARS[i], "shown where they stand before the splash")
 	var lost: int = 0
 	var pushed: int = 0
 	for move: StarCurrent.Move in splashed[0]:

@@ -1570,7 +1570,11 @@ func _splash_intro() -> void:
 	var demo: Array[Star] = []
 	for offset: Vector2i in _splash_intro_offsets():
 		demo.append(add_star(HEAT_INTRO_SIZES[demo.size()], thrown + offset))
-	splash_intro_placed.emit(demo.duplicate())
+	# Where they stand now: the splash moves the stars themselves before the views show them.
+	var shown: Array[Star] = []
+	for star: Star in demo:
+		shown.append(Star.new(star.id, star.size, star.position))
+	splash_intro_placed.emit(shown)
 	var burst: Vector2i = StarScatter.clamp_to_sky(reflect(thrown), sky_rect)
 	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
 	hunt_intro_launched.emit(kind, thrown)
