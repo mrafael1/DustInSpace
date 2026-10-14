@@ -5,7 +5,7 @@ extends GutTest
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
 const SKY := Rect2i(0, 78, 180, 172)
-const BUILT: Array[String] = ["pisces_circlet", "pisces_west_cord"]
+const BUILT: Array[String] = ["pisces_circlet", "pisces_west_cord", "pisces_knot", "pisces_east_cord"]
 
 
 func _run(map: StarMap, seed_value: int = 7) -> RunState:
