@@ -18,7 +18,9 @@ extends Node2D
 ## never goes: not with a clear, not with a Big Bang. The same old gold, a step stronger than a link's
 ## rope: unbroken, C2 twisted with C4 every other pixel, with a 3x3 knot at Alrescha (each bend of the
 ## polyline: C1 heart, C2 arms, C4 corners) and no knots at its loose ends. It glows ember like a
-## link's cord when a step would cross it (S4 twisted with S3, the knot S4 with S3 corners).
+## link's cord when a step would cross it (S4 twisted with S3, the knot S4 with S3 corners). On a
+## stage with intros it's hidden until its intro lays it (lay_fish): solid C2 from its first end
+## through the knot to the last over FISH_LAY_TIME, then the rope and the knot.
 
 ## The rope's pattern along its pixels: C2, C4, C4, then a gap.
 const ROPE_PERIOD: int = 4
@@ -33,6 +35,7 @@ const NEIGHBOURS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, 
 const CORNERS: Array[Vector2i] = [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
 ## The fish's cord's pattern: C2, C4, over again, with no gap.
 const FISH_PERIOD: int = 2
+const FISH_LAY_TIME: float = 0.7
 
 ## The step being traced to the finger, [from, to] (empty: none): every cord it would cross glows.
 var tracing_step: Array[Vector2i] = []:
@@ -55,6 +58,10 @@ var _fixed: int = 0
 ## left; -1 for none.
 var _clear_wait: float = -1.0
 var _clear_left: float = -1.0
+## The fish's cord's intro: hidden until it's laid (lay_fish), then the seconds since it began to be
+## laid; -1 once it's whole.
+var _fish_hidden: bool = false
+var _fish_age: float = -1.0
 
 
 func _ready() -> void:
@@ -69,6 +76,8 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_blocking_left = 0.0
 	_clear_wait = -1.0
 	_clear_left = -1.0
+	_fish_hidden = run.cord_intro_due() and run.cords.fixed_count() > 0
+	_fish_age = -1.0
 	_sync()
 	set_process(run.cords != null)
 	queue_redraw()
@@ -86,6 +95,13 @@ func tie(points: Array[Vector2i]) -> void:
 			continue
 		_segments.append([points[i - 1], points[i]] as Array[Vector2i])
 		_ages.append(-TIE_DELAY - (i - 1) * TIE_TIME * 0.5)
+	queue_redraw()
+
+
+## The fish's cord's intro: it's laid across the sky now, from its first end to its last.
+func lay_fish() -> void:
+	_fish_hidden = false
+	_fish_age = 0.0
 	queue_redraw()
 
 
@@ -126,13 +142,17 @@ func fish_count() -> int:
 
 ## Whether a cord is still being laid or cleared.
 func is_playing() -> bool:
-	return _clear_left >= 0.0 or _ages.any(func(age: float) -> bool: return age < TIE_TIME + TIE_FLASH)
+	return _clear_left >= 0.0 or _fish_age >= 0.0 or _ages.any(func(age: float) -> bool: return age < TIE_TIME + TIE_FLASH)
 
 
 ## Lays and clears the cords. Driven by `_process`; tests call it directly.
 func advance(delta: float) -> void:
 	for i: int in _ages.size():
 		_ages[i] += delta
+	if _fish_age >= 0.0:
+		_fish_age += delta
+		if _fish_age >= FISH_LAY_TIME:
+			_fish_age = -1.0
 	if _blocking_left > 0.0:
 		_blocking_left -= delta
 		if _blocking_left <= 0.0:
@@ -191,6 +211,10 @@ func pixels() -> Dictionary[Vector2i, Color]:
 ## segment it ties is.
 func _fish_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
+	if _fish_hidden:
+		return result
+	if _fish_age >= 0.0:
+		return _fish_laying_pixels(_fish_age / FISH_LAY_TIME)
 	var ends: Dictionary[Vector2i, int] = {}
 	var hot_ends: Dictionary[Vector2i, bool] = {}
 	for i: int in _fixed:
@@ -205,6 +229,23 @@ func _fish_pixels() -> Dictionary[Vector2i, Color]:
 	for end: Vector2i in ends:
 		if ends[end] > 1:
 			result.merge(fish_knot_pixels(end, hot_ends.has(end)), true)
+	return result
+
+
+## The fish's cord being laid: solid C2 along its segments in order, `share` (0 to 1) of its length.
+func _fish_laying_pixels(share: float) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var lengths: Array[float] = []
+	var total: float = 0.0
+	for i: int in _fixed:
+		lengths.append(Vector2(_segments[i][0]).distance_to(Vector2(_segments[i][1])))
+		total += lengths[i]
+	var left: float = total * clampf(share, 0.0, 1.0)
+	for i: int in _fixed:
+		if left <= 0.0:
+			break
+		result.merge(laying_pixels(_segments[i][0], _segments[i][1], minf(left / maxf(lengths[i], 1.0), 1.0)), true)
+		left -= lengths[i]
 	return result
 
 

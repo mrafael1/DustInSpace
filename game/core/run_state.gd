@@ -101,6 +101,20 @@ signal cord_tied(points: Array[Vector2i])
 ## Pisces's cords: the sky was cleared (the Sun rekindled, the figure completed, a Big Bang), and
 ## every link's cord with it (only when there was one). The fish's cord is never cleared.
 signal cords_cleared
+## Pisces's cord intro, as a stage with link cords opens: demo `stars` appear (copies as placed): a
+## combo of one of each size, and a pair either side of where its cord will run.
+signal cord_intro_placed(stars: Array[Star])
+## The cord intro: the demo combo is linked (`link`, its ids in pick order) and leaves its cord
+## through `points`. Presentation only: the run's cords don't change.
+signal cord_intro_linked(link: Array[int], points: Array[Vector2i])
+## The cord intro: a step between the demo pair (`link`, from and to) is traced and refused where
+## it would cross the demo cord, at `cut`.
+signal cord_intro_refused(link: Array[int], cut: Vector2i)
+## The cord intro is over: the demo pair (`stars`) and the demo cord leave the sky. No reward.
+signal cord_intro_cleared(stars: Array[Star])
+## The fish's cord intro, as a stage with a fish's cord and intros opens: the cord is laid across the
+## sky through `points` (shifted with the map). It was in the run from the start; this only shows it.
+signal fish_cord_laid(points: Array[Vector2i])
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
 ## Its light then clears the sky: sky_cleared follows the landmark's events.
 signal sun_rekindled(landmark: int)
@@ -226,6 +240,11 @@ const HOLE_INTRO_WAYS: int = 32
 ## hole's ring (so they don't read as falling in).
 const GAUGE_INTRO_GAP: int = 18
 const GAUGE_INTRO_HOLE_CLEARANCE: int = 16
+## Pisces's cord intro: the demo combo stands in a column CORD_INTRO_GAP px a step, and the pair either
+## side of its first step, CORD_INTRO_SIDE px off it, so the step between them crosses its cord.
+const CORD_INTRO_GAP: int = 20
+const CORD_INTRO_SIDE: int = 16
+const CORD_INTRO_PAIR: Array[Star.Size] = [Star.Size.MEDIUM, Star.Size.MEDIUM]
 const HOLE_INTRO_STRING_CLEARANCE: float = 10.0
 const HOLE_INTRO_PULLS: int = 2
 const CURRENT_INTRO_ACROSS: Array[int] = [0, 6, -6]
@@ -1250,6 +1269,69 @@ func gauge_intro_spots() -> Array[Vector2i]:
 					break
 				spots.append(spot)
 			if spots.size() == 3:
+				return spots
+	spots.clear()
+	return spots
+
+
+## Pisces's intros, as a stage with cords and intros opens. With a fish's cord, it is laid across the
+## sky (fish_cord_laid). Else (link cords alone) a combo of one of each size appears, is linked and
+## leaves its cord; then a step between two stars either side of it is refused at the cord, and they
+## leave with it. No reward, no pack used, no RNG drawn; the run's cords and sky are as they were.
+func play_cord_intro() -> void:
+	if not cord_intro_due():
+		return
+	if cords.fixed_count() > 0:
+		fish_cord_laid.emit(_fish_cord())
+		return
+	var spots: Array[Vector2i] = cord_intro_spots()
+	if spots.is_empty():
+		return
+	var shown: Array[Star] = []
+	var link: Array[int] = []
+	var points: Array[Vector2i] = []
+	for i: int in spots.size():
+		var size: Star.Size = HEAT_INTRO_SIZES[i] if i < HEAT_INTRO_SIZES.size() else CORD_INTRO_PAIR[i - HEAT_INTRO_SIZES.size()]
+		var star: Star = add_star(size, spots[i])
+		shown.append(Star.new(star.id, star.size, star.position))
+		if i < HEAT_INTRO_SIZES.size():
+			link.append(star.id)
+			points.append(star.position)
+	cord_intro_placed.emit(shown)
+	var demo := StarCords.new()
+	demo.tie(points)
+	var pair: Array[Star] = shown.slice(HEAT_INTRO_SIZES.size())
+	cord_intro_linked.emit(link, points)
+	cord_intro_refused.emit([pair[0].id, pair[1].id] as Array[int], demo.crossing(pair[0].position, pair[1].position))
+	stars.clear()
+	cord_intro_cleared.emit(pair)
+
+
+## Whether a cord intro plays as this run opens: a stage with cords and intros, before anything has
+## happened (CordView keeps the fish's cord hidden until it's laid).
+func cord_intro_due() -> bool:
+	return cords != null and scorpio != null and scorpio.map.intros and stars.is_empty() and not is_over()
+
+
+## Where the cord intro's stars stand: the combo in a column (top to bottom, in pick order) on the
+## open middle of the sky, then the pair either side of its first step; all inside the sky and clear
+## of the figure ([] if it doesn't fit).
+func cord_intro_spots() -> Array[Vector2i]:
+	var spots: Array[Vector2i] = []
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
+	var middle: Vector2i = _open_middle()
+	for dy: int in [0, 16, -16, 32, -32]:
+		for dx: int in [0, 16, -16, 32, -32]:
+			var at: Vector2i = middle + Vector2i(dx, dy)
+			spots = [at + Vector2i(0, -CORD_INTRO_GAP), at, at + Vector2i(0, CORD_INTRO_GAP),
+				at + Vector2i(-CORD_INTRO_SIDE, -CORD_INTRO_GAP / 2), at + Vector2i(CORD_INTRO_SIDE, -CORD_INTRO_GAP / 2)]
+			var clear: bool = true
+			for spot: Vector2i in spots:
+				clear = clear and inner.has_point(spot)
+				for landmark: Vector2i in landmarks:
+					clear = clear and spot.distance_to(landmark) >= StarScatter.MIN_SPACING
+			if clear:
 				return spots
 	spots.clear()
 	return spots

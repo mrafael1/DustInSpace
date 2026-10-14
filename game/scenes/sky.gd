@@ -68,6 +68,8 @@ signal landmark_put_out(at: Vector2i)
 signal landmark_kept(at: Vector2i)
 ## Virgo's binding intro: its demo combo collected (no payout). Feedback only (sound).
 signal intro_link_collected
+## The cord intro's demo step was refused at its cord. Feedback only (sound; not a player's refusal).
+signal intro_step_refused
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -429,9 +431,66 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			_cords.tie(event.args[0])
 		&"cords_cleared":
 			_cords.clear_cords()
+		&"cord_intro_placed":
+			_place_intro(event.args[0])
+		&"cord_intro_linked":
+			_sequencer.hold(_link_into_cord(event.args[0], event.args[1]))
+		&"cord_intro_refused":
+			_sequencer.hold(_refuse_intro_step(event.args[0], event.args[1]))
+		&"cord_intro_cleared":
+			# The pair leaves, and the demo cord with it (the fish's, if any, stays).
+			_clear_intro(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD)
+			_cords.clear_cords()
+		&"fish_cord_laid":
+			_cords.lay_fish()
+			_sequencer.hold(CordView.FISH_LAY_TIME + INTRO_HOLD)
 		_:
 			return false
 	return true
+
+
+## The cord intro: the demo `link` is traced and collects, then its cord is laid through `points`.
+## Returns how long it all plays, with a beat to see the cord.
+func _link_into_cord(link: Array[int], points: Array[Vector2i]) -> float:
+	var trace: float = _trace_intro_link(link, -1, false)
+	var tween: Tween = create_tween()
+	tween.tween_interval(trace - StarView.DISSOLVE_TIME)
+	tween.tween_callback(_cords.tie.bind(points))
+	return trace - StarView.DISSOLVE_TIME + CordView.TIE_DELAY + CordView.TIE_TIME + CordView.TIE_FLASH + INTRO_HOLD
+
+
+## The cord intro: a step from `link`[0] toward `link`[1] is traced as a player would, the line
+## breaking at `cut` where it meets the cord (which glows), then refused there as a real one is: the
+## step shakes ember with the cord. Returns how long it plays, with a beat after.
+func _refuse_intro_step(link: Array[int], cut: Vector2i) -> float:
+	var from: StarView = _views.get(link[0])
+	var to: StarView = _views.get(link[1])
+	if from == null or to == null:
+		return 0.0
+	var ends: Array[Vector2i] = [Vector2i(from.position), Vector2i(to.position)]
+	from.selected = true
+	var tween: Tween = create_tween()
+	tween.tween_method(_show_refused_trace.bind(ends, cut), 0.0, 1.0, INTRO_TRACE_STEP)
+	tween.tween_callback(_refuse_at_cord.bind(from, ends))
+	return INTRO_TRACE_STEP + LinkLayer.REJECT_TIME + INTRO_HOLD
+
+
+## The cord intro's refused step `t` (0 to 1) of the way along `ends`: the line to its tip, broken at
+## `cut`, and the cord it meets glowing.
+func _show_refused_trace(t: float, ends: Array[Vector2i], cut: Vector2i) -> void:
+	var tip := Vector2i(Vector2(ends[0]).lerp(Vector2(ends[1]), t).round())
+	_link_layer.show_path([ends[0], tip] as Array[Vector2i], true, 0, false, cut)
+	_cords.tracing_step = [ends[0], tip] as Array[Vector2i]
+
+
+## The cord intro's step reached its star and is refused: it shakes ember, and the cord with it.
+func _refuse_at_cord(from: StarView, ends: Array[Vector2i]) -> void:
+	_link_layer.show_path([] as Array[Vector2i])
+	_cords.tracing_step = [] as Array[Vector2i]
+	from.selected = false
+	_link_layer.flash_rejected(ends)
+	_cords.flash_blocking(ends[0], ends[1], LinkLayer.REJECT_TIME)
+	intro_step_refused.emit()
 
 
 ## Virgo's events: the harvest, the binding and their intro. True if `event` was one.

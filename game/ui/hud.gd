@@ -134,8 +134,10 @@ const HUNGRY_MESSAGE: String = "THE HOLE GROWS WITH\nEVERY STAR IT SWALLOWS"
 const SWALLOW_LOSS_MESSAGE: String = "THE HOLE TOOK A STAR\nLINK MARKED ONES FIRST"
 const TWINS_MESSAGE: String = "WHERE THE HOLES MEET\nA BIG BANG CLEARS ALL"
 const GAUGE_MESSAGE: String = "THE HOLE DRINKS ALL LIGHT\nFULL IT BANGS THE SKY"
-## Pisces's cords (chapter 6 trial): every link leaves its string, and no link can cross one.
+## Pisces's cords: every link leaves its string, and no link can cross one; with the fish's cord in
+## the sky, that it's a cord too and never goes.
 const CORD_MESSAGE: String = "EVERY LINK LEAVES A CORD\nNO LINK CAN CROSS ONE"
+const FISH_CORD_MESSAGE: String = "NO LINK CAN CROSS A CORD\nTHE FISH CORD NEVER GOES"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
 ## no launch, other message or clear cuts it before it can be read; only another teaching line can.
@@ -412,7 +414,7 @@ func _stage_rule() -> String:
 	if _run.gravity != null:
 		return hole_rule(_run.gravity)
 	if _run.cords != null:
-		return CORD_MESSAGE
+		return cord_rule(_run.cords)
 	return ""
 
 
@@ -479,6 +481,11 @@ static func hole_rule(hole: StarGravity) -> String:
 	if hole.has_gauge():
 		return GAUGE_MESSAGE
 	return HUNGRY_MESSAGE if hole.hunger > 0 else HOLE_MESSAGE
+
+
+## What the cords' message says: links leave cords, or (a fish's cord in the sky) it never goes.
+static func cord_rule(cords: StarCords) -> String:
+	return FISH_CORD_MESSAGE if cords.fixed_count() > 0 else CORD_MESSAGE
 
 
 ## What the heat's message says: it grows or shrinks stars (or both, by turns), and whether it
@@ -825,7 +832,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed":
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed", &"cord_intro_placed", &"fish_cord_laid":
 			# Virgo's, the current's and the breath's intros say their rule as the effect shows.
 			tell_current_rule()
 			return
