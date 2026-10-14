@@ -195,7 +195,7 @@ func start_run(balance: Balance) -> bool:
 	run.play_twins_intro()
 	# And the Head's light gauge: a link's light streaming into the hole.
 	run.play_gauge_intro()
-	# And a Pisces stage: a link leaving its cord and a step refused at it, or the fish's cord laid.
+	# And a Pisces stage: a net acted out on demo stars, or the fish's cord laid.
 	run.play_cord_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
@@ -385,7 +385,7 @@ func _wire_sound() -> void:
 	_sky.landmark_put_out.connect(func(_at: Vector2i) -> void: _sfx.play(&"crop", 1.0))
 	_sky.landmark_kept.connect(func(_at: Vector2i) -> void: _sfx.play(&"star_select", 1.5))
 	_sky.intro_link_collected.connect(_sfx.play.bind(&"link_collect", 1.0))
-	_sky.intro_step_refused.connect(_sfx.play.bind(&"link_reject", 1.0))
+	_sky.net_closed.connect(_sfx.play.bind(&"link_collect", 1.5))
 	_sky.sunbeam_launched.connect(_sfx.play.bind(&"launch", 1.5))
 	_sky.sunbeam_landed.connect(_on_star_exploded)
 	(_sky.get_node("ConstellationLayer") as ConstellationView).string_sung.connect(_sfx.on_string_sung)

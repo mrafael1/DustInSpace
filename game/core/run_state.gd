@@ -105,17 +105,16 @@ signal cords_cleared
 ## order). The loose stars inside (`caught`, copies) are taken for `dust`, and the cords in the loop
 ## (`snapped`, each [from, to]) snapped. Comes after the link's combo_collected.
 signal net_closed(loop: Array[Vector2i], caught: Array[Star], dust: int, snapped: Array[Array])
-## Pisces's cord intro, as a stage with link cords opens: demo `stars` appear (copies as placed): a
-## combo of one of each size, and a pair either side of where its cord will run.
+## Pisces's net intro, as a stage with nets (and no fish's cord) opens: demo `stars` appear (copies
+## as placed): two combos of one of each size, and the two stars the second one's net will catch.
 signal cord_intro_placed(stars: Array[Star])
-## The cord intro: the demo combo is linked (`link`, its ids in pick order) and leaves its cord
+## The net intro: the first demo combo is linked (`link`, its ids in pick order) and leaves its cord
 ## through `points`. Presentation only: the run's cords don't change.
 signal cord_intro_linked(link: Array[int], points: Array[Vector2i])
-## The cord intro: a step between the demo pair (`link`, from and to) is traced and refused where
-## it would cross the demo cord, at `cut`.
-signal cord_intro_refused(link: Array[int], cut: Vector2i)
-## The cord intro is over: the demo pair (`stars`) and the demo cord leave the sky. No reward.
-signal cord_intro_cleared(stars: Array[Star])
+## The net intro: the second demo combo (`link`) is linked, leaves its cord through `points` knotted
+## into the first, and closes a net through `loop`: the cords in it (`snapped`) snap and the stars
+## inside (`caught`) are caught. No reward; the sky is empty after.
+signal cord_intro_netted(link: Array[int], points: Array[Vector2i], loop: Array[Vector2i], snapped: Array[Array], caught: Array[Star])
 ## The fish's cord intro, as a stage with a fish's cord and intros opens: the cord is laid across the
 ## sky through `points` (shifted with the map). It was in the run from the start; this only shows it.
 signal fish_cord_laid(points: Array[Vector2i])
@@ -244,11 +243,12 @@ const HOLE_INTRO_WAYS: int = 32
 ## hole's ring (so they don't read as falling in).
 const GAUGE_INTRO_GAP: int = 18
 const GAUGE_INTRO_HOLE_CLEARANCE: int = 16
-## Pisces's cord intro: the demo combo stands in a column CORD_INTRO_GAP px a step, and the pair either
-## side of its first step, CORD_INTRO_SIDE px off it, so the step between them crosses its cord.
-const CORD_INTRO_GAP: int = 20
-const CORD_INTRO_SIDE: int = 16
-const CORD_INTRO_PAIR: Array[Star.Size] = [Star.Size.MEDIUM, Star.Size.MEDIUM]
+## Pisces's net intro, from the spot it plays round: the first combo (a post, in pick order), the
+## second (a hook whose ends stand 8 px off the post, within any knot reach of 8 or more), and the
+## two stars inside the net it closes.
+const CORD_INTRO_POST: Array[Vector2i] = [Vector2i(-20, -28), Vector2i(-20, 0), Vector2i(-20, 28)]
+const CORD_INTRO_HOOK: Array[Vector2i] = [Vector2i(-12, -14), Vector2i(24, 0), Vector2i(-12, 14)]
+const CORD_INTRO_CAUGHT: Array[Vector2i] = [Vector2i(0, -6), Vector2i(0, 6)]
 const HOLE_INTRO_STRING_CLEARANCE: float = 10.0
 const HOLE_INTRO_PULLS: int = 2
 const CURRENT_INTRO_ACROSS: Array[int] = [0, 6, -6]
@@ -1285,9 +1285,10 @@ func gauge_intro_spots() -> Array[Vector2i]:
 
 
 ## Pisces's intros, as a stage with cords and intros opens. With a fish's cord, it is laid across the
-## sky (fish_cord_laid). Else (link cords alone) a combo of one of each size appears, is linked and
-## leaves its cord; then a step between two stars either side of it is refused at the cord, and they
-## leave with it. No reward, no pack used, no RNG drawn; the run's cords and sky are as they were.
+## sky (fish_cord_laid). Else, with nets, a net is acted out: a combo of one of each size is linked
+## and leaves its cord (the post); a second (the hook) is linked with its ends by the post, knots
+## into it and closes a net round two stars, which are caught; the cords snap. No reward, no pack
+## used, no RNG drawn; the run's cords and sky are as they were.
 func play_cord_intro() -> void:
 	if not cord_intro_due():
 		return
@@ -1295,26 +1296,37 @@ func play_cord_intro() -> void:
 		fish_cord_laid.emit(_fish_cord())
 		return
 	var spots: Array[Vector2i] = cord_intro_spots()
-	if spots.is_empty():
+	if spots.is_empty() or cords.knot_reach <= 0:
 		return
 	var shown: Array[Star] = []
-	var link: Array[int] = []
-	var points: Array[Vector2i] = []
 	for i: int in spots.size():
-		var size: Star.Size = HEAT_INTRO_SIZES[i] if i < HEAT_INTRO_SIZES.size() else CORD_INTRO_PAIR[i - HEAT_INTRO_SIZES.size()]
+		var size: Star.Size = HEAT_INTRO_SIZES[i % 3] if i < 6 else Star.Size.SMALL
 		var star: Star = add_star(size, spots[i])
 		shown.append(Star.new(star.id, star.size, star.position))
-		if i < HEAT_INTRO_SIZES.size():
-			link.append(star.id)
-			points.append(star.position)
 	cord_intro_placed.emit(shown)
-	var demo := StarCords.new()
-	demo.tie(points)
-	var pair: Array[Star] = shown.slice(HEAT_INTRO_SIZES.size())
-	cord_intro_linked.emit(link, points)
-	cord_intro_refused.emit([pair[0].id, pair[1].id] as Array[int], demo.crossing(pair[0].position, pair[1].position))
+	var demo := StarCords.new(cords.knot_reach)
+	var post: Array[Star] = shown.slice(0, 3)
+	var hook: Array[Star] = shown.slice(3, 6)
+	demo.tie_net(_points_of(post))
+	var net: StarCords.Net = demo.tie_net(_points_of(hook))
+	cord_intro_linked.emit(_ids_of(post), _points_of(post))
 	stars.clear()
-	cord_intro_cleared.emit(pair)
+	if net != null:
+		cord_intro_netted.emit(_ids_of(hook), _points_of(hook), net.loop, net.snapped, shown.slice(6))
+
+
+static func _points_of(some: Array[Star]) -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	for star: Star in some:
+		points.append(star.position)
+	return points
+
+
+static func _ids_of(some: Array[Star]) -> Array[int]:
+	var ids: Array[int] = []
+	for star: Star in some:
+		ids.append(star.id)
+	return ids
 
 
 ## Whether a cord intro plays as this run opens: a stage with cords and intros, before anything has
@@ -1323,9 +1335,9 @@ func cord_intro_due() -> bool:
 	return cords != null and scorpio != null and scorpio.map.intros and stars.is_empty() and not is_over()
 
 
-## Where the cord intro's stars stand: the combo in a column (top to bottom, in pick order) on the
-## open middle of the sky, then the pair either side of its first step; all inside the sky and clear
-## of the figure ([] if it doesn't fit).
+## Where the net intro's stars stand round the open middle of the sky: the post, the hook (each in
+## pick order), then the two to catch; all inside the sky and clear of the figure ([] if it doesn't
+## fit).
 func cord_intro_spots() -> Array[Vector2i]:
 	var spots: Array[Vector2i] = []
 	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
@@ -1334,8 +1346,9 @@ func cord_intro_spots() -> Array[Vector2i]:
 	for dy: int in [0, 16, -16, 32, -32]:
 		for dx: int in [0, 16, -16, 32, -32]:
 			var at: Vector2i = middle + Vector2i(dx, dy)
-			spots = [at + Vector2i(0, -CORD_INTRO_GAP), at, at + Vector2i(0, CORD_INTRO_GAP),
-				at + Vector2i(-CORD_INTRO_SIDE, -CORD_INTRO_GAP / 2), at + Vector2i(CORD_INTRO_SIDE, -CORD_INTRO_GAP / 2)]
+			spots.clear()
+			for offset: Vector2i in CORD_INTRO_POST + CORD_INTRO_HOOK + CORD_INTRO_CAUGHT:
+				spots.append(at + offset)
 			var clear: bool = true
 			for spot: Vector2i in spots:
 				clear = clear and inner.has_point(spot)

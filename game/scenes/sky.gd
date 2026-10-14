@@ -68,8 +68,8 @@ signal landmark_put_out(at: Vector2i)
 signal landmark_kept(at: Vector2i)
 ## Virgo's binding intro: its demo combo collected (no payout). Feedback only (sound).
 signal intro_link_collected
-## The cord intro's demo step was refused at its cord. Feedback only (sound; not a player's refusal).
-signal intro_step_refused
+## Pisces: a net closed (its loop flashes). Feedback only (sound).
+signal net_closed
 
 const StarViewScene := preload("res://game/scenes/star_view.tscn")
 
@@ -434,22 +434,40 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			_cords.tie(event.args[0])
 		&"cords_cleared":
 			_cords.clear_cords()
+		&"net_closed":
+			_close_net(event.args[0], event.args[1], event.args[3])
 		&"cord_intro_placed":
 			_place_intro(event.args[0])
 		&"cord_intro_linked":
 			_sequencer.hold(_link_into_cord(event.args[0], event.args[1]))
-		&"cord_intro_refused":
-			_sequencer.hold(_refuse_intro_step(event.args[0], event.args[1]))
-		&"cord_intro_cleared":
-			# The pair leaves, and the demo cord with it (the fish's, if any, stays).
-			_clear_intro(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD)
-			_cords.clear_cords()
+		&"cord_intro_netted":
+			_sequencer.hold(_net_intro(event.args[0], event.args[1], event.args[2], event.args[3], event.args[4]))
 		&"fish_cord_laid":
 			_cords.lay_fish()
 			_sequencer.hold(CordView.FISH_LAY_TIME + INTRO_HOLD)
 		_:
 			return false
 	return true
+
+
+## A net closed through `loop`: it flashes and its cords (`snapped`) go; then the stars it caught
+## burst for their dust, as the Sun's clear bursts them (lowest first, EXPLODE_STAGGER apart).
+func _close_net(loop: Array[Vector2i], caught: Array, snapped: Array[Array]) -> void:
+	_cords.close_net(loop, snapped)
+	net_closed.emit()
+	var order: Array[Star] = []
+	order.assign(caught)
+	order = explode_order(order)
+	var last: int = -1
+	for i: int in order.size():
+		var view: StarView = _views.get(order[i].id)
+		if view == null:
+			continue
+		_views.erase(order[i].id)
+		view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
+		view.explode(CordView.NET_FLASH + i * EXPLODE_STAGGER)
+		last = i
+	_sequencer.hold(CordView.NET_FLASH + (EXPLODE_STAGGER * last + StarView.DISSOLVE_TIME if last >= 0 else 0.0))
 
 
 ## The cord intro: the demo `link` is traced and collects, then its cord is laid through `points`.
@@ -462,38 +480,27 @@ func _link_into_cord(link: Array[int], points: Array[Vector2i]) -> float:
 	return trace - StarView.DISSOLVE_TIME + CordView.TIE_DELAY + CordView.TIE_TIME + CordView.TIE_FLASH + INTRO_HOLD
 
 
-## The cord intro: a step from `link`[0] toward `link`[1] is traced as a player would, the line
-## breaking at `cut` where it meets the cord (which glows), then refused there as a real one is: the
-## step shakes ember with the cord. Returns how long it plays, with a beat after.
-func _refuse_intro_step(link: Array[int], cut: Vector2i) -> float:
-	var from: StarView = _views.get(link[0])
-	var to: StarView = _views.get(link[1])
-	if from == null or to == null:
-		return 0.0
-	var ends: Array[Vector2i] = [Vector2i(from.position), Vector2i(to.position)]
-	from.selected = true
+## The net intro's second link: `link` is traced and collects, its cord is laid through `points`
+## (knotted into the first's), and the net it closes through `loop` flashes, its cords (`snapped`)
+## snap and the stars inside (`caught`) burst, for nothing. Returns how long it all plays.
+func _net_intro(link: Array[int], points: Array[Vector2i], loop: Array[Vector2i], snapped: Array[Array], caught: Array) -> float:
+	var laid: float = _link_into_cord(link, points) - INTRO_HOLD
 	var tween: Tween = create_tween()
-	tween.tween_method(_show_refused_trace.bind(ends, cut), 0.0, 1.0, INTRO_TRACE_STEP)
-	tween.tween_callback(_refuse_at_cord.bind(from, ends))
-	return INTRO_TRACE_STEP + LinkLayer.REJECT_TIME + INTRO_HOLD
+	tween.tween_interval(laid)
+	tween.tween_callback(_close_intro_net.bind(loop, snapped, caught))
+	return laid + CordView.NET_FLASH + EXPLODE_STAGGER * maxi(0, caught.size() - 1) + StarView.DISSOLVE_TIME + INTRO_HOLD
 
 
-## The cord intro's refused step `t` (0 to 1) of the way along `ends`: the line to its tip, broken at
-## `cut`, and the cord it meets glowing.
-func _show_refused_trace(t: float, ends: Array[Vector2i], cut: Vector2i) -> void:
-	var tip := Vector2i(Vector2(ends[0]).lerp(Vector2(ends[1]), t).round())
-	_link_layer.show_path([ends[0], tip] as Array[Vector2i], true, 0, false, cut)
-	_cords.tracing_step = [ends[0], tip] as Array[Vector2i]
-
-
-## The cord intro's step reached its star and is refused: it shakes ember, and the cord with it.
-func _refuse_at_cord(from: StarView, ends: Array[Vector2i]) -> void:
-	_link_layer.show_path([] as Array[Vector2i])
-	_cords.tracing_step = [] as Array[Vector2i]
-	from.selected = false
-	_link_layer.flash_rejected(ends)
-	_cords.flash_blocking(ends[0], ends[1], LinkLayer.REJECT_TIME)
-	intro_step_refused.emit()
+func _close_intro_net(loop: Array[Vector2i], snapped: Array[Array], caught: Array) -> void:
+	_cords.close_net(loop, snapped)
+	net_closed.emit()
+	for i: int in caught.size():
+		var view: StarView = _views.get((caught[i] as Star).id)
+		if view == null:
+			continue
+		_views.erase((caught[i] as Star).id)
+		view.exploded.connect(func(v: StarView) -> void: star_exploded.emit(Vector2i(v.position)))
+		view.explode(CordView.NET_FLASH + i * EXPLODE_STAGGER)
 
 
 ## Virgo's events: the harvest, the binding and their intro. True if `event` was one.
@@ -720,6 +727,9 @@ func _show_link() -> void:
 		_harvest.tracing_alone = _run.link_lights_alone(_gesture.selected) if full else -1
 		# Sagittarius's light gauge: a full, valid link that would fill it blinks it ember.
 		_gravity.tracing_fills = full and _run.link_fills_gauge(_gesture.selected)
+		# Pisces's nets: a full, valid link that would close a net shows its loop, dotted.
+		var net: StarCords.Net = _run.link_net(_gesture.selected) if full else null
+		_cords.net_preview = net.loop if net != null else ([] as Array[Vector2i])
 
 
 ## `to`, or where the step from `from` toward it meets the link's reach (on whole pixels).
