@@ -340,3 +340,35 @@ func test_a_step_refused_at_the_seam_lights_it() -> void:
 	assert_gt(lit.values().count(SeamView.GLINT_COLOUR), before.values().count(SeamView.GLINT_COLOUR), "the line glows")
 	view.advance(LinkLayer.REJECT_TIME + 0.01)
 	assert_false(view.is_blocking())
+
+
+func test_a_star_the_splash_pushes_onto_or_across_the_water_line_is_lost() -> void:
+	var run: RunState = _run(StarMap.pisces_knot())
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
+	var push: int = run.splash.push
+	# Thrown left of the line: a star between it and the line goes over; one beyond, away from it, stays.
+	var thrown: Vector2i = middle + Vector2i(-20, 0)
+	var over: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(-push / 2, 0))
+	var away: Star = run.add_star(Star.Size.SMALL, thrown + Vector2i(-20, 0))
+	assert_eq(run.launch_splashes(thrown), [over.id] as Array[int], "only the one pushed over the line")
+	assert_eq(run.splash_preview(thrown)[over.id], middle, "lost where it meets the line")
+	var lost: Array = []
+	run.stars_splashed.connect(func(_at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
+		for move: StarCurrent.Move in moves:
+			if move.drained:
+				lost.append(move.star_id))
+	assert_true(run.launch(thrown))
+	assert_eq(lost, [over.id], "destroyed by the water line")
+	assert_null(run.find_star(over.id))
+	assert_not_null(run.find_star(away.id), "pushed away from it: safe")
+
+
+func test_a_push_ending_right_on_the_line_destroys_too() -> void:
+	var splash := StarSplash.new(30, 10, func(from: Vector2i, to: Vector2i) -> Vector2i:
+		return to if to.x == 90 else StarCords.NO_CROSSING)
+	var star := Star.new(1, Star.Size.SMALL, Vector2i(80, 160))
+	var moved: Dictionary[int, Vector2i] = splash.preview(Vector2i(70, 160), [star] as Array[Star], SKY, [] as Array[Vector2i])
+	assert_eq(moved[1], Vector2i(90, 160))
+	assert_true(splash.moves([star] as Array[Star], moved, SKY)[0].drained)
+	var free := StarSplash.new(30, 10)
+	assert_false(free.moves([star] as Array[Star], free.preview(Vector2i(70, 160), [star] as Array[Star], SKY, [] as Array[Vector2i]), SKY)[0].drained, "no line, no loss")
