@@ -949,9 +949,12 @@ func link(star_ids: Array[int]) -> String:
 				_light_landmark(Scorpio.landmark_index(star.id))
 		# The last landmark lit is the win: no rekindle on top of it.
 		var rekindled: bool = not scorpio.is_complete() and _rekindle_if_full()
-		# A rekindled Sun bursts the sky's stars for dust; a combo's completion clears them for nothing.
+		# A rekindled Sun bursts the sky's stars for dust; a combo's completion clears them for nothing,
+		# or, ending in the Big Bang (Sagittarius's final), the hole swallows them and bangs.
 		if rekindled:
 			_clear_sky(balance.scorpio_sun_dust_per_star)
+		elif scorpio.is_complete() and scorpio.map.big_bang_finale and gravity != null:
+			_big_bang(gravity.center)
 		elif scorpio.is_complete():
 			_clear_sky(0)
 		if scorpio.is_complete():

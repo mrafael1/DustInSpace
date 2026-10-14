@@ -109,6 +109,9 @@ var cords: bool = false
 ## (not by a rekindle, the completion or a Big Bang). Only read when `cords` is on. Draws no random
 ## numbers; bursts and stars cross it freely.
 var fish_cord: Array[Vector2i] = []
+## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
+## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
+var big_bang_finale: bool = false
 ## A final that isn't Orion's arrives with its title card: `title` over this ("" for none).
 var arrival_epithet: String = ""
 
@@ -758,10 +761,11 @@ static func virgo_final() -> StarMap:
 	return map
 
 
-## The map for `id`, the full Scorpio for anything unknown.
 ## Chapter 5's full Sagittarius, the archer, east to the left as the sky shows it: the teapot of his
 ## body and bow with the arrow pointing right (Alnasl, its tip), his head up at the left and a hoof
 ## below. Thirteen stars at least 24 px apart, joined as a tree (the teapot's lid and handle open).
+## The bow's upper limb (Kaus Media, Kaus Borealis, mu) stands upright and phi and Rukbat sit a little
+## out, leaving a corridor down the teapot's middle for the final's twin holes.
 static func sagittarius() -> StarMap:
 	var map := StarMap.new()
 	map.id = "sagittarius"
@@ -770,10 +774,10 @@ static func sagittarius() -> StarMap:
 	# 5 Nunki, 6 tau, 7 Ascella, 8 Kaus Australis, 9 eta (the bow's foot), 10 pi, 11 xi (the head),
 	# 12 Rukbat (a hoof).
 	map.landmarks = [
-		Vector2i(150, 176), Vector2i(124, 158), Vector2i(108, 128), Vector2i(128, 100),
-		Vector2i(90, 156), Vector2i(62, 148), Vector2i(60, 180), Vector2i(84, 194),
+		Vector2i(150, 176), Vector2i(124, 158), Vector2i(124, 124), Vector2i(128, 100),
+		Vector2i(88, 156), Vector2i(62, 148), Vector2i(60, 180), Vector2i(84, 194),
 		Vector2i(128, 196), Vector2i(146, 222), Vector2i(40, 122), Vector2i(22, 100),
-		Vector2i(92, 226),
+		Vector2i(86, 228),
 	]
 	map.segments = [
 		Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(1, 4), Vector2i(4, 5),
@@ -891,6 +895,28 @@ static func sagittarius_head() -> StarMap:
 	return map
 
 
+## Sagittarius, the final: the whole archer (Alnasl lit: twelve to light), every power of the hole in
+## two acts. Twin holes stand above and below the teapot and drift together down a corridor through
+## it (Kaus Borealis, phi and Rukbat sit clear of it), meeting at its heart in a Big Bang that clears
+## the sky (no dust); the hole they merge into then grows as it swallows and drinks all the links'
+## light into its gauge, banging again whenever it's full. Winning ends in the Big Bang: the hole
+## swallows the stars left in the sky and bangs, a jackpot, before the figure rises. It arrives with
+## its title card.
+static func sagittarius_final() -> StarMap:
+	var map: StarMap = sagittarius()
+	map.id = "sagittarius_final"
+	map.black_hole = true
+	map.black_hole_center = Vector2i(106, 116)
+	map.black_hole_twins = true
+	map.black_hole_twin = Vector2i(106, 236)
+	map.black_hole_hungry = true
+	map.black_hole_gauge = true
+	map.big_bang_finale = true
+	map.arrival_epithet = "ARCHER OF THE GALAXY"
+	return map
+
+
+## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
 		"stinger":
@@ -959,6 +985,8 @@ static func by_id(p_id: String) -> StarMap:
 			return sagittarius_legs()
 		"sagittarius_head":
 			return sagittarius_head()
+		"sagittarius_final":
+			return sagittarius_final()
 	return scorpio()
 
 
