@@ -3,7 +3,7 @@ extends SceneTree
 ## Bots are deliberately simple; this is pressure evidence, not a prediction of human difficulty.
 ## --map=<StarMap id> (default pisces_circlet; pisces_west_cord has echoes that light; any other is a
 ## borrowed layout with its heat, current, harvest, hole, cords and threats switched off and the
-## mirror set), --runs=N, --policies=a,b.
+## mirror set), --runs=N, --policies=a,b, --echo-reach=N (a what-if for mirror.echo_reach).
 ## Policies: link-first links the best link (dust, light, landmarks) before launching, blind to its
 ## echo, aiming at the first unlit landmark; careless links the first valid link found; launch-first
 ## launches every owned pack before linking (hoards); mirror links first, scoring every link in every
@@ -31,6 +31,8 @@ const AIM_OFFSET := Vector2i(-12, -18)
 var _balance: Balance
 var _runs: int = 300
 var _map: String = "pisces_circlet"
+## A what-if for balance.json's mirror.echo_reach (-1: as it has it).
+var _echo_reach_what_if: int = -1
 var _policies: Array[String] = POLICIES.duplicate()
 var _policy: String = ""
 
@@ -39,6 +41,8 @@ func _initialize() -> void:
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
 			_runs = maxi(1, argument.trim_prefix("--runs=").to_int())
+		elif argument.begins_with("--echo-reach="):
+			_echo_reach_what_if = argument.trim_prefix("--echo-reach=").to_int()
 		elif argument.begins_with("--map="):
 			_map = argument.trim_prefix("--map=")
 		elif argument.begins_with("--policies="):
@@ -49,6 +53,8 @@ func _initialize() -> void:
 			quit(1)
 			return
 	_balance = Balance.load_file()
+	if _echo_reach_what_if >= 0:
+		_balance.mirror_echo_reach = _echo_reach_what_if
 	_simulate.call_deferred()
 
 
