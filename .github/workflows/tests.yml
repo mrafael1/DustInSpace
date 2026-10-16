@@ -1,0 +1,60 @@
+# Runs the GUT suite on every pull request and on pushes to main (#15).
+# Godot 4.7.2 headless: import the project, then the GUT command from AGENTS.md. Any failing test
+# (or a script that doesn't parse) fails the run.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7.2
+
+jobs:
+  gut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-linux
+
+      - name: Install Godot ${{ env.GODOT_VERSION }}
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip -d ~/godot
+          mv ~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64 ~/godot/godot
+          chmod +x ~/godot/godot
+
+      - name: Import the project
+        # The first import builds .godot/ (class names, imported assets); it can report missing
+        # caches while it does, so only the test run below decides.
+        run: ~/godot/godot --headless --path . --import || true
+
+      - name: Check the project opens
+        run: |
+          ~/godot/godot --headless --path . --quit 2>&1 | tee open.log
+          if grep -E "SCRIPT ERROR|Parse Error" open.log; then exit 1; fi
+
+      - name: Run the GUT tests
+        run: |
+          ~/godot/godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit 2>&1 | tee gut.log
+          status=${PIPESTATUS[0]}
+          grep -E "^(Tests|Passing Tests|Failing Tests|Asserts)" gut.log || true
+          if grep -E "Failing Tests|SCRIPT ERROR|Parse Error" gut.log; then exit 1; fi
+          exit $status
+
+      - name: Balance simulator still runs
+        run: python3 tools/balance/sim.py --runs 2000 --seed 1
