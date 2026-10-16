@@ -64,7 +64,7 @@ func test_the_north_fish_is_stage_5_with_the_wave() -> void:
 	assert_eq(balance.wave_first_launch, 2, "from the second launch")
 	var run: RunState = _run()
 	assert_eq(run.wave.middle.y, _line(run), "on the water line")
-	assert_false(run.wave.turns, "it turns only on the final")
+	assert_eq(run.wave.great_launch, 0, "the great wave is the final's")
 	assert_false(run.wave.vertical)
 	for id: String in ["pisces_circlet", "pisces_west_cord", "pisces_knot", "pisces_east_cord"]:
 		assert_null(RunState.new(balance, Fixtures.rng(1), SKY, StarMap.by_id(id)).wave, "no wave on %s" % id)
@@ -79,7 +79,7 @@ func test_the_first_launch_brings_no_wave() -> void:
 	assert_true(run.wave_risk().is_empty(), "nothing marked")
 	assert_true(run.launch_wipes(Vector2i(90, line + 40)).is_empty())
 	var struck: Array = []
-	run.wave_struck.connect(func(side: Vector2i, _lost: Array[Star], _next: Vector2i) -> void: struck.append(side))
+	run.wave_struck.connect(func(side: Vector2i, _lost: Array[Star], _next: Vector2i, _great: bool) -> void: struck.append(side))
 	assert_true(run.launch(Vector2i(90, line + 40)))
 	assert_true(struck.is_empty())
 	assert_not_null(run.find_star(top.id))
@@ -101,7 +101,7 @@ func test_from_the_second_launch_every_wave_wipes_a_side_in_turn() -> void:
 	var preview: Array[int] = run.launch_wipes(aim)
 	var struck: Array = []
 	var order: Array[String] = []
-	run.wave_struck.connect(func(side: Vector2i, lost: Array[Star], next: Vector2i) -> void:
+	run.wave_struck.connect(func(side: Vector2i, lost: Array[Star], next: Vector2i, _great: bool) -> void:
 		order.append("wave")
 		var ids: Array[int] = []
 		for star: Star in lost:
@@ -141,7 +141,7 @@ func test_the_wave_comes_after_the_splash() -> void:
 	assert_true(splashed.has(pushed.id), "the setup: the splash moves it")
 	var preview: Array[int] = run.launch_wipes(aim)
 	var lost_at: Array = []
-	run.wave_struck.connect(func(_side: Vector2i, lost: Array[Star], _next: Vector2i) -> void:
+	run.wave_struck.connect(func(_side: Vector2i, lost: Array[Star], _next: Vector2i, _great: bool) -> void:
 		for star: Star in lost:
 			lost_at.append(star.position))
 	assert_lt(splashed[pushed.id].y, line, "the setup: still on the top")
@@ -157,7 +157,7 @@ func test_the_north_fish_opens_by_showing_the_wave() -> void:
 	var struck: Array = []
 	var cleared: Array = []
 	run.splash_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append(stars))
-	run.wave_struck.connect(func(side: Vector2i, lost: Array[Star], next: Vector2i) -> void: struck.append([side, lost.size(), next]))
+	run.wave_struck.connect(func(side: Vector2i, lost: Array[Star], next: Vector2i, _great: bool) -> void: struck.append([side, lost.size(), next]))
 	run.reflect_intro_cleared.connect(func(stars: Array[Star]) -> void: cleared.append(stars.size()))
 	var state: int = (run.get("_rng") as RandomNumberGenerator).state
 	var packs: Dictionary = run.owned_packs.duplicate()
@@ -213,7 +213,6 @@ func test_the_cue_shows_the_side_and_marks_its_stars_once_settled() -> void:
 	assert_eq(view.cue_way(), Vector2i.ZERO, "not while something plays")
 	view.settled = true
 	assert_eq(view.cue_way(), Vector2i.UP, "the top")
-	assert_eq(view.after_way(), Vector2i.ZERO, "on one line the wave after is always the other half: not shown")
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
 	var above: int = 0
 	var below: int = 0
