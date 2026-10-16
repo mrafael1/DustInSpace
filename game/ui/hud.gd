@@ -136,6 +136,8 @@ const TWINS_MESSAGE: String = "WHERE THE HOLES MEET\nA BIG BANG CLEARS ALL"
 const GAUGE_MESSAGE: String = "THE HOLE DRINKS ALL LIGHT\nFULL IT BANGS THE SKY"
 ## Pisces's cords (chapter 6 trial): every link leaves its string, and no link can cross one.
 const CORD_MESSAGE: String = "EVERY LINK LEAVES A CORD\nNO LINK CAN CROSS ONE"
+## Aries's ram (chapter 7 trial): it charges along the row of the landmark the last link lit.
+const RAM_MESSAGE: String = "THE RAM CHARGES THE ROW\nOF THE STAR YOU LIGHT"
 ## Pisces's reflection: a planet bursts across the seam from where it's thrown, up and down or across.
 const SEAM_VERTICAL_MESSAGE: String = "AIM LEFT TO PLAY RIGHT\nAIM RIGHT TO PLAY LEFT"
 const SEAM_HORIZONTAL_MESSAGE: String = "AIM HIGH TO PLAY LOW\nAIM LOW TO PLAY HIGH"
@@ -404,7 +406,7 @@ func advance(delta: float) -> void:
 
 ## The run's current says its rule, once a run (Main calls it as the player first aims).
 func tell_current_rule() -> void:
-	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null and _run.cords == null and seam_rule(_run) == ""):
+	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null and _run.cords == null and _run.ram == null and seam_rule(_run) == ""):
 		return
 	_current_told = true
 	# A final's title card is up, or about to be: the rule waits for it to go, so the two don't
@@ -419,7 +421,7 @@ func _say_rule() -> void:
 	show_message(_stage_rule(), RULE_MESSAGE_TIME, true)
 
 
-## The stage's rule line: its harvest's, current's, heat's, hole's or cords' ("" without any).
+## The stage's rule line: its harvest's, current's, heat's, hole's, cords' or ram's ("" without any).
 func _stage_rule() -> String:
 	if _run == null:
 		return ""
@@ -433,6 +435,8 @@ func _stage_rule() -> String:
 		return hole_rule(_run.gravity)
 	if _run.cords != null:
 		return CORD_MESSAGE
+	if _run.ram != null:
+		return RAM_MESSAGE
 	return seam_rule(_run)
 
 

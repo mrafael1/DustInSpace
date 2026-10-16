@@ -120,6 +120,12 @@ signal splash_intro_placed(stars: Array[Star])
 ## every wave, even one that takes nothing; on the final's win, a great wave with nothing lost goes
 ## before the sky clears for its jackpot.
 signal wave_struck(way: Vector2i, lost: Array[Star], next_way: Vector2i, great: bool)
+## Aries's ram charged its lane, centred on `row`, once the launch had resolved: `moves` are the stars
+## it butted, rightmost first (a move `drained`: butted out of the sky, for nothing), and `fleeced`
+## the stars it stopped against a landmark. Sent for every charge, even one that moves nothing.
+signal ram_charged(row: int, moves: Array[StarCurrent.Move], fleeced: Array[int])
+## Aries's lane moved to `row`: a link lit a landmark in another row.
+signal ram_aimed(row: int)
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
 ## Its light then clears the sky: sky_cleared follows the landmark's events.
 signal sun_rekindled(landmark: int)
@@ -306,6 +312,9 @@ var splash: StarSplash
 ## Pisces's wave (the North Fish, the final): null on a map without it (or balance.json without a
 ## wave block).
 var wave: StarWave
+## Aries's ram (chapter 7, a debug trial): null on a map without it (or balance.json without a ram
+## block).
+var ram: StarCharge
 ## Pisces's seam (the map's).
 var seam: StarMap.Seam = StarMap.Seam.NONE
 ## Bound sheaves: the landmarks bound to the figure (lit at the start, or still lit at a harvest).
@@ -367,6 +376,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		seam = scorpio.map.seam
 		if scorpio.map.wave and seam != StarMap.Seam.NONE and seam != StarMap.Seam.CROSS and balance.wave_first_launch > 0:
 			wave = _new_wave()
+		if scorpio.map.ram and balance.ram_every > 0:
+			ram = StarCharge.new(balance.ram_every, balance.ram_lane, balance.ram_butt, _ram_start_row())
 		if scorpio.map.cords:
 			cords = StarCords.new()
 			cords.tie_fixed(_fish_cord())
@@ -831,6 +842,9 @@ func launch(target: Vector2i) -> bool:
 			encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null and not orion.has_target():
 		_orion_mark()
+	# Aries's ram: once everything else the launch brings is over, every `every`-th launch it charges.
+	if ram != null:
+		_charge_ram()
 	_empty_slingshot()
 	_check_end()
 	if tutorial != null and tutorial.launched():
@@ -1056,6 +1070,8 @@ func link(star_ids: Array[int]) -> String:
 		_orion_shoot()
 	if volley != null and not scorpio.is_complete():
 		_count_for_volley()
+	if ram != null:
+		ram.keep_fleeced(stars)
 	_check_end()
 	if encounter != null and encounter.linked():
 		encounter_step.emit(encounter.threat, encounter.step)
@@ -1179,6 +1195,9 @@ func _light_landmark(index: int) -> void:
 	landmark_lit.emit(index)
 	for segment: int in formed:
 		string_built.emit(segment)
+	# Aries: the lane follows the landmark a link lit (a link lighting two, by a rekindle: the last).
+	if ram != null and ram.aim(scorpio.landmark_position(index).y):
+		ram_aimed.emit(ram.row)
 
 
 ## Scorpio: a full Sun (light_target) rekindles at 0 and lights the first unlit landmark next to a
@@ -1198,12 +1217,17 @@ func _rekindle_if_full() -> bool:
 
 ## Scorpio: the landmark a rekindled Sun would light, or -1 when all are lit.
 func rekindle_target() -> int:
+	return _rekindle_target_in(scorpio.lit)
+
+
+## The landmark a rekindled Sun would light with `lit` the landmarks lit, or -1 when all are.
+func _rekindle_target_in(lit: Array[bool]) -> int:
 	var first: int = -1
 	for i: int in scorpio.map.count():
-		if scorpio.is_lit(i):
+		if lit[i]:
 			continue
 		for n: int in scorpio.map.neighbours(i):
-			if scorpio.is_lit(n):
+			if lit[n]:
 				return i
 		if first < 0:
 			first = i
@@ -1879,6 +1903,73 @@ func _splash(at: Vector2i) -> void:
 		stars.erase(star)
 	_orion_forget(lost)
 	stars_splashed.emit(at, moved)
+
+
+## Aries: the lane row before any link has lit a landmark: the row of the map's first landmark lit
+## from the start, else the sky's middle.
+func _ram_start_row() -> int:
+	if not scorpio.map.starting_lit.is_empty():
+		return scorpio.landmark_position(scorpio.map.starting_lit[0]).y
+	return sky_rect.get_center().y
+
+
+## Pure: whether the ram charges once the next launch has resolved (never once the run is over).
+func ram_charges_next() -> bool:
+	return ram != null and not is_over() and ram.charges_next()
+
+
+## Pure: what the ram's charge after the next launch does to the stars standing now (where each it
+## butts ends up, which it loses and which it fleeces); nothing when that launch brings no charge.
+## The stars that launch brings aren't known yet, so they're not in it, and neither is what the
+## launch's other mechanics do first.
+func charge_preview() -> StarCharge.Charge:
+	if not ram_charges_next():
+		return StarCharge.Charge.new()
+	return ram.charge(stars, sky_rect, scorpio.landmark_positions())
+
+
+## Pure: the lane row once a link of `star_ids` (in pick order) is made: the row of the last landmark
+## it would light (its own, then the one a rekindle lights), else the row as it is. -1 without a ram.
+func ram_row_for(star_ids: Array[int]) -> int:
+	if ram == null:
+		return -1
+	var combo: String = combo_for(star_ids)
+	if is_over() or combo == Combos.INVALID:
+		return ram.row
+	var row: int = ram.row
+	var lit: Array[bool] = scorpio.lit.duplicate()
+	for id: int in star_ids:
+		if scorpio.is_landmark(id):
+			lit[Scorpio.landmark_index(id)] = true
+			row = scorpio.landmark_position(Scorpio.landmark_index(id)).y
+	var gain: int = balance.combos[combo].light
+	gain -= gravity.drinks(gain) if gravity != null else 0
+	if lit.has(false) and light + gain >= light_target():
+		var index: int = _rekindle_target_in(lit)
+		if index >= 0:
+			row = scorpio.landmark_position(index).y
+	return row
+
+
+## Aries's ram, once a launch has resolved: the clock counts it, and on every `every`-th launch the
+## ram charges its lane, the stars it butts out of the sky lost for nothing. The fleeced marks of
+## stars the launch took go.
+func _charge_ram() -> void:
+	if ram.count_launch():
+		var charge: StarCharge.Charge = ram.charge(stars, sky_rect, scorpio.landmark_positions())
+		var lost: Array[Star] = []
+		for move: StarCurrent.Move in charge.moves:
+			var star: Star = find_star(move.star_id)
+			if move.drained:
+				lost.append(star)
+			else:
+				star.position = move.to
+		for star: Star in lost:
+			stars.erase(star)
+		_orion_forget(lost)
+		ram.fleece(charge.fleeced)
+		ram_charged.emit(ram.row, charge.moves, charge.fleeced)
+	ram.keep_fleeced(stars)
 
 
 ## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map).

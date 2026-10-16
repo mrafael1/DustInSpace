@@ -25,9 +25,13 @@ func _ready() -> void:
 
 func setup(run: RunState, _sequencer: EventSequencer) -> void:
 	var id: String = run.scorpio.map.id if run.scorpio != null else ""
-	visible = OS.is_debug_build() and (id.begins_with("current_") or id.begins_with("black_hole") or id.begins_with("cord"))
+	visible = OS.is_debug_build() and (id.begins_with("current_") or id.begins_with("black_hole") or id.begins_with("cord") or id.begins_with("ram"))
 	_pressed = false
 	_button.pressed = false
+	if id.begins_with("ram"):
+		_button.text = "RAM ON" if run.ram != null else "RAM OFF"
+		_caption.text = "THE RAM BUTTS STARS" if run.ram != null else "STARS STAY STILL"
+		return
 	if id.begins_with("cord"):
 		_button.text = "CORD ON" if run.cords != null else "CORD OFF"
 		_caption.text = "LINKS LEAVE CORDS" if run.cords != null else "LINKS LEAVE NOTHING"

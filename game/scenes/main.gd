@@ -41,7 +41,7 @@ signal encounter_finished(threat: int)
 ## Debug-only Aquarius experiment, using Tail geometry with every Orion rule disabled.
 @export var current_trial: bool = false
 @export var current_enabled: bool = true
-## Which trial map: "tail", "aquarius", "black_hole" or "cord" (StarMap.current_layout).
+## Which trial map: "tail", "aquarius", "black_hole", "cord" or "ram" (StarMap.current_layout).
 @export var current_layout: String = "tail"
 
 var run: RunState
@@ -159,13 +159,14 @@ func start_run(balance: Balance) -> bool:
 	_pause_pending = false
 	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
-	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null or run.splash != null or run.wave != null)
+	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null or run.splash != null or run.wave != null or run.ram != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
 	($Sky/ConstellationLayer as ConstellationView).repeat = replay
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
 	($Sky/GravityLayer as GravityView).setup(run, _sequencer)
 	($Sky/CordLayer as CordView).setup(run, _sequencer)
 	($Sky/SeamLayer as SeamView).setup(run)
+	($Sky/ChargeLayer as ChargeView).setup(run)
 	($Sky/HeatLayer as HeatView).setup(run, _sequencer)
 	($Sky/HarvestLayer as HarvestView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
@@ -203,8 +204,8 @@ func start_run(balance: Balance) -> bool:
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
 		run.start_encounter()
-	# Pisces's cords have no intro to show them: their rule is said as the stage opens.
-	if run.cords != null:
+	# Pisces's cords and Aries's ram have no intro to show them: their rule is said as the stage opens.
+	if run.cords != null or run.ram != null:
 		_hud.tell_current_rule()
 	# A current's rule is said as the player first aims; a launcher already aiming (it can start
 	# before the HUD is bound, and keeps aiming through a restart) says it now.
@@ -224,6 +225,7 @@ func _process(_delta: float) -> void:
 	var seam: SeamView = $Sky/SeamLayer
 	seam.aiming = aiming and use_telescope and (run.splash != null or run.wave != null)
 	seam.settled = not _sequencer.is_busy()
+	($Sky/ChargeLayer as ChargeView).settled = not _sequencer.is_busy()
 	if seam.aiming:
 		seam.aim = _telescope.burst_preview()
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = aiming and (run.current != null or run.heat != null or run.gravity != null)
