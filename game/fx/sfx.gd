@@ -26,6 +26,7 @@ const CUES: Array[StringName] = [
 	&"launch", &"tremble", &"burst", &"star_select", &"link_collect", &"link_reject",
 	&"dust_land", &"light_land", &"big_bang_collapse", &"big_bang_bang", &"big_bang_void", &"sun_ignite",
 	&"win", &"loss", &"restart", &"pack_ready", &"drain", &"crop", &"swallow",
+	&"wave",
 ]
 const VOICES: int = 12
 ## Per cue: x = most voices at once, y = least seconds between two starts.
@@ -272,6 +273,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"pack_ready")
 		&"star_marked", &"area_marked":
 			play(&"link_reject", 0.6)
+		&"wave_struck":
+			# Pisces's wave: it rears up, rushes out and crashes on the sky's edge.
+			play(&"wave")
 
 
 
