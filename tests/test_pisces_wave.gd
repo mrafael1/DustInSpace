@@ -63,7 +63,8 @@ func test_the_north_fish_is_stage_5_with_the_wave() -> void:
 	var balance: Balance = Balance.load_file()
 	assert_eq(balance.wave_first_launch, 2, "from the second launch")
 	var run: RunState = _run()
-	assert_eq(run.wave.line, _line(run), "on the water line")
+	assert_eq(run.wave.middle.y, _line(run), "on the water line")
+	assert_false(run.wave.turns, "it turns only on the final")
 	assert_false(run.wave.vertical)
 	for id: String in ["pisces_circlet", "pisces_west_cord", "pisces_knot", "pisces_east_cord"]:
 		assert_null(RunState.new(balance, Fixtures.rng(1), SKY, StarMap.by_id(id)).wave, "no wave on %s" % id)
@@ -78,13 +79,13 @@ func test_the_first_launch_brings_no_wave() -> void:
 	assert_true(run.wave_risk().is_empty(), "nothing marked")
 	assert_true(run.launch_wipes(Vector2i(90, line + 40)).is_empty())
 	var struck: Array = []
-	run.wave_struck.connect(func(side: int, _lost: Array[Star], _next: int) -> void: struck.append(side))
+	run.wave_struck.connect(func(side: Vector2i, _lost: Array[Star], _next: Vector2i) -> void: struck.append(side))
 	assert_true(run.launch(Vector2i(90, line + 40)))
 	assert_true(struck.is_empty())
 	assert_not_null(run.find_star(top.id))
 	assert_not_null(run.find_star(bottom.id))
 	assert_true(run.wave.strikes_next(), "the second does")
-	assert_eq(run.wave.next_side(), StarWave.LOW, "the top first")
+	assert_eq(run.wave.next_way(), Vector2i.UP, "the top first")
 
 
 func test_from_the_second_launch_every_wave_wipes_a_side_in_turn() -> void:
@@ -100,7 +101,7 @@ func test_from_the_second_launch_every_wave_wipes_a_side_in_turn() -> void:
 	var preview: Array[int] = run.launch_wipes(aim)
 	var struck: Array = []
 	var order: Array[String] = []
-	run.wave_struck.connect(func(side: int, lost: Array[Star], next: int) -> void:
+	run.wave_struck.connect(func(side: Vector2i, lost: Array[Star], next: Vector2i) -> void:
 		order.append("wave")
 		var ids: Array[int] = []
 		for star: Star in lost:
@@ -111,7 +112,7 @@ func test_from_the_second_launch_every_wave_wipes_a_side_in_turn() -> void:
 	run.load_pack("blue")
 	assert_true(run.launch(aim))
 	assert_eq(order, ["wave", "burst"] as Array[String], "before the planet bursts")
-	assert_eq(struck, [[StarWave.LOW, [top.id, on_line.id] as Array[int], StarWave.HIGH]])
+	assert_eq(struck, [[Vector2i.UP, [top.id, on_line.id] as Array[int], Vector2i.DOWN]])
 	assert_eq(preview, [top.id, on_line.id] as Array[int], "as the aim showed")
 	assert_null(run.find_star(top.id))
 	assert_null(run.find_star(on_line.id))
@@ -124,9 +125,9 @@ func test_from_the_second_launch_every_wave_wipes_a_side_in_turn() -> void:
 			below.append(star.id)
 	run.load_pack("blue")
 	assert_true(run.launch(aim))
-	assert_eq(struck[1][0], StarWave.HIGH)
+	assert_eq(struck[1][0], Vector2i.DOWN)
 	assert_eq(struck[1][1], below, "the bottom's stars")
-	assert_eq(struck[1][2], StarWave.LOW, "then the top again")
+	assert_eq(struck[1][2], Vector2i.UP, "then the top again")
 
 
 func test_the_wave_comes_after_the_splash() -> void:
@@ -140,7 +141,7 @@ func test_the_wave_comes_after_the_splash() -> void:
 	assert_true(splashed.has(pushed.id), "the setup: the splash moves it")
 	var preview: Array[int] = run.launch_wipes(aim)
 	var lost_at: Array = []
-	run.wave_struck.connect(func(_side: int, lost: Array[Star], _next: int) -> void:
+	run.wave_struck.connect(func(_side: Vector2i, lost: Array[Star], _next: Vector2i) -> void:
 		for star: Star in lost:
 			lost_at.append(star.position))
 	assert_lt(splashed[pushed.id].y, line, "the setup: still on the top")
@@ -156,13 +157,13 @@ func test_the_north_fish_opens_by_showing_the_wave() -> void:
 	var struck: Array = []
 	var cleared: Array = []
 	run.splash_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append(stars))
-	run.wave_struck.connect(func(side: int, lost: Array[Star], next: int) -> void: struck.append([side, lost.size(), next]))
+	run.wave_struck.connect(func(side: Vector2i, lost: Array[Star], next: Vector2i) -> void: struck.append([side, lost.size(), next]))
 	run.reflect_intro_cleared.connect(func(stars: Array[Star]) -> void: cleared.append(stars.size()))
 	var state: int = (run.get("_rng") as RandomNumberGenerator).state
 	var packs: Dictionary = run.owned_packs.duplicate()
 	run.play_reflect_intro()
 	assert_eq((placed[0] as Array).size(), 3)
-	assert_eq(struck, [[StarWave.LOW, 2, StarWave.LOW]], "it wipes the top's two; the first real wave is still the top's")
+	assert_eq(struck, [[Vector2i.UP, 2, Vector2i.UP]], "it wipes the top's two; the first real wave is still the top's")
 	assert_eq(cleared, [4], "the other one and the burst's go")
 	assert_eq(run.wave.launches, 0, "the intro doesn't count")
 	assert_eq(run.wave.waves, 0)
@@ -205,13 +206,13 @@ func test_the_cue_shows_the_side_and_marks_its_stars_once_settled() -> void:
 	var view: SeamView = main.get_node("Sky/SeamLayer")
 	view.advance(SeamView.WINDUP_TIME + SeamView.SWEEP_TIME + SeamView.CRASH_TIME)
 	view.settled = true
-	assert_eq(view.cue_side(), 0, "no wave with the first launch: no cue")
+	assert_eq(view.cue_way(), Vector2i.ZERO, "no wave with the first launch: no cue")
 	var line: int = _line(main.run)
 	main.run.wave.launches = 1
 	view.settled = false
-	assert_eq(view.cue_side(), 0, "not while something plays")
+	assert_eq(view.cue_way(), Vector2i.ZERO, "not while something plays")
 	view.settled = true
-	assert_eq(view.cue_side(), StarWave.LOW, "the top")
+	assert_eq(view.cue_way(), Vector2i.UP, "the top")
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
 	var above: int = 0
 	var below: int = 0
@@ -240,9 +241,9 @@ func test_the_wave_rears_up_rushes_out_and_crashes_then_cues_the_next_side() -> 
 	var view: SeamView = main.get_node("Sky/SeamLayer")
 	var line: int = _line(main.run)
 	var sky: Rect2i = main.run.sky_rect
-	view.sweep(StarWave.LOW, StarWave.HIGH, [Vector2i(30, line - 40)] as Array[Vector2i])
+	view.sweep(Vector2i.UP, Vector2i.DOWN, [Vector2i(30, line - 40)] as Array[Vector2i])
 	assert_true(view.is_sweeping())
-	assert_eq(view.cue_side(), 0, "no cue while it plays")
+	assert_eq(view.cue_way(), Vector2i.ZERO, "no cue while it plays")
 	# The wind-up: the swell rears up past its cue's height.
 	view.advance(SeamView.WINDUP_TIME * 0.9)
 	assert_lt(_highest(view.pixels(), Palette.M6), line - SeamView.SWELL.max() - 2, "it rears up")
@@ -253,9 +254,9 @@ func test_the_wave_rears_up_rushes_out_and_crashes_then_cues_the_next_side() -> 
 	assert_lt(front, line - span / 2, "past halfway at half time")
 	assert_almost_eq(float(front), line - SeamView.rush_reach(0.5) * span, 7.0, "its crest, spray a few px ahead")
 	var half: Vector2i = Vector2i(10, line - roundi(SeamView.rush_reach(0.5) * span))
-	assert_almost_eq(view.sweep_delay(StarWave.LOW, half), SeamView.WINDUP_TIME + SeamView.SWEEP_TIME / 2.0, 0.02, "it reaches there then")
-	assert_eq(view.carry_point(StarWave.LOW, Vector2i(30, line - 40)).x, 30, "a star rides straight out")
-	assert_lt(view.carry_point(StarWave.LOW, Vector2i(30, line - 40)).y, line - 40)
+	assert_almost_eq(view.sweep_delay(Vector2i.UP, half), SeamView.WINDUP_TIME + SeamView.SWEEP_TIME / 2.0, 0.02, "it reaches there then")
+	assert_eq(view.carry_point(Vector2i.UP, Vector2i(30, line - 40)).x, 30, "a star rides straight out")
+	assert_lt(view.carry_point(Vector2i.UP, Vector2i(30, line - 40)).y, line - 40)
 	# The crash: a flash along the edge, then spray falling back.
 	view.advance(SeamView.SWEEP_TIME / 2.0 + 0.02)
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
@@ -266,7 +267,7 @@ func test_the_wave_rears_up_rushes_out_and_crashes_then_cues_the_next_side() -> 
 	main.run.wave.launches = 2
 	view.advance(SeamView.CRASH_TIME / 2.0 + 0.01)
 	assert_false(view.is_sweeping())
-	assert_eq(view.cue_side(), StarWave.HIGH, "then the bottom is cued")
+	assert_eq(view.cue_way(), Vector2i.DOWN, "then the bottom is cued")
 	assert_almost_eq(SeamView.sweep_hold(), SeamView.WINDUP_TIME + SeamView.SWEEP_TIME, 0.001, "the crash isn't waited for")
 
 

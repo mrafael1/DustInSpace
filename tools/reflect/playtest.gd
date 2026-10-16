@@ -118,7 +118,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 			if move.drained:
 				_lost += 1
 	run.stars_splashed.connect(count_lost)
-	run.wave_struck.connect(func(_side: int, lost: Array[Star], _next: int) -> void: _lost += lost.size())
+	run.wave_struck.connect(func(_way: Vector2i, lost: Array[Star], _next: Vector2i) -> void: _lost += lost.size())
 	var packs: int = 0
 	for action: int in 400:
 		if run.is_over():
