@@ -4,9 +4,10 @@ extends RefCounted
 ## launch, once that launch has fully resolved, it charges right along its lane: the band `lane` px
 ## tall centred on the lane row, the row of the landmark the last link lit. Every loose star whose
 ## centre is in the lane is butted `butt` px right, the rightmost first, so the stars behind follow
-## into the room. A star that would come too close to a landmark stops just short of it and is
-## fleeced; one that would come too close to another star stops short of it the same way, but isn't
-## fleeced; one that nothing stops before it leaves the sky is lost, for nothing. Fleeced is a mark
+## into the room. A landmark in the lane stops a star that would reach it just short of it (the
+## usual landmark spacing, across), and that star is fleeced; one that would come too close to a
+## landmark out of the lane or to another star stops short of it the same way, but isn't fleeced; one
+## that nothing stops before it leaves the sky is lost, for nothing. Fleeced is a mark
 ## only (no pay, no rule): a star keeps it until it's linked or lost. No randomness, nodes or rewards.
 ## Its moves are StarCurrent.Moves (a lost one `drained`, `to` where it would have gone, past the
 ## sky's edge).
@@ -95,10 +96,12 @@ func in_lane(point: Vector2i) -> bool:
 
 
 ## Pure: what charging now does to `stars` (the loose stars), against the `landmarks` standing in
-## `sky`. Each star in the lane slides right a px at a time; it stops at the last spot that keeps the
-## usual spacing (StarScatter.MIN_SPACING from a star, LANDMARK_SPACING from a landmark) from
-## everything ahead of it, the stars as the ones ahead of it have just been left. One that ends
-## outside the sky (StarScatter.inner_rect) is lost; one a landmark stopped is fleeced.
+## `sky`. Each star in the lane slides right a px at a time; it stops at the last spot that keeps
+## LANDMARK_SPACING across from a landmark in the lane ahead of it, whatever their rows, and the usual
+## spacing (StarScatter.MIN_SPACING from a star, LANDMARK_SPACING from a landmark out of the lane)
+## from everything else ahead of it, the stars as the ones ahead of it have just been left. One that
+## ends outside the sky (StarScatter.inner_rect) is lost; one a landmark in the lane stopped is
+## fleeced.
 func charge(stars: Array[Star], sky: Rect2i, landmarks: Array[Vector2i]) -> Charge:
 	var result := Charge.new()
 	var occupied: Dictionary[int, Vector2i] = {}
@@ -115,11 +118,11 @@ func charge(stars: Array[Star], sky: Rect2i, landmarks: Array[Vector2i]) -> Char
 		var stopped_by_landmark: bool = false
 		for k: int in range(1, butt + 1):
 			var spot: Vector2i = from + WAY * k
-			var blocked_by_star: bool = _star_ahead_within(star.id, from, spot, occupied)
-			var blocked_by_landmark: bool = _landmark_ahead_within(from, spot, landmarks)
-			if blocked_by_star or blocked_by_landmark:
+			var blocked_by_lane_landmark: bool = _lane_landmark_ahead_within(from, spot, landmarks)
+			var blocked: bool = blocked_by_lane_landmark or _star_ahead_within(star.id, from, spot, occupied) or _landmark_ahead_within(from, spot, landmarks)
+			if blocked:
 				to = from + WAY * (k - 1)
-				stopped_by_landmark = blocked_by_landmark
+				stopped_by_landmark = blocked_by_lane_landmark
 				break
 		var lost: bool = leaves(to, sky)
 		if lost:
@@ -168,6 +171,17 @@ static func _star_ahead_within(id: int, from: Vector2i, spot: Vector2i, occupied
 	return false
 
 
+## Whether a landmark in the lane, ahead of `from`, stands closer across to `spot` than the landmark
+## spacing: the ram's way runs into it, whatever its row in the lane.
+func _lane_landmark_ahead_within(from: Vector2i, spot: Vector2i, landmarks: Array[Vector2i]) -> bool:
+	for landmark: Vector2i in landmarks:
+		if in_lane(landmark) and landmark.x > from.x and landmark.x - spot.x < StarScatter.LANDMARK_SPACING:
+			return true
+	return false
+
+
+## Whether any landmark ahead of `from` stands closer to `spot` than the landmark spacing, so the star
+## would sit over it.
 static func _landmark_ahead_within(from: Vector2i, spot: Vector2i, landmarks: Array[Vector2i]) -> bool:
 	for landmark: Vector2i in landmarks:
 		if landmark.x > from.x and spot.distance_squared_to(landmark) < StarScatter.LANDMARK_SPACING * StarScatter.LANDMARK_SPACING:

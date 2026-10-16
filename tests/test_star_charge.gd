@@ -96,14 +96,32 @@ func test_a_landmark_in_the_way_stops_it_short_and_fleeces_it() -> void:
 	assert_eq(charge.fleeced, [1] as Array[int])
 
 
-func test_a_landmark_off_the_row_stops_it_where_they_would_touch() -> void:
+func test_a_landmark_off_the_row_in_the_lane_stops_it_just_short_across() -> void:
 	var ram: StarCharge = _ram()
 	var stars: Array[Star] = _stars([Vector2i(40, ROW)])
 	var charge: StarCharge.Charge = ram.charge(stars, SKY, [Vector2i(70, ROW + 6)])
-	var to: Vector2i = charge.moves[0].to
-	assert_gte(to.distance_squared_to(Vector2i(70, ROW + 6)), StarScatter.LANDMARK_SPACING * StarScatter.LANDMARK_SPACING)
-	assert_lt((to + Vector2i.RIGHT).distance_squared_to(Vector2i(70, ROW + 6)), StarScatter.LANDMARK_SPACING * StarScatter.LANDMARK_SPACING, "a px further would touch")
+	assert_eq(charge.moves[0].to, Vector2i(70 - StarScatter.LANDMARK_SPACING, ROW), "the spacing across, not round it")
 	assert_eq(charge.fleeced, [1] as Array[int])
+
+
+func test_a_landmark_in_the_lane_stops_it_whatever_its_row() -> void:
+	var ram: StarCharge = _ram()
+	# The lane runs rows 150..169: the landmark is in it, 16 rows above the star.
+	var stars: Array[Star] = _stars([Vector2i(40, ROW + 8)])
+	var charge: StarCharge.Charge = ram.charge(stars, SKY, [Vector2i(70, ROW - 8)])
+	assert_eq(charge.moves[0].to, Vector2i(70 - StarScatter.LANDMARK_SPACING, ROW + 8), "just short of it, across")
+	assert_eq(charge.fleeced, [1] as Array[int])
+
+
+func test_a_landmark_out_of_the_lane_stops_it_without_fleecing_it() -> void:
+	var ram: StarCharge = _ram()
+	# The star is on the lane's bottom row; the landmark, 7 rows below, is out of the lane.
+	var stars: Array[Star] = _stars([Vector2i(40, ROW + 9)])
+	var charge: StarCharge.Charge = ram.charge(stars, SKY, [Vector2i(70, ROW + 16)])
+	var to: Vector2i = charge.moves[0].to
+	assert_lt(to.x, 70, "it still doesn't run over it")
+	assert_gte(to.distance_squared_to(Vector2i(70, ROW + 16)), StarScatter.LANDMARK_SPACING * StarScatter.LANDMARK_SPACING)
+	assert_true(charge.fleeced.is_empty(), "only a landmark in the lane fleeces")
 
 
 func test_a_star_already_against_a_landmark_stays_and_is_fleeced() -> void:
@@ -153,8 +171,21 @@ func test_a_star_butted_out_of_the_sky_is_lost() -> void:
 	assert_eq(lost.to, Vector2i(last_in + 1 + StarScatter.MIN_SPACING + 48, ROW - 6), "where it would have gone, past the edge")
 	var kept: StarCurrent.Move = _move(charge, 1)
 	assert_false(kept.drained, "landing on the sky's last column keeps it")
-	assert_eq(kept.to, Vector2i(inner.end.x - 1, ROW), "the lost one's spot freed for it")
+	assert_eq(kept.to, Vector2i(inner.end.x - 1, ROW), "butted to the sky's last column")
 	assert_eq(charge.lost(), [2] as Array[int])
+
+
+func test_a_lost_star_frees_the_way_for_the_one_behind() -> void:
+	var ram: StarCharge = _ram()
+	var inner: Rect2i = StarScatter.inner_rect(SKY)
+	var last_in: int = inner.end.x - 1 - 48
+	# Closer than the usual spacing: had the lost one stayed where it would have gone, 10 px ahead,
+	# it would stop the one behind 6 px short.
+	var stars: Array[Star] = _stars([Vector2i(last_in, ROW), Vector2i(last_in + 10, ROW)])
+	var charge: StarCharge.Charge = ram.charge(stars, SKY, [])
+	assert_true(_move(charge, 2).drained)
+	assert_eq(_move(charge, 1).to, Vector2i(last_in + 48, ROW), "butted its full 48 px")
+	assert_false(_move(charge, 1).drained)
 
 
 func test_one_a_px_further_is_lost() -> void:

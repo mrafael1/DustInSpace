@@ -201,14 +201,14 @@ func test_a_star_with_nothing_ahead_is_butted_48_px() -> void:
 func test_the_preview_matches_the_charge() -> void:
 	var run: RunState = _run()
 	var row: int = run.ram.row
-	for point: Vector2i in [Vector2i(44, row + 4), Vector2i(80, row - 9), Vector2i(100, row + 8), Vector2i(150, row + 5)]:
+	for point: Vector2i in [Vector2i(44, row + 4), Vector2i(76, row - 9), Vector2i(100, row + 8), Vector2i(150, row + 5)]:
 		run.add_star(Star.Size.SMALL, point)
 	assert_true(run.charge_preview().moves.is_empty(), "no charge with the first launch")
 	Fixtures.launch(run, HIGH_AIM)
 	var preview: StarCharge.Charge = run.charge_preview()
 	assert_eq(preview.moves.size(), 4)
 	assert_eq(preview.lost().size(), 1)
-	assert_eq(preview.fleeced.size(), 2)
+	assert_eq(preview.fleeced.size(), 3, "each stopped by the next landmark in the lane")
 	var executed: Array = []
 	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], fleeced: Array[int]) -> void: executed.append_array([moves, fleeced]))
 	Fixtures.launch(run, HIGH_AIM)
