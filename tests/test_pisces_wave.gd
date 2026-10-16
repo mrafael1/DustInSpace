@@ -1,6 +1,6 @@
 extends GutTest
-## Pisces's fish (the North Fish): a fish waits still on the water line and every second launch
-## leaps at the nearest loose star and eats it. Its map, previews, intro, rule line and look.
+## Pisces's wave (the North Fish): from the second launch on, every launch a wave wipes the top or the
+## bottom of the water line, in turn. Its map, previews, intro, rule lines and look.
 
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
@@ -21,7 +21,7 @@ func _main() -> Main:
 	main.star_map = "pisces_north_fish"
 	main.in_chapter = true
 	main.seed_override = 3
-	(main.get_node("Sfx") as Sfx).settings_path = "user://test_pisces_fish_settings.cfg"
+	(main.get_node("Sfx") as Sfx).settings_path = "user://test_pisces_wave_settings.cfg"
 	add_child_autofree(main)
 	return main
 
@@ -34,11 +34,24 @@ func _settle(main: Main) -> void:
 			return
 
 
-func test_the_north_fish_is_stage_5() -> void:
+## Plays in real frames until nothing is playing (the scene's tweens run too).
+func _play_out(main: Main) -> void:
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	var start: int = Time.get_ticks_msec()
+	await get_tree().process_frame
+	while sequencer.is_busy() and Time.get_ticks_msec() - start < 15000:
+		await get_tree().process_frame
+
+
+func _line(run: RunState) -> int:
+	return (Scorpio.HOME_SKY.get_center() + run.scorpio.shift).y
+
+
+func test_the_north_fish_is_stage_5_with_the_wave() -> void:
 	var chapter := Chapter.new(ChapterDef.pisces())
 	assert_eq(chapter.map_id(4), "pisces_north_fish")
 	var map: StarMap = StarMap.pisces_north_fish()
-	assert_true(map.fish)
+	assert_true(map.wave)
 	assert_true(map.splash, "the splash goes on")
 	assert_eq(map.seam, StarMap.Seam.HORIZONTAL)
 	assert_eq(map.segment_count(), map.count() - 1, "the strings form a tree")
@@ -47,136 +60,112 @@ func test_the_north_fish_is_stage_5() -> void:
 		assert_true(inner.has_point(map.landmarks[i]))
 		for j: int in range(i + 1, map.count()):
 			assert_gt(Vector2(map.landmarks[i]).distance_to(Vector2(map.landmarks[j])), 2.0 * SkyView.HIT_RADIUS)
-	for segment: Vector2i in map.segments:
-		assert_between(Vector2(map.landmarks[segment.x]).distance_to(Vector2(map.landmarks[segment.y])), 30.0, 38.0)
 	var balance: Balance = Balance.load_file()
-	assert_gt(balance.fish_bite, 0)
-	assert_eq(balance.fish_jump_every, 2, "every second launch")
-	assert_null(RunState.new(balance, Fixtures.rng(1), SKY, StarMap.pisces_knot()).fish, "no fish elsewhere")
-
-
-func test_the_fish_waits_mid_line_and_never_moves_toward_the_throw() -> void:
+	assert_eq(balance.wave_first_launch, 2, "from the second launch")
 	var run: RunState = _run()
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
-	assert_eq(run.fish.at, middle, "it waits at the line's middle")
-	for aim: Vector2i in [middle + Vector2i(-80, -30), middle + Vector2i(70, 40), middle + Vector2i(-60, 50)]:
-		run.load_pack("blue")
-		assert_true(run.launch(aim))
-		assert_eq(run.fish.at, middle, "the throw doesn't draw it")
+	assert_eq(run.wave.line, _line(run), "on the water line")
+	assert_false(run.wave.vertical)
+	for id: String in ["pisces_circlet", "pisces_west_cord", "pisces_knot", "pisces_east_cord"]:
+		assert_null(RunState.new(balance, Fixtures.rng(1), SKY, StarMap.by_id(id)).wave, "no wave on %s" % id)
 
 
-func test_a_launch_that_doesnt_leap_eats_nothing() -> void:
+func test_the_first_launch_brings_no_wave() -> void:
 	var run: RunState = _run()
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
-	assert_false(run.fish.jumps_next(), "the first launch doesn't leap")
-	var near: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(4, -12))
-	var aim: Vector2i = middle + Vector2i(-60, 50)
-	assert_true(run.launch_bites(aim).is_empty(), "the aim shows nothing eaten")
-	assert_eq(run.fish_leap(aim), StarCords.NO_CROSSING)
-	var bitten: Array = []
-	run.stars_bitten.connect(func(_at: Vector2i, moves: Array[StarCurrent.Move]) -> void: bitten.append(moves.size()))
-	assert_true(run.launch(aim))
-	assert_eq(bitten, [0], "said, with nothing eaten")
-	assert_not_null(run.find_star(near.id), "even right by it")
+	var line: int = _line(run)
+	assert_false(run.wave.strikes_next())
+	var top: Star = run.add_star(Star.Size.SMALL, Vector2i(30, line - 30))
+	var bottom: Star = run.add_star(Star.Size.SMALL, Vector2i(150, line + 30))
+	assert_true(run.wave_risk().is_empty(), "nothing marked")
+	assert_true(run.launch_wipes(Vector2i(90, line + 40)).is_empty())
+	var struck: Array = []
+	run.wave_struck.connect(func(side: int, _lost: Array[Star], _next: int) -> void: struck.append(side))
+	assert_true(run.launch(Vector2i(90, line + 40)))
+	assert_true(struck.is_empty())
+	assert_not_null(run.find_star(top.id))
+	assert_not_null(run.find_star(bottom.id))
+	assert_true(run.wave.strikes_next(), "the second does")
+	assert_eq(run.wave.next_side(), StarWave.LOW, "the top first")
 
 
-func test_every_second_launch_the_fish_leaps_at_the_nearest_star_in_reach() -> void:
+func test_from_the_second_launch_every_wave_wipes_a_side_in_turn() -> void:
 	var run: RunState = _run()
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
-	var aim: Vector2i = middle + Vector2i(-60, 50)
-	var jumped: Array = []
-	run.fish_jumped.connect(func(from: Vector2i, to: Vector2i, caught: Array[int]) -> void: jumped.append([from, to, caught]))
+	var line: int = _line(run)
+	var aim := Vector2i(90, line + 60)
 	assert_true(run.launch(aim))
 	run.stars.clear()
-	assert_true(jumped.is_empty())
-	assert_true(run.fish.jumps_next(), "the second leaps")
-	var reach: int = run.fish.jump_reach
-	var near: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(30, -40))
-	var nearer: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(-20, -36))
-	var beside: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(-20 - (run.fish.bite - 4), -36))
-	var out: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(0, -(reach + 10)))
-	run.load_pack("blue")
-	assert_eq(run.fish_leap(aim), nearer.position, "the nearest in reach")
-	var preview: Array[int] = run.launch_bites(aim)
-	var eaten: Array = []
-	var caught_at: Array = []
+	var top: Star = run.add_star(Star.Size.SMALL, Vector2i(20, line - 10))
+	var on_line: Star = run.add_star(Star.Size.MEDIUM, Vector2i(160, line))
+	var bottom: Star = run.add_star(Star.Size.BIG, Vector2i(20, line + 10))
+	assert_eq(run.wave_risk(), [top.id, on_line.id] as Array[int], "marked: the top, and the line itself")
+	var preview: Array[int] = run.launch_wipes(aim)
+	var struck: Array = []
 	var order: Array[String] = []
-	run.stars_bitten.connect(func(_at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
-		order.append("bitten")
-		for move: StarCurrent.Move in moves:
-			assert_true(move.drained)
-			eaten.append(move.star_id)
-			caught_at.append(move.to))
+	run.wave_struck.connect(func(side: int, lost: Array[Star], next: int) -> void:
+		order.append("wave")
+		var ids: Array[int] = []
+		for star: Star in lost:
+			ids.append(star.id)
+		struck.append([side, ids, next]))
 	run.pack_burst.connect(func(_k: String, _a: Vector2i, _s: Array[Star]) -> void: order.append("burst"))
 	var dust: int = run.dust
+	run.load_pack("blue")
 	assert_true(run.launch(aim))
-	assert_eq(order, ["bitten", "burst"] as Array[String], "before the planet bursts")
-	assert_eq(jumped, [[middle, nearer.position, [nearer.id, beside.id] as Array[int]]], "it leaps, catching the stars there")
-	assert_eq(eaten, preview, "as the aim showed")
-	assert_eq(caught_at, [nearer.position, nearer.position], "caught where it leapt")
-	assert_not_null(run.find_star(near.id), "out of its bite there")
-	assert_not_null(run.find_star(out.id), "out of its reach")
-	assert_eq(run.dust, dust, "an eaten star pays nothing")
-	assert_eq(run.fish.at, middle, "back at its spot")
-	assert_false(run.fish.jumps_next(), "then the count starts again")
+	assert_eq(order, ["wave", "burst"] as Array[String], "before the planet bursts")
+	assert_eq(struck, [[StarWave.LOW, [top.id, on_line.id] as Array[int], StarWave.HIGH]])
+	assert_eq(preview, [top.id, on_line.id] as Array[int], "as the aim showed")
+	assert_null(run.find_star(top.id))
+	assert_null(run.find_star(on_line.id))
+	assert_not_null(run.find_star(bottom.id), "the other side is spared")
+	assert_eq(run.dust, dust, "a wiped star pays nothing")
+	# The next takes the bottom, and the stars this burst brought there with it.
+	var below: Array[int] = []
+	for star: Star in run.stars:
+		if star.position.y >= line:
+			below.append(star.id)
+	run.load_pack("blue")
+	assert_true(run.launch(aim))
+	assert_eq(struck[1][0], StarWave.HIGH)
+	assert_eq(struck[1][1], below, "the bottom's stars")
+	assert_eq(struck[1][2], StarWave.LOW, "then the top again")
 
 
-func test_the_leap_preview_counts_the_splash_first() -> void:
+func test_the_wave_comes_after_the_splash() -> void:
 	var run: RunState = _run()
-	run.fish.launches = run.fish.jump_every - 1
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
-	# Two stars, the nearer one pushed out of reach by the splash: the leap goes for the other.
-	var pushed: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(-30, -40))
-	var other: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(40, -36))
+	run.wave.launches = 1
+	var line: int = _line(run)
+	# A star the splash pushes along the top: the wave takes it where the splash left it.
+	var pushed: Star = run.add_star(Star.Size.SMALL, Vector2i(60, line - 40))
 	var aim: Vector2i = pushed.position + Vector2i(6, 8)
 	var splashed: Dictionary[int, Vector2i] = run.splash_preview(aim)
 	assert_true(splashed.has(pushed.id), "the setup: the splash moves it")
-	var expected: Star = pushed if middle.distance_squared_to(splashed[pushed.id]) < middle.distance_squared_to(other.position) else other
-	var preview: Array[int] = run.launch_bites(aim)
-	var eaten: Array = []
-	run.stars_bitten.connect(func(_at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
-		for move: StarCurrent.Move in moves:
-			eaten.append(move.star_id))
+	var preview: Array[int] = run.launch_wipes(aim)
+	var lost_at: Array = []
+	run.wave_struck.connect(func(_side: int, lost: Array[Star], _next: int) -> void:
+		for star: Star in lost:
+			lost_at.append(star.position))
+	assert_lt(splashed[pushed.id].y, line, "the setup: still on the top")
+	assert_false(run.launch_splashes(aim).has(pushed.id), "and in the sky")
 	assert_true(run.launch(aim))
-	assert_eq(eaten, preview, "the preview matches the leap")
-	assert_true(eaten.has(expected.id), "it goes for where the splash left the stars")
+	assert_eq(preview, [pushed.id] as Array[int])
+	assert_eq(lost_at, [splashed[pushed.id]], "taken where the splash left it")
 
 
-func test_a_leaping_launch_with_nothing_in_reach_stays() -> void:
+func test_the_north_fish_opens_by_showing_the_wave() -> void:
 	var run: RunState = _run()
-	run.fish.launches = run.fish.jump_every - 1
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + run.scorpio.shift
-	var far: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(0, -(run.fish.jump_reach + 10)))
-	var jumped: Array = []
-	run.fish_jumped.connect(func(_from: Vector2i, to: Vector2i, _caught: Array[int]) -> void: jumped.append(to))
-	assert_eq(run.fish_leap(middle + Vector2i(-60, 50)), StarCords.NO_CROSSING)
-	assert_true(run.launch(middle + Vector2i(-60, 50)))
-	assert_true(jumped.is_empty())
-	assert_not_null(run.find_star(far.id))
-	assert_false(run.fish.jumps_next(), "the launch still counts")
-
-
-func test_the_north_fish_opens_by_showing_the_leap() -> void:
-	var run: RunState = _run()
-	var start: Vector2i = run.fish.at
 	var placed: Array = []
-	var jumped: Array = []
-	var bitten: Array = []
+	var struck: Array = []
 	var cleared: Array = []
 	run.splash_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append(stars))
-	run.fish_jumped.connect(func(_from: Vector2i, to: Vector2i, caught: Array[int]) -> void: jumped.append([to, caught]))
-	run.stars_bitten.connect(func(_at: Vector2i, moves: Array[StarCurrent.Move]) -> void: bitten.append(moves.size()))
+	run.wave_struck.connect(func(side: int, lost: Array[Star], next: int) -> void: struck.append([side, lost.size(), next]))
 	run.reflect_intro_cleared.connect(func(stars: Array[Star]) -> void: cleared.append(stars.size()))
 	var state: int = (run.get("_rng") as RandomNumberGenerator).state
 	var packs: Dictionary = run.owned_packs.duplicate()
 	run.play_reflect_intro()
 	assert_eq((placed[0] as Array).size(), 3)
-	var near: Star = (placed[0] as Array)[0]
-	assert_eq(jumped, [[near.position, [near.id] as Array[int]]], "it leaps at the near one")
-	assert_eq(bitten, [1], "and eats only it")
-	assert_eq(cleared, [5], "the other two and the burst's go")
-	assert_eq(run.fish.at, start, "it stays at its spot")
-	assert_eq(run.fish.launches, 0, "the intro doesn't count toward the leap")
+	assert_eq(struck, [[StarWave.LOW, 2, StarWave.LOW]], "it wipes the top's two; the first real wave is still the top's")
+	assert_eq(cleared, [4], "the other one and the burst's go")
+	assert_eq(run.wave.launches, 0, "the intro doesn't count")
+	assert_eq(run.wave.waves, 0)
 	assert_true(run.stars.is_empty())
 	assert_eq(run.owned_packs, packs)
 	assert_eq(run.dust, 100)
@@ -187,9 +176,11 @@ func test_the_north_fish_opens_by_showing_the_leap() -> void:
 			assert_gte(star.position.distance_to(landmark), float(StarScatter.LANDMARK_SPACING), "clear of the figure")
 
 
-func test_its_rule_and_loss_lines_fit() -> void:
-	assert_eq(Hud.seam_rule(_run()), Hud.FISH_MESSAGE % 2, "the rhythm from balance.json")
-	for text: String in [Hud.FISH_MESSAGE % 99, Hud.FISH_LOSS_MESSAGE]:
+func test_its_lines_fit() -> void:
+	var run: RunState = _run()
+	assert_eq(Hud.seam_rule(run), Hud.WAVE_MESSAGE % 2, "the launch from balance.json")
+	assert_eq(Hud.wave_side_name(run.wave), "TOP")
+	for text: String in [Hud.WAVE_MESSAGE % 99, Hud.WAVE_LOSS_MESSAGE, Hud.WAVE_NEXT_MESSAGE % "BOTTOM", Hud.WAVE_NEXT_MESSAGE % "RIGHT"]:
 		for line: String in text.split("\n"):
 			assert_lte(line.length(), 24, line)
 
@@ -208,72 +199,106 @@ func test_the_stage_says_its_rule_as_its_intro_shows_it() -> void:
 	assert_eq(sky.star_count(), 0)
 
 
-func test_the_fish_shows_on_the_line_and_previews_only_a_leap() -> void:
+func test_the_cue_shows_the_side_and_marks_its_stars_once_settled() -> void:
 	var main: Main = _main()
 	_settle(main)
 	var view: SeamView = main.get_node("Sky/SeamLayer")
-	view.advance(SeamView.JUMP_TIME + SeamView.BITE_TIME)
-	var fish: Vector2i = main.run.fish.at
-	assert_eq(view.fish_shown(), fish)
-	assert_eq(view.pixels().get(fish), Palette.M5, "its back on the line")
-	var near: Star = main.run.add_star(Star.Size.SMALL, fish + Vector2i(-20, -30))
-	view.aim = fish + Vector2i(60, 40)
-	view.aiming = true
-	assert_false(view.pixels().values().has(Palette.S4), "no leap this launch: nothing marked")
-	main.run.fish.launches = main.run.fish.jump_every - 1
+	view.advance(SeamView.SWEEP_TIME)
+	view.settled = true
+	assert_eq(view.cue_side(), 0, "no wave with the first launch: no cue")
+	var line: int = _line(main.run)
+	main.run.wave.launches = 1
+	view.settled = false
+	assert_eq(view.cue_side(), 0, "not while something plays")
+	view.settled = true
+	assert_eq(view.cue_side(), StarWave.LOW, "the top")
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	var above: int = 0
+	var below: int = 0
+	for point: Vector2i in pixels:
+		if pixels[point] == Palette.S4:
+			if point.y < line:
+				above += 1
+			else:
+				below += 1
+	assert_gt(above, 0, "ember chevrons on the top")
+	assert_eq(below, 0, "none on the bottom")
+	var star: Star = main.run.add_star(Star.Size.MEDIUM, Vector2i(30, line - 60))
 	view.queue_redraw()
-	assert_eq(main.run.launch_bites(view.aim), [near.id] as Array[int])
-	assert_true(view.pixels().values().has(Palette.S4), "the star it would eat is marked")
-	view.aiming = false
+	pixels = view.pixels()
+	var ring: Dictionary[Vector2i, Color] = HarvestView.lone_ring_pixels(star.position, star.size, 0.0)
+	var marked: int = 0
+	for point: Vector2i in ring:
+		if pixels.get(point) in [Palette.S4, Palette.S3]:
+			marked += 1
+	assert_eq(marked, ring.size(), "the star it will take wears an ember ring")
 
 
-func test_a_loss_line_still_being_read_isnt_overwritten_by_the_next() -> void:
+func test_the_wave_sweeps_out_and_cues_the_next_side_after() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: SeamView = main.get_node("Sky/SeamLayer")
+	var line: int = _line(main.run)
+	view.sweep(StarWave.LOW, StarWave.HIGH)
+	assert_true(view.is_sweeping())
+	assert_eq(view.cue_side(), 0, "no cue while it sweeps")
+	view.advance(SeamView.SWEEP_TIME / 2.0)
+	var foam: Array[int] = []
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	for point: Vector2i in pixels:
+		if pixels[point] == Palette.M6 and point.y < line - 4:
+			foam.append(point.y)
+	assert_false(foam.is_empty(), "its foam front, above the line")
+	var half: int = roundi((line - main.run.sky_rect.position.y) / 2.0)
+	assert_almost_eq(foam.min(), line - half - 1, 2)
+	assert_almost_eq(view.sweep_delay(StarWave.LOW, Vector2i(10, line - half)), SeamView.SWEEP_TIME / 2.0, 0.02, "it reaches halfway at half time")
+	main.run.wave.launches = 2
+	view.advance(SeamView.SWEEP_TIME / 2.0 + 0.01)
+	assert_false(view.is_sweeping())
+	assert_eq(view.cue_side(), StarWave.HIGH, "then the bottom is cued")
+
+
+func test_a_wave_is_said_the_first_time_with_its_side() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var hud: Hud = main.get_node("HUD")
+	hud.show_message("", 0.0, true)
+	main.run.wave.launches = 1
+	hud.call("_tell_wave")
+	assert_eq(hud.message(), Hud.WAVE_NEXT_MESSAGE % "TOP")
+	hud.show_message("", 0.0, true)
+	hud.call("_tell_wave")
+	assert_eq(hud.message(), "", "once a run")
+
+
+func test_its_first_star_lost_is_said() -> void:
 	var main: Main = _main()
 	_settle(main)
 	var hud: Hud = main.get_node("HUD")
 	hud.set("_launch_shown", true)
 	hud.show_message("", 0.0, true)
-	var drained: Array[StarCurrent.Move] = [StarCurrent.Move.new(1, Vector2i(10, 100), Vector2i(-4, 100), true)]
-	hud.call("_tell_splash_loss", drained)
-	assert_eq(hud.message(), Hud.SPLASH_LOSS_MESSAGE)
-	hud.call("_tell_splash_loss", drained, Hud.FISH_LOSS_MESSAGE)
-	assert_eq(hud.message(), Hud.SPLASH_LOSS_MESSAGE, "the splash's line stays to be read")
-	assert_false((hud.get("_losses_told") as Dictionary).has(Hud.FISH_LOSS_MESSAGE), "the fish's waits for a later loss")
+	hud.call("_tell_wave_loss", [])
+	assert_eq(hud.message(), "", "nothing taken: nothing said")
+	hud.call("_tell_wave_loss", [Star.new(1, Star.Size.SMALL, Vector2i(20, 100))])
+	assert_eq(hud.message(), Hud.WAVE_LOSS_MESSAGE)
 
 
-func test_the_fish_glows_before_it_leaps_and_arcs_out_to_the_star() -> void:
+func test_a_whole_run_plays_its_waves_through_the_scene() -> void:
 	var main: Main = _main()
-	_settle(main)
-	var view: SeamView = main.get_node("Sky/SeamLayer")
-	view.advance(1.0)
-	var fish: Vector2i = main.run.fish.at
-	assert_eq(view.pixels().get(fish), Palette.M5, "not yet")
-	main.run.fish.launches = main.run.fish.jump_every - 1
-	view.queue_redraw()
-	assert_eq(view.pixels().get(fish), Palette.S4, "it glows red before it leaps")
-	assert_true(view.pixels().values().has(Palette.S3), "its belly too")
-	view.jump(fish, fish + Vector2i(20, -40))
-	view.advance(SeamView.JUMP_TIME / 2.0)
-	assert_eq(view.fish_shown(), fish + Vector2i(20, -40), "at the star at the top of its leap")
-	assert_true(view.is_biting(), "it bites there")
-	view.carry()
-	view.advance(SeamView.JUMP_TIME / 4.0)
-	assert_true(view.pixels().values().has(Palette.M6), "carrying the star back")
-	view.advance(SeamView.JUMP_TIME / 4.0 + 0.01)
-	assert_false(view.is_jumping())
-	assert_false(view.is_carrying(), "into the water")
-	assert_eq(view.fish_shown(), fish, "back on the line")
-	assert_lt(SeamView.leap_point(fish, fish + Vector2i(20, -40), 0.5).y, fish.y - 20, "the arc's middle, above the straight line")
-	assert_lt(SeamView.leap_point(fish, fish + Vector2i(40, -10), 0.5).y, fish.y - 5, "it bows up, out of the water")
-
-
-func test_the_leap_is_said_the_first_time_and_fits() -> void:
-	for line: String in Hud.JUMP_MESSAGE.split("\n"):
-		assert_lte(line.length(), 24, line)
-	var main: Main = _main()
-	_settle(main)
-	var hud: Hud = main.get_node("HUD")
-	hud.show_message("", 0.0, true)
-	main.run.fish.launches = main.run.fish.jump_every - 1
-	hud.call("_tell_jump")
-	assert_eq(hud.message(), Hud.JUMP_MESSAGE)
+	await _play_out(main)
+	var run: RunState = main.run
+	var sky: SkyView = main.get_node("Sky")
+	assert_eq(sky.star_count(), 0, "the intro's stars gone")
+	run.dust = 100
+	for i: int in 3:
+		if run.is_over():
+			break
+		if run.total_packs() == 0:
+			run.buy("blue")
+		for kind: String in ["blue", "red"]:
+			if run.load_pack(kind):
+				break
+		assert_ne(run.loaded_pack, "", "a planet to throw (%s)" % [run.owned_packs])
+		assert_true(run.launch(Vector2i(90, _line(run) + (40 if i % 2 == 0 else -40))))
+		await _play_out(main)
+		assert_eq(sky.star_count(), run.stars.size(), "the views follow the run after launch %d" % (i + 1))
