@@ -130,6 +130,9 @@ var splash_intro: bool = false
 ## wipes one side of the water line, the sides taking turns. Its stage opens by showing it, and its
 ## rule line is the wave's.
 var wave: bool = false
+## The wave turns a quarter every launch (up, right, down, left) across both water lines (the final;
+## the seam must be both lines).
+var wave_turns: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -1068,6 +1071,22 @@ static func pisces_north_fish() -> StarMap:
 	return map
 
 
+## Pisces's final, PISCES, THE TWO FISH: the whole Pisces (gamma lit: thirteen to light) on both
+## seams (a planet bursts in the opposite corner, no link crosses either line), with the splash, and
+## the wave turning: from the second launch, every launch a wave wipes half the sky, a quarter
+## further round each time (up, right, down, left). It arrives with its title card.
+static func pisces_final() -> StarMap:
+	var map: StarMap = pisces()
+	map.id = "pisces_final"
+	map.seam = Seam.CROSS
+	map.splash = true
+	map.wave = true
+	map.wave_turns = true
+	map.intros = false
+	map.arrival_epithet = "THE TWO FISH"
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -1151,6 +1170,8 @@ static func by_id(p_id: String) -> StarMap:
 			return pisces_east_cord()
 		"pisces_north_fish":
 			return pisces_north_fish()
+		"pisces_final":
+			return pisces_final()
 	return scorpio()
 
 

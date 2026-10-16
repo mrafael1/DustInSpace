@@ -140,7 +140,8 @@ static func sagittarius() -> ChapterDef:
 ## bursts across a seam from where it's thrown (from the Knot, splashes where it sinks; on the North
 ## Fish, from the second throw a wave wipes the top or bottom of the sky, in turn). Opens once
 ## Sagittarius's final is won; on the sky, the second lap, three signs on from Sagittarius. Travelled along the cord from the western fish: the Circlet, the western cord,
-## the knot, the eastern cord, the northern fish, then the whole Pisces (the final isn't built yet).
+## the knot, the eastern cord, the northern fish, then the whole Pisces: the final, where the wave
+## turns a quarter every throw across both seams.
 static func pisces() -> ChapterDef:
 	var def := ChapterDef.new()
 	def.id = "pisces"
@@ -152,7 +153,7 @@ static func pisces() -> ChapterDef:
 		{"name": "KNOT", "map": "pisces_knot", "piece": "knot", "stars": [7, 8]},
 		{"name": "EAST CORD", "map": "pisces_east_cord", "piece": "east_cord", "stars": [9, 10]},
 		{"name": "NORTH FISH", "map": "pisces_north_fish", "piece": "north_fish", "stars": [11, 12, 13]},
-		{"name": "PISCES", "map": "", "stars": []},
+		{"name": "PISCES", "map": "pisces_final", "stars": []},
 	]
 	def.figure = StarMap.pisces()
 	def.final_at = Vector2i(92, 78)
