@@ -113,10 +113,15 @@ signal reflect_intro_cleared(stars: Array[Star])
 signal stars_splashed(at: Vector2i, moves: Array[StarCurrent.Move])
 ## Pisces's splash or wave intro: its demo `stars` are placed by where its demo planet will be thrown.
 signal splash_intro_placed(stars: Array[Star])
-## Pisces's wave rose off a water line and rushed `way` (up, right, down or left), wiping that half
+## Pisces's wave rose off the water line and rushed `way` (up, right, down or left), wiping that half
 ## of the sky and taking the `lost` stars for nothing, after the splash and before the planet bursts;
-## the next wave rushes `next_way`. Sent for every wave, even one that takes nothing.
-signal wave_struck(way: Vector2i, lost: Array[Star], next_way: Vector2i)
+## the next wave rushes `next_way`. `great`: the great wave (the final), flooding both halves off its
+## line (`way` gives the line's axis: right off a line up and down, down off one across); the line
+## gains its second water line just after (seam_turned). Sent for every wave, even one that takes nothing; on the final's
+## win, a great wave with nothing lost goes before the sky clears for its jackpot.
+signal wave_struck(way: Vector2i, lost: Array[Star], next_way: Vector2i, great: bool)
+## Pisces's final: the great wave raised the second water line: the seam is now `seam` (both).
+signal seam_turned(seam: StarMap.Seam)
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
 ## Its light then clears the sky: sky_cleared follows the landmark's events.
 signal sun_rekindled(landmark: int)
@@ -302,6 +307,8 @@ var splash: StarSplash
 ## Pisces's wave (the North Fish, the final): null on a map without it (or balance.json without a
 ## wave block).
 var wave: StarWave
+## Pisces's seam as it stands: the map's, both lines once the final's great wave has come.
+var seam: StarMap.Seam = StarMap.Seam.NONE
 ## Bound sheaves: the landmarks bound to the figure (lit at the start, or still lit at a harvest).
 var _bound: Array[bool] = []
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
@@ -358,7 +365,8 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 				gravity.set_gauge(hole.gauge, hole.gauge_share)
 		if scorpio.map.splash and balance.splash_radius > 0:
 			splash = StarSplash.new(balance.splash_radius, balance.splash_push, seam_hit)
-		if scorpio.map.wave and scorpio.map.seam != StarMap.Seam.NONE and (scorpio.map.seam != StarMap.Seam.CROSS) != scorpio.map.wave_turns and balance.wave_first_launch > 0:
+		seam = scorpio.map.seam
+		if scorpio.map.wave and seam != StarMap.Seam.NONE and seam != StarMap.Seam.CROSS and balance.wave_first_launch > 0:
 			wave = _new_wave()
 		if scorpio.map.cords:
 			cords = StarCords.new()
@@ -412,7 +420,7 @@ func can_step(a: Vector2i, b: Vector2i) -> bool:
 
 ## Whether this run's sky has Pisces's seam.
 func has_seam() -> bool:
-	return scorpio != null and scorpio.map.seam != StarMap.Seam.NONE
+	return scorpio != null and seam != StarMap.Seam.NONE
 
 
 ## Pisces: whether a step from `a` to `b` crosses the seam, from one side strictly to the other (a
@@ -426,7 +434,6 @@ func seam_crossing(a: Vector2i, b: Vector2i) -> Vector2i:
 	if not has_seam():
 		return StarCords.NO_CROSSING
 	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
-	var seam: StarMap.Seam = scorpio.map.seam
 	var best: Vector2i = StarCords.NO_CROSSING
 	if seam != StarMap.Seam.HORIZONTAL and signi(a.x - middle.x) * signi(b.x - middle.x) < 0:
 		var t: float = float(middle.x - a.x) / float(b.x - a.x)
@@ -1028,6 +1035,8 @@ func link(star_ids: Array[int]) -> String:
 			_clear_sky(balance.scorpio_sun_dust_per_star)
 		elif scorpio.is_complete() and scorpio.map.big_bang_finale and gravity != null:
 			_big_bang(gravity.center)
+		elif scorpio.is_complete() and scorpio.map.wave_finale and wave != null:
+			_great_wave_finale()
 		elif scorpio.is_complete():
 			_clear_sky(0)
 		if scorpio.is_complete():
@@ -1562,7 +1571,7 @@ func _tie_cord(linked: Array[Star]) -> void:
 ## across the seam, kept in the sky. Pure.
 func burst_centre(aim: Vector2i) -> Vector2i:
 	var thrown: Vector2i = StarScatter.clamp_to_sky(aim, sky_rect)
-	if scorpio == null or scorpio.map.seam == StarMap.Seam.NONE:
+	if scorpio == null or seam == StarMap.Seam.NONE:
 		return thrown
 	return StarScatter.clamp_to_sky(reflect(thrown), sky_rect)
 
@@ -1570,7 +1579,7 @@ func burst_centre(aim: Vector2i) -> Vector2i:
 ## Pisces's seam: where `point` falls across it (the sky's middle, where the map is drawn).
 func reflect(point: Vector2i) -> Vector2i:
 	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
-	match scorpio.map.seam:
+	match seam:
 		StarMap.Seam.VERTICAL:
 			return Vector2i(2 * middle.x - point.x, point.y)
 		StarMap.Seam.HORIZONTAL:
@@ -1584,7 +1593,7 @@ func reflect(point: Vector2i) -> Vector2i:
 ## the open sky's reflection and bursts across the seam, in the open sky; its stars stay a beat and
 ## go. No pack used, no reward, no RNG drawn (its layout has its own stream).
 func play_reflect_intro() -> void:
-	if scorpio == null or scorpio.map.seam == StarMap.Seam.NONE or not scorpio.map.intros or not stars.is_empty() or is_over():
+	if scorpio == null or seam == StarMap.Seam.NONE or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
 	if scorpio.map.splash_intro and splash != null:
 		_splash_intro()
@@ -1658,7 +1667,6 @@ func on_seam(point: Vector2i) -> bool:
 	if not has_seam():
 		return false
 	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
-	var seam: StarMap.Seam = scorpio.map.seam
 	return (seam != StarMap.Seam.HORIZONTAL and point.x == middle.x) or (seam != StarMap.Seam.VERTICAL and point.y == middle.y)
 
 
@@ -1667,7 +1675,7 @@ func on_seam(point: Vector2i) -> bool:
 ## stars keep furthest from the figure, of the spots where the splash pushes only the edge one out.
 func splash_intro_spot() -> Vector2i:
 	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
-	var vertical: bool = scorpio.map.seam != StarMap.Seam.HORIZONTAL
+	var vertical: bool = seam != StarMap.Seam.HORIZONTAL
 	var best: Vector2i = inner.get_center()
 	var best_clearance: int = -1
 	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
@@ -1695,7 +1703,7 @@ func splash_intro_spot() -> Vector2i:
 
 
 func _splash_intro_offsets() -> Array[Vector2i]:
-	if scorpio.map.seam != StarMap.Seam.HORIZONTAL:
+	if seam != StarMap.Seam.HORIZONTAL:
 		return SPLASH_INTRO_STARS
 	var turned: Array[Vector2i] = []
 	for offset: Vector2i in SPLASH_INTRO_STARS:
@@ -1759,7 +1767,7 @@ func launch_wipes(aim: Vector2i) -> Array[int]:
 		return []
 	var standing: Array[Star] = []
 	standing.assign(_splash_chain(aim)[2])
-	return wave.sweeps(wave.next_way(), standing)
+	return wave.sweeps(standing)
 
 
 ## Pure: the loose stars in the half the next launch's wave wipes, where they stand now (none when
@@ -1767,30 +1775,44 @@ func launch_wipes(aim: Vector2i) -> Array[int]:
 func wave_risk() -> Array[int]:
 	if wave == null or is_over() or not wave.strikes_next():
 		return []
-	return wave.sweeps(wave.next_way(), stars)
+	return wave.sweeps(stars)
 
 
 ## The wave after a launch: when it `strikes`, it wipes the next half and takes every loose star
 ## there. `counted`: a real launch (an intro's isn't, and its wave doesn't turn the ways).
 func _strike_wave(strikes: bool, counted: bool) -> void:
 	var way: Vector2i = wave.next_way()
+	var great: bool = wave.great_next()
 	var lost: Array[Star] = []
 	if strikes:
-		for id: int in wave.sweeps(way, stars):
+		for id: int in wave.sweeps(stars):
 			lost.append(find_star(id))
 		for star: Star in lost:
 			stars.erase(star)
 		_orion_forget(lost)
 	if counted:
 		wave.count_launch(strikes)
-	if strikes:
-		wave_struck.emit(way, lost, wave.next_way())
+	if not strikes:
+		return
+	wave_struck.emit(way, lost, wave.next_way(), great)
+	# The great wave raises the second water line: the sky is mirrored through its middle from then
+	# on (both seams), and the waves take turns off the new line.
+	if great and counted:
+		seam = StarMap.Seam.CROSS
+		seam_turned.emit(seam)
 
 
-## A wave on the water lines through the sky's middle (turning on both, on the final).
+## Pisces's final won: a great wave washes the sky, and every loose star left bursts for
+## wave.finale_dust_per_star (the jackpot; the sky clears as a rekindle's does).
+func _great_wave_finale() -> void:
+	wave_struck.emit(wave.next_way(), [] as Array[Star], wave.next_way(), true)
+	_clear_sky(balance.wave_finale_dust_per_star)
+
+
+## A wave on the water line through the sky's middle (with the great wave, on the final).
 func _new_wave() -> StarWave:
 	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
-	return StarWave.new(middle, scorpio.map.seam == StarMap.Seam.VERTICAL, balance.wave_first_launch, scorpio.map.wave_turns)
+	return StarWave.new(middle, seam == StarMap.Seam.VERTICAL, balance.wave_first_launch, balance.wave_great_launch if scorpio.map.wave_great else 0)
 
 
 ## Pisces's wave intro (play_reflect_intro on the North Fish): demo stars wait either side of the

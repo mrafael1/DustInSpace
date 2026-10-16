@@ -140,8 +140,8 @@ static func sagittarius() -> ChapterDef:
 ## bursts across a seam from where it's thrown (from the Knot, splashes where it sinks; on the North
 ## Fish, from the second throw a wave wipes the top or bottom of the sky, in turn). Opens once
 ## Sagittarius's final is won; on the sky, the second lap, three signs on from Sagittarius. Travelled along the cord from the western fish: the Circlet, the western cord,
-## the knot, the eastern cord, the northern fish, then the whole Pisces: the final, where the wave
-## turns a quarter every throw across both seams.
+## the knot, the eastern cord, the northern fish, then the whole Pisces: the final, in two acts
+## turned by a great wave, won with another.
 static func pisces() -> ChapterDef:
 	var def := ChapterDef.new()
 	def.id = "pisces"

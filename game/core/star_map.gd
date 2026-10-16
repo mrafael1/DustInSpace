@@ -130,9 +130,12 @@ var splash_intro: bool = false
 ## wipes one side of the water line, the sides taking turns. Its stage opens by showing it, and its
 ## rule line is the wave's.
 var wave: bool = false
-## The wave turns a quarter every launch (up, right, down, left) across both water lines (the final;
-## the seam must be both lines).
-var wave_turns: bool = false
+## The final's great wave: on balance.json's wave.great_launch it floods both halves and raises the
+## second water line (both seams from then); the waves then rise off the new line.
+var wave_great: bool = false
+## Winning ends in a great wave (the final): it washes the sky and every loose star left bursts for
+## dust (balance.json's wave.finale_dust_per_star), instead of the completion clearing them for nothing.
+var wave_finale: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -1071,17 +1074,20 @@ static func pisces_north_fish() -> StarMap:
 	return map
 
 
-## Pisces's final, PISCES, THE TWO FISH: the whole Pisces (gamma lit: thirteen to light) on both
-## seams (a planet bursts in the opposite corner, no link crosses either line), with the splash, and
-## the wave turning: from the second launch, every launch a wave wipes half the sky, a quarter
-## further round each time (up, right, down, left). It arrives with its title card.
+## Pisces's final, PISCES, THE TWO FISH: the whole Pisces (gamma lit: thirteen to light) in two
+## acts. Act one: the water line runs up and down between the fish, and from the second launch the
+## waves wipe the left, then the right. Then the great wave floods the whole sky and raises the line
+## across too; act two, on both seams (a planet bursts in the opposite corner): the waves wipe the
+## top, then the bottom. Winning ends in a great wave that washes the loose stars left into dust.
+## The splash goes on. It arrives with its title card.
 static func pisces_final() -> StarMap:
 	var map: StarMap = pisces()
 	map.id = "pisces_final"
-	map.seam = Seam.CROSS
+	map.seam = Seam.VERTICAL
 	map.splash = true
 	map.wave = true
-	map.wave_turns = true
+	map.wave_great = true
+	map.wave_finale = true
 	map.intros = false
 	map.arrival_epithet = "THE TWO FISH"
 	return map
