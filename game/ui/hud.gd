@@ -147,6 +147,10 @@ const SPLASH_MESSAGE: String = "THE SPLASH PUSHES STARS\nOUT OF THE SKY"
 const WAVE_MESSAGE: String = "FROM THROW %d A WAVE\nWIPES THE MARKED SIDE"
 ## The first time a run's wave comes with the next launch (the side it wipes).
 const WAVE_NEXT_MESSAGE: String = "A WAVE WIPES THE %s\nAT THE NEXT THROW"
+## The final: the great wave comes with the next launch.
+const GREAT_WAVE_MESSAGE: String = "A GREAT WAVE FLOODS\nTHE SKY NEXT THROW"
+## The final's win: the great wave's jackpot card, over the dust it paid.
+const GREAT_WAVE_TITLE: String = "GREAT WAVE"
 ## A run's first star the wave took.
 const WAVE_LOSS_MESSAGE: String = "THE WAVE TOOK A STAR\nLINK THEM BEFORE IT HITS"
 ## A run's first star lost to the splash.
@@ -508,9 +512,15 @@ func _tell_wave_loss(lost: Array) -> void:
 ## The wave comes with the next launch: said the first time a run, with its side, over anything but
 ## a loss line still being read.
 func _tell_wave() -> void:
-	if _run == null or _run.wave == null or _run.is_over() or not _run.wave.strikes_next() or _losses_told.has(WAVE_NEXT_MESSAGE):
+	if _run == null or _run.wave == null or _run.is_over() or not _run.wave.strikes_next():
 		return
 	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, WAVE_LOSS_MESSAGE]:
+		return
+	# The great wave is said whenever it's next, over the plain wave's line.
+	if _run.wave.great_next():
+		show_message(GREAT_WAVE_MESSAGE, RULE_MESSAGE_TIME, true)
+		return
+	if _losses_told.has(WAVE_NEXT_MESSAGE):
 		return
 	_losses_told[WAVE_NEXT_MESSAGE] = true
 	show_message(WAVE_NEXT_MESSAGE % wave_side_name(_run.wave), RULE_MESSAGE_TIME, true)
@@ -546,7 +556,7 @@ static func seam_rule(run: RunState) -> String:
 		return SPLASH_MESSAGE
 	if run.wave != null:
 		return WAVE_MESSAGE % run.wave.first_launch
-	match run.scorpio.map.seam:
+	match run.seam:
 		StarMap.Seam.CROSS:
 			return SEAM_CROSS_MESSAGE
 		StarMap.Seam.VERTICAL:
@@ -868,6 +878,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"sky_cleared":
 			# Scorpio: the dust of the stars the Sun bursts streams in as they burst.
 			_dust_in_flight += event.args[1]
+			# Pisces's final won: the great wave's jackpot card.
+			if _run != null and _run.outcome == RunState.Outcome.WON and _run.scorpio != null and _run.scorpio.map.wave_finale:
+				_banner.play_arrival(GREAT_WAVE_TITLE, "+%d" % event.args[1], ARRIVAL_TIME, Palette.M6, Palette.M4)
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			# The tutorial's link is made: its stars are gone, so the hand stops pointing at them.
@@ -929,9 +942,14 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			_tell_wave_loss(event.args[1])
 			return
 		&"pack_burst":
-			# Pisces's wave: the first time it comes with the next launch, which side it wipes.
+			# Pisces's wave: the first time it comes with the next launch, which side it wipes (and the
+			# final's great wave, when it's next).
 			if _launch_shown:
 				_tell_wave()
+			return
+		&"seam_turned":
+			# The final's second water line: where to aim now.
+			show_message(SEAM_CROSS_MESSAGE, RULE_MESSAGE_TIME, true)
 			return
 		&"holes_drifted":
 			# Sagittarius's final: once the twins have merged, the hole they made drinks the light.

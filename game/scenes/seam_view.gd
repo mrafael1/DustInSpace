@@ -14,9 +14,10 @@ extends Node2D
 ## (wave_cue_pixels): the water swells up off the line on that side (a dithered M3 body, an M5
 ## crest with M6 foam on its peaks, bobbing a pixel every BOB_STEP), and double ember chevrons
 ## (S4, S3) march out from it into that side; every loose star on it wears a crawling ember ring
-## (HarvestView.lone_ring_pixels), so the stars it will take show the whole time. Turning (the
-## final), the wave after it shows too, fainter (after_cue_pixels): still single S3 chevrons on its
-## line pointing into its half, no swell, no rings. The cue follows
+## (HarvestView.lone_ring_pixels), so the stars it will take show the whole time. The final's great
+## wave cues both sides at once, every loose star ringed; it rushes both ways and crashes on both
+## edges, then the second line rises (turn_seam): it grows out from the middle over TURN_TIME, its
+## tips lit M6 (a line it no longer has draws back into the middle). The cue follows
 ## the run only while `settled` (nothing playing), so it never shows the next side before this
 ## wave has played. The wave itself plays in three beats (sweep_pixels):
 ## - wind-up (WINDUP_TIME): the swell rears up to twice its height, its foam lit, the chevrons
@@ -49,6 +50,8 @@ const SPLASH_TIME: float = 0.3
 const SPLASH_RADII: Array[int] = [7, 5, 3]
 const SPLASH_COLOURS: Array[Color] = [Palette.N8, Palette.N7, Palette.N6]
 const RIPPLE_TIME: float = 0.3
+## The line turns over TURN_TIME after the great wave.
+const TURN_TIME: float = 0.4
 ## The wave: it rears up for WINDUP_TIME, crosses its side of the sky in SWEEP_TIME and crashes on
 ## the edge for CRASH_TIME (only the first two are waited for).
 const WINDUP_TIME: float = 0.18
@@ -129,6 +132,14 @@ var _sweep_way: Vector2i = Vector2i.ZERO
 var _sweep_age: float = -1.0
 ## The side cued once the wave playing is over.
 var _next_cue: Vector2i = Vector2i.ZERO
+## The cued wave is the great one (both sides); the wave playing is.
+var _cue_great: bool = false
+var _sweep_great: bool = false
+## The seam as shown (it turns when the great wave's turn plays, after the core has turned it).
+var _shown_seam: StarMap.Seam = StarMap.Seam.NONE
+## The line turning: the seam it turns from, and the seconds since it began (-1: none).
+var _turn_from: StarMap.Seam = StarMap.Seam.NONE
+var _turn_age: float = -1.0
 ## Where the stars the wave playing takes stand, as it sets off.
 var _caught: Array[Vector2i] = []
 ## Stars lost to a splash cutting out: where each left the sky, and the seconds since.
@@ -146,6 +157,9 @@ func setup(run: RunState) -> void:
 	_blocking_left = 0.0
 	_sweep_age = -1.0
 	_cue_way = Vector2i.ZERO
+	_cue_great = false
+	_turn_age = -1.0
+	_shown_seam = run.seam if run != null else StarMap.Seam.NONE
 	_losses.clear()
 	aiming = false
 	_time = 0.0
@@ -187,9 +201,11 @@ func is_rippling() -> bool:
 
 
 ## The wave wipes `side` (StarWave.LOW or HIGH), taking the stars at `caught`; the next one sweeps
-## `next_way`, cued once it has played.
-func sweep(way: Vector2i, next_way: Vector2i, caught: Array[Vector2i] = []) -> void:
+## `next_way`, cued once it has played. `great`: the great wave, rushing both ways off the line
+## `way` crosses.
+func sweep(way: Vector2i, next_way: Vector2i, caught: Array[Vector2i] = [], great: bool = false) -> void:
 	_sweep_way = way
+	_sweep_great = great
 	_sweep_age = 0.0
 	_cue_way = Vector2i.ZERO
 	_next_cue = next_way
@@ -212,12 +228,33 @@ func cue_way() -> Vector2i:
 	return _cue_way
 
 
-## Turning (the final): the way the wave after the cued one will rush, shown fainter (ZERO: none
-## shown, as on one line, where it's always the other half).
-func after_way() -> Vector2i:
-	if _cue_way == Vector2i.ZERO or _run == null or _run.wave == null or not _run.wave.turns:
-		return Vector2i.ZERO
-	return StarWave.TURNS[(StarWave.TURNS.find(_cue_way) + 1) % StarWave.TURNS.size()]
+## Whether the cued wave is the great one (both sides).
+func cue_great() -> bool:
+	return _cue_great
+
+
+## The seam as shown.
+func shown_seam() -> StarMap.Seam:
+	return _shown_seam
+
+
+## The great wave changed the seam to `seam`: a new line grows out of the middle.
+func turn_seam(seam: StarMap.Seam) -> void:
+	_turn_from = _shown_seam
+	_shown_seam = seam
+	_turn_age = 0.0
+	queue_redraw()
+
+
+func is_turning() -> bool:
+	return _turn_age >= 0.0
+
+
+## The way a great wave rushing off the line `way` crosses takes a star at `point`: toward the edge
+## on its side of the line (on the line: `way` itself).
+func way_for(way: Vector2i, point: Vector2i) -> Vector2i:
+	var across: int = (point.x - _run.wave.middle.x) if way.x != 0 else (point.y - _run.wave.middle.y)
+	return -way if across < 0 else way
 
 
 ## Seconds after the wave sets off (wind-up included) that it reaches `point`, on its way from the
@@ -302,6 +339,12 @@ func advance(delta: float) -> void:
 		if _sweep_age >= WINDUP_TIME + SWEEP_TIME + CRASH_TIME:
 			_sweep_age = -1.0
 			_cue_way = _next_cue if _run.wave != null and _run.wave.strikes_next() and not _run.is_over() else Vector2i.ZERO
+			_cue_great = _cue_way != Vector2i.ZERO and _run.wave.great_next()
+		queue_redraw()
+	if _turn_age >= 0.0:
+		_turn_age += delta
+		if _turn_age >= TURN_TIME:
+			_turn_age = -1.0
 		queue_redraw()
 	if _run != null and _run.wave != null and _cue_way != Vector2i.ZERO and floori(_time / MARCH_STEP) != floori((_time - delta) / MARCH_STEP):
 		queue_redraw()
@@ -323,11 +366,10 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	if not has_seam():
 		return result
-	# Halfway between any point and its reflection is on the seam.
-	var p: Vector2i = _run.sky_rect.get_center()
-	@warning_ignore("integer_division")
-	var middle: Vector2i = (p + _run.reflect(p)) / 2
-	var seam: Dictionary[Vector2i, Color] = seam_pixels(_run.scorpio.map.seam, middle, _run.sky_rect, _drift())
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + _run.scorpio.shift
+	var seam: Dictionary[Vector2i, Color] = seam_pixels(_shown_seam, middle, _run.sky_rect, _drift())
+	if _turn_age >= 0.0:
+		seam = _turning_pixels(middle)
 	if _blocking_left > 0.0:
 		for point: Vector2i in seam:
 			if seam[point] == LINE_COLOUR:
@@ -397,8 +439,10 @@ func _wave_pixels() -> Dictionary[Vector2i, Color]:
 	var wave: StarWave = _run.wave
 	if _sweep_age >= 0.0:
 		result.merge(sweep_pixels(_sweep_way.x + _sweep_way.y, line_of(_sweep_way), _sweep_way.x != 0, _run.sky_rect, _sweep_age), true)
+		if _sweep_great:
+			result.merge(sweep_pixels(-(_sweep_way.x + _sweep_way.y), line_of(_sweep_way), _sweep_way.x != 0, _run.sky_rect, _sweep_age), true)
 		for at: Vector2i in _caught:
-			var reached: float = _sweep_age - sweep_delay(_sweep_way, at)
+			var reached: float = _sweep_age - sweep_delay(way_for(_sweep_way, at) if _sweep_great else _sweep_way, at)
 			if reached < 0.0:
 				# Still to come: its ring crawls fast.
 				result.merge(HarvestView.lone_ring_pixels(at, Star.Size.MEDIUM, _sweep_age * 3.0), true)
@@ -407,10 +451,9 @@ func _wave_pixels() -> Dictionary[Vector2i, Color]:
 		return result
 	if _cue_way == Vector2i.ZERO:
 		return result
-	var after: Vector2i = after_way()
-	if after != Vector2i.ZERO:
-		result.merge(after_cue_pixels(after.x + after.y, line_of(after), after.x != 0, _run.sky_rect), true)
 	result.merge(wave_cue_pixels(_cue_way.x + _cue_way.y, line_of(_cue_way), _cue_way.x != 0, _run.sky_rect, _time), true)
+	if _cue_great:
+		result.merge(wave_cue_pixels(-(_cue_way.x + _cue_way.y), line_of(_cue_way), _cue_way.x != 0, _run.sky_rect, _time), true)
 	if settled and not aiming:
 		for id: int in _run.wave_risk():
 			var star: Star = _run.find_star(id)
@@ -446,24 +489,31 @@ static func wave_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i, t
 	return result
 
 
-## The fainter cue for the wave after the next on `side` of the line at `line` across `sky`: a dotted
-## M4 ripple standing 2 px off the line on that side, and single soft chevrons (S2, S1 tips) standing
-## still past it
-## (no swell, no march).
-static func after_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i) -> Dictionary[Vector2i, Color]:
+## The line turning, TURN_TIME long: a new line grown out from `middle`, its tips lit M6, and a line
+## no longer there drawn back toward it; one in both stays.
+func _turning_pixels(middle: Vector2i) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	var start: int = sky.position.y if vertical else sky.position.x
-	var length: int = sky.size.y if vertical else sky.size.x
-	for t: int in range(0, length, 2):
-		_put_in(result, vertical, sky, start + t, line + side * (2 + posmod(t, 8) / 4), Palette.M4)
-	var tip: int = line + side * (CHEVRON_GAP + 3)
-	@warning_ignore("integer_division")
-	for t: int in range(CHEVRON_PERIOD / 2, length, CHEVRON_PERIOD):
-		_put_in(result, vertical, sky, start + t, tip, Palette.S2)
-		for w: int in [1, 2, 3]:
-			_put_in(result, vertical, sky, start + t - w, tip - side * w, Palette.S2 if w < 3 else Palette.S1)
-			_put_in(result, vertical, sky, start + t + w, tip - side * w, Palette.S2 if w < 3 else Palette.S1)
+	var k: float = clampf(_turn_age / TURN_TIME, 0.0, 1.0)
+	var sky: Rect2i = _run.sky_rect
+	var old: Dictionary[Vector2i, Color] = seam_pixels(_turn_from, middle, sky, _drift())
+	var new: Dictionary[Vector2i, Color] = seam_pixels(_shown_seam, middle, sky, _drift())
+	var reach_old: float = (1.0 - k) * maxf(sky.size.x, sky.size.y) / 2.0
+	var reach_new: float = k * maxf(sky.size.x, sky.size.y) / 2.0
+	for point: Vector2i in old:
+		if new.has(point) or _reach(point, middle) <= reach_old:
+			result[point] = old[point]
+	for point: Vector2i in new:
+		if old.has(point):
+			continue
+		var r: float = _reach(point, middle)
+		if r <= reach_new:
+			result[point] = Palette.M6 if r > reach_new - 3.0 else new[point]
 	return result
+
+
+## How far `point` is from `middle` along the line it's on.
+static func _reach(point: Vector2i, middle: Vector2i) -> float:
+	return float(maxi(absi(point.x - middle.x), absi(point.y - middle.y)))
 
 
 ## The wave on `side` of the line at `line` across `sky`, `age` seconds after it set off: rearing up
@@ -668,8 +718,10 @@ func _follow_wave() -> void:
 	if _run == null or _run.wave == null or _sweep_age >= 0.0:
 		return
 	var way: Vector2i = _run.wave.next_way() if _run.wave.strikes_next() and not _run.is_over() else Vector2i.ZERO
-	if way != _cue_way:
+	var great: bool = way != Vector2i.ZERO and _run.wave.great_next()
+	if way != _cue_way or great != _cue_great:
 		_cue_way = way
+		_cue_great = great
 		queue_redraw()
 
 

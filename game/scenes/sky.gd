@@ -445,7 +445,11 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 		&"stars_splashed":
 			_splash(event.args[0], event.args[1])
 		&"wave_struck":
-			_wave(event.args[0], event.args[1], event.args[2])
+			_wave(event.args[0], event.args[1], event.args[2], event.args[3])
+		&"seam_turned":
+			# The final's great wave turned the water line.
+			_seam.turn_seam(event.args[0])
+			_sequencer.hold(SeamView.TURN_TIME)
 		&"reflect_intro_cleared":
 			# A beat to see the stars across the seam, then they go: no reward.
 			_sequencer.hold(INTRO_HOLD * 2.0 + StarView.DISSOLVE_TIME)
@@ -882,14 +886,14 @@ func _splash(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 	_sequencer.hold(maxf(SeamView.RIPPLE_TIME, StarView.DRIFT_TIME if not moves.is_empty() else 0.0))
 
 
-## Pisces's wave rushes `way` off its water line: it rears up, rushes from the line to the sky's edge
+## Pisces's wave rushes `way` off its water line (`great`: both ways, the final's great wave): it rears up, rushes from the line to the sky's edge
 ## and crashes there; each `lost` star flashes as it reaches it and is carried on to the edge, where
 ## it bursts in droplets, for nothing. The next side is cued after.
-func _wave(way: Vector2i, lost: Array, next_way: Vector2i) -> void:
+func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 	var caught: Array[Vector2i] = []
 	for star: Star in lost:
 		caught.append(star.position)
-	_seam.sweep(way, next_way, caught)
+	_seam.sweep(way, next_way, caught, great)
 	_sequencer.hold(SeamView.sweep_hold())
 	for star: Star in lost:
 		var view: StarView = _views.get(star.id)
@@ -898,8 +902,10 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i) -> void:
 		_views.erase(star.id)
 		# It rides the crest from where the wall reaches it to the edge, bursting there as it crashes.
 		var from: Vector2i = star.position
-		var to: Vector2i = _seam.carry_point(way, from)
-		var reached: float = _seam.sweep_delay(way, from)
+		# The great wave takes each star out the way of its own side of the line.
+		var its_way: Vector2i = _seam.way_for(way, from) if great else way
+		var to: Vector2i = _seam.carry_point(its_way, from)
+		var reached: float = _seam.sweep_delay(its_way, from)
 		var share: float = (reached - SeamView.WINDUP_TIME) / SeamView.SWEEP_TIME
 		var tween: Tween = create_tween()
 		tween.tween_interval(reached)

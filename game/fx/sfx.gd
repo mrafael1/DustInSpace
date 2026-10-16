@@ -274,8 +274,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"star_marked", &"area_marked":
 			play(&"link_reject", 0.6)
 		&"wave_struck":
-			# Pisces's wave: it rears up, rushes out and crashes on the sky's edge.
-			play(&"wave")
+			# Pisces's wave: it rears up, rushes out and crashes on the sky's edge; the great one deeper.
+			play(&"wave", 0.8 if event.args[3] else 1.0)
 
 
 
