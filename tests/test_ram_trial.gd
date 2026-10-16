@@ -79,6 +79,9 @@ func test_the_lane_starts_on_the_first_lit_landmark_else_the_middle() -> void:
 	var unlit: StarMap = StarMap.ram_trial()
 	unlit.starting_lit = []
 	assert_eq(_run(unlit).ram.row, SKY.get_center().y, "none lit: the sky's middle")
+	var unordered: StarMap = StarMap.ram_trial()
+	unordered.starting_lit = [3, 0]
+	assert_eq(_run(unordered).ram.row, _landmark(run, 3).y, "the first one the map lists")
 
 
 func test_the_ram_charges_after_every_second_launch() -> void:

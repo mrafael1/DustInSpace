@@ -1908,9 +1908,8 @@ func _splash(at: Vector2i) -> void:
 ## Aries: the lane row before any link has lit a landmark: the row of the map's first landmark lit
 ## from the start, else the sky's middle.
 func _ram_start_row() -> int:
-	for i: int in scorpio.map.count():
-		if scorpio.is_lit(i):
-			return scorpio.landmark_position(i).y
+	if not scorpio.map.starting_lit.is_empty():
+		return scorpio.landmark_position(scorpio.map.starting_lit[0]).y
 	return sky_rect.get_center().y
 
 
