@@ -95,6 +95,12 @@ signal link_rejected(star_ids: Array[int])
 signal landmark_lit(index: int)
 ## Scorpio: both ends of a string are lit, so the string formed.
 signal string_built(segment: int)
+## Pisces's cords: a successful link left its string as a cord, through `points` (its stars'
+## positions, in pick order).
+signal cord_tied(points: Array[Vector2i])
+## Pisces's cords: the sky was cleared (the Sun rekindled, the figure completed, a Big Bang), and
+## every link's cord with it (only when there was one). The fish's cord is never cleared.
+signal cords_cleared
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
 ## Its light then clears the sky: sky_cleared follows the landmark's events.
 signal sun_rekindled(landmark: int)
@@ -265,6 +271,9 @@ var harvest: StarHarvest
 ## Sagittarius's black hole (chapter 5 trial), or null when the map has none (or balance.json no
 ## black_hole block).
 var gravity: StarGravity
+## Pisces's cords (chapter 6, a debug trial): null on a map without them. The map's fish cord
+## (StarMap.fish_cord, shifted) is tied fixed from the start.
+var cords: StarCords
 ## Bound sheaves: the landmarks bound to the figure (lit at the start, or still lit at a harvest).
 var _bound: Array[bool] = []
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
@@ -319,6 +328,9 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 				gravity.add_twin(scorpio.map.black_hole_twin + scorpio.shift, hole.drift, hole.merge_horizon)
 			if scorpio.map.black_hole_gauge and hole.gauge > 0:
 				gravity.set_gauge(hole.gauge, hole.gauge_share)
+		if scorpio.map.cords:
+			cords = StarCords.new()
+			cords.tie_fixed(_fish_cord())
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -360,14 +372,20 @@ func in_reach(a: Vector2i, b: Vector2i) -> bool:
 	return reach <= 0 or (b - a).length_squared() <= reach * reach
 
 
-## Whether every step of a link, in pick order, is in reach. Unknown ids are skipped.
+## Whether a traced link can step from `a` to `b`: in reach, and on a map with cords, crossing none
+## (touching one is fine).
+func can_step(a: Vector2i, b: Vector2i) -> bool:
+	return in_reach(a, b) and (cords == null or not cords.crosses(a, b))
+
+
+## Whether every step of a link, in pick order, can be traced (can_step). Unknown ids are skipped.
 func link_in_reach(star_ids: Array[int]) -> bool:
 	var previous: Star = null
 	for id: int in star_ids:
 		var star: Star = _link_star(id)
 		if star == null:
 			continue
-		if previous != null and not in_reach(previous.position, star.position):
+		if previous != null and not can_step(previous.position, star.position):
 			return false
 		previous = star
 	return true
@@ -381,7 +399,7 @@ func sky_sizes() -> Array[int]:
 
 
 ## A combo is still possible. On the Scorpio map one unlit landmark may be in it, and its stars
-## must be linkable within reach.
+## must be linkable within reach (and, with cords, without crossing one).
 func has_remaining_combo() -> bool:
 	if scorpio == null:
 		return Combos.has_any(sky_sizes())
@@ -400,22 +418,47 @@ func has_remaining_combo() -> bool:
 	return false
 
 
-## Whether three stars can be linked in some order with every step in reach: one of them (the
-## middle of the link) must reach both others.
+## Whether three stars can be linked in some order with every step traceable: one of them (the
+## middle of the link) must reach both others (with cords, without crossing one).
 func _can_chain(trio: Array[Star]) -> bool:
 	return not _chain_order(trio).is_empty()
 
 
-## `trio` in an order that links it with every step in reach (the middle one reaches both others),
-## or empty if none does.
+## `trio` in an order that links it with every step traceable (the middle one reaches both others),
+## or empty if none does. Each star is tried as the middle: a cord can block one and leave another.
 func _chain_order(trio: Array[Star]) -> Array[Star]:
 	for m: int in 3:
-		var mid: Star = trio[m]
-		var first: Star = trio[(m + 1) % 3]
-		var last: Star = trio[(m + 2) % 3]
-		if in_reach(mid.position, first.position) and in_reach(mid.position, last.position):
-			return [first, mid, last] as Array[Star]
+		var ordered: Array[Star] = _chain_through(trio, m)
+		if not ordered.is_empty():
+			return ordered
 	return [] as Array[Star]
+
+
+## `trio` linked through its star `m` as the middle, if both steps can be traced, else empty.
+func _chain_through(trio: Array[Star], m: int) -> Array[Star]:
+	var mid: Star = trio[m]
+	var first: Star = trio[(m + 1) % 3]
+	var last: Star = trio[(m + 2) % 3]
+	if can_step(mid.position, first.position) and can_step(mid.position, last.position):
+		return [first, mid, last] as Array[Star]
+	return [] as Array[Star]
+
+
+## For bots: every order three link ids `star_ids` can be traced in to make a combo, one per choice
+## of middle star, each as ids [first, middle, last]. With cords the middle decides which cords the
+## link leaves. Empty if they aren't three stars that can be linked, or once the run is over.
+func traceable_orders(star_ids: Array[int]) -> Array[Array]:
+	var found: Array[Array] = []
+	var trio: Array[Star] = _stars_for_link(star_ids)
+	if trio.is_empty() or is_over():
+		return found
+	for m: int in 3:
+		var ids: Array[int] = []
+		for star: Star in _chain_through(trio, m):
+			ids.append(star.id)
+		if not ids.is_empty() and combo_for(ids) != Combos.INVALID:
+			found.append(ids)
+	return found
 
 
 ## The idle hint (#90: show a stuck player a link): the ids of one valid link, in an order that
@@ -448,8 +491,9 @@ func _lights(ids: Array) -> int:
 
 
 ## Every valid link in the sky (unlit landmarks included, one at most), each as ids in an order that
-## keeps every step in reach; none once the run is over.
-func valid_links() -> Array[Array]:
+## keeps every step traceable; none once the run is over. `every_middle`: each trio once for every
+## middle star it can be traced through (traceable_orders), for bots on a map with cords.
+func valid_links(every_middle: bool = false) -> Array[Array]:
 	var found: Array[Array] = []
 	if is_over():
 		return found
@@ -461,6 +505,9 @@ func valid_links() -> Array[Array]:
 	for a: int in pool.size():
 		for b: int in range(a + 1, pool.size()):
 			for c: int in range(b + 1, pool.size()):
+				if every_middle:
+					found.append_array(traceable_orders([pool[a].id, pool[b].id, pool[c].id] as Array[int]))
+					continue
 				var ordered: Array[Star] = _chain_order([pool[a], pool[b], pool[c]] as Array[Star])
 				if ordered.is_empty():
 					continue
@@ -868,7 +915,8 @@ func _tutorial_landmark_size() -> int:
 
 
 ## Links exactly 3 distinct stars in the sky. An invalid link uses nothing up (nor moves Orion).
-## On the Scorpio map a step between consecutive stars longer than the reach makes the link invalid.
+## On the Scorpio map a step between consecutive stars longer than the reach makes the link invalid,
+## and so does one crossing a cord. With cords, a successful link leaves its string as one.
 ## On the Scorpio map one unlit landmark can be in it too: the combo pays as usual and the
 ## landmark lights up instead of being used up. A full Sun then rekindles.
 ## Returns the combo key, or Combos.INVALID.
@@ -885,6 +933,9 @@ func link(star_ids: Array[int]) -> String:
 	for star: Star in linked:
 		stars.erase(star)
 	_orion_forget(linked)
+	# Pisces: the string stays as a cord (a clear this link brings takes it with the rest).
+	if cords != null:
+		_tie_cord(linked)
 	var reward: Balance.ComboReward = balance.combos[combo]
 	var paid: int = link_dust(combo)
 	dust += paid
@@ -1006,7 +1057,7 @@ func link_candidates(star_ids: Array[int]) -> Array[int]:
 
 ## Why the picks `star_ids` (in pick order) can't stand as a link in progress, or
 ## PickRefusal.NONE. The only such rule: one constellation star per link, so picking a second one
-## is refused on the spot. (A step out of reach is refused before the pick: in_reach.)
+## is refused on the spot. (A step out of reach, or across a cord, is refused before the pick: can_step.)
 func pick_refusal(star_ids: Array[int]) -> PickRefusal:
 	if scorpio != null and star_ids.filter(scorpio.is_landmark).size() > Scorpio.LANDMARKS_PER_COMBO:
 		return PickRefusal.SECOND_LANDMARK
@@ -1146,6 +1197,7 @@ func _drink_light(from: Vector2i, amount: int) -> void:
 		var cleared: Array[Star] = stars.duplicate()
 		stars.clear()
 		_orion_forget(cleared)
+		_clear_cords()
 		big_bang_started.emit(gravity.center, cleared, 0)
 
 
@@ -1216,6 +1268,7 @@ func _drift_holes() -> void:
 		var cleared: Array[Star] = stars.duplicate()
 		stars.clear()
 		_orion_forget(cleared)
+		_clear_cords()
 		big_bang_started.emit(gravity.center, cleared, 0)
 
 
@@ -1401,6 +1454,7 @@ func _stage_area(region: Rect2i) -> Rect2i:
 
 ## Scorpio's rekindle or completion: every star left in the sky goes, for `dust_per_star` each.
 func _clear_sky(dust_per_star: int) -> void:
+	_clear_cords()
 	if stars.is_empty():
 		return
 	var cleared: Array[Star] = stars.duplicate()
@@ -1418,7 +1472,34 @@ func _big_bang(burst: Vector2i) -> void:
 	_orion_forget(cleared)
 	var gain: int = balance.big_bang_base_dust + balance.big_bang_dust_per_cleared_star * cleared.size()
 	dust += gain
+	_clear_cords()
 	big_bang_started.emit(burst, cleared, gain)
+
+
+## Pisces: a link's string stays in the sky as a cord through its stars, in pick order.
+func _tie_cord(linked: Array[Star]) -> void:
+	var points: Array[Vector2i] = []
+	for star: Star in linked:
+		points.append(star.position)
+	cords.tie(points)
+	cord_tied.emit(points)
+
+
+## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map).
+func _fish_cord() -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	for point: Vector2i in scorpio.map.fish_cord:
+		points.append(point + scorpio.shift)
+	return points
+
+
+## Pisces: the sky was cleared, and the links' cords go with it (the fish's cord stays). Nothing is
+## emitted when no link's cord was there to clear.
+func _clear_cords() -> void:
+	if cords == null or cords.link_count() == 0:
+		return
+	cords.clear()
+	cords_cleared.emit()
 
 
 ## Orion's volley: counts a successful link; the counted link that fills the interval destroys a

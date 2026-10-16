@@ -100,6 +100,15 @@ var black_hole_twin: Vector2i = Vector2i.ZERO
 ## The light gauge: the hole drinks a share of each link's light, and bangs when it's full
 ## (balance.json's gauge and gauge_share).
 var black_hole_gauge: bool = false
+## Pisces's cords (chapter 6, a debug trial): every successful link leaves its string in the sky as a
+## cord until the sky is cleared, and a traced link can't cross one (StarCords).
+var cords: bool = false
+## Pisces's fish cord: the cord tying the two fish, in the sky from the start and splitting it. A
+## polyline in home layout (Scorpio.shift is added at run time), each pair of consecutive points one
+## segment; empty for none. It blocks a traced link step like a link's cord, but it's never cleared
+## (not by a rekindle, the completion or a Big Bang). Only read when `cords` is on. Draws no random
+## numbers; bursts and stars cross it freely.
+var fish_cord: Array[Vector2i] = []
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -167,14 +176,16 @@ static func current_trial(enabled: bool = true) -> StarMap:
 	return map
 
 
-## A debug trial's map: "aquarius" (the flow layout), "black_hole" (chapter 5's trial) or the Tail
-## trial (anything else).
+## A debug trial's map: "aquarius" (the flow layout), "black_hole" (chapter 5's trial), "cord"
+## (chapter 6's) or the Tail trial (anything else).
 static func current_layout(layout: String, enabled: bool = true) -> StarMap:
 	match layout:
 		"aquarius":
 			return aquarius_flow(enabled)
 		"black_hole":
 			return black_hole_trial(enabled)
+		"cord":
+			return cord_trial(enabled)
 	return current_trial(enabled)
 
 
@@ -205,6 +216,27 @@ static func black_hole_trial(enabled: bool = true) -> StarMap:
 	map.intros = false
 	map.black_hole = enabled
 	map.black_hole_center = Vector2i(90, 164)
+	return map
+
+
+## Debug experiment for chapter 6 (Pisces): Scorpio's Heart layout without Orion's hunt, where every
+## link leaves a cord a later link can't cross (docs/chapter_4_6_plan.md), and the fish's cord
+## splits the sky from the start: a wedge V knotted at Alrescha, at the figure's foot just left of
+## its two lowest stars, one arm rising to the top edge past the spine, the other running out to
+## the right edge. Landmarks 1, 2, 3, 4 and 6 lie inside the wedge; the lit foot (0) and 5 lie
+## outside, so it cuts strings 0-1 and 2-5. No landmark sits within 10 px of it. The sweep's pick
+## of 16 placements (300 paired seeds): link-first 4.01 -> 6.58 packs a win, careless wins 92.3%,
+## the planner 99.3% on 5.61; it costs packs, not runs. The CORD ON/OFF switch turns the cords (the
+## fish's too) off to replay the same seed. No progress identity; the Heart's painting stands in.
+static func cord_trial(enabled: bool = true) -> StarMap:
+	var map: StarMap = heart()
+	map.id = "cord_trial" if enabled else "cord_off"
+	map.title = "CORD" if enabled else "CORD OFF"
+	map.hunt = false
+	map.intros = false
+	map.cords = enabled
+	if enabled:
+		map.fish_cord = [Vector2i(166, 78), Vector2i(56, 186), Vector2i(179, 214)]
 	return map
 
 

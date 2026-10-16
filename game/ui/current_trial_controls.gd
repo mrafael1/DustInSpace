@@ -24,9 +24,14 @@ func _ready() -> void:
 
 
 func setup(run: RunState, _sequencer: EventSequencer) -> void:
-	visible = OS.is_debug_build() and run.scorpio != null and (run.scorpio.map.id.begins_with("current_") or run.scorpio.map.id.begins_with("black_hole"))
+	var id: String = run.scorpio.map.id if run.scorpio != null else ""
+	visible = OS.is_debug_build() and (id.begins_with("current_") or id.begins_with("black_hole") or id.begins_with("cord"))
 	_pressed = false
 	_button.pressed = false
+	if id.begins_with("cord"):
+		_button.text = "CORD ON" if run.cords != null else "CORD OFF"
+		_caption.text = "LINKS LEAVE CORDS" if run.cords != null else "LINKS LEAVE NOTHING"
+		return
 	if run.scorpio != null and run.scorpio.map.id.begins_with("black_hole"):
 		_button.text = "HOLE ON" if run.gravity != null else "HOLE OFF"
 		_caption.text = "STARS FALL IN" if run.gravity != null else "STARS STAY STILL"

@@ -41,7 +41,7 @@ signal encounter_finished(threat: int)
 ## Debug-only Aquarius experiment, using Tail geometry with every Orion rule disabled.
 @export var current_trial: bool = false
 @export var current_enabled: bool = true
-## Which trial map: "tail", "aquarius" or "black_hole" (StarMap.current_layout).
+## Which trial map: "tail", "aquarius", "black_hole" or "cord" (StarMap.current_layout).
 @export var current_layout: String = "tail"
 
 var run: RunState
@@ -163,6 +163,7 @@ func start_run(balance: Balance) -> bool:
 	($Sky/ConstellationLayer as ConstellationView).repeat = replay
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
 	($Sky/GravityLayer as GravityView).setup(run, _sequencer)
+	($Sky/CordLayer as CordView).setup(run, _sequencer)
 	($Sky/HeatLayer as HeatView).setup(run, _sequencer)
 	($Sky/HarvestLayer as HarvestView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
@@ -198,6 +199,9 @@ func start_run(balance: Balance) -> bool:
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
 		run.start_encounter()
+	# Pisces's cords have no intro to show them: their rule is said as the stage opens.
+	if run.cords != null:
+		_hud.tell_current_rule()
 	# A current's rule is said as the player first aims; a launcher already aiming (it can start
 	# before the HUD is bound, and keeps aiming through a restart) says it now.
 	if _telescope.is_aiming() if use_telescope else _launcher.is_pulling():

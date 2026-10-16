@@ -8,6 +8,8 @@ extends Node2D
 ## over the last part of it, so the limit is felt before it's hit. Past the reach, the line stops
 ## at the limit with a flickering ember spark where it broke, and runs on to the finger as sparse
 ## M5 dots. (Which stars are in reach shows through the link hint: the others dim.)
+## Cords (Pisces): a step to the finger that would cross a cord breaks where it meets it, the same
+## way (solid up to the cord, the ember spark there, sparse dots beyond).
 ## Let go: while a release would cancel the link (the drag left its last star), the whole line,
 ## out to the finger, is sparse M5 dots like the loose end: cold and broken, not a link.
 
@@ -52,6 +54,8 @@ var _loose_end: bool = false
 var _reach: int = 0
 ## A release now would let the link go: the line is drawn let go.
 var _let_go: bool = false
+## Where the last step (to the finger) meets a cord it would cross (StarCords.NO_CROSSING: none).
+var _cut: Vector2i = StarCords.NO_CROSSING
 var _flashes: Array[Flash] = []
 var _time: float = 0.0
 var _pulse_frame: int = -1
@@ -76,13 +80,15 @@ func _draw() -> void:
 ## Shows the link being traced through `points` (star centres, then the finger while dragging).
 ## `loose_end`: the last step, to the finger, is out of reach. `reach`: how long that step may be,
 ## so the line can strain toward it (0: none). `let_go`: a release now would cancel the link.
-func show_path(points: Array[Vector2i], loose_end: bool = false, reach: int = 0, let_go: bool = false) -> void:
-	if points == _path and loose_end == _loose_end and reach == _reach and let_go == _let_go:
+## `cut`: where that step meets a cord it would cross (the line breaks there), or StarCords.NO_CROSSING.
+func show_path(points: Array[Vector2i], loose_end: bool = false, reach: int = 0, let_go: bool = false, cut: Vector2i = StarCords.NO_CROSSING) -> void:
+	if points == _path and loose_end == _loose_end and reach == _reach and let_go == _let_go and cut == _cut:
 		return
 	_path = points.duplicate()
 	_loose_end = loose_end
 	_reach = reach
 	_let_go = let_go
+	_cut = cut
 	queue_redraw()
 
 
@@ -92,6 +98,11 @@ func is_loose_end() -> bool:
 
 func is_let_go() -> bool:
 	return _let_go
+
+
+## Where the step to the finger breaks on a cord, or StarCords.NO_CROSSING.
+func cord_cut() -> Vector2i:
+	return _cut
 
 
 func flash_collected(points: Array[Vector2i]) -> void:
@@ -156,6 +167,18 @@ static func reach_part(a: Vector2i, b: Vector2i, reach: int) -> Array[Vector2i]:
 	return pixels.filter(func(p: Vector2i) -> bool: return (p - a).length_squared() <= reach * reach)
 
 
+## The pixels of `line` (from `a`) that come before `at`, where it meets a cord: it stops a pixel
+## short of it, so the spark sits on the cord.
+static func before_cut(line: Array[Vector2i], a: Vector2i, at: Vector2i) -> Array[Vector2i]:
+	var limit: int = (at - a).length_squared()
+	var kept: Array[Vector2i] = []
+	for p: Vector2i in line:
+		if (p - a).length_squared() >= limit:
+			break
+		kept.append(p)
+	return kept
+
+
 ## The pixels of a path through `points`, in order, with each joint counted once.
 static func path_pixels(points: Array[Vector2i]) -> Array[Vector2i]:
 	var pixels: Array[Vector2i] = []
@@ -180,9 +203,11 @@ func _draw_link(pixels: Array[Vector2i]) -> void:
 
 
 ## The step from the last star `a` to the finger `b`: it strains toward the reach, and past it
-## breaks at the limit with an ember spark, then runs on as sparse dots.
+## (or at a cord it would cross) breaks with an ember spark, then runs on as sparse dots.
 func _draw_finger_step(a: Vector2i, b: Vector2i) -> void:
 	var solid: Array[Vector2i] = reach_part(a, b, _reach)
+	if _cut != StarCords.NO_CROSSING:
+		solid = before_cut(solid, a, _cut)
 	_draw_glow(solid)
 	for i: int in solid.size():
 		var share: float = (solid[i] - a).length() / _reach if _reach > 0 else 0.0

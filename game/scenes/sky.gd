@@ -17,6 +17,11 @@ extends Node2D
 ## (sky_cleared).
 ## Big Bang: the pack still "opens" into decoy stars (presentation only: never in the run, never
 ## linkable), then every star in the sky and the decoys collapse into the burst point.
+## Pisces's cords (chapter 6 trial): each link leaves its string as a cord (the CordLayer, under the
+## map, so gold landmarks and strings stay gold, and under the line); a star whose step would cross
+## one can't join (its step shakes ember, and the cord it crosses glows ember with it; the link
+## stays), and while tracing, the line to the finger breaks where it would cross a cord within the
+## reach, and that cord glows ember.
 ## Orion (#64): on stages he hunts, the OrionLayer shows his figure, the reticle on the star he
 ## marked, his bow readying while a traced link would leave it behind, and his arrow; the shot star
 ## bursts as the arrow lands, once that link resolves. On the Heart (#71) it shows his hunting
@@ -118,6 +123,7 @@ var _arrival_sweep: bool = false
 @onready var _orion: OrionView = $OrionLayer
 @onready var _current: CurrentView = $CurrentLayer
 @onready var _gravity: GravityView = $GravityLayer
+@onready var _cords: CordView = $CordLayer
 @onready var _heat: HeatView = $HeatLayer
 @onready var _harvest: HarvestView = $HarvestLayer
 
@@ -251,7 +257,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	# The gap hints follow the stars in the sky.
 	_constellation.queue_redraw()
 	var _played: bool = _play_core_event(event) or _play_orion_event(event) or _play_heat_event(event) \
-		or _play_current_event(event) or _play_harvest_event(event)
+		or _play_current_event(event) or _play_harvest_event(event) or _play_cord_event(event)
 	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
 	if _orion.marked() != null and not _views.values().has(_orion.marked()):
 		_orion.clear_mark()
@@ -276,6 +282,8 @@ func _play_core_event(event: EventSequencer.RunEvent) -> bool:
 			_launched_kind = event.args[0]
 		&"big_bang_started":
 			_big_bang(event.args[0], event.args[1])
+			# The cords it clears stay until its freeze, so it opens like a normal burst.
+			_cords.hold_for_big_bang()
 			# Sagittarius's final won: its hole goes into the Big Bang it ends with.
 			if _run.is_over() and _run.outcome == RunState.Outcome.WON and _run.scorpio != null and _run.scorpio.map.big_bang_finale:
 				_gravity.vanish()
@@ -412,6 +420,18 @@ func _play_current_event(event: EventSequencer.RunEvent) -> bool:
 		&"gauge_intro_linked":
 			# The demo link is traced and collects; then its light streams into the hole, not the Sun.
 			_sequencer.hold(_link_into_hole(event.args[0], event.args[1]))
+		_:
+			return false
+	return true
+
+
+## Pisces's events: a link's cord tied, and the cords cleared with the sky. True if `event` was one.
+func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
+	match event.type:
+		&"cord_tied":
+			_cords.tie(event.args[0])
+		&"cords_cleared":
+			_cords.clear_cords()
 		_:
 			return false
 	return true
@@ -583,36 +603,51 @@ func _on_link_requested(ids: Array[int]) -> void:
 	_run.link(ids)
 
 
-## A star may join the link only within reach of the last one picked (RunState rules the same).
+## A star may join the link only within reach of the last one picked, and not across a cord
+## (RunState.can_step: it rules the same).
 func _can_join(ids: Array[int], id: int) -> bool:
 	if ids.is_empty() or _run == null:
 		return true
 	var ends: Array[Vector2i] = _positions_of_ids([ids[-1], id] as Array[int])
-	return ends.size() < 2 or _run.in_reach(ends[0], ends[1])
+	return ends.size() < 2 or _run.can_step(ends[0], ends[1])
 
 
 func _on_join_refused(ids: Array[int], id: int) -> void:
 	if ids.is_empty():
 		return
-	_link_layer.flash_rejected(_positions_of_ids([ids[-1], id] as Array[int]))
+	var ends: Array[Vector2i] = _positions_of_ids([ids[-1], id] as Array[int])
+	_link_layer.flash_rejected(ends)
+	# A tap is refused with no trace to the finger: the cord it would cross glows with the shake.
+	if ends.size() == 2 and _run != null and _run.cords != null and _run.cords.crosses(ends[0], ends[1]):
+		_cords.flash_blocking(ends[0], ends[1], LinkLayer.REJECT_TIME)
 	step_refused.emit()
 
 
 ## Line through the selected stars (and to the finger while dragging), plus the reward preview.
-## With a reach, the line to the finger goes loose past it. A drag that has left its last star (a
-## release now lets the link go) shows the whole line let go, out to the finger.
+## With a reach, the line to the finger goes loose past it; with cords, it breaks where it would
+## cross one within the reach, and that cord glows. A drag that has left its last star (a release now lets the link
+## go) shows the whole line let go, out to the finger.
 func _show_link() -> void:
 	var points: Array[Vector2i] = _positions_of_ids(_gesture.selected)
 	var loose: bool = false
 	var reach: int = 0
+	var cut: Vector2i = StarCords.NO_CROSSING
+	var step: Array[Vector2i] = []
 	var letting_go: bool = _gesture.is_letting_go()
 	if letting_go:
 		points.append(_finger)
 	elif _gesture.is_dragging() and points.size() < Combos.LINK_LENGTH:
 		loose = not points.is_empty() and not _run.in_reach(points[-1], _finger)
+		if not points.is_empty() and _run.cords != null:
+			# Only a cord within the reach blocks: past it, the line is already broken at the reach.
+			var reached: Vector2i = _reach_end(points[-1], _finger)
+			step = [points[-1], reached]
+			cut = _run.cords.crossing(points[-1], reached)
+			loose = loose or cut != StarCords.NO_CROSSING
 		reach = _run.link_reach()
 		points.append(_finger)
-	_link_layer.show_path(points, loose, reach, letting_go)
+	_link_layer.show_path(points, loose, reach, letting_go, cut)
+	_cords.tracing_step = step
 	_show_preview()
 	# Orion readies his bow while the link would leave his mark behind (the sight line holds on it),
 	# or loose the volley.
@@ -626,6 +661,14 @@ func _show_link() -> void:
 		_harvest.tracing_alone = _run.link_lights_alone(_gesture.selected) if full else -1
 		# Sagittarius's light gauge: a full, valid link that would fill it blinks it ember.
 		_gravity.tracing_fills = full and _run.link_fills_gauge(_gesture.selected)
+
+
+## `to`, or where the step from `from` toward it meets the link's reach (on whole pixels).
+func _reach_end(from: Vector2i, to: Vector2i) -> Vector2i:
+	var reach: int = _run.link_reach()
+	if reach <= 0 or (to - from).length_squared() <= reach * reach:
+		return to
+	return from + Vector2i((Vector2(to - from).normalized() * reach).round())
 
 
 ## On the Scorpio map, previews the landmarks in the link, the strings it would form, and where it

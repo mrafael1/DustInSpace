@@ -250,6 +250,90 @@ The cords must not look like the constellation's strings, which are gold once li
 
 To find. One idea is **the net**: a closed pocket of cords whose stars all link out in one sweep. This must not auto-complete landmarks.
 
+### Step B: the debug trial (2026-10-14)
+
+Built in the core, debug only (`StarCords`, `StarMap.cords`, `StarMap.cord_trial`). A successful link leaves its two steps, in pick order, as a cord. A link step that properly crosses a cord is refused: the trace refuses at that star (the step's shake and `link_reject`), and `link()` rejects it, using nothing up. Touching a cord doesn't block: a shared end, a star standing on a cord, a step through a cord's knot, or a collinear overlap. Cords last until the sky clears (Sun rekindle, completion or any Big Bang), so the link that rekindles the Sun leaves none. Bursts and stars cross cords freely, and cords draw no random numbers. The loss check counts only combos that can be traced: a trio links if some choice of middle star gives two steps in reach that cross no cord.
+
+On the chart, P opens the trial and shift+P opens it with cords off; CORD ON/OFF replays the same seed. The layout is the Heart without its hunt, as the hole's trial was. The cues are minimal:
+- A cord is laid solid C2 from the first star as the link's flash fades, then rests as a dashed old-gold rope (C2/C4) with knots, drawn under the figure and the stars. It started as a cool N6/N5 rope; the user chose old gold (option A of four) on 2026-10-14, a darker gold than the pale C1/C0 of the links and lit strings.
+- While dragging, the line to the finger breaks at the first crossing (the reach's spark and dots), and the cord it would cross glows ember. A tapped step a cord refuses flashes that cord with the shake.
+- The rule line shows as the trial opens: EVERY LINK LEAVES A CORD / NO LINK CAN CROSS ONE.
+
+### Step C: spatial bots (2026-10-14)
+
+`tools/cords/playtest.gd`, paired seeds, with these policies:
+- *link-first*: gravity's scoring.
+- *careless*: the first link found.
+- *launch-first*: hoards.
+- *planner*: links first and scores each link and each choice of middle star by the traceable links and landmarks its cord would cut off. It aims on a clear line to the landmark.
+- *planner-hoard*: the planner's choices with hoarding.
+
+The trial's layout, 300 seeds. Every bot wins 100% with cords off:
+
+| | Won (on) | Packs/win off → on | Links blocked per board (on) |
+|---|---|---|---|
+| Link-first | 100% | 4.01 → 4.37 | 4.1 |
+| Careless | 99.0% | 6.87 → 7.48 | 7.9 |
+| Hoard (launch-first) | 100% | 4.83 → 4.97 | 7.4 |
+| Planner | 100% | 4.26 | 3.5 |
+| Planner, hoarding | 100% | 4.71 | 0.4 |
+
+With cords kept for the whole stage (`--keep-cords`, a what-if in the tool), careless wins 94.3%, hoarding 99.7%, and the rest 100%. A sweep at 150 seeds (Aquarius's Body, Leo's Haunch, the whole Virgo, the whole Scorpio) gave the same picture. Only careless lost (95-99%), and all of its losses were to cords. Bigger figures cost more packs (link-first +0.9 packs on the whole Scorpio), and the planner won back about half of that.
+
+**The gate fails on stakes.** On a threat-free figure, the cords cost good play packs but never the run. Every loss came from careless linking, and planning cut blocked links a lot without moving a win rate. That is Virgo's step C result (the harvest needed a tighter economy and bound sheaves to bite). Levers to try next, one at a time with the bots:
+- a tighter economy;
+- cords that last the stage;
+- a cord that blocks a step passing within a pixel or two;
+- the plan's twists, such as the fish's cord splitting the sky from the start.
+
+### Lever: the fish's cord (2026-10-14)
+
+The user picked the fish's cord: the cord tying the fish is in the sky from the start, splitting it.
+
+**The rule.** A map can carry a fixed cord, `StarMap.fish_cord`: a polyline in home-layout coordinates, shifted with the map. It only counts when the map's cords are on, so cords off is still the baseline. It blocks a traced step as a link's cord does: a proper crossing is refused, touching is allowed. It never clears, not with the sky, not with a Big Bang. Link cords still clear as before. It draws no random numbers, and bursts and stars cross it freely. The loss check, hints and previews follow through `can_step`.
+
+**The look.** It is there as the stage opens. An unbroken old-gold rope, C2 and C4 by turns, a step stronger than a link's dashed rope. A 3x3 knot sits at Alrescha (C1 heart, C2 arms, C4 corners); the loose ends have none. A step that would cross it turns the crossed arm and the knot ember (S4/S3). The first pass was N6/N5, and its N5 pixels vanished over the horizon haze; the second was N7/N6, then the user chose old gold for every cord.
+
+**The placement.** A wedge V with its knot at the figure's foot: `166,78; 56,186; 179,214`. One arm rises past the spine to the top edge, the other runs to the right edge. Landmarks 1, 2, 3, 4 and 6 lie inside the wedge. The lit foot (0) and 5 lie outside, so it cuts strings 0-1 and 2-5. No landmark sits within 10 px of it. Landmark 1 is the tight spot: only 32% of its reach is open on its own side.
+
+**The sweep.** 16 placements, 150 paired seeds, cords on, won % / packs per win. The None and N rows come from a 150-seed run whose result files (`results-cord_trial-fish_none.json`, `results-cord_trial-fish_166-78_56-186_179-214.json` in `tools/cords/out`) the 300-seed runs below overwrote; the other rows match their files. With cords off every bot wins 100% (link-first 4.06, careless 7.00, launch-first 4.83).
+
+| | Polyline | Shape | Link-first | Careless | Launch-first | Planner | Planner, hoarding |
+|---|---|---|---|---|---|---|---|
+| None | | | 100 / 4.40 | 100 / 7.39 | 100 / 5.02 | 100 / 4.26 | 100 / 4.77 |
+| A | 0,128; 98,176; 179,132 | first placeholder, knot under Antares | 100 / 5.04 | 96.7 / 7.76 | 98.0 / 5.60 | 100 / 4.71 | 100 / 5.25 |
+| B | 2,78; 173,249 | diagonal through string 1-2 | 99.3 / 4.88 | 94.7 / 7.92 | 98.0 / 5.47 | 100 / 4.86 | 100 / 5.37 |
+| C | 50,78; 179,207 | diagonal through string 2-3 | 100 / 4.72 | 97.3 / 7.66 | 99.3 / 5.21 | 100 / 4.62 | 100 / 4.80 |
+| D | 30,78; 90,164; 179,214 | V, knot between 1 and 2 | 98.0 / 5.15 | 96.0 / 8.08 | 98.0 / 5.67 | 100 / 5.10 | 99.3 / 5.58 |
+| E | 166,78; 0,244 | line along the spine | 98.0 / 6.50 | 97.3 / 8.95 | 97.3 / 6.53 | 98.7 / 5.42 | 98.7 / 5.62 |
+| E2 | 162,78; 40,200; 179,236 | wedge round the spine | 98.0 / 5.82 | 95.3 / 8.71 | 98.7 / 6.12 | 100 / 5.02 | 100 / 5.31 |
+| F | 110,78; 96,176; 179,160 | V, knot low left | 97.3 / 6.19 | 92.0 / 9.08 | 97.3 / 6.21 | 97.3 / 5.16 | 98.7 / 5.67 |
+| G | 0,200; 116,144; 150,249 | Λ, knot between 2 and 3 | 99.3 / 5.37 | 94.0 / 8.23 | 99.3 / 5.72 | 97.3 / 4.84 | 100 / 5.29 |
+| H | 0,170; 110,140; 179,249 | V opening down right | 100 / 4.93 | 97.3 / 8.01 | 100 / 5.39 | 98.0 / 4.89 | 100 / 5.11 |
+| I | 0,120; 100,249; 179,120 | big U, knot on the bottom edge | 99.3 / 4.44 | 95.3 / 7.89 | 100 / 5.07 | 99.3 / 4.35 | 100 / 4.77 |
+| J | 0,96; 100,148; 179,80 | V, knot above Antares | 98.0 / 6.45 | 96.7 / 8.97 | 96.7 / 6.55 | 98.0 / 5.20 | 100 / 5.43 |
+| L | 40,78; 150,196; 179,100 | pocket holding 3 and 4 | 98.7 / 5.06 | 94.7 / 7.85 | 98.0 / 5.52 | 98.7 / 4.82 | 100 / 4.99 |
+| M | 150,78; 0,236 | steeper line along the spine | 99.3 / 5.25 | 94.7 / 8.23 | 96.0 / 5.52 | 99.3 / 4.82 | 100 / 5.12 |
+| **N** | **166,78; 56,186; 179,214** | **wedge, knot at the foot** | 98.0 / 6.65 | 94.0 / 9.06 | 95.3 / 6.76 | 98.7 / 5.74 | 98.0 / 5.82 |
+| N2 | 162,78; 54,184; 179,206 | tighter N | 98.7 / 6.00 | 96.0 / 8.78 | 98.0 / 6.25 | 98.0 / 5.44 | 98.7 / 5.48 |
+| N4 | 170,78; 40,206; 179,226 | lower knot | 95.3 / 6.82 | 92.0 / 9.14 | 96.7 / 6.94 | 96.7 / 5.43 | 100 / 5.63 |
+
+N won: it's a real Pisces V, and it is among the costliest for link-first. F, N4, J, E2, D, G, H, I and L bite as hard or less but pass within about 5 px of a landmark (F is the widest, 5.1 px from landmark 2; N keeps 10 px), which would put a star on the cord.
+
+N at 300 seeds (cords kept for the stage in brackets, `--keep-cords`):
+
+| | Won | Packs/win off → on | Links blocked per board |
+|---|---|---|---|
+| Link-first | 98.3% (96.3%) | 4.01 → 6.58 | 17.2 |
+| Careless | 92.3% (85.3%) | 6.87 → 9.10 | 18.7 |
+| Hoard (launch-first) | 97.0% (96.0%) | 4.83 → 6.67 | 27.6 |
+| Planner | 99.3% (99.3%) | 5.61 | 17.2 |
+| Planner, hoarding | 98.7% (97.3%) | 5.75 | 29.2 |
+
+Every loss was to cords. Without the fish's cord, at 300 seeds: link-first 100% on 4.37, careless 99.0% on 7.48.
+
+**The gate still fails on stakes.** Careless play wins 92.3% (85.3% with kept cords), where the target is about 40-75%. The fish's cord costs packs, not runs: link-first goes from 4.01 to 6.58 packs a win (+64%). The planner saves about a pack a win (5.61 against 6.58) but wins about as often (99.3% against 98.3%). Hoarding does slightly worse than linking first, but not by a real margin. One fixed cord splits the sky into two big regions. Stars stranded on the far side still pair with later stars there, and combos keep paying for packs, so the run stalls but doesn't end. As in Virgo's step C, losing runs needs a tighter economy. Next with the bots: N with the economy lever, or N with cords kept for the stage (the only change that roughly doubled losses).
+
 ## Steps and gates
 
 As before, one experiment at a time. Chapter 5 and 6 work waits until chapter 4 has passed or been dropped.
