@@ -1,8 +1,8 @@
 extends GutTest
-## Pisces's final, PISCES, THE TWO FISH: the whole figure in two acts. Act one, one water line up and
-## down, the waves wiping the left then the right; the great wave floods the whole sky and raises the
-## line across too; act two, both seams, the waves wiping the top then the bottom. Winning ends in a
-## great wave that washes the loose stars left into dust.
+## Pisces's final, PISCES, THE TWO FISH: the whole figure in two acts on one water line, up and down.
+## Act one, the waves wipe the left then the right; the great wave floods the whole sky and wakes the
+## fish; act two, the waves go on and the fish leaps every second throw. Winning ends in a great wave
+## that washes the loose stars left into dust.
 
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
@@ -70,17 +70,17 @@ func test_the_final_is_the_whole_figure_on_one_line_with_the_great_wave() -> voi
 	assert_eq(RunState.new(balance, Fixtures.rng(1), SKY, StarMap.pisces_north_fish()).wave.great_launch, 0, "only the final has it")
 
 
-func test_act_one_left_and_right_then_the_great_wave_then_act_two_on_both_seams() -> void:
+func test_act_one_left_and_right_then_the_great_wave_wakes_the_fish() -> void:
 	var run: RunState = _run()
 	var struck: Array = []
-	var turned: Array = []
+	var woke: Array = []
 	run.wave_struck.connect(func(way: Vector2i, lost: Array[Star], next: Vector2i, great: bool) -> void:
 		var ids: Array[int] = []
 		for star: Star in lost:
 			ids.append(star.id)
 		ids.sort()
 		struck.append([way, ids, next, great]))
-	run.seam_turned.connect(func(seam: StarMap.Seam) -> void: turned.append(seam))
+	run.fish_arrived.connect(func(at: Vector2i) -> void: woke.append(at))
 	var aim: Vector2i = run.wave.middle + Vector2i(30, 50)
 	assert_true(run.launch(aim), "the first throw: no wave")
 	assert_true(struck.is_empty())
@@ -96,7 +96,8 @@ func test_act_one_left_and_right_then_the_great_wave_then_act_two_on_both_seams(
 		assert_eq(struck[i][0], Vector2i.LEFT if i == 0 else Vector2i.RIGHT)
 		assert_eq(struck[i][1], half, "its half's two")
 		assert_false(struck[i][3])
-	# The fourth throw: the great wave takes every loose star.
+	assert_null(run.fish, "no fish in act one")
+	# The fourth throw: the great wave takes every loose star and wakes the fish.
 	var all: Array[Star] = _corners(run)
 	assert_true(run.wave.great_next())
 	assert_eq(run.wave_risk().size(), 4, "every loose star marked")
@@ -108,22 +109,48 @@ func test_act_one_left_and_right_then_the_great_wave_then_act_two_on_both_seams(
 	ids.sort()
 	assert_eq(struck[2][1], ids, "the great wave floods the whole sky")
 	assert_true(struck[2][3])
-	assert_eq(struck[2][2], Vector2i.UP, "act two's first wave: the top")
-	assert_eq(turned, [StarMap.Seam.CROSS], "the line across rises too")
-	assert_eq(run.seam, StarMap.Seam.CROSS)
-	assert_eq(run.reflect(run.wave.middle + Vector2i(20, 30)), run.wave.middle - Vector2i(20, 30), "a planet bursts in the opposite corner")
-	assert_true(run.crosses_seam(run.wave.middle + Vector2i(-10, -10), run.wave.middle + Vector2i(-10, 10)), "no link crosses the new line")
-	# Act two: the top, then the bottom.
-	for i: int in 2:
-		var corners: Array[Star] = _corners(run)
-		var half: Array[int] = []
-		half.assign([corners[0].id, corners[1].id] if i == 0 else [corners[2].id, corners[3].id])
-		half.sort()
-		run.load_pack("blue")
-		assert_true(run.launch(aim))
-		assert_eq(struck[3 + i][0], Vector2i.UP if i == 0 else Vector2i.DOWN)
-		assert_eq(struck[3 + i][1], half)
-	assert_eq(turned.size(), 1, "the great wave comes once")
+	assert_eq(struck[2][2], Vector2i.LEFT, "act two's first wave: the left again")
+	assert_eq(run.seam, StarMap.Seam.VERTICAL, "still one line")
+	assert_not_null(run.fish)
+	assert_eq(woke, [run.fish.at])
+	assert_eq(run.fish.at.x, run.wave.middle.x, "on the water line")
+	assert_lte(absi(run.fish.at.y - run.wave.middle.y), RunState.FISH_SPAN, "near its middle")
+	for landmark: Vector2i in run.scorpio.landmark_positions():
+		assert_gt(Vector2(run.fish.at).distance_to(Vector2(landmark)), 12.0, "clear of the figure's stars")
+	assert_true(run.fish.vertical)
+	assert_eq(run.fish.launches, 0, "it counts from the next throw")
+
+
+func test_in_act_two_the_fish_leaps_every_second_throw_before_the_wave() -> void:
+	var run: RunState = _run()
+	run.wave.launches = 3
+	var aim: Vector2i = run.wave.middle + Vector2i(30, 50)
+	assert_true(run.launch(aim), "the great wave")
+	assert_not_null(run.fish)
+	var middle: Vector2i = run.fish.at
+	var order: Array[String] = []
+	var jumped: Array = []
+	run.stars_bitten.connect(func(_at: Vector2i, _moves: Array[StarCurrent.Move]) -> void: order.append("fish"))
+	run.wave_struck.connect(func(_way: Vector2i, _lost: Array[Star], _next: Vector2i, _great: bool) -> void: order.append("wave"))
+	run.fish_jumped.connect(func(_from: Vector2i, to: Vector2i, caught: Array[int]) -> void: jumped.append([to, caught]))
+	run.stars.clear()
+	assert_false(run.fish.jumps_next(), "not the first throw after it wakes")
+	run.load_pack("blue")
+	assert_true(run.launch(aim))
+	assert_eq(order, ["fish", "wave"], "the fish's turn (nothing eaten), then the wave")
+	assert_true(jumped.is_empty())
+	run.stars.clear()
+	assert_true(run.fish.jumps_next(), "the second throw: it leaps")
+	# A star right of the line, the wave going left: only the fish can take it.
+	var near: Star = run.add_star(Star.Size.SMALL, middle + Vector2i(24, -20))
+	# Thrown far from it, so the splash leaves it where it is.
+	var far: Vector2i = run.wave.middle + Vector2i(40, -70)
+	assert_eq(run.fish_leap(far), near.position)
+	assert_eq(run.launch_bites(far), [near.id] as Array[int])
+	run.load_pack("blue")
+	assert_true(run.launch(far))
+	assert_eq(jumped, [[near.position, [near.id] as Array[int]]], "it leaps and eats it")
+	assert_null(run.find_star(near.id))
 
 
 func test_winning_ends_in_a_great_wave_that_washes_the_loose_stars_into_dust() -> void:
@@ -155,7 +182,7 @@ func test_winning_ends_in_a_great_wave_that_washes_the_loose_stars_into_dust() -
 
 
 func test_its_lines_fit() -> void:
-	for text: String in [Hud.GREAT_WAVE_MESSAGE, Hud.SEAM_CROSS_MESSAGE, Hud.WAVE_NEXT_MESSAGE % "RIGHT", Hud.WAVE_NEXT_MESSAGE % "LEFT"]:
+	for text: String in [Hud.GREAT_WAVE_MESSAGE, Hud.FISH_MESSAGE % 2, Hud.JUMP_MESSAGE, Hud.FISH_LOSS_MESSAGE, Hud.WAVE_NEXT_MESSAGE % "RIGHT", Hud.WAVE_NEXT_MESSAGE % "LEFT"]:
 		for line: String in text.split("\n"):
 			assert_lte(line.length(), 24, line)
 
@@ -185,13 +212,13 @@ func test_the_great_wave_is_cued_on_both_sides_and_said() -> void:
 	assert_eq(hud.message(), Hud.GREAT_WAVE_MESSAGE)
 
 
-func test_the_great_wave_rushes_both_ways_and_the_second_line_rises() -> void:
+func test_the_great_wave_rushes_both_ways_and_the_fish_wakes_leaping() -> void:
 	var main: Main = _main()
 	await _play_out(main)
 	var view: SeamView = main.get_node("Sky/SeamLayer")
 	var run: RunState = main.run
 	var middle: Vector2i = run.wave.middle
-	view.sweep(Vector2i.RIGHT, Vector2i.UP, [] as Array[Vector2i], true)
+	view.sweep(Vector2i.RIGHT, Vector2i.LEFT, [] as Array[Vector2i], true)
 	view.advance(SeamView.WINDUP_TIME + SeamView.SWEEP_TIME / 2.0)
 	var left: int = 0
 	var right: int = 0
@@ -207,17 +234,17 @@ func test_the_great_wave_rushes_both_ways_and_the_second_line_rises() -> void:
 	assert_eq(view.way_for(Vector2i.RIGHT, middle + Vector2i(-30, 5)), Vector2i.LEFT, "a star left of the line goes out left")
 	assert_eq(view.way_for(Vector2i.RIGHT, middle + Vector2i(30, 5)), Vector2i.RIGHT)
 	view.advance(SeamView.SWEEP_TIME / 2.0 + SeamView.CRASH_TIME)
-	assert_eq(view.shown_seam(), StarMap.Seam.VERTICAL)
-	view.turn_seam(StarMap.Seam.CROSS)
-	assert_true(view.is_turning())
-	view.advance(SeamView.TURN_TIME / 2.0)
-	pixels = view.pixels()
-	assert_true(pixels.has(Vector2i(middle.x, run.sky_rect.position.y + 30)), "the first line stays whole")
-	assert_false(pixels.has(Vector2i(run.sky_rect.position.x + 20, middle.y)), "the new one still growing out")
-	assert_true(pixels.has(Vector2i(middle.x + 20, middle.y)), "from the middle")
-	view.advance(SeamView.TURN_TIME / 2.0 + 0.01)
-	assert_false(view.is_turning())
-	assert_eq(view.shown_seam(), StarMap.Seam.CROSS)
+	assert_false(view.is_fish_awake(), "no fish before the great wave")
+	run.wave.launches = 3
+	run.load_pack("blue")
+	assert_true(run.launch(middle + Vector2i(30, 50)))
+	await _play_out(main)
+	assert_true(view.is_fish_awake(), "it woke with the great wave")
+	assert_eq(view.fish_shown(), run.fish.at, "back on the line once its leap has played")
+	assert_eq(view.pixels().get(run.fish.at), Palette.M5, "its back on the line")
+	run.fish.launches = 1
+	view.queue_redraw()
+	assert_eq(view.pixels().get(run.fish.at), Palette.S4, "it glows red before it leaps")
 
 
 func test_it_arrives_with_its_title_card_and_plays_its_acts_through_the_scene() -> void:
@@ -243,4 +270,4 @@ func test_it_arrives_with_its_title_card_and_plays_its_acts_through_the_scene() 
 		await _play_out(main)
 		assert_eq(sky.star_count(), run.stars.size(), "the views follow the run after launch %d" % (i + 1))
 	if run.wave.launches >= 4:
-		assert_eq(view.shown_seam(), StarMap.Seam.CROSS, "the second line shows once the great wave has played")
+		assert_true(view.is_fish_awake(), "the fish shows once the great wave has played")

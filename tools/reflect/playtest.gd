@@ -67,7 +67,7 @@ func _simulate() -> void:
 			for key: String in ["packs_in_wins", "launches", "clamped", "on_target", "miss_px", "lost"]:
 				row.erase(key)
 			rows.append(row)
-			print("%-13s on=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  launches/run %5.2f  lost to splash+wave/run %5.2f  on target %5.1f%%  miss %5.1f px  clamped %4.1f%%" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.launches_per_run, row.splashed_out_per_run, row.on_target_rate, row.miss_px_mean, row.clamped_rate])
+			print("%-13s on=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  launches/run %5.2f  lost to splash+wave+fish/run %5.2f  on target %5.1f%%  miss %5.1f px  clamped %4.1f%%" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.launches_per_run, row.splashed_out_per_run, row.on_target_rate, row.miss_px_mean, row.clamped_rate])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/reflect/out"))
 	var file: FileAccess = FileAccess.open("res://tools/reflect/out/results-%s.json" % _map, FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
@@ -119,6 +119,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 				_lost += 1
 	run.stars_splashed.connect(count_lost)
 	run.wave_struck.connect(func(_way: Vector2i, lost: Array[Star], _next: Vector2i, _great: bool) -> void: _lost += lost.size())
+	run.stars_bitten.connect(count_lost)
 	var packs: int = 0
 	for action: int in 400:
 		if run.is_over():
@@ -172,7 +173,7 @@ func _careful_aim(run: RunState, aim: Vector2i, target: Vector2i) -> Vector2i:
 	for dx: int in range(-CAREFUL_NUDGE, CAREFUL_NUDGE + 1, CAREFUL_STEP):
 		for dy: int in range(-CAREFUL_NUDGE, CAREFUL_NUDGE + 1, CAREFUL_STEP):
 			var nudged: Vector2i = aim + Vector2i(dx, dy)
-			var score: int = (run.launch_splashes(nudged).size() + run.launch_wipes(nudged).size()) * 10000 + roundi(Vector2(run.burst_centre(nudged) - target).length())
+			var score: int = (run.launch_splashes(nudged).size() + run.launch_wipes(nudged).size() + run.launch_bites(nudged).size()) * 10000 + roundi(Vector2(run.burst_centre(nudged) - target).length())
 			if score < best_score:
 				best_score = score
 				best = nudged
