@@ -94,7 +94,8 @@ func test_cues_show_only_when_settled_and_the_next_launch_charges() -> void:
 	var view: ChargeView = _view(main)
 	var row: int = main.run.ram.row
 	var right: int = StarScatter.inner_rect(main.run.sky_rect).end.x
-	# One star near the far edge in the lane (lost), one just short of landmark 1 (fleeced).
+	# One star near the far edge in the lane (lost), one just short of landmark 3, the next landmark
+	# in the lane ahead of it (fleeced).
 	var lm: Vector2i = main.run.scorpio.landmark_position(3)
 	var stars: Array[Star] = _stand(main, [[Star.Size.MEDIUM, Vector2i(right - 10, row)], [Star.Size.SMALL, Vector2i(lm.x - 16, row)]])
 	main.run.ram.launches = 0
@@ -118,6 +119,29 @@ func test_cues_show_only_when_settled_and_the_next_launch_charges() -> void:
 	var corner: int = StarView.half_extent(stars[1].size) + 1
 	assert_eq(pixels.get(stop + Vector2i(corner, corner)), Palette.C1, "corner dots where it will stop")
 	assert_eq(pixels.get(stop + Vector2i(-corner, -corner)), Palette.C1)
+
+
+func test_cues_and_gone_stars_rings_dont_linger_while_something_plays() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: ChargeView = _view(main)
+	var row: int = main.run.ram.row
+	var right: int = StarScatter.inner_rect(main.run.sky_rect).end.x
+	var lm: Vector2i = main.run.scorpio.landmark_position(3)
+	var stars: Array[Star] = _stand(main, [[Star.Size.MEDIUM, Vector2i(right - 10, row)], [Star.Size.SMALL, Vector2i(lm.x - 16, row)], [Star.Size.SMALL, Vector2i(60, row + 40)]])
+	main.run.ram.launches = 1
+	main.run.ram.fleece([stars[2].id])
+	view.settled = true
+	assert_true(view.cues_shown())
+	var head_embers: int = _count(ChargeView.head_pixels(row, main.run.sky_rect), [Palette.S4])
+	assert_gt(_count(view.pixels(), [Palette.C1]), 0)
+	# Something plays (a link taking the fleeced star, say): the cues go, and the gone star's ring.
+	main.run.stars.erase(stars[2])
+	view.settled = false
+	assert_false(view.cues_shown(), "no cues while something plays")
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	assert_eq(_count(pixels, [Palette.S4, Palette.S3]) - head_embers, 0, "no ember ring")
+	assert_eq(_count(pixels, [Palette.C1, Palette.C2]), 0, "no corner dots, tick or ring round empty sky")
 
 
 func test_the_charge_plays_and_a_lost_star_is_gone_after() -> void:
@@ -173,9 +197,67 @@ func test_the_charge_rears_then_charges() -> void:
 	for point: Vector2i in lunge:
 		assert_eq(pixels.get(point), lunge[point], "it lunges")
 	assert_gt(_count(pixels, [Palette.N6]), 0, "its dust streaks along the lane")
-	view.advance(ChargeView.CHARGE_TIME)
+	view.advance(ChargeView.charge_hold())
 	assert_false(view.is_charging())
-	assert_almost_eq(ChargeView.charge_hold(), ChargeView.REAR_TIME + ChargeView.CHARGE_TIME, 0.001)
+	assert_almost_eq(ChargeView.charge_hold(), maxf(ChargeView.REAR_TIME + ChargeView.CHARGE_TIME, ChargeView.REAR_TIME + StarView.DRIFT_TIME + ChargeView.FLASH_TIME), 0.001)
+
+
+func test_the_rear_keeps_the_stop_cue_and_the_stop_flash_plays_in_full() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: ChargeView = _view(main)
+	var row: int = main.run.ram.row
+	var lm: Vector2i = main.run.scorpio.landmark_position(3)
+	# Past landmark 2, 4 px short of where landmark 3 stops it.
+	var stars: Array[Star] = _stand(main, [[Star.Size.SMALL, Vector2i(lm.x - 18, row)]])
+	main.run.ram.launches = 1
+	view.settled = true
+	var charge: StarCharge.Charge = main.run.charge_preview()
+	assert_eq(charge.fleeced, [stars[0].id] as Array[int])
+	var stop: Vector2i = charge.moves[0].to
+	var corner: int = StarView.half_extent(stars[0].size) + 1
+	view.charge(row, charge.moves, charge.fleeced)
+	assert_eq(view.pixels().get(stop + Vector2i(corner, corner)), Palette.C1, "the rear keeps the corner dots")
+	stars[0].position = stop
+	view.advance(ChargeView.REAR_TIME + StarView.DRIFT_TIME + ChargeView.FLASH_TIME * 0.9)
+	assert_true(view.is_charging(), "held through the flash")
+	var flash: Dictionary[Vector2i, Color] = ChargeView.flash_pixels(stop, stars[0].size)
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	for point: Vector2i in flash:
+		assert_eq(pixels.get(point), Palette.C0, "the stop flash, to its last frame")
+
+
+func test_the_hoof_dust_never_covers_a_star_or_landmark() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: ChargeView = _view(main)
+	var row: int = main.run.ram.row
+	var stars: Array[Star] = _stand(main, [[Star.Size.BIG, Vector2i(40, row + 4)]])
+	main.run.ram.launches = 1
+	view.settled = true
+	var charge: StarCharge.Charge = main.run.charge_preview()
+	var spots: Array[Vector3i] = []
+	for i: int in main.run.scorpio.map.count():
+		var at: Vector2i = main.run.scorpio.landmark_position(i)
+		spots.append(Vector3i(at.x, at.y, StarView.half_extent(main.run.scorpio.map.sizes[i] as Star.Size)))
+	for move: StarCurrent.Move in charge.moves:
+		spots.append(Vector3i(move.from.x, move.from.y, StarView.half_extent(stars[0].size)))
+		spots.append(Vector3i(move.to.x, move.to.y, StarView.half_extent(stars[0].size)))
+	view.charge(row, charge.moves, charge.fleeced)
+	view.advance(ChargeView.REAR_TIME)
+	var covered: int = 0
+	var dust: int = 0
+	for i: int in 7:
+		var pixels: Dictionary[Vector2i, Color] = view.pixels()
+		for point: Vector2i in pixels:
+			if pixels[point] in ChargeView.DUST:
+				dust += 1
+				for spot: Vector3i in spots:
+					if absi(point.x - spot.x) <= spot.z and absi(point.y - spot.y) <= spot.z:
+						covered += 1
+		view.advance(0.05)
+	assert_gt(dust, 0, "the dust streaks")
+	assert_eq(covered, 0, "but never over a star or a landmark")
 
 
 func test_a_lost_star_cuts_out_in_ember_sparks() -> void:
@@ -183,10 +265,14 @@ func test_a_lost_star_cuts_out_in_ember_sparks() -> void:
 	_settle(main)
 	var view: ChargeView = _view(main)
 	var at := Vector2i(main.run.sky_rect.end.x - 6, main.run.ram.row)
+	var head_embers: int = _count(ChargeView.head_pixels(main.run.ram.row, main.run.sky_rect), [Palette.S4])
+	var head_shade: int = _count(ChargeView.head_pixels(main.run.ram.row, main.run.sky_rect), [Palette.M5, Palette.M4])
 	view.flash_loss(at)
-	assert_gt(_count(view.pixels(), [Palette.S4, Palette.S3, Palette.C3]), 4)
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	assert_gt(_count(pixels, [Palette.S4, Palette.S3, Palette.C3]) - head_embers, 4)
+	assert_eq(_count(pixels, [Palette.M5, Palette.M4]) - head_shade - _count(ChargeView.pip_pixels(main.run.ram.row, main.run.sky_rect, main.run.ram.every, view.lit_pips()), [Palette.M4]), 0, "embers, not water droplets")
 	view.advance(ChargeView.LOSS_TIME + 0.01)
-	assert_eq(_count(ChargeView.spark_pixels(at, 0.5, 1), [Palette.M5, Palette.M4]), 0, "embers, not water droplets")
+	assert_eq(_count(view.pixels(), [Palette.S4, Palette.S3, Palette.C3]) - head_embers, 0, "the sparks are gone")
 
 
 func test_every_colour_is_from_the_palette() -> void:

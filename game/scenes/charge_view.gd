@@ -13,13 +13,16 @@ extends Node2D
 ## the stars standing now (RunState.charge_preview): a crawling ember ring (HarvestView's) round each
 ## star it would butt out of the sky, and four C1 corner dots where each star it would stop against a
 ## landmark comes to rest, with a dotted C2 tick from the star to them. A fleeced star wears a solid
-## gold ring (C1 over the top, C2 under) until it's linked or lost.
+## gold ring (C1 over the top, C2 under) until it's linked or lost (while something plays, only one
+## still standing in the run keeps it).
 ## The charge plays in two beats (charge_hold):
 ## - rear (REAR_TIME): the pips are spent, the ram rears up LIFT px, its hooves kick up dust and the
-##   prints shift as it stamps; the stars it will take still wear their rings;
+##   prints shift as it stamps; the stars it will take still wear their rings, and the corner dots
+##   still show where each it fleeces will stop;
 ## - charge (CHARGE_TIME): the head lunges LUNGE px and a cloud of hoof dust (N7, N6, M4) streaks along
-##   the lane from it to the far edge, fast then slowing; the stars it butts drift right; one stopped
-##   against a landmark flashes a C0 ring as it stops and keeps its gold ring; one butted out of the
+##   the lane from it to the far edge, fast then slowing, never over a star or a landmark; the stars
+##   it butts drift right; one stopped against a landmark flashes a C0 ring for FLASH_TIME as it stops
+##   (held for) and keeps its gold ring; one butted out of the
 ##   sky cuts out at the far edge in ember sparks (C3, S4, S3) over LOSS_TIME (not waited for).
 
 ## The ram's head, frontal: H horn light, h horn dark, F face, f face shade, E eye, n nostril.
@@ -144,7 +147,7 @@ func lit_pips() -> int:
 
 ## Whether the charge's outcome shows on the stars (the next launch charges and nothing plays).
 func cues_shown() -> bool:
-	return has_ram() and not is_charging() and (not _preview.lost().is_empty() or not _preview.fleeced.is_empty())
+	return has_ram() and settled and not is_charging() and (not _preview.lost().is_empty() or not _preview.fleeced.is_empty())
 
 
 ## The ram charges its lane at `charge_row`: `moves` are the stars it butts (a lost one drained),
@@ -167,9 +170,10 @@ func is_charging() -> bool:
 	return _age >= 0.0
 
 
-## How long the charge is waited for: its rear and its charge (a lost star's sparks aren't).
+## How long the charge is waited for: its rear and its charge, or until the flash of a star stopped
+## against a landmark is over if that's later (a lost star's sparks aren't waited for).
 static func charge_hold() -> float:
-	return REAR_TIME + CHARGE_TIME
+	return maxf(REAR_TIME + CHARGE_TIME, REAR_TIME + StarView.DRIFT_TIME + FLASH_TIME)
 
 
 ## A star butted out of the sky cuts out at `at`, the far edge, in sparks.
@@ -219,9 +223,10 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		result.merge(print_pixels(_row, _run.ram.lane, _keep_clear(), _run.sky_rect, 0), true)
 		result.merge(head_pixels(_row, _run.sky_rect), true)
 		result.merge(pip_pixels(_row, _run.sky_rect, _run.ram.every, _lit), true)
-		result.merge(_cue_pixels(), true)
+		if cues_shown():
+			result.merge(_cue_pixels(), true)
 		for id: int in _fleeced:
-			if _stars.has(id):
+			if _stars.has(id) and (settled or _run.find_star(id) != null):
 				result.merge(fleece_ring_pixels(_stars[id], _sizes[id]), true)
 	for at: Vector2i in _losses:
 		result.merge(spark_pixels(at, _losses[at] / LOSS_TIME, at.y), true)
@@ -281,11 +286,15 @@ func _charge_pixels() -> Dictionary[Vector2i, Color]:
 			result.merge(dust_pixels(Vector2i(x + 4, origin.y + head_size().y + 5), 0.3, i), true)
 			i += 1
 		for move: StarCurrent.Move in _moves:
-			if move.drained and _sizes.has(move.star_id):
+			if not _sizes.has(move.star_id):
+				continue
+			if move.drained:
 				result.merge(HarvestView.lone_ring_pixels(move.from, _sizes[move.star_id], _time * 3.0), true)
+			elif _play_fleeced.has(move.star_id):
+				result.merge(fleece_preview_pixels(move.from, move.to, _sizes[move.star_id]), true)
 	else:
 		var k: float = (_age - REAR_TIME) / CHARGE_TIME
-		result.merge(rush_pixels(_play_row, lane, sky, k), true)
+		result.merge(rush_pixels(_play_row, lane, sky, k, _keep_clear() + _paths_clear()), true)
 		result.merge(head_pixels(_play_row, sky, 0, LUNGE if k < 0.7 else LUNGE / 2), true)
 		result.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
 	# The fleeced stars: those that stand still keep their rings; those it moves show theirs as they stop.
@@ -351,8 +360,9 @@ static func print_pixels(lane_row: int, lane: int, clear: Array[Vector3i], sky: 
 
 
 ## The charge `k` (0 to 1) of the way: hoof dust streaking from the ram along the lane to its front,
-## fast then slowing, thinning out DUST_TRAIL px behind it.
-static func rush_pixels(lane_row: int, lane: int, sky: Rect2i, k: float) -> Dictionary[Vector2i, Color]:
+## fast then slowing, thinning out DUST_TRAIL px behind it; no speck within PRINT_PAD px of a star or
+## landmark in `clear` (x, y, half extent each).
+static func rush_pixels(lane_row: int, lane: int, sky: Rect2i, k: float, clear: Array[Vector3i] = []) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	@warning_ignore("integer_division")
 	var top: int = lane_row - lane / 2
@@ -366,6 +376,9 @@ static func rush_pixels(lane_row: int, lane: int, sky: Rect2i, k: float) -> Dict
 		var step: int = (x - sky.position.x) / DUST_STEP
 		result.merge(dust_pixels(Vector2i(x, bottom - 2 - step % 3), 0.6, x), true)
 		result.merge(dust_pixels(Vector2i(x + 3, top + 4 + step % 2), 0.2, x + 1), true)
+	for point: Vector2i in result.keys():
+		if _near_star(Rect2i(point, Vector2i.ONE), clear):
+			result.erase(point)
 	return result
 
 
@@ -455,6 +468,20 @@ func _keep_clear() -> Array[Vector3i]:
 		for i: int in _run.scorpio.map.count():
 			var at: Vector2i = _run.scorpio.landmark_position(i)
 			result.append(Vector3i(at.x, at.y, StarView.half_extent(_run.scorpio.map.sizes[i] as Star.Size)))
+	return result
+
+
+## What the hoof dust keeps clear of besides: the way each star the charge butts drifts along, a
+## spot every 4 px from where it stood to where it stops (x, y, half extent).
+func _paths_clear() -> Array[Vector3i]:
+	var result: Array[Vector3i] = []
+	for move: StarCurrent.Move in _moves:
+		if not _sizes.has(move.star_id):
+			continue
+		var half: int = StarView.half_extent(_sizes[move.star_id] as Star.Size)
+		for x: int in range(move.from.x, move.to.x, 4):
+			result.append(Vector3i(x, move.from.y, half))
+		result.append(Vector3i(move.to.x, move.to.y, half))
 	return result
 
 
