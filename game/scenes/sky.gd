@@ -444,8 +444,8 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			_place_intro(event.args[0])
 		&"stars_splashed":
 			_splash(event.args[0], event.args[1])
-		&"fish_jumped":
-			_leap(event.args[0], event.args[1], event.args[2])
+		&"wave_struck":
+			_wave(event.args[0], event.args[1], event.args[2])
 		&"reflect_intro_cleared":
 			# A beat to see the stars across the seam, then they go: no reward.
 			_sequencer.hold(INTRO_HOLD * 2.0 + StarView.DISSOLVE_TIME)
@@ -882,28 +882,23 @@ func _splash(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 	_sequencer.hold(maxf(SeamView.RIPPLE_TIME, StarView.DRIFT_TIME if not moves.is_empty() else 0.0))
 
 
-## Pisces's fish leaps from `from` at `to`: as it lands there the `caught` stars vanish into its
-## mouth, and it carries them back down into the water, which splashes as it dives.
-func _leap(from: Vector2i, to: Vector2i, caught: Array) -> void:
-	_seam.jump(from, to)
-	_sequencer.hold(SeamView.JUMP_TIME)
-	var tween: Tween = create_tween()
-	tween.tween_interval(SeamView.JUMP_TIME / 2.0)
-	tween.tween_callback(_swallow.bind(caught, to))
-
-
-## The leaping fish's mouth closes on `ids` at `at`: their views go at once, and it carries them.
-func _swallow(ids: Array, at: Vector2i) -> void:
-	for id: int in ids:
-		var view: StarView = _views.get(id)
+## Pisces's wave wipes `side` of the water line: it rushes from the line to the sky's edge, and each
+## `lost` star cuts out in droplets as it reaches it, for nothing; the next side is cued after.
+func _wave(side: int, lost: Array, next_side: int) -> void:
+	_seam.sweep(side, next_side)
+	_sequencer.hold(SeamView.SWEEP_TIME)
+	for star: Star in lost:
+		var view: StarView = _views.get(star.id)
 		if view == null:
 			continue
-		_views.erase(id)
-		view.queue_free()
-	if not ids.is_empty():
-		_seam.carry()
-		_halo_layer.queue_redraw()
-		star_drained.emit(at)
+		_views.erase(star.id)
+		var tween: Tween = create_tween()
+		tween.tween_interval(_seam.sweep_delay(side, star.position))
+		tween.tween_callback(func() -> void:
+			_seam.flash_loss(Vector2i(view.position))
+			star_drained.emit(Vector2i(view.position))
+			view.queue_free()
+			_halo_layer.queue_redraw())
 
 
 ## The black hole (chapter 5 trial): every fallen star drifts; a swallowed one drifts to the horizon

@@ -10,13 +10,15 @@ extends Node2D
 ## thrown point in hard steps (N8, N7, N6) over SPLASH_TIME, as the planet sinks into the mirror;
 ## the stars come out across the seam with the burst. Both seams (a cross) draw both lines. No link
 ## can cross the seam: a step refused for it lights the line (M5) for the rejection's shake.
-## The fish (the North Fish): a fish still on the water line's middle (M5 back and tail, M4 belly,
-## M6 glint, N1 eye), facing the way it last leapt. On the launch before it leaps it glows red (an
-## S4 back, S3 belly); leaping, it arcs out of the water to the star and back over JUMP_TIME, a ring
-## snapping in to its bite (M5, M4, M3) over BITE_TIME where it lands as the stars there vanish into
-## its mouth; it carries them back (an M6 glint at its mouth) and the water splashes in droplets as
-## it dives. While aiming that launch, M4 dots arc to the star it would leap at and ring its bite
-## there, and ember dots run from each star it would eat toward it.
+## The wave (the North Fish): while a wave comes with the next launch, the side it wipes shows
+## (wave_cue_pixels): the water swells up off the line on that side (a dithered M3 body, an M5
+## crest with M6 foam on its peaks, bobbing a pixel every BOB_STEP), and double ember chevrons
+## (S4, S3) march out from it into that side; every loose star on it wears a crawling ember ring
+## (HarvestView.lone_ring_pixels), so the stars it will take show the whole time. The cue follows
+## the run only while `settled` (nothing playing), so it never shows the next side before this
+## wave has played. The wave itself: a wall of water rushes from the line to the sky's edge on its
+## side over SWEEP_TIME (an M6 foam crest, M5 under it, a dithered M4 wake), each star it takes
+## cutting out in droplets as it reaches it.
 ## The splash (from the Knot): where the planet went in, a water ring spreads out to the splash's
 ## reach in hard steps (M5, M4, M3) over RIPPLE_TIME as the stars it pushes drift; a star pushed out
 ## of the sky, or onto the water line, cuts out there in a burst of droplets (M5, then M4) over
@@ -38,21 +40,26 @@ const SPLASH_TIME: float = 0.3
 const SPLASH_RADII: Array[int] = [7, 5, 3]
 const SPLASH_COLOURS: Array[Color] = [Palette.N8, Palette.N7, Palette.N6]
 const RIPPLE_TIME: float = 0.3
-const JUMP_TIME: float = 0.5
-## How high the leap arcs off the straight line between its ends, px.
-const JUMP_ARC: int = 10
-const BITE_TIME: float = 0.3
-## The fish facing +x along a line across, 11 px long so it stands off the line: its back and tail
-## (M5), its belly (M4), a glint (M6) and its eye (N1); turned for a line up and down, mirrored when
-## it faces the other way.
-const FISH_BACK: Array[Vector2i] = [Vector2i(-3, 0), Vector2i(-2, 0), Vector2i(-1, 0), Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(3, 0), Vector2i(4, 0), Vector2i(-2, -1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(2, -1), Vector2i(0, -2), Vector2i(1, -2), Vector2i(-4, -1), Vector2i(-5, -2), Vector2i(-4, 1), Vector2i(-5, 2)]
-const FISH_BELLY: Array[Vector2i] = [Vector2i(-2, 1), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1)]
-const FISH_GLINT := Vector2i(0, -1)
-const FISH_EYE := Vector2i(3, -1)
+## The wave crosses its side of the sky in SWEEP_TIME.
+const SWEEP_TIME: float = 0.5
+## Its wake behind the foam, px (dithered).
+const SWEEP_WAKE: int = 8
+## The cue's swell: how high it stands off the line, round every SWELL.size() px along it.
+const SWELL: Array[int] = [3, 4, 5, 6, 6, 5, 4, 3, 2, 2, 2, 3]
 const RIPPLE_COLOURS: Array[Color] = [Palette.M5, Palette.M4, Palette.M3]
 const LOSS_TIME: float = 0.3
 ## A star the aim would push out trails this many ember dots, a pixel apart, out from its edge.
 const TRAIL_DOTS: int = 4
+## The swell bobs a pixel up and back every BOB_STEP.
+const BOB_STEP: float = 0.4
+## The cue's chevrons: a pair every CHEVRON_PERIOD px along the line, from CHEVRON_GAP px off it,
+## marching CHEVRON_MARCH px out and back to the start, a pixel every MARCH_STEP.
+const CHEVRON_PERIOD: int = 36
+const CHEVRON_GAP: int = 10
+const CHEVRON_MARCH: int = 6
+const MARCH_STEP: float = 0.12
+## The wave's foam front, px ahead of its line, round every CREST_SHAPE.size() px along it.
+const CREST_SHAPE: Array[int] = [0, 1, 1, 0, 0, -1, -1, 0]
 ## The aim's reach ring: a dot about every REACH_GAP px round it.
 const REACH_GAP: float = 3.0
 
@@ -79,17 +86,19 @@ var _splash_age: float = -1.0
 ## The splash's ripple playing: where, and the seconds since it began (-1: none).
 var _ripple_at: Vector2i = Vector2i.ZERO
 var _ripple_age: float = -1.0
-## The way the fish faces along the line (1 or -1).
-var _fish_facing: int = -1
-## The leap playing: from the line, to the star, and the seconds since it began (-1: none).
-var _jump_from: Vector2i = Vector2i.ZERO
-var _jump_to: Vector2i = Vector2i.ZERO
-var _jump_age: float = -1.0
-## It carries a star it caught leaping, back down to the water.
-var _carrying: bool = false
-## The bite playing: where, and the seconds since it began (-1: none).
-var _bite_at: Vector2i = Vector2i.ZERO
-var _bite_age: float = -1.0
+## Nothing is playing (Main sets it each frame): the wave's cue follows the run.
+var settled: bool = true:
+	set(value):
+		settled = value
+		if settled:
+			_follow_wave()
+## The side the wave's cue shows (StarWave.LOW or HIGH; 0: none comes with the next launch).
+var _cue_side: int = 0
+## The wave playing: its side, and the seconds since it began (-1: none).
+var _sweep_side: int = 0
+var _sweep_age: float = -1.0
+## The side cued once the wave playing is over.
+var _next_cue: int = 0
 ## Stars lost to a splash cutting out: where each left the sky, and the seconds since.
 var _losses: Dictionary[Vector2i, float] = {}
 
@@ -103,13 +112,12 @@ func setup(run: RunState) -> void:
 	_splash_age = -1.0
 	_ripple_age = -1.0
 	_blocking_left = 0.0
-	_bite_age = -1.0
-	_jump_age = -1.0
-	_carrying = false
-	_fish_facing = -1
+	_sweep_age = -1.0
+	_cue_side = 0
 	_losses.clear()
 	aiming = false
 	_time = 0.0
+	_follow_wave()
 	visible = has_seam()
 	set_process(visible)
 	queue_redraw()
@@ -146,64 +154,29 @@ func is_rippling() -> bool:
 	return _ripple_age >= 0.0
 
 
-## The fish leaps out of the water from `from` at a star at `to`, and drops back, facing it.
-func jump(from: Vector2i, to: Vector2i) -> void:
-	_jump_from = from
-	_jump_to = to
-	var along: int = (to.y - from.y) if _run != null and _run.fish != null and _run.fish.vertical else (to.x - from.x)
-	if along != 0:
-		_fish_facing = signi(along)
-	_jump_age = 0.0
-	_carrying = false
+## The wave wipes `side` (StarWave.LOW or HIGH); the next one sweeps `next_side`, cued once it has played.
+func sweep(side: int, next_side: int) -> void:
+	_sweep_side = side
+	_sweep_age = 0.0
+	_cue_side = 0
+	_next_cue = next_side
 	queue_redraw()
 
 
-## Its mouth has closed on the star it leapt at: it carries it down.
-func carry() -> void:
-	_carrying = true
-	queue_redraw()
+func is_sweeping() -> bool:
+	return _sweep_age >= 0.0
 
 
-func is_carrying() -> bool:
-	return _carrying
+## The side the cue shows (0: none).
+func cue_side() -> int:
+	return _cue_side
 
 
-func is_jumping() -> bool:
-	return _jump_age >= 0.0
-
-
-## A point `k` (0 to 1) along a leap from `from` (on a line across) to `to`, arcing JUMP_ARC px off
-## the straight line, away from the water, on whole pixels.
-static func leap_point(from: Vector2i, to: Vector2i, k: float) -> Vector2i:
-	# Square to the leap, on the side away from the water (a line across: up for a star above it).
-	var chord := Vector2(to - from)
-	var away := Vector2(-chord.y, chord.x).normalized()
-	if away == Vector2.ZERO:
-		away = Vector2.UP
-	if away.y * signf(chord.y if chord.y != 0.0 else -1.0) < 0.0:
-		away = -away
-	var bow: Vector2 = away * JUMP_ARC * 4.0 * k * (1.0 - k)
-	return Vector2i((Vector2(from).lerp(Vector2(to), k) + bow).round())
-
-
-## Where the fish is drawn now: its spot on the line, or (leaping) out to the star and back, on
-## whole pixels.
-func fish_shown() -> Vector2i:
-	if _jump_age >= 0.0:
-		var t: float = clampf(_jump_age / JUMP_TIME, 0.0, 1.0)
-		return leap_point(_jump_from, _jump_to, 1.0 - absf(1.0 - 2.0 * t))
-	return _run.fish.at
-
-
-## The fish bites at `at`: a ring snaps in to its bite.
-func bite(at: Vector2i) -> void:
-	_bite_at = at
-	_bite_age = 0.0
-	queue_redraw()
-
-
-func is_biting() -> bool:
-	return _bite_age >= 0.0
+## Seconds after the wave sets off that it reaches `point`, on its way from the line to the edge.
+func sweep_delay(side: int, point: Vector2i) -> float:
+	var wave: StarWave = _run.wave
+	var across: int = point.x if wave.vertical else point.y
+	return clampf(float(absi(across - wave.line)) / maxf(1.0, float(_sweep_span(side))), 0.0, 1.0) * SWEEP_TIME
 
 
 ## A star the splash pushed out of the sky cuts out at `at`, the edge it left by.
@@ -247,21 +220,13 @@ func advance(delta: float) -> void:
 		if _ripple_age >= RIPPLE_TIME:
 			_ripple_age = -1.0
 		queue_redraw()
-	if _bite_age >= 0.0:
-		_bite_age += delta
-		if _bite_age >= BITE_TIME:
-			_bite_age = -1.0
+	if _sweep_age >= 0.0:
+		_sweep_age += delta
+		if _sweep_age >= SWEEP_TIME:
+			_sweep_age = -1.0
+			_cue_side = _next_cue if _run.wave != null and _run.wave.strikes_next() and not _run.is_over() else 0
 		queue_redraw()
-	if _jump_age >= 0.0:
-		var landed: bool = _jump_age >= JUMP_TIME / 2.0
-		_jump_age += delta
-		if not landed and _jump_age >= JUMP_TIME / 2.0:
-			bite(_jump_to)
-		if _jump_age >= JUMP_TIME:
-			_jump_age = -1.0
-			if _carrying:
-				_carrying = false
-				flash_loss(_jump_from)
+	if _run != null and _run.wave != null and _cue_side != 0 and floori(_time / MARCH_STEP) != floori((_time - delta) / MARCH_STEP):
 		queue_redraw()
 	if _splash_age < 0.0:
 		return
@@ -294,27 +259,9 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _splash_age >= 0.0:
 		var step: int = mini(floori(_splash_age / SPLASH_TIME * SPLASH_RADII.size()), SPLASH_RADII.size() - 1)
 		result.merge(ring_pixels(_splash_at, SPLASH_RADII[step], SPLASH_COLOURS[step]), true)
-	if _run.fish != null:
-		if _bite_age >= 0.0:
-			var b: int = mini(floori(_bite_age / BITE_TIME * RIPPLE_COLOURS.size()), RIPPLE_COLOURS.size() - 1)
-			@warning_ignore("integer_division")
-			var reach: int = _run.fish.bite * (RIPPLE_COLOURS.size() - b) / RIPPLE_COLOURS.size()
-			result.merge(ring_pixels(_bite_at, reach, RIPPLE_COLOURS[b], maxi(24, reach * 2)), true)
-		var shown: Vector2i = fish_shown()
-		var fish: Dictionary[Vector2i, Color] = fish_pixels(shown, _fish_facing, _run.fish.vertical)
-		# It leaps next launch: it glows red.
-		if _run.fish.jumps_next() and not is_jumping() and not _run.is_over():
-			for point: Vector2i in fish:
-				if fish[point] == Palette.M5 or fish[point] == Palette.M6:
-					fish[point] = Palette.S4
-				elif fish[point] == Palette.M4:
-					fish[point] = Palette.S3
-		# Carrying what it caught: a glint at its mouth.
-		if _carrying:
-			var mouth := Vector2i(5 * (1 if _fish_facing >= 0 else -1), 0)
-			fish[shown + (Vector2i(mouth.y, mouth.x) if _run.fish.vertical else mouth)] = Palette.M6
-		result.merge(fish, true)
-	if _run.splash == null and _run.fish == null:
+	if _run.wave != null:
+		result.merge(_wave_pixels(), true)
+	if _run.splash == null and _run.wave == null:
 		return result
 	if _ripple_age >= 0.0 and _run.splash != null:
 		var k: int = mini(floori(_ripple_age / RIPPLE_TIME * RIPPLE_COLOURS.size()), RIPPLE_COLOURS.size() - 1)
@@ -329,28 +276,18 @@ func pixels() -> Dictionary[Vector2i, Color]:
 
 
 ## The splash's preview for a planet thrown at `aim`: its reach, where it pushes each star, and the
-## ember trail of each it pushes out; and, on a leaping launch, the fish's: its leap, its bite
-## there, and the stars it would eat.
+## ember trail of each it pushes out; and, on a launch the wave comes with, the stars it would take,
+## marked where the splash leaves them.
 func _aim_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	if _run.fish != null:
-		var target: Vector2i = _run.fish.at
-		var leap: Vector2i = _run.fish_leap(aim)
-		if leap != StarCords.NO_CROSSING:
-			var length: int = maxi(1, roundi(Vector2(leap - target).length()))
-			for d: int in range(0, length, 3):
-				result[leap_point(target, leap, float(d) / length)] = Palette.M4
-			result.merge(ring_pixels(leap, _run.fish.bite, Palette.M4, ceili(TAU * _run.fish.bite / REACH_GAP)), true)
-		# From where the splash leaves each star, as the leap catches it there.
+	if _run.wave != null:
+		# Where the splash leaves each star the wave would take, marked as it will be taken.
 		var splashed: Dictionary[int, Vector2i] = _run.splash_preview(aim)
-		for id: int in _run.launch_bites(aim):
-			var eaten: Star = _run.find_star(id)
-			if eaten == null:
+		for id: int in _run.launch_wipes(aim):
+			var star: Star = _run.find_star(id)
+			if star == null:
 				continue
-			var from: Vector2i = splashed.get(id, eaten.position)
-			var toward: Vector2 = Vector2(leap - from).normalized()
-			for dot: int in TRAIL_DOTS:
-				result[from + Vector2i((toward * (StarView.half_extent(eaten.size) + 3 + 2 * dot)).round())] = Palette.S4
+			result.merge(HarvestView.lone_ring_pixels(splashed.get(id, star.position), star.size, _time), true)
 	if _run.splash == null:
 		return result
 	var kind: String = _run.loaded_pack if _run.loaded_pack != "" else _run.balance.pack_kinds()[0]
@@ -376,15 +313,79 @@ func _aim_pixels() -> Dictionary[Vector2i, Color]:
 	return result
 
 
-## The fish at `at` on the water line, facing `facing` (1: +x, or +y on a line up and down; -1: back).
-static func fish_pixels(at: Vector2i, facing: int, vertical: bool) -> Dictionary[Vector2i, Color]:
+## The wave's part: its cue on the side it wipes next and the stars there marked (while nothing
+## plays and no aim shows its own), or the wave sweeping.
+func _wave_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	var parts: Array = [[FISH_BACK, Palette.M5], [FISH_BELLY, Palette.M4], [[FISH_GLINT], Palette.M6], [[FISH_EYE], Palette.N1]]
-	for part: Array in parts:
-		for offset: Vector2i in part[0]:
-			var o := Vector2i(offset.x * (1 if facing >= 0 else -1), offset.y)
-			result[at + (Vector2i(o.y, o.x) if vertical else o)] = part[1]
+	var wave: StarWave = _run.wave
+	if _sweep_age >= 0.0:
+		return sweep_pixels(_sweep_side, wave.line, wave.vertical, _run.sky_rect, _sweep_age / SWEEP_TIME)
+	if _cue_side == 0:
+		return result
+	result.merge(wave_cue_pixels(_cue_side, wave.line, wave.vertical, _run.sky_rect, _time), true)
+	if settled and not aiming:
+		for id: int in _run.wave_risk():
+			var star: Star = _run.find_star(id)
+			result.merge(HarvestView.lone_ring_pixels(star.position, star.size, _time), true)
 	return result
+
+
+## The cue for a wave on `side` of the line at `line` across `sky`, `time` seconds in: the water
+## swelling up off the line on that side (a dithered M3 body, an M5 crest, M6 foam on its peaks),
+## bobbing; and double ember chevrons marching out from it into that side.
+static func wave_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i, time: float) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var start: int = sky.position.y if vertical else sky.position.x
+	var length: int = sky.size.y if vertical else sky.size.x
+	var bob: int = floori(time / BOB_STEP) % 2
+	var peak: int = SWELL.max()
+	for t: int in length:
+		var high: int = SWELL[posmod(t, SWELL.size())] + bob
+		for h: int in range(2, high):
+			if (t + h) % 2 == 0:
+				_put_across(result, vertical, start + t, line + side * h, Palette.M3)
+		_put_across(result, vertical, start + t, line + side * high, Palette.M6 if high - bob == peak else Palette.M5)
+	var march: int = floori(time / MARCH_STEP) % CHEVRON_MARCH
+	@warning_ignore("integer_division")
+	for t: int in range(CHEVRON_PERIOD / 2, length, CHEVRON_PERIOD):
+		for pair: int in 2:
+			var tip: int = line + side * (CHEVRON_GAP + march + pair * 4 + 3)
+			var colour: Color = Palette.S4 if pair == 0 else Palette.S3
+			_put_across(result, vertical, start + t, tip, colour)
+			for w: int in [1, 2, 3]:
+				_put_across(result, vertical, start + t - w, tip - side * w, colour)
+				_put_across(result, vertical, start + t + w, tip - side * w, colour)
+	return result
+
+
+## The wave `k` (0 to 1) of the way from the line at `line` to `sky`'s edge on `side`: its foam front
+## (M6) a little wavy, M5 behind it, and a dithered M4 wake back toward the line.
+static func sweep_pixels(side: int, line: int, vertical: bool, sky: Rect2i, k: float) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var start: int = sky.position.y if vertical else sky.position.x
+	var length: int = sky.size.y if vertical else sky.size.x
+	var edge: int = ((sky.position.x if side < 0 else sky.end.x - 1) if vertical else (sky.position.y if side < 0 else sky.end.y - 1))
+	var front: int = line + roundi(clampf(k, 0.0, 1.0) * (edge - line))
+	for t: int in length:
+		var crest: int = front + side * CREST_SHAPE[posmod(t, CREST_SHAPE.size())]
+		_put_in(result, vertical, sky, start + t, crest, Palette.M6)
+		_put_in(result, vertical, sky, start + t, crest - side, Palette.M5)
+		_put_in(result, vertical, sky, start + t, crest - side * 2, Palette.M5)
+		for w: int in range(3, 3 + SWEEP_WAKE):
+			var p: int = crest - side * w
+			if (p - line) * side > 0 and (t + w) % 2 == 0:
+				_put_in(result, vertical, sky, start + t, p, Palette.M4)
+	return result
+
+
+static func _put_across(pixels: Dictionary[Vector2i, Color], vertical: bool, along: int, across: int, colour: Color) -> void:
+	pixels[Vector2i(across, along) if vertical else Vector2i(along, across)] = colour
+
+
+static func _put_in(pixels: Dictionary[Vector2i, Color], vertical: bool, sky: Rect2i, along: int, across: int, colour: Color) -> void:
+	var p := Vector2i(across, along) if vertical else Vector2i(along, across)
+	if sky.has_point(p):
+		pixels[p] = colour
 
 
 ## A star cutting out at `at`, `age` seconds in: droplets flying out from it, M5 then M4.
@@ -439,3 +440,22 @@ static func ring_pixels(at: Vector2i, radius: int, colour: Color, dots: int = 24
 
 func _drift() -> int:
 	return floori(_time * GLINT_SPEED)
+
+
+## The cue shows the side the next launch's wave wipes, as the run has it (none when no wave comes).
+func _follow_wave() -> void:
+	if _run == null or _run.wave == null or _sweep_age >= 0.0:
+		return
+	var side: int = _run.wave.next_side() if _run.wave.strikes_next() and not _run.is_over() else 0
+	if side != _cue_side:
+		_cue_side = side
+		queue_redraw()
+
+
+## From the line to the sky's edge on `side`, px.
+func _sweep_span(side: int) -> int:
+	var wave: StarWave = _run.wave
+	var sky: Rect2i = _run.sky_rect
+	if wave.vertical:
+		return (wave.line - sky.position.x) if side < 0 else (sky.end.x - 1 - wave.line)
+	return (wave.line - sky.position.y) if side < 0 else (sky.end.y - 1 - wave.line)
