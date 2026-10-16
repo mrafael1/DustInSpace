@@ -130,8 +130,8 @@ var splash_intro: bool = false
 ## wipes one side of the water line, the sides taking turns. Its stage opens by showing it, and its
 ## rule line is the wave's.
 var wave: bool = false
-## The final's great wave: on balance.json's wave.great_launch it floods both halves and raises the
-## second water line (both seams from then); the waves then rise off the new line.
+## The final's great wave: on balance.json's wave.great_launch it floods both halves and wakes the
+## fish (balance.json's fish: it leaps every jump_every launches at the nearest loose star).
 var wave_great: bool = false
 ## Winning ends in a great wave (the final): it washes the sky and every loose star left bursts for
 ## dust (balance.json's wave.finale_dust_per_star), instead of the completion clearing them for nothing.
@@ -1075,11 +1075,11 @@ static func pisces_north_fish() -> StarMap:
 
 
 ## Pisces's final, PISCES, THE TWO FISH: the whole Pisces (gamma lit: thirteen to light) in two
-## acts. Act one: the water line runs up and down between the fish, and from the second launch the
-## waves wipe the left, then the right. Then the great wave floods the whole sky and raises the line
-## across too; act two, on both seams (a planet bursts in the opposite corner): the waves wipe the
-## top, then the bottom. Winning ends in a great wave that washes the loose stars left into dust.
-## The splash goes on. It arrives with its title card.
+## acts, on one water line, up and down between the fish. Act one: from the second launch the waves
+## wipe the left, then the right. Then the great wave floods the whole sky and wakes the fish; act
+## two: the waves go on, and every second launch the fish leaps at the nearest loose star and eats
+## it. Winning ends in a great wave that washes the loose stars left into dust. The splash goes on.
+## It arrives with its title card.
 static func pisces_final() -> StarMap:
 	var map: StarMap = pisces()
 	map.id = "pisces_final"

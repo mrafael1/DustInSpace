@@ -5,12 +5,12 @@ extends RefCounted
 ## nothing. A wave's way is where it rushes: up or down off a line across, left or right off a line
 ## up and down; they take turns, up (or left) first, so the next one is always known and shown.
 ## With a great wave (the final), the `great_launch`-th launch brings it instead: it floods both
-## halves at once, and from then the waves rise off the other line (across, after up and down),
-## taking turns again, up first. No randomness, nodes or rewards.
+## halves at once (and the run wakes the fish), the waves then taking turns again, left (or up)
+## first. No randomness, nodes or rewards.
 
 ## The water lines cross here (the sky's middle): a line across at its y, one up and down at its x.
 var middle: Vector2i
-## The waves' line runs up and down, else across (the great wave moves them to the other one).
+## The line runs up and down, else across.
 var vertical: bool
 ## The first launch a wave comes with (1: the first).
 var first_launch: int
@@ -69,14 +69,10 @@ func sweeps(stars: Array[Star]) -> Array[int]:
 	return taken
 
 
-## A launch was thrown; `struck`: its wave came (after a great one, the waves rise off the other line).
+## A launch was thrown; `struck`: its wave came (a great one starts the turns again).
 func count_launch(struck: bool) -> void:
 	var great: bool = great_next()
 	launches += 1
 	if not struck:
 		return
-	if great:
-		vertical = not vertical
-		waves = 0
-	else:
-		waves += 1
+	waves = 0 if great else waves + 1
