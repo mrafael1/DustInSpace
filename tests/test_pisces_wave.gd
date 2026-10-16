@@ -64,7 +64,7 @@ func test_the_north_fish_is_stage_5_with_the_wave() -> void:
 	assert_eq(balance.wave_first_launch, 2, "from the second launch")
 	var run: RunState = _run()
 	assert_eq(run.wave.middle.y, _line(run), "on the water line")
-	assert_eq(run.wave.great_launch, 0, "the great wave is the final's")
+	assert_eq(run.wave.great_after, 0, "great waves are the final's")
 	assert_false(run.wave.vertical)
 	for id: String in ["pisces_circlet", "pisces_west_cord", "pisces_knot", "pisces_east_cord"]:
 		assert_null(RunState.new(balance, Fixtures.rng(1), SKY, StarMap.by_id(id)).wave, "no wave on %s" % id)

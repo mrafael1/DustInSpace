@@ -4,9 +4,9 @@ extends RefCounted
 ## water line and wipes the half of the sky on one side of it, taking every loose star there for
 ## nothing. A wave's way is where it rushes: up or down off a line across, left or right off a line
 ## up and down; they take turns, up (or left) first, so the next one is always known and shown.
-## With a great wave (the final), the `great_launch`-th launch brings it instead: it floods both
-## halves at once (and the run wakes the fish), the waves then taking turns again, left (or up)
-## first. No randomness, nodes or rewards.
+## With great waves (the final), after every `great_after` waves the next is a great one: it floods
+## both halves at once, and the waves then take turns again, left (or up) first. No randomness, nodes
+## or rewards.
 
 ## The water lines cross here (the sky's middle): a line across at its y, one up and down at its x.
 var middle: Vector2i
@@ -14,29 +14,29 @@ var middle: Vector2i
 var vertical: bool
 ## The first launch a wave comes with (1: the first).
 var first_launch: int
-## The launch the great wave comes with (0: none).
-var great_launch: int
+## After this many waves the next is a great one (0: none).
+var great_after: int
 ## Launches thrown since the run began (intros don't count).
 var launches: int = 0
-## Waves that have struck on this line (the great wave starts the count again).
+## Waves that have struck since the last great one.
 var waves: int = 0
 
 
-func _init(p_middle: Vector2i, p_vertical: bool, p_first_launch: int, p_great_launch: int = 0) -> void:
+func _init(p_middle: Vector2i, p_vertical: bool, p_first_launch: int, p_great_after: int = 0) -> void:
 	middle = p_middle
 	vertical = p_vertical
 	first_launch = p_first_launch
-	great_launch = p_great_launch
+	great_after = p_great_after
 
 
 ## A wave comes with the next launch.
 func strikes_next() -> bool:
-	return launches + 1 >= first_launch or great_next()
+	return launches + 1 >= first_launch
 
 
-## The great wave comes with the next launch.
+## A great wave comes with the next launch.
 func great_next() -> bool:
-	return great_launch > 0 and launches + 1 == great_launch
+	return great_after > 0 and strikes_next() and waves == great_after
 
 
 ## The way the next wave rushes (a great wave: across its line's axis, right or down; it floods both

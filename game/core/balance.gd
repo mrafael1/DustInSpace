@@ -118,17 +118,11 @@ var splash_push: int = 0
 ## Pisces's wave (the North Fish): from this launch on, every launch a wave wipes one side of the
 ## sky. Optional: without a "wave" block there is none (0).
 var wave_first_launch: int = 0
-## The final's great wave: the launch it comes with, and the dust each loose star pays when the
-## win's great wave washes the sky (both optional: 0).
-var wave_great_launch: int = 0
+## The final's great waves: after this many waves the next is a great one, and the dust each loose
+## star pays when the win's great wave washes the sky (both optional: 0).
+var wave_great_after: int = 0
 var wave_finale_dust_per_star: int = 0
-## Pisces's fish (the final's act two): how near the star it leaps at it eats stars. Optional:
-## without a "fish" block there is none (bite 0).
-var fish_bite: int = 0
-## Its leap: every fish_jump_every-th launch it jumps at the nearest loose star within
-## fish_jump_reach px of it.
-var fish_jump_every: int = 0
-var fish_jump_reach: int = 0
+
 
 var errors: Array[String] = []
 
@@ -241,15 +235,10 @@ func _parse(data: Dictionary) -> void:
 	if data.has("wave"):
 		var wave: Dictionary = _read_dict(data, "wave", "")
 		wave_first_launch = _read_int(wave, "first_launch", "wave.", 1)
-		if wave.has("great_launch"):
-			wave_great_launch = _read_int(wave, "great_launch", "wave.", 1)
+		if wave.has("great_after"):
+			wave_great_after = _read_int(wave, "great_after", "wave.", 1)
 		if wave.has("finale_dust_per_star"):
 			wave_finale_dust_per_star = _read_int(wave, "finale_dust_per_star", "wave.", 0)
-	if data.has("fish"):
-		var fish: Dictionary = _read_dict(data, "fish", "")
-		fish_bite = _read_int(fish, "bite", "fish.", 1)
-		fish_jump_every = _read_int(fish, "jump_every", "fish.", 1)
-		fish_jump_reach = _read_int(fish, "jump_reach", "fish.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
 	if data.has("black_hole"):
