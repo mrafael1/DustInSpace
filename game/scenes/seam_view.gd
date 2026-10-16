@@ -16,9 +16,16 @@ extends Node2D
 ## (S4, S3) march out from it into that side; every loose star on it wears a crawling ember ring
 ## (HarvestView.lone_ring_pixels), so the stars it will take show the whole time. The cue follows
 ## the run only while `settled` (nothing playing), so it never shows the next side before this
-## wave has played. The wave itself: a wall of water rushes from the line to the sky's edge on its
-## side over SWEEP_TIME (an M6 foam crest, M5 under it, a dithered M4 wake), each star it takes
-## cutting out in droplets as it reaches it.
+## wave has played. The wave itself plays in three beats (sweep_pixels):
+## - wind-up (WINDUP_TIME): the swell rears up to twice its height, its foam lit, the chevrons
+##   racing out, and the rings on the stars it will take crawl fast;
+## - rush (SWEEP_TIME): a rolling wall slams out from the line, fast then slowing as it nears the
+##   sky's edge: an M6 foam crest whose curls roll along it, spray flung ahead, a solid M5/M4 body
+##   thickening as it goes and M3 streaks trailing behind; each star it takes flashes (an M6 ring)
+##   as it reaches it, and is carried on to the edge, where it bursts in droplets;
+## - crash (CRASH_TIME, not waited for): the wall breaks on the edge in a white flash, foam spray
+##   thrown back into the sky falling as it cools (M6, M5, M4), and a dithered backwash running back
+##   down to the line.
 ## The splash (from the Knot): where the planet went in, a water ring spreads out to the splash's
 ## reach in hard steps (M5, M4, M3) over RIPPLE_TIME as the stars it pushes drift; a star pushed out
 ## of the sky, or onto the water line, cuts out there in a burst of droplets (M5, then M4) over
@@ -40,10 +47,31 @@ const SPLASH_TIME: float = 0.3
 const SPLASH_RADII: Array[int] = [7, 5, 3]
 const SPLASH_COLOURS: Array[Color] = [Palette.N8, Palette.N7, Palette.N6]
 const RIPPLE_TIME: float = 0.3
-## The wave crosses its side of the sky in SWEEP_TIME.
-const SWEEP_TIME: float = 0.5
-## Its wake behind the foam, px (dithered).
-const SWEEP_WAKE: int = 8
+## The wave: it rears up for WINDUP_TIME, crosses its side of the sky in SWEEP_TIME and crashes on
+## the edge for CRASH_TIME (only the first two are waited for).
+const WINDUP_TIME: float = 0.18
+const SWEEP_TIME: float = 0.42
+const CRASH_TIME: float = 0.4
+## The wall's solid body behind its foam, px: WALL_MIN as it sets off, WALL_MAX at the edge.
+const WALL_MIN: int = 3
+const WALL_MAX: int = 7
+## Its dithered tail behind the body, px, and the M3 streaks trailing behind that.
+const SWEEP_WAKE: int = 6
+const STREAK_LENGTH: int = 22
+## The curls roll along the crest CURL_SPEED px a second.
+const CURL_SPEED: float = 40.0
+## A star the wave reaches flashes an M6 ring for CATCH_FLASH.
+const CATCH_FLASH: float = 0.1
+## The crash's spray: SPRAY droplets thrown back off the edge at SPRAY_SPEED px a second (plus up
+## to SPRAY_SPREAD), falling back at SPRAY_FALL px a second squared; every SPRAY_BIG-th is a 2x2 clump.
+const SPRAY: int = 64
+const SPRAY_SPEED: float = 70.0
+const SPRAY_SPREAD: int = 110
+const SPRAY_FALL: float = 520.0
+const SPRAY_BIG: int = 3
+## The crash's flash: FLASH_ROWS px of foam along the edge for the first FLASH_SHARE of it.
+const FLASH_ROWS: int = 5
+const FLASH_SHARE: float = 0.18
 ## The cue's swell: how high it stands off the line, round every SWELL.size() px along it.
 const SWELL: Array[int] = [3, 4, 5, 6, 6, 5, 4, 3, 2, 2, 2, 3]
 const RIPPLE_COLOURS: Array[Color] = [Palette.M5, Palette.M4, Palette.M3]
@@ -99,6 +127,8 @@ var _sweep_side: int = 0
 var _sweep_age: float = -1.0
 ## The side cued once the wave playing is over.
 var _next_cue: int = 0
+## Where the stars the wave playing takes stand, as it sets off.
+var _caught: Array[Vector2i] = []
 ## Stars lost to a splash cutting out: where each left the sky, and the seconds since.
 var _losses: Dictionary[Vector2i, float] = {}
 
@@ -154,17 +184,25 @@ func is_rippling() -> bool:
 	return _ripple_age >= 0.0
 
 
-## The wave wipes `side` (StarWave.LOW or HIGH); the next one sweeps `next_side`, cued once it has played.
-func sweep(side: int, next_side: int) -> void:
+## The wave wipes `side` (StarWave.LOW or HIGH), taking the stars at `caught`; the next one sweeps
+## `next_side`, cued once it has played.
+func sweep(side: int, next_side: int, caught: Array[Vector2i] = []) -> void:
 	_sweep_side = side
 	_sweep_age = 0.0
 	_cue_side = 0
 	_next_cue = next_side
+	_caught = caught
 	queue_redraw()
 
 
+## The wave is playing (its crash too).
 func is_sweeping() -> bool:
 	return _sweep_age >= 0.0
+
+
+## How long the wave is waited for: its wind-up and its rush.
+static func sweep_hold() -> float:
+	return WINDUP_TIME + SWEEP_TIME
 
 
 ## The side the cue shows (0: none).
@@ -172,11 +210,33 @@ func cue_side() -> int:
 	return _cue_side
 
 
-## Seconds after the wave sets off that it reaches `point`, on its way from the line to the edge.
+## Seconds after the wave sets off (wind-up included) that it reaches `point`, on its way from the
+## line to the edge.
 func sweep_delay(side: int, point: Vector2i) -> float:
 	var wave: StarWave = _run.wave
 	var across: int = point.x if wave.vertical else point.y
-	return clampf(float(absi(across - wave.line)) / maxf(1.0, float(_sweep_span(side))), 0.0, 1.0) * SWEEP_TIME
+	var d: float = clampf(float(absi(across - wave.line)) / maxf(1.0, float(_sweep_span(side))), 0.0, 1.0)
+	return WINDUP_TIME + rush_time(d) * SWEEP_TIME
+
+
+## Where the wall is `k` (0 to 1) of the way through its rush, as a share of the way to the edge:
+## fast off the line, slowing as it nears the edge.
+static func rush_reach(k: float) -> float:
+	var c: float = clampf(k, 0.0, 1.0)
+	return 1.0 - (1.0 - c) * (1.0 - c)
+
+
+## The share of the rush (0 to 1) at which the wall has come `d` of the way to the edge.
+static func rush_time(d: float) -> float:
+	return 1.0 - sqrt(1.0 - clampf(d, 0.0, 1.0))
+
+
+## Where a star the wave catches at `at` is carried to: the sky's edge on `side`, in line with it.
+func carry_point(side: int, at: Vector2i) -> Vector2i:
+	var inner: Rect2i = StarScatter.inner_rect(_run.sky_rect)
+	if _run.wave.vertical:
+		return Vector2i(inner.position.x if side < 0 else inner.end.x - 1, at.y)
+	return Vector2i(at.x, inner.position.y if side < 0 else inner.end.y - 1)
 
 
 ## A star the splash pushed out of the sky cuts out at `at`, the edge it left by.
@@ -222,7 +282,7 @@ func advance(delta: float) -> void:
 		queue_redraw()
 	if _sweep_age >= 0.0:
 		_sweep_age += delta
-		if _sweep_age >= SWEEP_TIME:
+		if _sweep_age >= WINDUP_TIME + SWEEP_TIME + CRASH_TIME:
 			_sweep_age = -1.0
 			_cue_side = _next_cue if _run.wave != null and _run.wave.strikes_next() and not _run.is_over() else 0
 		queue_redraw()
@@ -319,7 +379,15 @@ func _wave_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	var wave: StarWave = _run.wave
 	if _sweep_age >= 0.0:
-		return sweep_pixels(_sweep_side, wave.line, wave.vertical, _run.sky_rect, _sweep_age / SWEEP_TIME)
+		result.merge(sweep_pixels(_sweep_side, wave.line, wave.vertical, _run.sky_rect, _sweep_age), true)
+		for at: Vector2i in _caught:
+			var reached: float = _sweep_age - sweep_delay(_sweep_side, at)
+			if reached < 0.0:
+				# Still to come: its ring crawls fast.
+				result.merge(HarvestView.lone_ring_pixels(at, Star.Size.MEDIUM, _sweep_age * 3.0), true)
+			elif reached < CATCH_FLASH:
+				result.merge(ring_pixels(at, 4 + roundi(reached / CATCH_FLASH * 3.0), Palette.M6, 20), true)
+		return result
 	if _cue_side == 0:
 		return result
 	result.merge(wave_cue_pixels(_cue_side, wave.line, wave.vertical, _run.sky_rect, _time), true)
@@ -358,24 +426,137 @@ static func wave_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i, t
 	return result
 
 
-## The wave `k` (0 to 1) of the way from the line at `line` to `sky`'s edge on `side`: its foam front
-## (M6) a little wavy, M5 behind it, and a dithered M4 wake back toward the line.
-static func sweep_pixels(side: int, line: int, vertical: bool, sky: Rect2i, k: float) -> Dictionary[Vector2i, Color]:
+## The wave on `side` of the line at `line` across `sky`, `age` seconds after it set off: rearing up
+## (WINDUP_TIME), rushing out to the edge (SWEEP_TIME), then crashing on it (CRASH_TIME).
+static func sweep_pixels(side: int, line: int, vertical: bool, sky: Rect2i, age: float) -> Dictionary[Vector2i, Color]:
+	if age < WINDUP_TIME:
+		return _windup_pixels(side, line, vertical, sky, age / WINDUP_TIME)
+	if age < WINDUP_TIME + SWEEP_TIME:
+		return _rush_pixels(side, line, vertical, sky, (age - WINDUP_TIME) / SWEEP_TIME, age)
+	return _crash_pixels(side, line, vertical, sky, (age - WINDUP_TIME - SWEEP_TIME) / CRASH_TIME)
+
+
+## The sky's edge on `side`, across the line.
+static func sweep_edge(side: int, vertical: bool, sky: Rect2i) -> int:
+	if vertical:
+		return sky.position.x if side < 0 else sky.end.x - 1
+	return sky.position.y if side < 0 else sky.end.y - 1
+
+
+## The swell rearing up, `k` (0 to 1) of the way: up to twice its height, its crest all foam, and the
+## chevrons racing out, flickering S4 and S3.
+static func _windup_pixels(side: int, line: int, vertical: bool, sky: Rect2i, k: float) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	var start: int = sky.position.y if vertical else sky.position.x
 	var length: int = sky.size.y if vertical else sky.size.x
-	var edge: int = ((sky.position.x if side < 0 else sky.end.x - 1) if vertical else (sky.position.y if side < 0 else sky.end.y - 1))
-	var front: int = line + roundi(clampf(k, 0.0, 1.0) * (edge - line))
+	var grow: float = 1.0 + clampf(k, 0.0, 1.0)
 	for t: int in length:
-		var crest: int = front + side * CREST_SHAPE[posmod(t, CREST_SHAPE.size())]
+		var high: int = roundi(SWELL[posmod(t, SWELL.size())] * grow)
+		for h: int in range(2, high):
+			if (t + h) % 2 == 0 or h >= high - 2:
+				_put_in(result, vertical, sky, start + t, line + side * h, Palette.M4 if h >= high - 2 else Palette.M3)
+		_put_in(result, vertical, sky, start + t, line + side * high, Palette.M6)
+	var march: int = roundi(k * 14.0)
+	var flicker: bool = floori(k * 6.0) % 2 == 0
+	@warning_ignore("integer_division")
+	for t: int in range(CHEVRON_PERIOD / 2, length, CHEVRON_PERIOD):
+		for pair: int in 2:
+			var tip: int = line + side * (CHEVRON_GAP + march + pair * 4 + 3)
+			var colour: Color = Palette.S4 if (pair == 0) == flicker else Palette.S3
+			_put_in(result, vertical, sky, start + t, tip, colour)
+			for w: int in [1, 2, 3]:
+				_put_in(result, vertical, sky, start + t - w, tip - side * w, colour)
+				_put_in(result, vertical, sky, start + t + w, tip - side * w, colour)
+	return result
+
+
+## The wall `k` (0 to 1) through its rush (`age`: the wave's seconds, for its rolling curls and
+## spray): its foam crest with curls rolling along it, spray flung ahead, a solid M5/M4 body
+## thickening as it goes, a dithered M4 tail and M3 streaks trailing behind.
+static func _rush_pixels(side: int, line: int, vertical: bool, sky: Rect2i, k: float, age: float) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var start: int = sky.position.y if vertical else sky.position.x
+	var length: int = sky.size.y if vertical else sky.size.x
+	var edge: int = sweep_edge(side, vertical, sky)
+	var reach: float = rush_reach(k)
+	var front: int = line + roundi(reach * (edge - line))
+	var body: int = WALL_MIN + roundi(reach * (WALL_MAX - WALL_MIN))
+	var roll: int = floori(age * CURL_SPEED)
+	var frame: int = floori(age * 30.0)
+	for t: int in length:
+		var u: int = posmod(t + roll, CREST_SHAPE.size())
+		var crest: int = front + side * CREST_SHAPE[u]
+		# The curl: where the crest peaks, its lip leans a pixel further on.
+		if CREST_SHAPE[u] == CREST_SHAPE.max():
+			_put_in(result, vertical, sky, start + t, crest + side, Palette.M6)
 		_put_in(result, vertical, sky, start + t, crest, Palette.M6)
-		_put_in(result, vertical, sky, start + t, crest - side, Palette.M5)
-		_put_in(result, vertical, sky, start + t, crest - side * 2, Palette.M5)
-		for w: int in range(3, 3 + SWEEP_WAKE):
+		for w: int in range(1, body + 1):
+			if (crest - side * w - line) * side > 0:
+				_put_in(result, vertical, sky, start + t, crest - side * w, Palette.M5 if w <= 2 else Palette.M4)
+		for w: int in range(body + 1, body + 1 + SWEEP_WAKE):
 			var p: int = crest - side * w
 			if (p - line) * side > 0 and (t + w) % 2 == 0:
 				_put_in(result, vertical, sky, start + t, p, Palette.M4)
+		# Streaks trailing behind, every third column, a pixel in two.
+		if t % 3 == 0:
+			for w: int in range(body + 1 + SWEEP_WAKE, body + 1 + SWEEP_WAKE + STREAK_LENGTH):
+				var p: int = crest - side * w
+				if (p - line) * side > 0 and (w + t / 3) % 2 == 0:
+					_put_in(result, vertical, sky, start + t, p, Palette.M3)
+		# Spray flung ahead of the crest, a few columns a frame.
+		var h: int = _hash(t, frame)
+		if h % 5 == 0:
+			_put_in(result, vertical, sky, start + t, crest + side * (2 + h % 4), Palette.M6 if h % 2 == 0 else Palette.M5)
 	return result
+
+
+## The wall breaking on the edge, `k` (0 to 1) through its crash: a white flash along the edge at
+## first, foam spray thrown back off it falling as it cools (M6, M5, M4), and a dithered backwash
+## running back down to the line, thinning.
+static func _crash_pixels(side: int, line: int, vertical: bool, sky: Rect2i, k: float) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var start: int = sky.position.y if vertical else sky.position.x
+	var length: int = sky.size.y if vertical else sky.size.x
+	var edge: int = sweep_edge(side, vertical, sky)
+	var c: float = clampf(k, 0.0, 1.0)
+	if c < FLASH_SHARE:
+		for t: int in length:
+			for w: int in FLASH_ROWS:
+				if w < 3 or (t + w) % 2 == 0:
+					_put_in(result, vertical, sky, start + t, edge - side * w, Palette.M6 if w < 2 else Palette.M5)
+	var seconds: float = c * CRASH_TIME
+	for i: int in SPRAY:
+		var h: int = _hash(i, 7)
+		var along: float = (i + 0.5) * length / float(SPRAY) + float(h % 7 - 3)
+		# Thrown back into the sky, sideways a little, and falling back toward the edge; each cools as
+		# it goes, the slow ones first.
+		var speed: float = SPRAY_SPEED + float(h % SPRAY_SPREAD)
+		var out: float = speed * seconds - SPRAY_FALL * 0.5 * seconds * seconds
+		var sideways: float = float(h % 41 - 20) * seconds
+		if out < 0.0:
+			continue
+		var cool: float = c * (1.4 - (speed - SPRAY_SPEED) / float(SPRAY_SPREAD) * 0.6)
+		var colour: Color = Palette.M6 if cool < 0.35 else Palette.M5 if cool < 0.7 else Palette.M4
+		var p: int = start + roundi(along + sideways)
+		var q: int = edge - side * roundi(out)
+		_put_in(result, vertical, sky, p, q, colour)
+		if i % SPRAY_BIG == 0 and c < 0.6:
+			_put_in(result, vertical, sky, p + 1, q, colour)
+			_put_in(result, vertical, sky, p, q - side, colour)
+			_put_in(result, vertical, sky, p + 1, q - side, colour)
+	var back: int = edge + roundi(rush_reach(c) * (line - edge))
+	var gap: int = 2 if c < 0.5 else 4
+	for t: int in length:
+		if t % gap == 0:
+			_put_in(result, vertical, sky, start + t, back + side * CREST_SHAPE[posmod(t, CREST_SHAPE.size())], Palette.M5 if c < 0.5 else Palette.M4)
+	return result
+
+
+## A small deterministic scramble of `a` and `b` (no random numbers drawn), non-negative.
+static func _hash(a: int, b: int) -> int:
+	var x: int = (a * 374761393 + b * 668265263) & 0x7fffffff
+	x = ((x ^ (x >> 13)) * 1274126177) & 0x7fffffff
+	return x ^ (x >> 16)
 
 
 static func _put_across(pixels: Dictionary[Vector2i, Color], vertical: bool, along: int, across: int, colour: Color) -> void:

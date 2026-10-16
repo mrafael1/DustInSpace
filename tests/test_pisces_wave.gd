@@ -203,7 +203,7 @@ func test_the_cue_shows_the_side_and_marks_its_stars_once_settled() -> void:
 	var main: Main = _main()
 	_settle(main)
 	var view: SeamView = main.get_node("Sky/SeamLayer")
-	view.advance(SeamView.SWEEP_TIME)
+	view.advance(SeamView.WINDUP_TIME + SeamView.SWEEP_TIME + SeamView.CRASH_TIME)
 	view.settled = true
 	assert_eq(view.cue_side(), 0, "no wave with the first launch: no cue")
 	var line: int = _line(main.run)
@@ -234,28 +234,49 @@ func test_the_cue_shows_the_side_and_marks_its_stars_once_settled() -> void:
 	assert_eq(marked, ring.size(), "the star it will take wears an ember ring")
 
 
-func test_the_wave_sweeps_out_and_cues_the_next_side_after() -> void:
+func test_the_wave_rears_up_rushes_out_and_crashes_then_cues_the_next_side() -> void:
 	var main: Main = _main()
 	_settle(main)
 	var view: SeamView = main.get_node("Sky/SeamLayer")
 	var line: int = _line(main.run)
-	view.sweep(StarWave.LOW, StarWave.HIGH)
+	var sky: Rect2i = main.run.sky_rect
+	view.sweep(StarWave.LOW, StarWave.HIGH, [Vector2i(30, line - 40)] as Array[Vector2i])
 	assert_true(view.is_sweeping())
-	assert_eq(view.cue_side(), 0, "no cue while it sweeps")
-	view.advance(SeamView.SWEEP_TIME / 2.0)
-	var foam: Array[int] = []
+	assert_eq(view.cue_side(), 0, "no cue while it plays")
+	# The wind-up: the swell rears up past its cue's height.
+	view.advance(SeamView.WINDUP_TIME * 0.9)
+	assert_lt(_highest(view.pixels(), Palette.M6), line - SeamView.SWELL.max() - 2, "it rears up")
+	# Halfway through the rush the wall is past halfway (fast, then slowing).
+	view.advance(SeamView.WINDUP_TIME * 0.1 + SeamView.SWEEP_TIME / 2.0)
+	var span: int = line - sky.position.y
+	var front: int = _highest(view.pixels(), Palette.M6)
+	assert_lt(front, line - span / 2, "past halfway at half time")
+	assert_almost_eq(float(front), line - SeamView.rush_reach(0.5) * span, 7.0, "its crest, spray a few px ahead")
+	var half: Vector2i = Vector2i(10, line - roundi(SeamView.rush_reach(0.5) * span))
+	assert_almost_eq(view.sweep_delay(StarWave.LOW, half), SeamView.WINDUP_TIME + SeamView.SWEEP_TIME / 2.0, 0.02, "it reaches there then")
+	assert_eq(view.carry_point(StarWave.LOW, Vector2i(30, line - 40)).x, 30, "a star rides straight out")
+	assert_lt(view.carry_point(StarWave.LOW, Vector2i(30, line - 40)).y, line - 40)
+	# The crash: a flash along the edge, then spray falling back.
+	view.advance(SeamView.SWEEP_TIME / 2.0 + 0.02)
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
-	for point: Vector2i in pixels:
-		if pixels[point] == Palette.M6 and point.y < line - 4:
-			foam.append(point.y)
-	assert_false(foam.is_empty(), "its foam front, above the line")
-	var half: int = roundi((line - main.run.sky_rect.position.y) / 2.0)
-	assert_almost_eq(foam.min(), line - half - 1, 2)
-	assert_almost_eq(view.sweep_delay(StarWave.LOW, Vector2i(10, line - half)), SeamView.SWEEP_TIME / 2.0, 0.02, "it reaches halfway at half time")
+	assert_eq(pixels.get(Vector2i(90, sky.position.y)), Palette.M6, "it breaks white on the edge")
+	view.advance(SeamView.CRASH_TIME / 2.0)
+	assert_false(view.pixels().get(Vector2i(90, sky.position.y)) == Palette.M6, "the flash is short")
+	assert_true(view.is_sweeping(), "the spray still falls")
 	main.run.wave.launches = 2
-	view.advance(SeamView.SWEEP_TIME / 2.0 + 0.01)
+	view.advance(SeamView.CRASH_TIME / 2.0 + 0.01)
 	assert_false(view.is_sweeping())
 	assert_eq(view.cue_side(), StarWave.HIGH, "then the bottom is cued")
+	assert_almost_eq(SeamView.sweep_hold(), SeamView.WINDUP_TIME + SeamView.SWEEP_TIME, 0.001, "the crash isn't waited for")
+
+
+## The topmost row holding `colour` above the water line.
+func _highest(pixels: Dictionary[Vector2i, Color], colour: Color) -> int:
+	var top: int = 1 << 20
+	for point: Vector2i in pixels:
+		if pixels[point] == colour:
+			top = mini(top, point.y)
+	return top
 
 
 func test_a_wave_is_said_the_first_time_with_its_side() -> void:
