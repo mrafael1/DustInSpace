@@ -882,14 +882,14 @@ func _splash(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 	_sequencer.hold(maxf(SeamView.RIPPLE_TIME, StarView.DRIFT_TIME if not moves.is_empty() else 0.0))
 
 
-## Pisces's wave wipes `side` of the water line: it rears up, rushes from the line to the sky's edge
+## Pisces's wave rushes `way` off its water line: it rears up, rushes from the line to the sky's edge
 ## and crashes there; each `lost` star flashes as it reaches it and is carried on to the edge, where
 ## it bursts in droplets, for nothing. The next side is cued after.
-func _wave(side: int, lost: Array, next_side: int) -> void:
+func _wave(way: Vector2i, lost: Array, next_way: Vector2i) -> void:
 	var caught: Array[Vector2i] = []
 	for star: Star in lost:
 		caught.append(star.position)
-	_seam.sweep(side, next_side, caught)
+	_seam.sweep(way, next_way, caught)
 	_sequencer.hold(SeamView.sweep_hold())
 	for star: Star in lost:
 		var view: StarView = _views.get(star.id)
@@ -898,8 +898,8 @@ func _wave(side: int, lost: Array, next_side: int) -> void:
 		_views.erase(star.id)
 		# It rides the crest from where the wall reaches it to the edge, bursting there as it crashes.
 		var from: Vector2i = star.position
-		var to: Vector2i = _seam.carry_point(side, from)
-		var reached: float = _seam.sweep_delay(side, from)
+		var to: Vector2i = _seam.carry_point(way, from)
+		var reached: float = _seam.sweep_delay(way, from)
 		var share: float = (reached - SeamView.WINDUP_TIME) / SeamView.SWEEP_TIME
 		var tween: Tween = create_tween()
 		tween.tween_interval(reached)

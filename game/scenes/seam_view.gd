@@ -121,12 +121,12 @@ var settled: bool = true:
 		if settled:
 			_follow_wave()
 ## The side the wave's cue shows (StarWave.LOW or HIGH; 0: none comes with the next launch).
-var _cue_side: int = 0
+var _cue_way: Vector2i = Vector2i.ZERO
 ## The wave playing: its side, and the seconds since it began (-1: none).
-var _sweep_side: int = 0
+var _sweep_way: Vector2i = Vector2i.ZERO
 var _sweep_age: float = -1.0
 ## The side cued once the wave playing is over.
-var _next_cue: int = 0
+var _next_cue: Vector2i = Vector2i.ZERO
 ## Where the stars the wave playing takes stand, as it sets off.
 var _caught: Array[Vector2i] = []
 ## Stars lost to a splash cutting out: where each left the sky, and the seconds since.
@@ -143,7 +143,7 @@ func setup(run: RunState) -> void:
 	_ripple_age = -1.0
 	_blocking_left = 0.0
 	_sweep_age = -1.0
-	_cue_side = 0
+	_cue_way = Vector2i.ZERO
 	_losses.clear()
 	aiming = false
 	_time = 0.0
@@ -185,12 +185,12 @@ func is_rippling() -> bool:
 
 
 ## The wave wipes `side` (StarWave.LOW or HIGH), taking the stars at `caught`; the next one sweeps
-## `next_side`, cued once it has played.
-func sweep(side: int, next_side: int, caught: Array[Vector2i] = []) -> void:
-	_sweep_side = side
+## `next_way`, cued once it has played.
+func sweep(way: Vector2i, next_way: Vector2i, caught: Array[Vector2i] = []) -> void:
+	_sweep_way = way
 	_sweep_age = 0.0
-	_cue_side = 0
-	_next_cue = next_side
+	_cue_way = Vector2i.ZERO
+	_next_cue = next_way
 	_caught = caught
 	queue_redraw()
 
@@ -205,17 +205,17 @@ static func sweep_hold() -> float:
 	return WINDUP_TIME + SWEEP_TIME
 
 
-## The side the cue shows (0: none).
-func cue_side() -> int:
-	return _cue_side
+## The way the cued wave will rush (ZERO: none comes).
+func cue_way() -> Vector2i:
+	return _cue_way
 
 
 ## Seconds after the wave sets off (wind-up included) that it reaches `point`, on its way from the
 ## line to the edge.
-func sweep_delay(side: int, point: Vector2i) -> float:
-	var wave: StarWave = _run.wave
-	var across: int = point.x if wave.vertical else point.y
-	var d: float = clampf(float(absi(across - wave.line)) / maxf(1.0, float(_sweep_span(side))), 0.0, 1.0)
+func sweep_delay(way: Vector2i, point: Vector2i) -> float:
+	var vertical: bool = way.x != 0
+	var across: int = point.x if vertical else point.y
+	var d: float = clampf(float(absi(across - line_of(way))) / maxf(1.0, float(_sweep_span(way))), 0.0, 1.0)
 	return WINDUP_TIME + rush_time(d) * SWEEP_TIME
 
 
@@ -231,12 +231,19 @@ static func rush_time(d: float) -> float:
 	return 1.0 - sqrt(1.0 - clampf(d, 0.0, 1.0))
 
 
-## Where a star the wave catches at `at` is carried to: the sky's edge on `side`, in line with it.
-func carry_point(side: int, at: Vector2i) -> Vector2i:
+## Where a star the wave rushing `way` catches at `at` is carried to: the sky's edge that way, in
+## line with it.
+func carry_point(way: Vector2i, at: Vector2i) -> Vector2i:
 	var inner: Rect2i = StarScatter.inner_rect(_run.sky_rect)
-	if _run.wave.vertical:
-		return Vector2i(inner.position.x if side < 0 else inner.end.x - 1, at.y)
-	return Vector2i(at.x, inner.position.y if side < 0 else inner.end.y - 1)
+	if way.x != 0:
+		return Vector2i(inner.position.x if way.x < 0 else inner.end.x - 1, at.y)
+	return Vector2i(at.x, inner.position.y if way.y < 0 else inner.end.y - 1)
+
+
+## The water line a wave rushing `way` rises off: x of the line up and down, else y of the line
+## across.
+func line_of(way: Vector2i) -> int:
+	return _run.wave.middle.x if way.x != 0 else _run.wave.middle.y
 
 
 ## A star the splash pushed out of the sky cuts out at `at`, the edge it left by.
@@ -284,9 +291,9 @@ func advance(delta: float) -> void:
 		_sweep_age += delta
 		if _sweep_age >= WINDUP_TIME + SWEEP_TIME + CRASH_TIME:
 			_sweep_age = -1.0
-			_cue_side = _next_cue if _run.wave != null and _run.wave.strikes_next() and not _run.is_over() else 0
+			_cue_way = _next_cue if _run.wave != null and _run.wave.strikes_next() and not _run.is_over() else Vector2i.ZERO
 		queue_redraw()
-	if _run != null and _run.wave != null and _cue_side != 0 and floori(_time / MARCH_STEP) != floori((_time - delta) / MARCH_STEP):
+	if _run != null and _run.wave != null and _cue_way != Vector2i.ZERO and floori(_time / MARCH_STEP) != floori((_time - delta) / MARCH_STEP):
 		queue_redraw()
 	if _splash_age < 0.0:
 		return
@@ -379,18 +386,18 @@ func _wave_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	var wave: StarWave = _run.wave
 	if _sweep_age >= 0.0:
-		result.merge(sweep_pixels(_sweep_side, wave.line, wave.vertical, _run.sky_rect, _sweep_age), true)
+		result.merge(sweep_pixels(_sweep_way.x + _sweep_way.y, line_of(_sweep_way), _sweep_way.x != 0, _run.sky_rect, _sweep_age), true)
 		for at: Vector2i in _caught:
-			var reached: float = _sweep_age - sweep_delay(_sweep_side, at)
+			var reached: float = _sweep_age - sweep_delay(_sweep_way, at)
 			if reached < 0.0:
 				# Still to come: its ring crawls fast.
 				result.merge(HarvestView.lone_ring_pixels(at, Star.Size.MEDIUM, _sweep_age * 3.0), true)
 			elif reached < CATCH_FLASH:
 				result.merge(ring_pixels(at, 4 + roundi(reached / CATCH_FLASH * 3.0), Palette.M6, 20), true)
 		return result
-	if _cue_side == 0:
+	if _cue_way == Vector2i.ZERO:
 		return result
-	result.merge(wave_cue_pixels(_cue_side, wave.line, wave.vertical, _run.sky_rect, _time), true)
+	result.merge(wave_cue_pixels(_cue_way.x + _cue_way.y, line_of(_cue_way), _cue_way.x != 0, _run.sky_rect, _time), true)
 	if settled and not aiming:
 		for id: int in _run.wave_risk():
 			var star: Star = _run.find_star(id)
@@ -627,16 +634,16 @@ func _drift() -> int:
 func _follow_wave() -> void:
 	if _run == null or _run.wave == null or _sweep_age >= 0.0:
 		return
-	var side: int = _run.wave.next_side() if _run.wave.strikes_next() and not _run.is_over() else 0
-	if side != _cue_side:
-		_cue_side = side
+	var way: Vector2i = _run.wave.next_way() if _run.wave.strikes_next() and not _run.is_over() else Vector2i.ZERO
+	if way != _cue_way:
+		_cue_way = way
 		queue_redraw()
 
 
-## From the line to the sky's edge on `side`, px.
-func _sweep_span(side: int) -> int:
-	var wave: StarWave = _run.wave
+## From the line a wave rushing `way` rises off to the sky's edge that way, px.
+func _sweep_span(way: Vector2i) -> int:
 	var sky: Rect2i = _run.sky_rect
-	if wave.vertical:
-		return (wave.line - sky.position.x) if side < 0 else (sky.end.x - 1 - wave.line)
-	return (wave.line - sky.position.y) if side < 0 else (sky.end.y - 1 - wave.line)
+	var line: int = line_of(way)
+	if way.x != 0:
+		return (line - sky.position.x) if way.x < 0 else (sky.end.x - 1 - line)
+	return (line - sky.position.y) if way.y < 0 else (sky.end.y - 1 - line)

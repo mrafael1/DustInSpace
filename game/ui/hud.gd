@@ -518,9 +518,14 @@ func _tell_wave() -> void:
 
 ## The side the next wave wipes, said: TOP or BOTTOM (LEFT or RIGHT on a line up and down).
 static func wave_side_name(wave: StarWave) -> String:
-	if wave.vertical:
-		return "LEFT" if wave.next_side() == StarWave.LOW else "RIGHT"
-	return "TOP" if wave.next_side() == StarWave.LOW else "BOTTOM"
+	match wave.next_way():
+		Vector2i.UP:
+			return "TOP"
+		Vector2i.DOWN:
+			return "BOTTOM"
+		Vector2i.LEFT:
+			return "LEFT"
+	return "RIGHT"
 
 
 ## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,
