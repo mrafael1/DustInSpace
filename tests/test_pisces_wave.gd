@@ -213,6 +213,7 @@ func test_the_cue_shows_the_side_and_marks_its_stars_once_settled() -> void:
 	assert_eq(view.cue_way(), Vector2i.ZERO, "not while something plays")
 	view.settled = true
 	assert_eq(view.cue_way(), Vector2i.UP, "the top")
+	assert_eq(view.after_way(), Vector2i.ZERO, "on one line the wave after is always the other half: not shown")
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
 	var above: int = 0
 	var below: int = 0

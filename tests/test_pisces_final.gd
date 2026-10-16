@@ -161,3 +161,27 @@ func test_it_arrives_with_its_title_card_and_plays_its_waves_through_the_scene()
 		assert_true(run.launch(run.wave.middle + Vector2i(40 if i % 2 == 0 else -40, 40)))
 		await _play_out(main)
 		assert_eq(sky.star_count(), run.stars.size(), "the views follow the run after launch %d" % (i + 1))
+
+
+func test_the_wave_after_the_next_shows_fainter() -> void:
+	var main: Main = _main()
+	await _play_out(main)
+	var view: SeamView = main.get_node("Sky/SeamLayer")
+	var run: RunState = main.run
+	run.wave.launches = 1
+	view.settled = true
+	assert_eq(view.cue_way(), Vector2i.UP, "the next: the top")
+	assert_eq(view.after_way(), Vector2i.RIGHT, "after it: the right")
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	var after: Dictionary[Vector2i, Color] = SeamView.after_cue_pixels(1, run.wave.middle.x, true, run.sky_rect)
+	var shown: int = 0
+	for point: Vector2i in after:
+		if pixels.get(point) == after[point]:
+			shown += 1
+	assert_gt(shown, after.size() / 2, "its still chevrons and ripple, right of the line up and down")
+	for point: Vector2i in after:
+		assert_true(after[point] in [Palette.S3, Palette.M4], "fainter: no S4, no foam")
+		assert_gt(point.x, run.wave.middle.x)
+	run.wave.waves = 3
+	view.settled = true
+	assert_eq(view.after_way(), Vector2i.UP, "after the left, the top again")
