@@ -151,6 +151,12 @@ const WAVE_NEXT_MESSAGE: String = "A WAVE WIPES THE %s\nAT THE NEXT THROW"
 const GREAT_WAVE_MESSAGE: String = "A GREAT WAVE FLOODS\nTHE SKY NEXT THROW"
 ## The final's win: the great wave's jackpot card, over the dust it paid.
 const GREAT_WAVE_TITLE: String = "GREAT WAVE"
+## The final's fish woke (how often it leaps, from balance.json).
+const FISH_MESSAGE: String = "A FISH WOKE: IT JUMPS\nEVERY %d THROWS"
+## The first time a run's fish is about to leap.
+const JUMP_MESSAGE: String = "THE FISH WILL JUMP\nAT THE NEXT THROW"
+## A run's first star the fish ate.
+const FISH_LOSS_MESSAGE: String = "THE FISH ATE A STAR\nLINK STARS NEAR IT FIRST"
 ## A run's first star the wave took.
 const WAVE_LOSS_MESSAGE: String = "THE WAVE TOOK A STAR\nLINK THEM BEFORE IT HITS"
 ## A run's first star lost to the splash.
@@ -489,7 +495,7 @@ func _tell_splash_loss(moves: Array, said: String = SPLASH_LOSS_MESSAGE) -> void
 		return
 	# Another loss line is still being read (the wave's, the splash's): this one waits for a later
 	# loss, untold.
-	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, WAVE_LOSS_MESSAGE]:
+	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, WAVE_LOSS_MESSAGE, FISH_LOSS_MESSAGE]:
 		return
 	for move: StarCurrent.Move in moves:
 		if move.drained:
@@ -498,12 +504,22 @@ func _tell_splash_loss(moves: Array, said: String = SPLASH_LOSS_MESSAGE) -> void
 			return
 
 
+## The fish leaps next launch: said the first time a run, unless a loss line is still being read.
+func _tell_jump() -> void:
+	if _run == null or _run.fish == null or _run.is_over() or not _run.fish.jumps_next() or _losses_told.has(JUMP_MESSAGE):
+		return
+	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, WAVE_LOSS_MESSAGE, FISH_LOSS_MESSAGE, FISH_MESSAGE % _run.fish.jump_every]:
+		return
+	_losses_told[JUMP_MESSAGE] = true
+	show_message(JUMP_MESSAGE, RULE_MESSAGE_TIME, true)
+
+
 ## A run's first star the wave took says so, and what to do, once a run (never for an intro's demo
 ## stars, nor over the stage's rule while it's still on show, nor over the splash's line).
 func _tell_wave_loss(lost: Array) -> void:
 	if lost.is_empty() or not _launch_shown or (message() != "" and message() == _stage_rule()) or _losses_told.has(WAVE_LOSS_MESSAGE):
 		return
-	if _message_held > 0.0 and message() == SPLASH_LOSS_MESSAGE:
+	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, FISH_LOSS_MESSAGE]:
 		return
 	_losses_told[WAVE_LOSS_MESSAGE] = true
 	show_message(WAVE_LOSS_MESSAGE, RULE_MESSAGE_TIME, true)
@@ -514,7 +530,7 @@ func _tell_wave_loss(lost: Array) -> void:
 func _tell_wave() -> void:
 	if _run == null or _run.wave == null or _run.is_over() or not _run.wave.strikes_next():
 		return
-	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, WAVE_LOSS_MESSAGE]:
+	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, WAVE_LOSS_MESSAGE, FISH_LOSS_MESSAGE]:
 		return
 	# The great wave is said whenever it's next, over the plain wave's line.
 	if _run.wave.great_next():
@@ -947,9 +963,14 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			if _launch_shown:
 				_tell_wave()
 			return
-		&"seam_turned":
-			# The final's second water line: where to aim now.
-			show_message(SEAM_CROSS_MESSAGE, RULE_MESSAGE_TIME, true)
+		&"fish_arrived":
+			# The final's act two: the fish woke, and how often it leaps.
+			show_message(FISH_MESSAGE % _run.fish.jump_every, RULE_MESSAGE_TIME, true)
+			return
+		&"stars_bitten":
+			# Pisces's fish: its first star eaten says so.
+			_tell_splash_loss(event.args[1], FISH_LOSS_MESSAGE)
+			_tell_jump()
 			return
 		&"holes_drifted":
 			# Sagittarius's final: once the twins have merged, the hole they made drinks the light.

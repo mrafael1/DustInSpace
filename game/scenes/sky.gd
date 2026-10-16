@@ -446,10 +446,12 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			_splash(event.args[0], event.args[1])
 		&"wave_struck":
 			_wave(event.args[0], event.args[1], event.args[2], event.args[3])
-		&"seam_turned":
-			# The final's great wave turned the water line.
-			_seam.turn_seam(event.args[0])
-			_sequencer.hold(SeamView.TURN_TIME)
+		&"fish_arrived":
+			# The final's great wave woke the fish: it leaps out of the water and back.
+			_seam.wake_fish(event.args[0])
+			_sequencer.hold(SeamView.JUMP_TIME)
+		&"fish_jumped":
+			_leap(event.args[0], event.args[1], event.args[2])
 		&"reflect_intro_cleared":
 			# A beat to see the stars across the seam, then they go: no reward.
 			_sequencer.hold(INTRO_HOLD * 2.0 + StarView.DISSOLVE_TIME)
@@ -923,6 +925,30 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 			star_drained.emit(Vector2i(view.position))
 			view.queue_free()
 			_halo_layer.queue_redraw.call_deferred())
+
+
+## Pisces's fish leaps from `from` at `to`: as it lands there the `caught` stars vanish into its
+## mouth, and it carries them back down into the water, which splashes as it dives.
+func _leap(from: Vector2i, to: Vector2i, caught: Array) -> void:
+	_seam.jump(from, to)
+	_sequencer.hold(SeamView.JUMP_TIME)
+	var tween: Tween = create_tween()
+	tween.tween_interval(SeamView.JUMP_TIME / 2.0)
+	tween.tween_callback(_swallow.bind(caught, to))
+
+
+## The leaping fish's mouth closes on `ids` at `at`: their views go at once, and it carries them.
+func _swallow(ids: Array, at: Vector2i) -> void:
+	for id: int in ids:
+		var view: StarView = _views.get(id)
+		if view == null:
+			continue
+		_views.erase(id)
+		view.queue_free()
+	if not ids.is_empty():
+		_seam.carry()
+		_halo_layer.queue_redraw()
+		star_drained.emit(at)
 
 
 ## The black hole (chapter 5 trial): every fallen star drifts; a swallowed one drifts to the horizon
