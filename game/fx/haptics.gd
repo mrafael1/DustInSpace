@@ -19,6 +19,7 @@ const PATTERNS: Dictionary[StringName, Array] = {
 	&"pack_buy": [[0.0, 15, 0.5]],
 	&"burst": [[0.0, 40, 0.7]],
 	&"drain": [[0.0, 40, 0.6]],
+	&"wave": [[0.6, 70, 0.8]],
 	&"sun_ignite": [[0.0, 80, 0.7]],
 	&"big_bang_bang": [[0.0, 350, 1.0]],
 	&"big_bang_void": [[0.0, 350, 1.0]],

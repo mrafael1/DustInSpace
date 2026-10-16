@@ -44,6 +44,8 @@ signal link_traced(ids: Array[int])
 signal link_refused(reason: RunState.PickRefusal)
 ## Scorpio: a star out of reach of the last one picked couldn't join the link. Feedback only.
 signal step_refused
+## A link step was refused for crossing Pisces's seam (it says why once a while).
+signal seam_refused(reason: RunState.PickRefusal)
 ## The player let a traced link go: the drag was released away from its last star, so nothing was
 ## linked and the selection is gone. Feedback only (sound).
 signal link_cancelled
@@ -124,6 +126,7 @@ var _arrival_sweep: bool = false
 @onready var _current: CurrentView = $CurrentLayer
 @onready var _gravity: GravityView = $GravityLayer
 @onready var _cords: CordView = $CordLayer
+@onready var _seam: SeamView = $SeamLayer
 @onready var _heat: HeatView = $HeatLayer
 @onready var _harvest: HarvestView = $HarvestLayer
 
@@ -432,6 +435,23 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			_cords.tie(event.args[0])
 		&"cords_cleared":
 			_cords.clear_cords()
+		&"planet_reflected":
+			# The planet sinks into the mirror before it bursts across the seam.
+			_seam.splash(event.args[0], event.args[1])
+			_sequencer.hold(SeamView.SPLASH_TIME)
+		&"splash_intro_placed":
+			# A beat to see the demo stars before the planet splashes among them.
+			_place_intro(event.args[0])
+		&"stars_splashed":
+			_splash(event.args[0], event.args[1])
+		&"wave_struck":
+			_wave(event.args[0], event.args[1], event.args[2], event.args[3])
+		&"reflect_intro_cleared":
+			# A beat to see the stars across the seam, then they go: no reward.
+			_sequencer.hold(INTRO_HOLD * 2.0 + StarView.DISSOLVE_TIME)
+			var tween: Tween = create_tween()
+			tween.tween_interval(INTRO_HOLD * 1.5)
+			tween.tween_callback(_clear_intro.bind(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD * 0.5))
 		_:
 			return false
 	return true
@@ -620,6 +640,10 @@ func _on_join_refused(ids: Array[int], id: int) -> void:
 	# A tap is refused with no trace to the finger: the cord it would cross glows with the shake.
 	if ends.size() == 2 and _run != null and _run.cords != null and _run.cords.crosses(ends[0], ends[1]):
 		_cords.flash_blocking(ends[0], ends[1], LinkLayer.REJECT_TIME)
+	# Pisces: the water line glows with the shake, and the line says why.
+	if ends.size() == 2 and _run != null and _run.crosses_seam(ends[0], ends[1]):
+		_seam.flash_block(LinkLayer.REJECT_TIME)
+		seam_refused.emit(RunState.PickRefusal.ACROSS_SEAM)
 	step_refused.emit()
 
 
@@ -644,6 +668,13 @@ func _show_link() -> void:
 			step = [points[-1], reached]
 			cut = _run.cords.crossing(points[-1], reached)
 			loose = loose or cut != StarCords.NO_CROSSING
+		if not points.is_empty() and _run.has_seam():
+			# Pisces: the line breaks where it would cross the seam within the reach.
+			var within: Vector2i = _reach_end(points[-1], _finger)
+			var at: Vector2i = _run.seam_crossing(points[-1], within)
+			if at != StarCords.NO_CROSSING and (cut == StarCords.NO_CROSSING or (at - points[-1]).length_squared() < (cut - points[-1]).length_squared()):
+				cut = at
+				loose = true
 		reach = _run.link_reach()
 		points.append(_finger)
 	_link_layer.show_path(points, loose, reach, letting_go, cut)
@@ -830,6 +861,64 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 			star_drained.emit(Vector2i(v.position)))
 		view.drain_to(_edge_point(move.to))
 	_sequencer.hold(StarView.DRIFT_TIME)
+
+
+## Pisces's splash: the water ring spreads from where the planet went in, and every star it pushed
+## drifts; one pushed out of the sky drifts to the edge and cuts out there in droplets, for nothing.
+func _splash(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
+	_seam.ripple(at)
+	for move: StarCurrent.Move in moves:
+		var view: StarView = _views.get(move.star_id)
+		if view == null:
+			continue
+		if not move.drained:
+			view.drift_to(move.to)
+			continue
+		_views.erase(move.star_id)
+		view.drained.connect(func(v: StarView) -> void:
+			_seam.flash_loss(Vector2i(v.position))
+			star_drained.emit(Vector2i(v.position)))
+		view.drain_to(_seam.exit_point(move.to))
+	_sequencer.hold(maxf(SeamView.RIPPLE_TIME, StarView.DRIFT_TIME if not moves.is_empty() else 0.0))
+
+
+## Pisces's wave rushes `way` off its water line (`great`: both ways, the final's great wave): it rears up, rushes from the line to the sky's edge
+## and crashes there; each `lost` star flashes as it reaches it and is carried on to the edge, where
+## it bursts in droplets, for nothing. The next side is cued after.
+func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
+	var caught: Array[Vector2i] = []
+	for star: Star in lost:
+		caught.append(star.position)
+	_seam.sweep(way, next_way, caught, great)
+	_sequencer.hold(SeamView.sweep_hold())
+	for star: Star in lost:
+		var view: StarView = _views.get(star.id)
+		if view == null:
+			continue
+		_views.erase(star.id)
+		# It rides the crest from where the wall reaches it to the edge, bursting there as it crashes.
+		var from: Vector2i = star.position
+		# The great wave takes each star out the way of its own side of the line.
+		var its_way: Vector2i = _seam.way_for(way, from) if great else way
+		var to: Vector2i = _seam.carry_point(its_way, from)
+		var reached: float = _seam.sweep_delay(its_way, from)
+		var share: float = (reached - SeamView.WINDUP_TIME) / SeamView.SWEEP_TIME
+		var tween: Tween = create_tween()
+		tween.tween_interval(reached)
+		tween.tween_callback(func() -> void:
+			view.selected = false
+			_halo_layer.queue_redraw())
+		tween.tween_method(func(k: float) -> void:
+			var reach: float = SeamView.rush_reach(lerpf(share, 1.0, k))
+			var at: float = (SeamView.rush_reach(share) if share < 1.0 else 1.0)
+			var t: float = 1.0 if at >= 1.0 else clampf((reach - at) / (1.0 - at), 0.0, 1.0)
+			view.position = Vector2(Vector2(from).lerp(Vector2(to), t).round())
+			_halo_layer.queue_redraw(), 0.0, 1.0, maxf(0.01, SeamView.sweep_hold() - reached))
+		tween.tween_callback(func() -> void:
+			_seam.flash_loss(Vector2i(view.position))
+			star_drained.emit(Vector2i(view.position))
+			view.queue_free()
+			_halo_layer.queue_redraw.call_deferred())
 
 
 ## The black hole (chapter 5 trial): every fallen star drifts; a swallowed one drifts to the horizon

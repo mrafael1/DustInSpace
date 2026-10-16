@@ -233,6 +233,20 @@ def crop():
     )
 
 
+def wave_crash():
+    # Pisces's wave (1.1 s): the water draws in and rears up (a low rising hiss), rushes out (noise
+    # opening up, a swelling rumble), then crashes on the sky's edge at 0.6 s (a bright burst of
+    # foam noise falling away, a deep thump) and hisses back as the backwash drains.
+    return mix(
+        (0, envelope(noise(0.2, 250, 900), attack=0.15, curve=0.5), 0.35),
+        (0.18, envelope(noise(0.42, 900, 4200), attack=0.3, curve=0.4), 0.65),
+        (0.18, envelope(tone(55, 0.42, "sine", 80, vibrato=0.06, vib_rate=9), attack=0.3, curve=0.5), 0.6),
+        (0.6, envelope(noise(0.5, 7000, 600), attack=0.002, curve=1.6), 1.0),
+        (0.6, envelope(tone(120, 0.22, "sine", 38), attack=0.001, curve=2.0), 1.0),
+        (0.75, envelope(noise(0.35, 2200, 300), attack=0.05, curve=1.2), 0.3),
+    )
+
+
 def dust_land():
     # A tiny coin tick; the game climbs its pitch across a payout.
     return mix(
@@ -328,6 +342,7 @@ CUES = {
     "drain": (drain, -7),
     "crop": (crop, -8),
     "swallow": (swallow, -7),
+    "wave": (wave_crash, -6),
     "dust_land": (dust_land, -18),
     "light_land": (light_land, -18),
     "big_bang_collapse": (big_bang_collapse, -6),

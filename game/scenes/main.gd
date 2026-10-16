@@ -111,6 +111,7 @@ func _ready() -> void:
 	_sky.link_traced.connect(_hud.follow_link)
 	# A refused pick: the line says why (#91), instead of the shake and buzz of a wrong link.
 	_sky.link_refused.connect(_hud.explain_refusal)
+	_sky.seam_refused.connect(_hud.explain_refusal)
 	# The idle hint (#90) shows a link in the sky. It holds still while payouts fly or the Sun
 	# ignites, and while the tutorial's own hand is out (one hand at a time).
 	_idle_hint.sky = _sky
@@ -158,12 +159,13 @@ func start_run(balance: Balance) -> bool:
 	_pause_pending = false
 	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
-	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null)
+	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null or run.splash != null or run.wave != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
 	($Sky/ConstellationLayer as ConstellationView).repeat = replay
 	($Sky/CurrentLayer as CurrentView).setup(run, _sequencer)
 	($Sky/GravityLayer as GravityView).setup(run, _sequencer)
 	($Sky/CordLayer as CordView).setup(run, _sequencer)
+	($Sky/SeamLayer as SeamView).setup(run)
 	($Sky/HeatLayer as HeatView).setup(run, _sequencer)
 	($Sky/HarvestLayer as HarvestView).setup(run, _sequencer)
 	run.run_won.connect(stage_won.emit)
@@ -195,6 +197,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_twins_intro()
 	# And the Head's light gauge: a link's light streaming into the hole.
 	run.play_gauge_intro()
+	# And a Pisces stage with a seam: a demo planet thrown on one side bursts on the other.
+	run.play_reflect_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)
@@ -217,6 +221,11 @@ func _process(_delta: float) -> void:
 	($Sky/GravityLayer as GravityView).aiming = aiming and run.gravity != null
 	($Sky/HeatLayer as HeatView).aiming = aiming and run.heat != null
 	($Sky/HarvestLayer as HarvestView).aiming = aiming and run.harvest != null
+	var seam: SeamView = $Sky/SeamLayer
+	seam.aiming = aiming and use_telescope and (run.splash != null or run.wave != null)
+	seam.settled = not _sequencer.is_busy()
+	if seam.aiming:
+		seam.aim = _telescope.burst_preview()
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = aiming and (run.current != null or run.heat != null or run.gravity != null)
 
 

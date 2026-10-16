@@ -24,6 +24,13 @@ const VIRGO_PART := "res://assets/art/virgo_part_%s.png"
 ## Chapter 5's Sagittarius and its stages' paintings, once drawn (a missing one is left out).
 const SAGITTARIUS_FIGURE := "res://assets/art/sagittarius_figure.png"
 const SAGITTARIUS_PART := "res://assets/art/sagittarius_part_%s.png"
+## Chapter 6's Pisces and its stages' paintings, once drawn (a missing one is left out).
+const PISCES_FIGURE := "res://assets/art/pisces_figure.png"
+const PISCES_PART := "res://assets/art/pisces_part_%s.png"
+
+## Pisces's seam: none, up and down the sky's middle (throw left, stars land right), across it
+## (throw high, stars land low), or both crossing at the middle (stars land in the opposite corner).
+enum Seam { NONE, VERTICAL, HORIZONTAL, CROSS }
 
 var id: String = ""
 ## Shown on the end screen: "<NAME> COMPLETE".
@@ -109,6 +116,26 @@ var cords: bool = false
 ## (not by a rekindle, the completion or a Big Bang). Only read when `cords` is on. Draws no random
 ## numbers; bursts and stars cross it freely.
 var fish_cord: Array[Vector2i] = []
+## Pisces's reflection: the sky is a mirror split by a seam through its middle (up and down, or across),
+## and a planet bursts at the reflection of where it's thrown: its stars land on the other side. No
+## link can step across the seam (RunState.can_step).
+var seam: Seam = Seam.NONE
+## Pisces's splash: a thrown planet sinking into the mirror pushes the loose stars round where it went
+## in outward (balance.json's splash); one pushed out of the sky is lost.
+var splash: bool = false
+## The stage that brings the splash: it opens by showing it (a demo throw splashing demo stars, one
+## out of the sky) instead of the plain reflection intro, and its rule line is the splash's.
+var splash_intro: bool = false
+## Pisces's wave (the North Fish): from balance.json's wave.first_launch on, every launch a wave
+## wipes one side of the water line, the sides taking turns. Its stage opens by showing it, and its
+## rule line is the wave's.
+var wave: bool = false
+## The final's great waves: after every balance.json's wave.great_after waves, the next floods both
+## halves at once.
+var wave_great: bool = false
+## Winning ends in a great wave (the final): it washes the sky and every loose star left bursts for
+## dust (balance.json's wave.finale_dust_per_star), instead of the completion clearing them for nothing.
+var wave_finale: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -916,6 +943,155 @@ static func sagittarius_final() -> StarMap:
 	return map
 
 
+## Chapter 6's full Pisces, the two fish tied by a cord, east to the left as the sky shows it: the
+## western fish's Circlet at the right, the western cord running down left to the knot (Alrescha,
+## lowest), the eastern cord climbing from it to the northern fish at the upper left. Fourteen stars
+## at least 24 px apart, joined as a tree (the Circlet open where 7 Psc is left out, the northern
+## fish's triangle open between phi and tau).
+static func pisces() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces"
+	map.title = "PISCES"
+	# 0 gamma, 1 theta, 2 kappa, 3 lambda (the Circlet), 4 iota, 5 omega, 6 epsilon (the western
+	# cord), 7 Alrescha (the knot), 8 xi, 9 omicron, 10 eta (the eastern cord), 11 phi, 12 upsilon,
+	# 13 tau (the northern fish).
+	map.landmarks = [
+		Vector2i(160, 146), Vector2i(140, 128), Vector2i(150, 170), Vector2i(124, 170),
+		Vector2i(118, 144), Vector2i(94, 158), Vector2i(70, 174), Vector2i(28, 214),
+		Vector2i(52, 196), Vector2i(14, 188), Vector2i(22, 160), Vector2i(34, 134),
+		Vector2i(22, 110), Vector2i(46, 96),
+	]
+	map.segments = [
+		Vector2i(1, 4), Vector2i(4, 3), Vector2i(3, 2), Vector2i(2, 0), Vector2i(4, 5),
+		Vector2i(5, 6), Vector2i(6, 8), Vector2i(8, 7), Vector2i(7, 9), Vector2i(9, 10),
+		Vector2i(10, 11), Vector2i(11, 12), Vector2i(12, 13),
+	]
+	map.sizes = [
+		Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM,
+		Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.BIG,
+		Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG, Star.Size.SMALL,
+		Star.Size.SMALL, Star.Size.SMALL,
+	]
+	map.starting_lit = [0]
+	map.painting = PISCES_FIGURE
+	return map
+
+
+## Pisces, stage 1: the Circlet, the western fish's ring. The reflection (its intro shows a planet
+## thrown on one side burst on the other): the seam runs up and down the sky's middle, and a planet
+## bursts at the reflection of where it's thrown. From gamma (big, lit, right) the ring runs round
+## through kappa, lambda, TX and iota to theta, open at the top right where 7 Psc is left out; the
+## seam runs through it, so each side needs throws from the other. Five to light. Strings 29-35 px.
+static func pisces_circlet() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_circlet"
+	map.title = "CIRCLET"
+	map.landmarks = [Vector2i(127, 157), Vector2i(117, 191), Vector2i(83, 201), Vector2i(57, 183), Vector2i(56, 148), Vector2i(77, 128)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "circlet"
+	map.seam = Seam.VERTICAL
+	return map
+
+
+## Pisces, stage 2: the West Cord. The seam turns (its intro shows it): it runs across the sky's
+## middle, so a planet thrown high bursts low and one thrown low bursts high. From iota (lit, upper
+## right, where the Circlet ends) the cord runs down left through omega, delta, epsilon and mu to nu,
+## across the seam. Five to light. Strings are 30-36 px.
+static func pisces_west_cord() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_west_cord"
+	map.title = "WEST CORD"
+	map.landmarks = [Vector2i(168, 98), Vector2i(143, 121), Vector2i(113, 132), Vector2i(92, 160), Vector2i(63, 169), Vector2i(40, 196)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "west_cord"
+	map.seam = Seam.HORIZONTAL
+	return map
+
+
+## Pisces, stage 3: the Knot, where the two cords tie at Alrescha. The splash (its intro shows it):
+## the planet splashes where it sinks (a red's twins, each where it is), pushing the loose stars round
+## it outward, and one pushed out of the sky is lost. The seam runs up and down, as on the Circlet.
+## From nu (lit, right, where the West Cord ends) the cord runs down left through xi to Alrescha
+## (big, the knot, lowest left), then turns back up right through omicron and pi to eta, a V opening
+## right, across the seam. Five to light.
+## Strings are 32-36 px.
+static func pisces_knot() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_knot"
+	map.title = "KNOT"
+	map.landmarks = [Vector2i(108, 176), Vector2i(76, 190), Vector2i(44, 196), Vector2i(64, 166), Vector2i(86, 142), Vector2i(110, 118)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "knot"
+	map.seam = Seam.VERTICAL
+	map.splash = true
+	map.splash_intro = true
+	return map
+
+
+## Pisces, stage 4: the East Cord. Both seams at once (its intro shows it): they cross at the sky's
+## middle, so a planet bursts in the corner opposite where it's thrown, and it still splashes where
+## it sinks. From eta (lit, lower left, where the Knot ends) the cord climbs right through rho to
+## chi at the middle, then on to psi1 (right) with phi above chi, toward the northern fish; across
+## both seams. Four to light. Strings are 32-36 px.
+static func pisces_east_cord() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_east_cord"
+	map.title = "EAST CORD"
+	map.landmarks = [Vector2i(50, 206), Vector2i(62, 176), Vector2i(92, 156), Vector2i(124, 150), Vector2i(100, 124)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(2, 4)]
+	map.sizes = [Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "east_cord"
+	map.seam = Seam.CROSS
+	map.splash = true
+	return map
+
+
+## Pisces, stage 5: the North Fish. The wave (its intro shows it): from the second launch on, every
+## launch a wave rises off the water line, which runs across the sky, and wipes the top or the
+## bottom of it, in turn, the top first. The splash goes on. From phi (lit, lower right, where the East
+## Cord ends) the northern fish runs up left through upsilon and tau (big) to 68 Psc, then turns
+## back right through 65 Psc to sigma: an open loop, across the line. Five to light. Strings are
+## 31-33 px.
+static func pisces_north_fish() -> StarMap:
+	var map := StarMap.new()
+	map.id = "pisces_north_fish"
+	map.title = "NORTH FISH"
+	map.landmarks = [Vector2i(128, 186), Vector2i(100, 172), Vector2i(72, 156), Vector2i(52, 130), Vector2i(80, 116), Vector2i(110, 128)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL]
+	map.starting_lit = [0]
+	map.painting = PISCES_PART % "north_fish"
+	map.seam = Seam.HORIZONTAL
+	map.splash = true
+	map.wave = true
+	return map
+
+
+## Pisces's final, PISCES, THE TWO FISH: the whole Pisces (gamma lit: thirteen to light),
+## on one water line, up and down between the fish: from the second launch the waves wipe the left,
+## then the right, then a great wave floods the whole sky, and round again. Winning ends in a great
+## wave that washes the loose stars left into dust. The splash goes on. It arrives with its title
+## card.
+static func pisces_final() -> StarMap:
+	var map: StarMap = pisces()
+	map.id = "pisces_final"
+	map.seam = Seam.VERTICAL
+	map.splash = true
+	map.wave = true
+	map.wave_great = true
+	map.wave_finale = true
+	map.intros = false
+	map.arrival_epithet = "THE TWO FISH"
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -987,6 +1163,20 @@ static func by_id(p_id: String) -> StarMap:
 			return sagittarius_head()
 		"sagittarius_final":
 			return sagittarius_final()
+		"pisces":
+			return pisces()
+		"pisces_circlet":
+			return pisces_circlet()
+		"pisces_west_cord":
+			return pisces_west_cord()
+		"pisces_knot":
+			return pisces_knot()
+		"pisces_east_cord":
+			return pisces_east_cord()
+		"pisces_north_fish":
+			return pisces_north_fish()
+		"pisces_final":
+			return pisces_final()
 	return scorpio()
 
 

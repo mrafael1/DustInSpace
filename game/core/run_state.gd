@@ -101,6 +101,25 @@ signal cord_tied(points: Array[Vector2i])
 ## Pisces's cords: the sky was cleared (the Sun rekindled, the figure completed, a Big Bang), and
 ## every link's cord with it (only when there was one). The fish's cord is never cleared.
 signal cords_cleared
+## Pisces's reflection: the planet thrown at `thrown` went into the mirror and bursts at `burst`, its
+## reflection across the seam (pack_split/pack_burst follow there).
+signal planet_reflected(thrown: Vector2i, burst: Vector2i)
+## Pisces's reflection intro is over: its demo `stars` (where its demo planet burst) leave. No reward.
+signal reflect_intro_cleared(stars: Array[Star])
+## Pisces's splash: a planet that went into the mirror (or a split planet's twin) splashed at `at`,
+## pushing these
+## stars outward (a move `drained`: pushed out of the sky, for nothing). Sent for every splash, even
+## one that moves nothing, before the planet bursts.
+signal stars_splashed(at: Vector2i, moves: Array[StarCurrent.Move])
+## Pisces's splash or wave intro: its demo `stars` are placed by where its demo planet will be thrown.
+signal splash_intro_placed(stars: Array[Star])
+## Pisces's wave rose off the water line and rushed `way` (up, right, down or left), wiping that half
+## of the sky and taking the `lost` stars for nothing, after the splash and before the planet bursts;
+## the next wave rushes `next_way`. `great`: the great wave (the final), flooding both halves off its
+## line (`way` gives the line's axis: right off a line up and down, down off one across). Sent for
+## every wave, even one that takes nothing; on the final's win, a great wave with nothing lost goes
+## before the sky clears for its jackpot.
+signal wave_struck(way: Vector2i, lost: Array[Star], next_way: Vector2i, great: bool)
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
 ## Its light then clears the sky: sky_cleared follows the landmark's events.
 signal sun_rekindled(landmark: int)
@@ -188,7 +207,7 @@ enum Outcome { PLAYING, WON, LOST }
 enum LossReason { NO_PACKS, NO_DUST, NO_COMBINATION }
 ## Why the picks of a link being traced can't stand, for the views to explain (#91): none, or a
 ## second constellation star in one link (Scorpio.LANDMARKS_PER_COMBO).
-enum PickRefusal { NONE, SECOND_LANDMARK }
+enum PickRefusal { NONE, SECOND_LANDMARK, ACROSS_SEAM }
 
 
 ## The hunt's encounter: a safe launch spot keeps every burst point of the loaded pack this far
@@ -203,6 +222,14 @@ const SAFE_SPOT_GRID: int = 8
 const OPEN_CLEARANCE: int = 48
 ## XOR'd into the seed so star layout has its own RNG stream and can't shift pack contents.
 const LAYOUT_SEED_SALT: int = 0x5CA77E4
+
+## Pisces's reflection intro: its demo stars' layout stream (XOR'd into the run seed).
+const REFLECT_INTRO_SEED_SALT: int = 0x7EF1
+## The splash intro's demo planet is thrown this far in from the sky's edge on its side.
+const SPLASH_INTRO_IN: int = 22
+## Its demo stars, from where it's thrown: one by the edge (the splash pushes it out of the sky) and
+## two inside the splash that it pushes on (for a seam up and down; turned for one across).
+const SPLASH_INTRO_STARS: Array[Vector2i] = [Vector2i(-20, 0), Vector2i(6, -20), Vector2i(6, 20)]
 ## Leo's heat intro: the stars it shows (one of each size), and how many times at most the heat acts
 ## on them. Its layout's own RNG stream (XOR'd into the run seed).
 const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
@@ -274,6 +301,13 @@ var gravity: StarGravity
 ## Pisces's cords (chapter 6, a debug trial): null on a map without them. The map's fish cord
 ## (StarMap.fish_cord, shifted) is tied fixed from the start.
 var cords: StarCords
+## Pisces's splash (chapter 6): null on a map without it (or balance.json without a splash block).
+var splash: StarSplash
+## Pisces's wave (the North Fish, the final): null on a map without it (or balance.json without a
+## wave block).
+var wave: StarWave
+## Pisces's seam (the map's).
+var seam: StarMap.Seam = StarMap.Seam.NONE
 ## Bound sheaves: the landmarks bound to the figure (lit at the start, or still lit at a harvest).
 var _bound: Array[bool] = []
 ## Existing-star reservations for this launch, also respected by the burst's scatter.
@@ -328,6 +362,11 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 				gravity.add_twin(scorpio.map.black_hole_twin + scorpio.shift, hole.drift, hole.merge_horizon)
 			if scorpio.map.black_hole_gauge and hole.gauge > 0:
 				gravity.set_gauge(hole.gauge, hole.gauge_share)
+		if scorpio.map.splash and balance.splash_radius > 0:
+			splash = StarSplash.new(balance.splash_radius, balance.splash_push, seam_hit)
+		seam = scorpio.map.seam
+		if scorpio.map.wave and seam != StarMap.Seam.NONE and seam != StarMap.Seam.CROSS and balance.wave_first_launch > 0:
+			wave = _new_wave()
 		if scorpio.map.cords:
 			cords = StarCords.new()
 			cords.tie_fixed(_fish_cord())
@@ -372,10 +411,38 @@ func in_reach(a: Vector2i, b: Vector2i) -> bool:
 	return reach <= 0 or (b - a).length_squared() <= reach * reach
 
 
-## Whether a traced link can step from `a` to `b`: in reach, and on a map with cords, crossing none
-## (touching one is fine).
+## Whether a traced link can step from `a` to `b`: in reach, on a map with cords crossing none
+## (touching one is fine), and on Pisces's mirror not across the seam.
 func can_step(a: Vector2i, b: Vector2i) -> bool:
-	return in_reach(a, b) and (cords == null or not cords.crosses(a, b))
+	return in_reach(a, b) and (cords == null or not cords.crosses(a, b)) and not crosses_seam(a, b)
+
+
+## Whether this run's sky has Pisces's seam.
+func has_seam() -> bool:
+	return scorpio != null and seam != StarMap.Seam.NONE
+
+
+## Pisces: whether a step from `a` to `b` crosses the seam, from one side strictly to the other (a
+## star on the seam itself is on both sides).
+func crosses_seam(a: Vector2i, b: Vector2i) -> bool:
+	return seam_crossing(a, b) != StarCords.NO_CROSSING
+
+
+## Pisces: where a step from `a` to `b` first crosses the seam (StarCords.NO_CROSSING: it doesn't).
+func seam_crossing(a: Vector2i, b: Vector2i) -> Vector2i:
+	if not has_seam():
+		return StarCords.NO_CROSSING
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	var best: Vector2i = StarCords.NO_CROSSING
+	if seam != StarMap.Seam.HORIZONTAL and signi(a.x - middle.x) * signi(b.x - middle.x) < 0:
+		var t: float = float(middle.x - a.x) / float(b.x - a.x)
+		best = Vector2i(middle.x, roundi(lerpf(a.y, b.y, t)))
+	if seam != StarMap.Seam.VERTICAL and signi(a.y - middle.y) * signi(b.y - middle.y) < 0:
+		var t: float = float(middle.y - a.y) / float(b.y - a.y)
+		var point := Vector2i(roundi(lerpf(a.x, b.x, t)), middle.y)
+		if best == StarCords.NO_CROSSING or (point - a).length_squared() < (best - a).length_squared():
+			best = point
+	return best
 
 
 ## Whether every step of a link, in pick order, can be traced (can_step). Unknown ids are skipped.
@@ -686,13 +753,17 @@ func launch(target: Vector2i) -> bool:
 	if is_over() or loaded_pack == "" or owned_packs.get(loaded_pack, 0) <= 0:
 		return false
 	var kind: String = loaded_pack
-	var burst: Vector2i = StarScatter.clamp_to_sky(target, sky_rect)
+	var thrown: Vector2i = StarScatter.clamp_to_sky(target, sky_rect)
+	# Pisces's reflection: the planet bursts across the seam from where it's thrown.
+	var burst: Vector2i = burst_centre(target)
 	if tutorial != null and not tutorial.allows_launch(burst, _tutorial_landmark_at()):
 		return false
 	_current_reserved = current_preview()
 	_gravity_reserved = gravity_preview()
 	owned_packs[kind] -= 1
-	pack_launched.emit(kind, burst)
+	pack_launched.emit(kind, thrown)
+	if thrown != burst:
+		planet_reflected.emit(thrown, burst)
 	if encounter != null and encounter.launched():
 		encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null:
@@ -716,6 +787,14 @@ func launch(target: Vector2i) -> bool:
 		points = StarScatter.split_points(burst, pack.burst_spread, pack.bursts, sky_rect)
 		# A Big Bang splits too, so it opens like any red pack and keeps its surprise.
 		pack_split.emit(kind, burst, points)
+	# Pisces's splash, before any star lands: a planet splashes where it sinks; a split one, where each
+	# twin is, once it has split.
+	if splash != null:
+		for point: Vector2i in splash_points(kind, target):
+			_splash(point)
+	# Pisces's wave: from its first launch on, it wipes a side, once the splash is done.
+	if wave != null:
+		_strike_wave(wave.strikes_next(), true)
 	if result.big_bang:
 		_big_bang(burst)
 	elif pack.bursts > 1:
@@ -955,6 +1034,8 @@ func link(star_ids: Array[int]) -> String:
 			_clear_sky(balance.scorpio_sun_dust_per_star)
 		elif scorpio.is_complete() and scorpio.map.big_bang_finale and gravity != null:
 			_big_bang(gravity.center)
+		elif scorpio.is_complete() and scorpio.map.wave_finale and wave != null:
+			_great_wave_finale()
 		elif scorpio.is_complete():
 			_clear_sky(0)
 		if scorpio.is_complete():
@@ -1152,7 +1233,7 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 	for i: int in sizes.size():
 		var star: Star = add_star(sizes[i] as Star.Size, positions[i])
 		# Core positions change immediately. Record the burst's pre-current positions for views.
-		born.append(Star.new(star.id, star.size, star.position) if current != null or gravity != null else star)
+		born.append(Star.new(star.id, star.size, star.position) if current != null or gravity != null or splash != null else star)
 	pack_burst.emit(kind, burst, born)
 
 
@@ -1483,6 +1564,321 @@ func _tie_cord(linked: Array[Star]) -> void:
 		points.append(star.position)
 	cords.tie(points)
 	cord_tied.emit(points)
+
+
+## Where a planet thrown at `aim` bursts: the aim kept in the sky, or (Pisces's seam) its reflection
+## across the seam, kept in the sky. Pure.
+func burst_centre(aim: Vector2i) -> Vector2i:
+	var thrown: Vector2i = StarScatter.clamp_to_sky(aim, sky_rect)
+	if scorpio == null or seam == StarMap.Seam.NONE:
+		return thrown
+	return StarScatter.clamp_to_sky(reflect(thrown), sky_rect)
+
+
+## Pisces's seam: where `point` falls across it (the sky's middle, where the map is drawn).
+func reflect(point: Vector2i) -> Vector2i:
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	match seam:
+		StarMap.Seam.VERTICAL:
+			return Vector2i(2 * middle.x - point.x, point.y)
+		StarMap.Seam.HORIZONTAL:
+			return Vector2i(point.x, 2 * middle.y - point.y)
+		StarMap.Seam.CROSS:
+			return 2 * middle - point
+	return point
+
+
+## Pisces's reflection intro, as a stage with a seam and intros opens: a demo planet is thrown into
+## the open sky's reflection and bursts across the seam, in the open sky; its stars stay a beat and
+## go. No pack used, no reward, no RNG drawn (its layout has its own stream).
+func play_reflect_intro() -> void:
+	if scorpio == null or seam == StarMap.Seam.NONE or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	if scorpio.map.splash_intro and splash != null:
+		_splash_intro()
+		return
+	if wave != null:
+		_wave_intro()
+		return
+	var burst: Vector2i = open_launch_spot(sky_rect.position.y)
+	var thrown: Vector2i = StarScatter.clamp_to_sky(reflect(burst), sky_rect)
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ REFLECT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, [] as Array[Vector2i], layout, scorpio.landmark_positions())
+	var born: Array[Star] = []
+	for i: int in spots.size():
+		born.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
+	hunt_intro_launched.emit(kind, thrown)
+	planet_reflected.emit(thrown, burst)
+	hunt_intro_burst.emit(burst, born.duplicate())
+	stars.clear()
+	reflect_intro_cleared.emit(born)
+
+
+## Pisces's splash intro (play_reflect_intro on the stage that brings the splash): demo stars wait by
+## the sky's edge; a demo planet is thrown among them and splashes, pushing one out of the sky and
+## the others on; then it bursts across the seam, and every demo star goes after a beat. No pack, no
+## reward, no RNG drawn from the run (its layout is fixed, placed clear of the figure).
+func _splash_intro() -> void:
+	var thrown: Vector2i = splash_intro_spot()
+	var demo: Array[Star] = []
+	for offset: Vector2i in _splash_intro_offsets():
+		demo.append(add_star(HEAT_INTRO_SIZES[demo.size()], thrown + offset))
+	# Where they stand now: the splash moves the stars themselves before the views show them.
+	var shown: Array[Star] = []
+	for star: Star in demo:
+		shown.append(Star.new(star.id, star.size, star.position))
+	splash_intro_placed.emit(shown)
+	var burst: Vector2i = StarScatter.clamp_to_sky(reflect(thrown), sky_rect)
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	hunt_intro_launched.emit(kind, thrown)
+	planet_reflected.emit(thrown, burst)
+	_splash(thrown)
+	var layout := RandomNumberGenerator.new()
+	layout.seed = run_seed ^ REFLECT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	var occupied: Array[Vector2i] = []
+	for star: Star in stars:
+		occupied.append(star.position)
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, occupied, layout, scorpio.landmark_positions())
+	var born: Array[Star] = []
+	for i: int in spots.size():
+		born.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
+	hunt_intro_burst.emit(burst, born.duplicate())
+	var left: Array[Star] = stars.duplicate()
+	stars.clear()
+	reflect_intro_cleared.emit(left)
+
+
+## Pisces's water line, for the splash: where a push from `from` to `to` first meets it, crossing
+## it or ending on it (StarCords.NO_CROSSING: it doesn't).
+func seam_hit(from: Vector2i, to: Vector2i) -> Vector2i:
+	if not has_seam():
+		return StarCords.NO_CROSSING
+	var crossing: Vector2i = seam_crossing(from, to)
+	if crossing != StarCords.NO_CROSSING:
+		return crossing
+	return to if on_seam(to) else StarCords.NO_CROSSING
+
+
+## Pisces: whether `point` lies on the water line (either line, with both seams).
+func on_seam(point: Vector2i) -> bool:
+	if not has_seam():
+		return false
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	return (seam != StarMap.Seam.HORIZONTAL and point.x == middle.x) or (seam != StarMap.Seam.VERTICAL and point.y == middle.y)
+
+
+## Pure: where the splash intro's demo planet is thrown: SPLASH_INTRO_IN px in from the sky's edge
+## on the near side of the seam (left of one up and down, above one across), along it where its demo
+## stars keep furthest from the figure, of the spots where the splash pushes only the edge one out.
+func splash_intro_spot() -> Vector2i:
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var vertical: bool = seam != StarMap.Seam.HORIZONTAL
+	var best: Vector2i = inner.get_center()
+	var best_clearance: int = -1
+	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
+	var span: int = inner.size.y if vertical else inner.size.x
+	for t: int in range(SPLASH_INTRO_IN, span - SPLASH_INTRO_IN, 2):
+		var thrown := Vector2i(inner.position.x + SPLASH_INTRO_IN, inner.position.y + t) if vertical else Vector2i(inner.position.x + t, inner.position.y + SPLASH_INTRO_IN)
+		var points: Array[Vector2i] = [thrown]
+		var demo: Array[Star] = []
+		for offset: Vector2i in _splash_intro_offsets():
+			points.append(thrown + offset)
+			demo.append(Star.new(-1 - demo.size(), Star.Size.SMALL, thrown + offset))
+		# Only where the splash pushes exactly the edge star out (the others stay in the sky).
+		var lost: int = 0
+		var pushed: Dictionary[int, Vector2i] = splash.preview(thrown, demo, sky_rect, landmarks)
+		for star: Star in demo:
+			if pushed.has(star.id) and splash.loses(star.position, pushed[star.id], sky_rect):
+				lost += 1
+		if lost != 1 or pushed.size() != demo.size():
+			continue
+		var clearance: int = _clearance(points, landmarks)
+		if clearance > best_clearance:
+			best_clearance = clearance
+			best = thrown
+	return best
+
+
+func _splash_intro_offsets() -> Array[Vector2i]:
+	if seam != StarMap.Seam.HORIZONTAL:
+		return SPLASH_INTRO_STARS
+	var turned: Array[Vector2i] = []
+	for offset: Vector2i in SPLASH_INTRO_STARS:
+		turned.append(Vector2i(offset.y, offset.x))
+	return turned
+
+
+## Pure: where a `kind` planet thrown at `aim` splashes: where it sinks (the aim, kept in the sky),
+## or for a split planet each point its twins burst at (in order), never where it was thrown.
+func splash_points(kind: String, aim: Vector2i) -> Array[Vector2i]:
+	var pack: Balance.PackDef = balance.packs.get(kind)
+	if pack != null and pack.bursts > 1:
+		return StarScatter.split_points(burst_centre(aim), pack.burst_spread, pack.bursts, sky_rect)
+	return [StarScatter.clamp_to_sky(aim, sky_rect)]
+
+
+## Pure: where each loose star the splashes of the loaded planet thrown at `aim` move it (stars they
+## leave alone left out; one pushed out of the sky: past the edge). A split planet's twins splash in
+## turn, each on the stars as the one before left them (all before any star lands). Empty without a
+## splash, or once the run is over.
+func splash_preview(aim: Vector2i) -> Dictionary[int, Vector2i]:
+	return _splash_chain(aim)[0]
+
+
+## Pure: the loose stars the loaded planet thrown at `aim` splashes out: out of the sky, or onto or
+## across the water line.
+func launch_splashes(aim: Vector2i) -> Array[int]:
+	return _splash_chain(aim)[1]
+
+
+## The loaded planet's splashes thrown at `aim`, in turn: [each moved star's destination, the ids lost].
+func _splash_chain(aim: Vector2i) -> Array:
+	var result: Dictionary[int, Vector2i] = {}
+	var lost: Array[int] = []
+	var standing: Array[Star] = []
+	for star: Star in stars:
+		standing.append(Star.new(star.id, star.size, star.position))
+	if splash == null or is_over():
+		return [result, lost, standing]
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	for point: Vector2i in splash_points(kind, aim):
+		var moved: Dictionary[int, Vector2i] = splash.preview(point, standing, sky_rect, scorpio.landmark_positions())
+		var left: Array[Star] = []
+		for star: Star in standing:
+			var gone: bool = false
+			if moved.has(star.id):
+				result[star.id] = moved[star.id]
+				gone = splash.loses(star.position, moved[star.id], sky_rect)
+				star.position = moved[star.id]
+			if gone:
+				lost.append(star.id)
+			else:
+				left.append(star)
+		standing = left
+	return [result, lost, standing]
+
+
+## Pure: the loose stars the wave takes for a planet thrown at `aim`, once its splashes have played.
+func launch_wipes(aim: Vector2i) -> Array[int]:
+	if wave == null or is_over() or not wave.strikes_next():
+		return []
+	var standing: Array[Star] = []
+	standing.assign(_splash_chain(aim)[2])
+	return wave.sweeps(standing)
+
+
+## Pure: the loose stars in the half the next launch's wave wipes, where they stand now (none when
+## no wave comes with it).
+func wave_risk() -> Array[int]:
+	if wave == null or is_over() or not wave.strikes_next():
+		return []
+	return wave.sweeps(stars)
+
+
+## The wave after a launch: when it `strikes`, it wipes the next half and takes every loose star
+## there. `counted`: a real launch (an intro's isn't, and its wave doesn't turn the ways).
+func _strike_wave(strikes: bool, counted: bool) -> void:
+	var way: Vector2i = wave.next_way()
+	var great: bool = wave.great_next()
+	var lost: Array[Star] = []
+	if strikes:
+		for id: int in wave.sweeps(stars):
+			lost.append(find_star(id))
+		for star: Star in lost:
+			stars.erase(star)
+		_orion_forget(lost)
+	if counted:
+		wave.count_launch(strikes)
+	if not strikes:
+		return
+	wave_struck.emit(way, lost, wave.next_way(), great)
+
+
+## Pisces's final won: a great wave washes the sky, and every loose star left bursts for
+## wave.finale_dust_per_star (the jackpot; the sky clears as a rekindle's does).
+func _great_wave_finale() -> void:
+	wave_struck.emit(wave.next_way(), [] as Array[Star], wave.next_way(), true)
+	_clear_sky(balance.wave_finale_dust_per_star)
+
+
+## A wave on the water line through the sky's middle (with great waves, on the final).
+func _new_wave() -> StarWave:
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	return StarWave.new(middle, seam == StarMap.Seam.VERTICAL, balance.wave_first_launch, balance.wave_great_after if scorpio.map.wave_great else 0)
+
+
+## Pisces's wave intro (play_reflect_intro on the North Fish): demo stars wait either side of the
+## water line, two on the side the first wave wipes; a demo planet is thrown, the wave wipes that
+## side and its two, then the planet bursts across the seam; what's left goes after a beat. No pack,
+## no reward, no RNG drawn from the run, and it doesn't count toward the wave; no splash shown (the
+## Knot showed it).
+func _wave_intro() -> void:
+	var layout: Array[Vector2i] = wave_intro_layout()
+	var demo: Array[Star] = []
+	for i: int in 3:
+		demo.append(add_star(HEAT_INTRO_SIZES[i], layout[i + 1]))
+	var shown: Array[Star] = []
+	for star: Star in demo:
+		shown.append(Star.new(star.id, star.size, star.position))
+	splash_intro_placed.emit(shown)
+	var thrown: Vector2i = layout[0]
+	var burst: Vector2i = StarScatter.clamp_to_sky(reflect(thrown), sky_rect)
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	hunt_intro_launched.emit(kind, thrown)
+	planet_reflected.emit(thrown, burst)
+	_strike_wave(true, false)
+	var spread := RandomNumberGenerator.new()
+	spread.seed = run_seed ^ REFLECT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	var occupied: Array[Vector2i] = []
+	for star: Star in stars:
+		occupied.append(star.position)
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, occupied, spread, scorpio.landmark_positions())
+	var born: Array[Star] = []
+	for i: int in spots.size():
+		born.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
+	hunt_intro_burst.emit(burst, born.duplicate())
+	var left: Array[Star] = stars.duplicate()
+	stars.clear()
+	reflect_intro_cleared.emit(left)
+
+
+## Pure: the wave intro's layout: [where its demo planet is thrown (on the side the wave wipes, so it
+## bursts on the other), two stars on that side, one on the other], along the line where the demo
+## stars keep furthest from the figure.
+func wave_intro_layout() -> Array[Vector2i]:
+	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	var across: Vector2i = wave.next_way()
+	var along: Vector2i = Vector2i(absi(across.y), absi(across.x))
+	var best: Array[Vector2i] = []
+	var best_clearance: int = -1
+	for at: int in range(-56, 57, 8):
+		var points: Array[Vector2i] = [middle + along * (at - 14) + across * 22, middle + along * (at + 14) + across * 34, middle + along * at - across * 26]
+		var clearance: int = _clearance(points, scorpio.landmark_positions())
+		if clearance > best_clearance:
+			best_clearance = clearance
+			best = [middle - along * signi(at if at != 0 else 1) * 50 + across * 30] as Array[Vector2i]
+			best.append_array(points)
+	return best
+
+
+## The splash where a planet went into the mirror at `at`: the stars round it pushed outward, the
+## ones pushed out of the sky gone.
+func _splash(at: Vector2i) -> void:
+	var destinations: Dictionary[int, Vector2i] = splash.preview(at, stars, sky_rect, scorpio.landmark_positions())
+	var moved: Array[StarCurrent.Move] = splash.moves(stars, destinations, sky_rect)
+	var lost: Array[Star] = []
+	for move: StarCurrent.Move in moved:
+		var star: Star = find_star(move.star_id)
+		if move.drained:
+			lost.append(star)
+		else:
+			star.position = move.to
+	for star: Star in lost:
+		stars.erase(star)
+	_orion_forget(lost)
+	stars_splashed.emit(at, moved)
 
 
 ## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map).

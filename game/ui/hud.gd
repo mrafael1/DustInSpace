@@ -136,6 +136,25 @@ const TWINS_MESSAGE: String = "WHERE THE HOLES MEET\nA BIG BANG CLEARS ALL"
 const GAUGE_MESSAGE: String = "THE HOLE DRINKS ALL LIGHT\nFULL IT BANGS THE SKY"
 ## Pisces's cords (chapter 6 trial): every link leaves its string, and no link can cross one.
 const CORD_MESSAGE: String = "EVERY LINK LEAVES A CORD\nNO LINK CAN CROSS ONE"
+## Pisces's reflection: a planet bursts across the seam from where it's thrown, up and down or across.
+const SEAM_VERTICAL_MESSAGE: String = "AIM LEFT TO PLAY RIGHT\nAIM RIGHT TO PLAY LEFT"
+const SEAM_HORIZONTAL_MESSAGE: String = "AIM HIGH TO PLAY LOW\nAIM LOW TO PLAY HIGH"
+## Both seams: the stars land in the corner opposite the aim.
+const SEAM_CROSS_MESSAGE: String = "AIM AT ONE CORNER\nTO PLAY THE OPPOSITE"
+## Pisces's splash, on the stage that brings it.
+const SPLASH_MESSAGE: String = "THE SPLASH PUSHES STARS\nOUT OF THE SKY"
+## Pisces's wave, on the North Fish (the launch it starts with, from balance.json).
+const WAVE_MESSAGE: String = "FROM THROW %d A WAVE\nWIPES THE MARKED SIDE"
+## The first time a run's wave comes with the next launch (the side it wipes).
+const WAVE_NEXT_MESSAGE: String = "A WAVE WIPES THE %s\nAT THE NEXT THROW"
+## The final: the great wave comes with the next launch.
+const GREAT_WAVE_MESSAGE: String = "A GREAT WAVE FLOODS\nTHE SKY NEXT THROW"
+## The final's win: the great wave's jackpot card, over the dust it paid.
+const GREAT_WAVE_TITLE: String = "GREAT WAVE"
+## A run's first star the wave took.
+const WAVE_LOSS_MESSAGE: String = "THE WAVE TOOK A STAR\nLINK THEM BEFORE IT HITS"
+## A run's first star lost to the splash.
+const SPLASH_LOSS_MESSAGE: String = "THE SPLASH TOOK A STAR\nTHROW AWAY FROM STARS"
 const RULE_MESSAGE_TIME: float = 3.5
 ## A teaching line (a stage's rule, Virgo's lone star, Orion's first mark) is held this long (#152):
 ## no launch, other message or clear cuts it before it can be read; only another teaching line can.
@@ -146,6 +165,7 @@ const ARRIVAL_TIME: float = 2.2
 ## It stays RULE_TIME, and the same reason again within RULE_QUIET says nothing new.
 const REFUSAL_MESSAGES: Dictionary = {
 	RunState.PickRefusal.SECOND_LANDMARK: "ONE CONSTELLATION STAR\nPER LINK",
+	RunState.PickRefusal.ACROSS_SEAM: "NO LINK CAN CROSS\nTHE WATER LINE",
 }
 const RULE_TIME: float = 2.5
 const RULE_QUIET: float = 3.0
@@ -384,7 +404,7 @@ func advance(delta: float) -> void:
 
 ## The run's current says its rule, once a run (Main calls it as the player first aims).
 func tell_current_rule() -> void:
-	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null and _run.cords == null):
+	if _current_told or _run == null or (_run.current == null and _run.heat == null and _run.harvest == null and _run.gravity == null and _run.cords == null and seam_rule(_run) == ""):
 		return
 	_current_told = true
 	# A final's title card is up, or about to be: the rule waits for it to go, so the two don't
@@ -413,7 +433,7 @@ func _stage_rule() -> String:
 		return hole_rule(_run.gravity)
 	if _run.cords != null:
 		return CORD_MESSAGE
-	return ""
+	return seam_rule(_run)
 
 
 ## The telescope aims a `kind` planet: on the launch that brings the harvest, a split planet's first
@@ -462,6 +482,64 @@ func _tell_loss(changes: Array) -> void:
 	show_message(said, RULE_MESSAGE_TIME, true)
 
 
+## A run's first star the splash pushed out (`said`: its line) says so, and what to do, once
+## a run (never for an intro's demo stars, nor over the stage's rule while it's still on show).
+func _tell_splash_loss(moves: Array, said: String = SPLASH_LOSS_MESSAGE) -> void:
+	if not _launch_shown or (message() != "" and message() == _stage_rule()) or _losses_told.has(said):
+		return
+	# Another loss line is still being read (the wave's, the splash's): this one waits for a later
+	# loss, untold.
+	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, WAVE_LOSS_MESSAGE]:
+		return
+	for move: StarCurrent.Move in moves:
+		if move.drained:
+			_losses_told[said] = true
+			show_message(said, RULE_MESSAGE_TIME, true)
+			return
+
+
+## A run's first star the wave took says so, and what to do, once a run (never for an intro's demo
+## stars, nor over the stage's rule while it's still on show, nor over the splash's line).
+func _tell_wave_loss(lost: Array) -> void:
+	if lost.is_empty() or not _launch_shown or (message() != "" and message() == _stage_rule()) or _losses_told.has(WAVE_LOSS_MESSAGE):
+		return
+	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE]:
+		return
+	_losses_told[WAVE_LOSS_MESSAGE] = true
+	show_message(WAVE_LOSS_MESSAGE, RULE_MESSAGE_TIME, true)
+
+
+## The wave comes with the next launch: said the first time a run, with its side, over anything but
+## a loss line still being read.
+func _tell_wave() -> void:
+	if _run == null or _run.wave == null or _run.is_over() or not _run.wave.strikes_next():
+		return
+	if _message_held > 0.0 and message() in [SPLASH_LOSS_MESSAGE, WAVE_LOSS_MESSAGE]:
+		return
+	# The final's great wave is said the first time it's next, over the plain wave's line.
+	if _run.wave.great_next():
+		if not _losses_told.has(GREAT_WAVE_MESSAGE):
+			_losses_told[GREAT_WAVE_MESSAGE] = true
+			show_message(GREAT_WAVE_MESSAGE, RULE_MESSAGE_TIME, true)
+		return
+	if _losses_told.has(WAVE_NEXT_MESSAGE):
+		return
+	_losses_told[WAVE_NEXT_MESSAGE] = true
+	show_message(WAVE_NEXT_MESSAGE % wave_side_name(_run.wave), RULE_MESSAGE_TIME, true)
+
+
+## The side the next wave wipes, said: TOP or BOTTOM (LEFT or RIGHT on a line up and down).
+static func wave_side_name(wave: StarWave) -> String:
+	match wave.next_way():
+		Vector2i.UP:
+			return "TOP"
+		Vector2i.DOWN:
+			return "BOTTOM"
+		Vector2i.LEFT:
+			return "LEFT"
+	return "RIGHT"
+
+
 ## What Virgo's message says: the scythe's clock, the bound sheaves where it binds, tied at once,
 ## or the quickening clock.
 static func harvest_rule(harvest: StarHarvest) -> String:
@@ -470,6 +548,24 @@ static func harvest_rule(harvest: StarHarvest) -> String:
 	if harvest.binds and harvest.ties:
 		return TIE_MESSAGE
 	return BIND_MESSAGE if harvest.binds else SCYTHE_MESSAGE % harvest.every
+
+
+## What Pisces's seam says: which way to aim for where the stars land ("" without a seam).
+static func seam_rule(run: RunState) -> String:
+	if run.scorpio == null:
+		return ""
+	if run.scorpio.map.splash_intro and run.splash != null:
+		return SPLASH_MESSAGE
+	if run.wave != null:
+		return WAVE_MESSAGE % run.wave.first_launch
+	match run.seam:
+		StarMap.Seam.CROSS:
+			return SEAM_CROSS_MESSAGE
+		StarMap.Seam.VERTICAL:
+			return SEAM_VERTICAL_MESSAGE
+		StarMap.Seam.HORIZONTAL:
+			return SEAM_HORIZONTAL_MESSAGE
+	return ""
 
 
 ## What the black hole's message says: it pulls stars in, or (hungry) it grows as it swallows.
@@ -784,6 +880,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"sky_cleared":
 			# Scorpio: the dust of the stars the Sun bursts streams in as they burst.
 			_dust_in_flight += event.args[1]
+			# Pisces's final won: the great wave's jackpot card.
+			if _run != null and _run.outcome == RunState.Outcome.WON and _run.scorpio != null and _run.scorpio.map.wave_finale:
+				_banner.play_arrival(GREAT_WAVE_TITLE, "+%d" % event.args[1], ARRIVAL_TIME, Palette.M6, Palette.M4)
 		&"combo_collected":
 			_dust_in_flight += event.args[2]
 			# The tutorial's link is made: its stars are gone, so the hand stops pointing at them.
@@ -825,7 +924,7 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 		&"landmark_lit":
 			_tell_lone(event.args[0])
 			return
-		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed":
+		&"harvest_intro_lit", &"harvest_intro_placed", &"current_intro_placed", &"heat_intro_linked", &"hole_intro_placed", &"holes_forecast", &"gauge_intro_placed", &"planet_reflected":
 			# Virgo's, the current's and the breath's intros say their rule as the effect shows.
 			tell_current_rule()
 			return
@@ -833,6 +932,22 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			# Normally said when the player first aimed; a launch made without aiming says it here.
 			tell_current_rule()
 			_tell_loss(event.args[0])
+			return
+		&"stars_splashed":
+			# Pisces's splash: its first star lost says so (an intro's demo stars aside).
+			tell_current_rule()
+			_tell_splash_loss(event.args[1])
+			return
+		&"wave_struck":
+			# Pisces's wave: its first star taken says so (an intro's demo stars aside).
+			tell_current_rule()
+			_tell_wave_loss(event.args[1])
+			return
+		&"pack_burst":
+			# Pisces's wave: the first time it comes with the next launch, which side it wipes (and the
+			# final's great wave, when it's next).
+			if _launch_shown:
+				_tell_wave()
 			return
 		&"holes_drifted":
 			# Sagittarius's final: once the twins have merged, the hole they made drinks the light.
