@@ -22,6 +22,9 @@ extends Node2D
 ## one can't join (its step shakes ember, and the cord it crosses glows ember with it; the link
 ## stays), and while tracing, the line to the finger breaks where it would cross a cord within the
 ## reach, and that cord glows ember.
+## Aries's ram (chapter 7 trial): the ChargeLayer, over the stars, shows its head, pips and lane;
+## when it charges, the stars it butts drift right after its rear, and one it butts out of the sky
+## cuts out at the far edge.
 ## Orion (#64): on stages he hunts, the OrionLayer shows his figure, the reticle on the star he
 ## marked, his bow readying while a traced link would leave it behind, and his arrow; the shot star
 ## bursts as the arrow lands, once that link resolves. On the Heart (#71) it shows his hunting
@@ -127,6 +130,7 @@ var _arrival_sweep: bool = false
 @onready var _gravity: GravityView = $GravityLayer
 @onready var _cords: CordView = $CordLayer
 @onready var _seam: SeamView = $SeamLayer
+@onready var _ram: ChargeView = $ChargeLayer
 @onready var _heat: HeatView = $HeatLayer
 @onready var _harvest: HarvestView = $HarvestLayer
 
@@ -260,7 +264,8 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 	# The gap hints follow the stars in the sky.
 	_constellation.queue_redraw()
 	var _played: bool = _play_core_event(event) or _play_orion_event(event) or _play_heat_event(event) \
-		or _play_current_event(event) or _play_harvest_event(event) or _play_cord_event(event)
+		or _play_current_event(event) or _play_harvest_event(event) or _play_cord_event(event) \
+		or _play_ram_event(event)
 	# A marked star that left the sky (a combo, a clear, a Big Bang) takes its reticle with it.
 	if _orion.marked() != null and not _views.values().has(_orion.marked()):
 		_orion.clear_mark()
@@ -452,6 +457,16 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 			var tween: Tween = create_tween()
 			tween.tween_interval(INTRO_HOLD * 1.5)
 			tween.tween_callback(_clear_intro.bind(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD * 0.5))
+		_:
+			return false
+	return true
+
+
+## Aries's events: the ram's charge. True if `event` was one.
+func _play_ram_event(event: EventSequencer.RunEvent) -> bool:
+	match event.type:
+		&"ram_charged":
+			_charge(event.args[0], event.args[1], event.args[2])
 		_:
 			return false
 	return true
@@ -919,6 +934,32 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 			star_drained.emit(Vector2i(view.position))
 			view.queue_free()
 			_halo_layer.queue_redraw.call_deferred())
+
+
+## Aries's ram charges its lane on `row`: it rears, then every star it butts drifts right as it
+## charges; one stopped against a landmark (`fleeced`) flashes and keeps its gold ring; one butted
+## out of the sky drifts to the far edge and cuts out there in sparks, for nothing.
+func _charge(row: int, moves: Array[StarCurrent.Move], fleeced: Array[int]) -> void:
+	var sizes: Dictionary[int, int] = {}
+	for id: int in _views:
+		sizes[id] = _views[id].size
+	_ram.charge(row, moves, fleeced, sizes)
+	_sequencer.hold(ChargeView.charge_hold())
+	for move: StarCurrent.Move in moves:
+		var view: StarView = _views.get(move.star_id)
+		if view == null:
+			continue
+		var tween: Tween = create_tween()
+		_waiting.append(tween)
+		tween.tween_interval(ChargeView.REAR_TIME)
+		if not move.drained:
+			tween.tween_callback(view.drift_to.bind(move.to))
+			continue
+		_views.erase(move.star_id)
+		view.drained.connect(func(v: StarView) -> void:
+			_ram.flash_loss(Vector2i(v.position))
+			star_drained.emit(Vector2i(v.position)))
+		tween.tween_callback(view.drain_to.bind(_ram.exit_point(move.to)))
 
 
 ## The black hole (chapter 5 trial): every fallen star drifts; a swallowed one drifts to the horizon
