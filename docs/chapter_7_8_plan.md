@@ -176,6 +176,67 @@ Work one experiment at a time: Aries first, and Taurus only after Aries reaches 
 | D | Keep, revise or drop. | No dominant trivial answer, no clutter, real losses. If 8A's skill gap is thin, revise the size odds; if 7A reads as the wave, revise toward 7B. |
 | After D | Stages 1-5, intros, the final with title card and arrival, then paintings (clean-line semi-hollow, research before drawing). The payout spikes (GOLDEN FLEECE, MATADOR, supernova) each get **their own approval, branch and balance report**. | As for every earlier chapter. |
 
+### Step A results (2026-10-16)
+
+**7A Aries: the mock-up** (`docs/concept/chapter7/`, built from a real game frame of the East Cord with chi just lit and psi1 next in its row; every pixel is from the palette, checked by script). The busiest aim state shows:
+- the ram's head at the left edge (variant A: a pale frontal head with curled horns; C is a side view);
+- two hoof pips counting down (a lit pip is filled M6, a spent one is an M4 outline);
+- the lane as a sparse track of cloven hoof prints (N7) instead of full-width rails. Full rails in M4 read as Pisces's water line in review, so they were dropped;
+- ember rings on the stars it would knock off (psi1's waiting pair);
+- a solid gold ring only on a star already fleeced;
+- for a star the charge will stop, gold corner dots where it will stop.
+
+That is 4 cue families, or 5 if the stop preview counts on its own (the gate allows 4); the fallback is no stop preview. A four-frame strip shows the aim, the rear (pips spent, prints stamping), the charge (one star stops gold against psi1, the pair leaves the far edge in sparks) and after. **Waiting on the user:** does it read in one look, which ram (A, A2 or C), and whether it feels distinct from the wave.
+
+**8A Taurus: is there a choice?** `tools/rage/combo_share.gd` (300 paired seeds on 30 built stages, each with its own mechanics on; Leo skipped since its heat changes sizes) records, at every decision with a valid link, whether a triple, a sequence or both are on offer. **Gate passed:** both are on offer at **49.8%** of decisions (link-first), with every stage between 34.7% and 66.7%; 35-73% of turns have at least one such decision. Preferring triples barely moves it (50.6%). A second agent re-ran it and found the numbers reproducible. Caveats:
+- "Both on offer" counts kinds, not exclusive choices: a triple and a sequence on separate stars can both be taken. An exclusive count is left for step C.
+- Counting only links through a landmark, the share is lower (17.7-62%): a landmark's fixed size often decides the combo, so **landmark sizes are a lever as strong as the pack odds**.
+- Link-first takes sequences for 56-79% of its links, so "sequences anger" does push the naive player toward rage, as planned.
+- **A balance finding beyond Taurus:** preferring triples already wins much more often on the hard stages (Virgo final 98.7% against 50.3%, Sagittarius final 69.7% against 24.0%, Aquarius final 91.7% against 71.7%), because medium and big triples pay more dust than a sequence. Step C must check the tamer isn't a trivial dominant answer; it may also mean the bots' "best link" scoring undervalues triples on today's stages.
+
+<details><summary>Per-stage table</summary>
+
+Link-first policy (main measurement). Last column: the triple-first policy as decisions / both % / triple-only % / seq-only % / links per decision / win %.
+
+| map | mechanics on | decisions | both % | triple-only % | sequence-only % | valid links/decision | landmark-link both % | turns with both % | seq share of links taken | win % | triple-first: dec / both / tri-only / seq-only / links / win |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| stinger | none | 1342 | 63.5 | 26.0 | 10.5 | 12.33 | 59.8 | 67.1 | 73.8 | 100.0 | 1640 / 59.8 / 20.1 / 20.1 / 10.86 / 100.0 |
+| tail | orion | 1405 | 52.4 | 34.1 | 13.5 | 8.81 | 42.3 | 59.3 | 65.3 | 100.0 | 1773 / 53.4 / 27.4 / 19.3 / 9.52 / 100.0 |
+| body | volley | 2049 | 62.3 | 27.6 | 10.1 | 12.99 | 53.3 | 66.1 | 72.0 | 75.7 | 2607 / 70.3 / 15.8 / 13.9 / 14.33 / 97.7 |
+| heart | hunt | 1425 | 45.6 | 33.9 | 20.5 | 6.09 | 42.8 | 49.8 | 65.8 | 72.3 | 1683 / 46.2 / 28.3 / 25.5 / 6.25 / 77.7 |
+| claws | orion, hunt | 1351 | 44.3 | 32.6 | 23.0 | 5.98 | 40.6 | 47.4 | 67.1 | 66.0 | 1499 / 46.9 / 25.8 / 27.4 / 6.08 / 60.3 |
+| final | orion, volley, hunt | 1137 | 34.7 | 30.2 | 35.2 | 4.82 | 32.4 | 35.3 | 69.7 | 3.3 | 1272 / 37.6 / 25.9 / 36.6 / 5.37 / 5.7 |
+| aquarius_hand | current | 1256 | 46.9 | 41.9 | 11.2 | 10.60 | 39.7 | 52.6 | 56.7 | 100.0 | 1502 / 51.9 / 31.1 / 17.0 / 10.81 / 100.0 |
+| aquarius_body | current drains | 1414 | 48.9 | 31.3 | 19.9 | 7.30 | 34.8 | 56.7 | 67.5 | 99.7 | 1853 / 48.8 / 26.8 / 24.4 / 7.32 / 99.7 |
+| aquarius_legs | current drains | 1364 | 39.7 | 38.7 | 21.6 | 5.88 | 28.3 | 46.2 | 59.4 | 89.3 | 1761 / 42.9 / 32.0 / 25.1 / 6.57 / 92.7 |
+| aquarius_stream | current drains | 1409 | 41.7 | 41.5 | 16.7 | 8.35 | 36.3 | 47.2 | 57.9 | 99.0 | 1713 / 44.0 / 32.3 / 23.7 / 7.66 / 99.7 |
+| aquarius_jar | current drains | 1272 | 47.6 | 27.2 | 25.2 | 6.60 | 41.0 | 58.0 | 71.9 | 86.0 | 1567 / 47.6 / 20.7 / 31.7 / 6.92 / 92.0 |
+| aquarius_final | current drains | 3011 | 48.4 | 28.0 | 23.6 | 7.60 | 41.7 | 53.1 | 70.6 | 71.7 | 3617 / 46.4 / 19.5 / 34.0 / 7.87 / 91.7 |
+| virgo_head | harvest | 1395 | 47.7 | 37.6 | 14.6 | 10.09 | 46.9 | 47.9 | 62.2 | 100.0 | 1605 / 49.5 / 30.4 / 20.1 / 10.50 / 100.0 |
+| virgo_wing | harvest, binding | 1596 | 63.5 | 27.7 | 8.8 | 10.37 | 56.8 | 67.6 | 72.1 | 99.3 | 2057 / 59.7 / 23.1 / 17.1 / 10.64 / 100.0 |
+| virgo_robe | harvest, binding | 1905 | 66.7 | 21.8 | 11.5 | 11.03 | 59.0 | 72.6 | 77.8 | 99.0 | 2282 / 61.7 / 18.1 / 20.3 / 10.66 / 99.3 |
+| virgo_feet | harvest, binding | 2370 | 57.8 | 24.7 | 17.5 | 10.90 | 50.8 | 62.5 | 74.9 | 93.0 | 3070 / 54.6 / 18.6 / 26.9 / 11.19 / 98.0 |
+| virgo_wheat | harvest, binding | 2104 | 54.7 | 30.1 | 15.2 | 13.97 | 49.0 | 56.8 | 69.8 | 85.3 | 2462 / 50.4 / 24.9 / 24.7 / 13.58 / 80.7 |
+| virgo_final | harvest, binding | 3351 | 64.7 | 21.0 | 14.3 | 14.65 | 61.9 | 67.9 | 78.8 | 50.3 | 4508 / 61.3 / 16.5 / 22.2 / 14.96 / 98.7 |
+| sagittarius_arrow | hole | 1350 | 44.1 | 35.4 | 20.5 | 6.75 | 39.6 | 51.8 | 64.4 | 97.3 | 1646 / 47.9 / 28.4 / 23.6 / 7.72 / 99.7 |
+| sagittarius_bow | hole | 1344 | 39.4 | 34.7 | 25.8 | 5.24 | 36.2 | 45.6 | 65.1 | 90.0 | 1545 / 38.3 / 30.7 / 31.1 / 5.20 / 87.7 |
+| sagittarius_body | hole, hungry | 1412 | 35.1 | 35.9 | 29.0 | 5.00 | 32.0 | 39.7 | 64.1 | 53.0 | 1684 / 36.2 / 30.7 / 33.1 / 5.43 / 71.3 |
+| sagittarius_legs | hole, twins | 1283 | 34.8 | 43.7 | 21.4 | 5.57 | 28.7 | 37.8 | 55.9 | 52.3 | 1652 / 38.1 / 33.5 / 28.4 / 5.96 / 71.3 |
+| sagittarius_head | hole, gauge | 1418 | 41.5 | 33.1 | 25.3 | 6.43 | 37.8 | 47.6 | 66.8 | 33.7 | 2007 / 48.4 / 23.0 / 28.6 / 8.12 / 66.7 |
+| sagittarius_final | hole, hungry, twins, gauge | 2293 | 43.6 | 31.9 | 24.5 | 7.34 | 36.4 | 51.0 | 67.7 | 24.0 | 4140 / 53.8 / 16.5 / 29.7 / 10.43 / 69.7 |
+| pisces_circlet | seam vertical | 1514 | 44.8 | 40.2 | 15.0 | 9.17 | 37.2 | 54.8 | 57.5 | 100.0 | 1780 / 48.3 / 27.5 / 24.2 / 9.24 / 100.0 |
+| pisces_west_cord | seam horizontal | 1603 | 45.7 | 40.4 | 14.0 | 8.15 | 32.6 | 51.7 | 56.6 | 100.0 | 2061 / 46.8 / 30.7 / 22.6 / 8.02 / 100.0 |
+| pisces_knot | seam vertical, splash | 1340 | 56.8 | 27.3 | 15.9 | 7.87 | 48.2 | 65.5 | 71.5 | 100.0 | 1696 / 53.2 / 24.2 / 22.6 / 8.06 / 100.0 |
+| pisces_east_cord | seam cross, splash | 1692 | 36.8 | 35.8 | 27.4 | 4.32 | 17.7 | 45.2 | 56.9 | 96.7 | 1943 / 35.4 / 25.8 / 38.8 / 4.45 / 97.0 |
+| pisces_north_fish | seam horizontal, splash, wave | 1351 | 42.6 | 34.0 | 23.3 | 5.09 | 33.8 | 46.9 | 65.8 | 100.0 | 1603 / 39.2 / 27.1 / 33.7 / 5.24 / 99.3 |
+| pisces_final | seam vertical, splash, wave great | 3290 | 53.9 | 31.6 | 14.5 | 10.85 | 45.9 | 68.7 | 68.2 | 94.0 | 4138 / 54.1 / 20.6 / 25.3 / 10.92 / 98.7 |
+
+Totals (link-first, weighted by decisions): all 30 maps 49.8% both (51,046 decisions); Sagittarius stages 40.2%; Pisces stages 47.7%. Triple-first across all maps: 50.6% both (64,366 decisions).
+
+Skipped: Leo (all stages; the heat changes sizes). Not run: the debug trial maps (current/black_hole/cord trials) and the full-figure chart maps (scorpio, aquarius, virgo, sagittarius, pisces), which are not stages.
+
+</details>
+
 **Ring work.**
 - `ZODIAC` already holds `aries` and `taurus` after `pisces`. Add them to `CHAPTER_LAPS` as lap 1, the same lap as Pisces.
 - Voyages: Pisces to Aries is 1 sign (0.6 + 0.28 = **0.88 s**), and Aries to Taurus is also **0.88 s**.
