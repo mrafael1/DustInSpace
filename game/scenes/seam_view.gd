@@ -14,7 +14,9 @@ extends Node2D
 ## (wave_cue_pixels): the water swells up off the line on that side (a dithered M3 body, an M5
 ## crest with M6 foam on its peaks, bobbing a pixel every BOB_STEP), and double ember chevrons
 ## (S4, S3) march out from it into that side; every loose star on it wears a crawling ember ring
-## (HarvestView.lone_ring_pixels), so the stars it will take show the whole time. The cue follows
+## (HarvestView.lone_ring_pixels), so the stars it will take show the whole time. Turning (the
+## final), the wave after it shows too, fainter (after_cue_pixels): still single S3 chevrons on its
+## line pointing into its half, no swell, no rings. The cue follows
 ## the run only while `settled` (nothing playing), so it never shows the next side before this
 ## wave has played. The wave itself plays in three beats (sweep_pixels):
 ## - wind-up (WINDUP_TIME): the swell rears up to twice its height, its foam lit, the chevrons
@@ -210,6 +212,14 @@ func cue_way() -> Vector2i:
 	return _cue_way
 
 
+## Turning (the final): the way the wave after the cued one will rush, shown fainter (ZERO: none
+## shown, as on one line, where it's always the other half).
+func after_way() -> Vector2i:
+	if _cue_way == Vector2i.ZERO or _run == null or _run.wave == null or not _run.wave.turns:
+		return Vector2i.ZERO
+	return StarWave.TURNS[(StarWave.TURNS.find(_cue_way) + 1) % StarWave.TURNS.size()]
+
+
 ## Seconds after the wave sets off (wind-up included) that it reaches `point`, on its way from the
 ## line to the edge.
 func sweep_delay(way: Vector2i, point: Vector2i) -> float:
@@ -397,6 +407,9 @@ func _wave_pixels() -> Dictionary[Vector2i, Color]:
 		return result
 	if _cue_way == Vector2i.ZERO:
 		return result
+	var after: Vector2i = after_way()
+	if after != Vector2i.ZERO:
+		result.merge(after_cue_pixels(after.x + after.y, line_of(after), after.x != 0, _run.sky_rect), true)
 	result.merge(wave_cue_pixels(_cue_way.x + _cue_way.y, line_of(_cue_way), _cue_way.x != 0, _run.sky_rect, _time), true)
 	if settled and not aiming:
 		for id: int in _run.wave_risk():
@@ -430,6 +443,25 @@ static func wave_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i, t
 			for w: int in [1, 2, 3]:
 				_put_across(result, vertical, start + t - w, tip - side * w, colour)
 				_put_across(result, vertical, start + t + w, tip - side * w, colour)
+	return result
+
+
+## The fainter cue for the wave after the next on `side` of the line at `line` across `sky`: a dotted
+## M4 ripple standing 2 px off the line on that side, and single S3 chevrons standing still past it
+## (no swell, no march).
+static func after_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i) -> Dictionary[Vector2i, Color]:
+	var result: Dictionary[Vector2i, Color] = {}
+	var start: int = sky.position.y if vertical else sky.position.x
+	var length: int = sky.size.y if vertical else sky.size.x
+	for t: int in range(0, length, 2):
+		_put_in(result, vertical, sky, start + t, line + side * (2 + posmod(t, 8) / 4), Palette.M4)
+	var tip: int = line + side * (CHEVRON_GAP + 3)
+	@warning_ignore("integer_division")
+	for t: int in range(CHEVRON_PERIOD / 2, length, CHEVRON_PERIOD):
+		_put_in(result, vertical, sky, start + t, tip, Palette.S3)
+		for w: int in [1, 2, 3]:
+			_put_in(result, vertical, sky, start + t - w, tip - side * w, Palette.S3)
+			_put_in(result, vertical, sky, start + t + w, tip - side * w, Palette.S3)
 	return result
 
 
