@@ -447,7 +447,8 @@ static func wave_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i, t
 
 
 ## The fainter cue for the wave after the next on `side` of the line at `line` across `sky`: a dotted
-## M4 ripple standing 2 px off the line on that side, and single S3 chevrons standing still past it
+## M4 ripple standing 2 px off the line on that side, and single soft chevrons (S2, S1 tips) standing
+## still past it
 ## (no swell, no march).
 static func after_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
@@ -458,10 +459,10 @@ static func after_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i) 
 	var tip: int = line + side * (CHEVRON_GAP + 3)
 	@warning_ignore("integer_division")
 	for t: int in range(CHEVRON_PERIOD / 2, length, CHEVRON_PERIOD):
-		_put_in(result, vertical, sky, start + t, tip, Palette.S3)
+		_put_in(result, vertical, sky, start + t, tip, Palette.S2)
 		for w: int in [1, 2, 3]:
-			_put_in(result, vertical, sky, start + t - w, tip - side * w, Palette.S3)
-			_put_in(result, vertical, sky, start + t + w, tip - side * w, Palette.S3)
+			_put_in(result, vertical, sky, start + t - w, tip - side * w, Palette.S2 if w < 3 else Palette.S1)
+			_put_in(result, vertical, sky, start + t + w, tip - side * w, Palette.S2 if w < 3 else Palette.S1)
 	return result
 
 

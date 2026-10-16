@@ -180,7 +180,7 @@ func test_the_wave_after_the_next_shows_fainter() -> void:
 			shown += 1
 	assert_gt(shown, after.size() / 2, "its still chevrons and ripple, right of the line up and down")
 	for point: Vector2i in after:
-		assert_true(after[point] in [Palette.S3, Palette.M4], "fainter: no S4, no foam")
+		assert_true(after[point] in [Palette.S2, Palette.S1, Palette.M4], "soft: dim ember, no foam")
 		assert_gt(point.x, run.wave.middle.x)
 	run.wave.waves = 3
 	view.settled = true
