@@ -126,10 +126,10 @@ var splash: bool = false
 ## The stage that brings the splash: it opens by showing it (a demo throw splashing demo stars, one
 ## out of the sky) instead of the plain reflection intro, and its rule line is the splash's.
 var splash_intro: bool = false
-## Pisces's fish (the North Fish): a fish waits on the water line and every few launches leaps at
-## the nearest loose star and eats it (balance.json's fish). Its stage opens by showing it, and its
-## rule line is the fish's.
-var fish: bool = false
+## Pisces's wave (the North Fish): from balance.json's wave.first_launch on, every launch a wave
+## wipes one side of the water line, the sides taking turns. Its stage opens by showing it, and its
+## rule line is the wave's.
+var wave: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -1047,9 +1047,9 @@ static func pisces_east_cord() -> StarMap:
 	return map
 
 
-## Pisces, stage 5: the North Fish. The fish (its intro shows it): a fish waits still on the water
-## line, which runs across the sky, and every second launch leaps at the nearest loose star and eats
-## it and the stars round it. The splash goes on. From phi (lit, lower right, where the East
+## Pisces, stage 5: the North Fish. The wave (its intro shows it): from the second launch on, every
+## launch a wave rises off the water line, which runs across the sky, and wipes the top or the
+## bottom of it, in turn, the top first. The splash goes on. From phi (lit, lower right, where the East
 ## Cord ends) the northern fish runs up left through upsilon and tau (big) to 68 Psc, then turns
 ## back right through 65 Psc to sigma: an open loop, across the line. Five to light. Strings are
 ## 31-33 px.
@@ -1064,7 +1064,7 @@ static func pisces_north_fish() -> StarMap:
 	map.painting = PISCES_PART % "north_fish"
 	map.seam = Seam.HORIZONTAL
 	map.splash = true
-	map.fish = true
+	map.wave = true
 	return map
 
 

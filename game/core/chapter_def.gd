@@ -138,8 +138,8 @@ static func sagittarius() -> ChapterDef:
 
 ## Chapter 6: Pisces, the two fish tied by a cord knotted at Alrescha, its sky a mirror: a planet
 ## bursts across a seam from where it's thrown (from the Knot, splashes where it sinks; on the North
-## Fish, a fish leaps every second throw and eats the nearest star). Opens once Sagittarius's final is won; on the sky, the second lap, three signs on
-## from Sagittarius. Travelled along the cord from the western fish: the Circlet, the western cord,
+## Fish, from the second throw a wave wipes the top or bottom of the sky, in turn). Opens once
+## Sagittarius's final is won; on the sky, the second lap, three signs on from Sagittarius. Travelled along the cord from the western fish: the Circlet, the western cord,
 ## the knot, the eastern cord, the northern fish, then the whole Pisces (the final isn't built yet).
 static func pisces() -> ChapterDef:
 	var def := ChapterDef.new()
