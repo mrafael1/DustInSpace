@@ -10,7 +10,8 @@ extends Node2D
 ## left and mirrored across the sky (the head is symmetric). The Fleece's second ram stands at the
 ## sky's top, upright, the lane column through its muzzle: its prints and dust are drawn as from
 ## the left and turned down the sky (x and y swapped). Of two rams, the one charging next is shown
-## (its prints too); the other waits, dimmed (M4, M3), with no prints. Under it, one hoof pip per launch of
+## (its prints too); the other waits, dimmed (M4, M3), with no prints. When a lane moves, its ram
+## (and prints) slides there, easing in over about 0.3 s, never jumping. Under it, one hoof pip per launch of
 ## the clock: a lit one (a launch still to come before the charge) is a filled M6 cloven pair, a spent
 ## one an M4 outline (no pips when it charges after every launch). The lane shows as a sparse track of
 ## cloven hoof prints (N7) every PRINT_STEP px just outside its top and bottom edges, the two rows
@@ -89,6 +90,9 @@ const DUST_STEP: int = 6
 const DUST_TRAIL: int = 110
 ## The sparks a lost star cuts out in.
 const SPARKS: int = 8
+## How fast a ram slides to its lane's new line: the gap left shrinks by this rate a second (eased
+## out, about 0.3 s to settle), snapping home within half a px.
+const SLIDE_RATE: float = 14.0
 
 ## Nothing is playing (Main sets it each frame): what shows follows the run.
 var settled: bool = true:
@@ -104,6 +108,9 @@ var _time: float = 0.0
 ## (id -> position, and their sizes), and what the next launch's charge does to them.
 var _row: int = 0
 var _column: int = 0
+## Where each ram is drawn, sliding toward its lane's row and column.
+var _shown_row: float = 0.0
+var _shown_column: float = 0.0
 var _way: Vector2i = StarCharge.WAY
 var _lit: int = 0
 var _stars: Dictionary[int, Vector2i] = {}
@@ -134,6 +141,8 @@ func setup(run: RunState) -> void:
 	visible = has_ram()
 	set_process(visible)
 	_follow_run()
+	_shown_row = _row
+	_shown_column = _column
 	queue_redraw()
 
 
@@ -156,6 +165,16 @@ func line() -> int:
 	if is_charging():
 		return _play_row
 	return _column if _way.y != 0 else _row
+
+
+## Where the ram running `way` is drawn now, sliding to its lane's line: its row, or its column.
+func drawn_line(way: Vector2i) -> int:
+	return roundi(_shown_column if way.y != 0 else _shown_row)
+
+
+## Whether a ram is still sliding to its lane.
+func is_sliding() -> bool:
+	return drawn_line(Vector2i.RIGHT) != _row or drawn_line(Vector2i.DOWN) != _column
 
 
 ## Whether the ram charges harder on this stage (heated: ember horns, prints and dust).
@@ -188,6 +207,11 @@ func charge(charge_row: int, moves: Array[StarCurrent.Move], way: Vector2i = Sta
 			_stars[move.star_id] = move.from
 	_play_row = charge_row
 	_play_way = way
+	# It charges from its lane (where it has slid by now, as a launch comes after the link).
+	if way.y != 0:
+		_shown_column = charge_row
+	else:
+		_shown_row = charge_row
 	_moves = moves
 	_age = 0.0
 	_preview = StarCharge.Charge.new()
@@ -227,6 +251,15 @@ func advance(delta: float) -> void:
 		if _losses[at] >= LOSS_TIME:
 			_losses.erase(at)
 		queue_redraw()
+	if is_sliding():
+		var keep: float = exp(-SLIDE_RATE * delta)
+		_shown_row = _row + (_shown_row - _row) * keep
+		_shown_column = _column + (_shown_column - _column) * keep
+		if absf(_shown_row - _row) < 0.5:
+			_shown_row = _row
+		if absf(_shown_column - _column) < 0.5:
+			_shown_column = _column
+		queue_redraw()
 	if _age >= 0.0:
 		_age += delta
 		if _age >= charge_hold():
@@ -256,10 +289,11 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		var frame: Rect2i = _frame_sky(sky, _way)
 		var clear: Array[Vector3i] = _framed(_keep_clear(), sky, _way)
 		result.merge(_waiting_head(_way), true)
-		var own: Dictionary[Vector2i, Color] = _trail(print_pixels(line(), _run.ram.lane, clear, frame, 0))
-		own.merge(pip_pixels(line(), frame, _run.ram.every, _lit), true)
+		var at: int = drawn_line(_way)
+		var own: Dictionary[Vector2i, Color] = _trail(print_pixels(at, _run.ram.lane, clear, frame, 0))
+		own.merge(pip_pixels(at, frame, _run.ram.every, _lit), true)
 		result.merge(_framed_pixels(own, sky, _way), true)
-		result.merge(_head(_way, line(), 0, 0, _head_colours()), true)
+		result.merge(_head(_way, at, 0, 0, _head_colours()), true)
 		if cues_shown():
 			result.merge(_cue_pixels(), true)
 	var sky: Rect2i = _run.sky_rect
@@ -355,7 +389,7 @@ func _head(way: Vector2i, charge_line: int, lift: int, lunge: int, colours: Dict
 func _waiting_head(way: Vector2i) -> Dictionary[Vector2i, Color]:
 	for other: Vector2i in _run.ram.ways:
 		if other != way:
-			return _head(other, _column if other.y != 0 else _row, 0, 0, WAIT_HEAD_COLOURS)
+			return _head(other, drawn_line(other), 0, 0, WAIT_HEAD_COLOURS)
 	return {}
 
 

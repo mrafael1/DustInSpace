@@ -326,3 +326,25 @@ func test_a_ram_from_the_right_stands_mirrored_at_the_right_edge() -> void:
 	_assert_head_shown(pixels, mirrored, "the head at the right edge")
 	for point: Vector2i in head:
 		assert_false(pixels.get(point) == head[point] and not mirrored.has(point), "and none at the left")
+
+
+func test_a_ram_slides_to_its_new_lane() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: ChargeView = _view(main)
+	view.settled = true
+	var before: int = view.row()
+	main.run.ram.aim(before + 30)
+	view.settled = true
+	assert_eq(view.row(), before + 30, "the lane has moved")
+	assert_eq(view.drawn_line(Vector2i.RIGHT), before, "the ram hasn't yet")
+	var seen: Array[int] = [before]
+	for i: int in 30:
+		view.advance(1.0 / 60.0)
+		var at: int = view.drawn_line(Vector2i.RIGHT)
+		assert_lte(at - seen[-1], 10, "no jump")
+		assert_gte(at, seen[-1], "always on its way")
+		seen.append(at)
+	assert_eq(seen[-1], before + 30, "there within half a second")
+	assert_false(view.is_sliding())
+	_assert_head_shown(view.pixels(), ChargeView.head_pixels(before + 30, main.run.sky_rect), "drawn on the new lane")
