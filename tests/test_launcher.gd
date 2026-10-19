@@ -71,6 +71,27 @@ func test_every_corner_and_edge_of_a_tall_phone_sky_can_be_aimed_at() -> void:
 	_assert_every_corner_and_edge_aimable()
 
 
+func test_a_wide_sky_launch_bursts_where_the_preview_shows() -> void:
+	_setup_on(Fixtures.WIDE_SKY)
+	watch_signals(run)
+	for target: Vector2i in [inner.position, inner.end - Vector2i.ONE, Vector2i(inner.position.x, inner.end.y - 1)] as Array[Vector2i]:
+		var pull: Vector2 = _pull_toward(target)
+		_press(Vector2i.ZERO)
+		_drag(pull)
+		assert_eq(launcher.burst_preview(), target)
+		assert_true(_release())
+		assert_eq(get_signal_parameters(run, "pack_launched"), ["blue", target], "the launch uses the preview's gain")
+		run.load_pack("blue")
+		_play_until_idle()
+
+
+func test_a_new_run_on_another_sky_recomputes_the_gain() -> void:
+	_setup_on(Fixtures.WIDE_SKY)
+	assert_eq(launcher.aim_gain(), Launcher.gain_for(ORIGIN, Fixtures.WIDE_SKY))
+	_setup_on(Fixtures.SKY)
+	assert_eq(launcher.aim_gain(), Launcher.AIM_GAIN, "back on the 9:16 sky the gain drops to AIM_GAIN")
+
+
 func test_the_gain_is_the_least_that_reaches_the_farthest_corner() -> void:
 	for sky: Rect2i in [Fixtures.SKY, Fixtures.WIDE_SKY, ScreenZones.play_sky(102), ScreenZones.play_sky(30, 7)] as Array[Rect2i]:
 		var gain: int = Launcher.gain_for(ORIGIN, sky)
