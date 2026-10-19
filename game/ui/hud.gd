@@ -136,8 +136,8 @@ const TWINS_MESSAGE: String = "WHERE THE HOLES MEET\nA BIG BANG CLEARS ALL"
 const GAUGE_MESSAGE: String = "THE HOLE DRINKS ALL LIGHT\nFULL IT BANGS THE SKY"
 ## Pisces's cords (chapter 6 trial): every link leaves its string, and no link can cross one.
 const CORD_MESSAGE: String = "EVERY LINK LEAVES A CORD\nNO LINK CAN CROSS ONE"
-## Aries's ram (chapter 7 trial): it charges along the row of the landmark the last link lit.
-const RAM_MESSAGE: String = "THE RAM CHARGES THE ROW\nOF THE STAR YOU LIGHT"
+## Aries's ram (chapter 7 trial): after every throw it charges the row of the landmark the last link lit.
+const RAM_MESSAGE: String = "EVERY THROW THE RAM\nCHARGES THE ROW YOU LIT"
 ## Pisces's reflection: a planet bursts across the seam from where it's thrown, up and down or across.
 const SEAM_VERTICAL_MESSAGE: String = "AIM LEFT TO PLAY RIGHT\nAIM RIGHT TO PLAY LEFT"
 const SEAM_HORIZONTAL_MESSAGE: String = "AIM HIGH TO PLAY LOW\nAIM LOW TO PLAY HIGH"
