@@ -94,7 +94,7 @@ func test_the_lane_starts_on_the_first_lit_landmark_else_the_middle() -> void:
 func test_the_ram_charges_after_every_launch() -> void:
 	var run: RunState = _run()
 	var charges: Array[int] = [0]
-	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move]) -> void: charges[0] += 1)
+	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], _way: Vector2i) -> void: charges[0] += 1)
 	for i: int in 4:
 		assert_true(run.ram_charges_next(), "the next launch always charges")
 		Fixtures.launch(run, HIGH_AIM)
@@ -106,7 +106,7 @@ func test_the_ram_can_charge_after_every_second_launch() -> void:
 	var charged_after: Array[int] = []
 	var launches: Array[int] = [0]
 	run.pack_launched.connect(func(_kind: String, _at: Vector2i) -> void: launches[0] += 1)
-	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move]) -> void: charged_after.append(launches[0]))
+	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], _way: Vector2i) -> void: charged_after.append(launches[0]))
 	var announced: Array[bool] = []
 	for i: int in 6:
 		announced.append(run.ram_charges_next())
@@ -191,7 +191,7 @@ func test_the_charge_butts_the_lane_after_the_launch() -> void:
 	var outside: Star = run.add_star(Star.Size.BIG, Vector2i(44, row + 24))
 	_to_the_charge(run)
 	var seen: Array = []
-	run.ram_charged.connect(func(at: int, moves: Array[StarCurrent.Move]) -> void: seen.append([at, moves]))
+	run.ram_charged.connect(func(at: int, moves: Array[StarCurrent.Move], _way: Vector2i) -> void: seen.append([at, moves]))
 	var dust: int = run.dust
 	Fixtures.launch(run, HIGH_AIM)
 	assert_eq(seen.size(), 1)
@@ -224,7 +224,7 @@ func test_the_preview_matches_the_charge() -> void:
 	assert_eq(preview.moves.size(), 4)
 	assert_eq(preview.lost().size(), 2, "the two nearer the far edge")
 	var executed: Array = []
-	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move]) -> void: executed.append(moves))
+	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], _way: Vector2i) -> void: executed.append(moves))
 	Fixtures.launch(run, HIGH_AIM)
 	var moves: Array[StarCurrent.Move] = executed[0]
 	assert_eq(moves.size(), preview.moves.size(), "the launch's stars landed clear of the lane")
@@ -237,7 +237,7 @@ func test_a_big_bang_launch_leaves_the_charge_nothing() -> void:
 	run.add_star(Star.Size.SMALL, Vector2i(80, run.ram.row))
 	_to_the_charge(run)
 	var seen: Array = []
-	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move]) -> void: seen.append(moves.size()))
+	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], _way: Vector2i) -> void: seen.append(moves.size()))
 	run.force_next_big_bang = true
 	Fixtures.launch(run, HIGH_AIM)
 	assert_true(run.stars.is_empty(), "the Big Bang cleared the sky")
@@ -304,7 +304,7 @@ func test_a_charge_that_takes_the_last_combo_loses_the_run() -> void:
 	assert_true(run.has_remaining_combo(), "a small triple waits in the lane")
 	assert_eq(run.charge_preview().lost().size(), 3, "the charge takes all three")
 	var events: Array[String] = []
-	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move]) -> void: events.append("charged"))
+	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], _way: Vector2i) -> void: events.append("charged"))
 	run.run_lost.connect(func() -> void: events.append("lost"))
 	run.launch(HIGH_AIM)
 	assert_eq(run.outcome, RunState.Outcome.LOST)

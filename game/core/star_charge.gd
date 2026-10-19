@@ -3,8 +3,9 @@ extends RefCounted
 ## Aries's ram (chapter 7): the ram stands at the sky's left edge, and every `every`-th launch, once
 ## that launch has fully resolved, it charges right along its lane: the band `lane` px tall centred
 ## on the lane row, the row of the landmark the last link lit. Every loose star whose centre is in the
-## lane is butted `butt` px right, the rightmost first, and on past a star or a landmark it would land
-## on: nothing shelters it. One carried out of the sky is lost, for nothing. No randomness, nodes or
+## lane is butted `butt` px its `way`, the frontmost first, and on past a star or a landmark it would
+## land on: nothing shelters it. With `sides`, it charges from each side in turn (`turn` after each
+## charge): from the left (right), then from the right (left). One carried out of the sky is lost, for nothing. No randomness, nodes or
 ## rewards. Its moves are StarCurrent.Moves (a lost one `drained`, `to` where it would have gone,
 ## past the sky's edge).
 
@@ -29,7 +30,7 @@ class Charge:
 			result[move.star_id] = move.to
 		return result
 
-## The way the ram charges: from the left edge, right.
+## The way the ram first charges: from the left edge, right.
 const WAY := Vector2i.RIGHT
 
 ## It charges on every this-many-th launch.
@@ -40,15 +41,20 @@ var lane: int
 var butt: int
 ## The lane row: the y the lane is centred on.
 var row: int
+## The way the next charge runs (right: from the left edge; left: from the right edge).
+var way: Vector2i = WAY
+## Whether it charges from each side in turn.
+var sides: bool = false
 ## Launches thrown since the run began (intros don't count).
 var launches: int = 0
 
 
-func _init(p_every: int, p_lane: int, p_butt: int, p_row: int) -> void:
+func _init(p_every: int, p_lane: int, p_butt: int, p_row: int, p_sides: bool = false) -> void:
 	every = p_every
 	lane = p_lane
 	butt = p_butt
 	row = p_row
+	sides = p_sides
 
 
 ## The ram charges after the next launch.
@@ -66,6 +72,12 @@ func count_launch() -> bool:
 	var charges: bool = charges_next()
 	launches += 1
 	return charges
+
+
+## A charge is over: with `sides`, the next comes from the other side.
+func turn() -> void:
+	if sides:
+		way = -way
 
 
 ## The lane follows the landmark a link lit, at `y`. Returns whether the row moved.
@@ -88,7 +100,7 @@ func in_lane(point: Vector2i) -> bool:
 
 
 ## Pure: what charging now does to `stars` (the loose stars), against the `landmarks` standing in
-## `sky`. Each star in the lane is carried `butt` px right, and on past it until it lands clear (the
+## `sky`. Each star in the lane is carried `butt` px its `way`, the frontmost first, and on past it until it lands clear (the
 ## usual spacing: StarScatter.MIN_SPACING from a star, as the ones ahead of it have just been left,
 ## and LANDMARK_SPACING from a landmark). One that ends outside the sky (StarScatter.inner_rect) is
 ## lost.
@@ -101,12 +113,14 @@ func charge(stars: Array[Star], sky: Rect2i, landmarks: Array[Vector2i]) -> Char
 		if in_lane(star.position):
 			charged.append(star)
 	charged.sort_custom(func(a: Star, b: Star) -> bool:
-		return a.id < b.id if a.position.x == b.position.x else a.position.x > b.position.x)
+		var ahead_a: int = a.position.x * way.x
+		var ahead_b: int = b.position.x * way.x
+		return a.id < b.id if ahead_a == ahead_b else ahead_a > ahead_b)
 	for star: Star in charged:
 		var from: Vector2i = star.position
-		var to: Vector2i = from + WAY * butt
+		var to: Vector2i = from + way * butt
 		while not leaves(to, sky) and (_star_within(star.id, to, occupied) or _landmark_within(to, landmarks)):
-			to += WAY
+			to += way
 		var lost: bool = leaves(to, sky)
 		if lost:
 			occupied.erase(star.id)

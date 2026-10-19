@@ -175,3 +175,31 @@ func test_aim_moves_the_row() -> void:
 	assert_false(ram.aim(ROW), "the same row")
 	assert_true(ram.aim(ROW + 8))
 	assert_eq(ram.row, ROW + 8)
+
+
+func test_a_ram_from_each_side_turns_after_each_charge() -> void:
+	var ram := StarCharge.new(1, 20, 48, ROW, true)
+	assert_eq(ram.way, Vector2i.RIGHT, "it starts from the left")
+	ram.turn()
+	assert_eq(ram.way, Vector2i.LEFT)
+	ram.turn()
+	assert_eq(ram.way, Vector2i.RIGHT)
+	var one := StarCharge.new(1, 20, 48, ROW)
+	one.turn()
+	assert_eq(one.way, Vector2i.RIGHT, "a ram from one side never turns")
+
+
+func test_from_the_right_it_butts_left_and_the_leftmost_goes_first() -> void:
+	var ram := StarCharge.new(1, 20, 48, ROW, true)
+	ram.turn()
+	var charge: StarCharge.Charge = ram.charge(_stars([Vector2i(100, ROW), Vector2i(120, ROW)]), SKY, [])
+	assert_eq(charge.moves[0].star_id, 1, "the leftmost first")
+	assert_eq(_move(charge, 1).to, Vector2i(52, ROW))
+	assert_eq(_move(charge, 2).to, Vector2i(72, ROW))
+
+
+func test_from_the_right_it_butts_out_of_the_left_edge() -> void:
+	var ram := StarCharge.new(1, 20, 48, ROW, true)
+	ram.turn()
+	var charge: StarCharge.Charge = ram.charge(_stars([Vector2i(30, ROW)]), SKY, [Vector2i(10, ROW)])
+	assert_true(charge.moves[0].drained, "out by the left edge, past a landmark")

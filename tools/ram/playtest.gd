@@ -28,6 +28,7 @@ func _initialize() -> void:
 			_map = argument.trim_prefix("--map=")
 		elif argument.begins_with("--butt="):
 			_balance.ram_butt = argument.trim_prefix("--butt=").to_int()
+			_balance.ram_hard_butt = _balance.ram_butt
 		elif argument.begins_with("--lane="):
 			_balance.ram_lane = argument.trim_prefix("--lane=").to_int()
 		elif argument.begins_with("--policies="):
@@ -36,7 +37,8 @@ func _initialize() -> void:
 
 
 func _simulate() -> void:
-	print("Paired seeds 1..%d; %s; ram every %d, lane %d, butt %d" % [_runs, _map, _balance.ram_every, _balance.ram_lane, _balance.ram_butt])
+	var butt: int = _balance.ram_hard_butt if StarMap.by_id(_map).ram_hard and _balance.ram_hard_butt > 0 else _balance.ram_butt
+	print("Paired seeds 1..%d; %s; ram every %d, lane %d, butt %d" % [_runs, _map, _balance.ram_every, _balance.ram_lane, butt])
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
 		for enabled: bool in [false, true]:
@@ -70,7 +72,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	rng.seed = seed_value
 	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
 	_lost = 0
-	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move]) -> void:
+	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], _way: Vector2i) -> void:
 		for move: StarCurrent.Move in moves:
 			if move.drained:
 				_lost += 1)

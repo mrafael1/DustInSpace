@@ -171,7 +171,7 @@ func test_the_charge_plays_and_a_lost_star_is_gone_after() -> void:
 	var lost: StarView = sky.star_view(stars[0].id)
 	assert_not_null(lost)
 	var charged: Array = []
-	main.run.ram_charged.connect(func(r: int, moves: Array) -> void: charged.append([r, moves]))
+	main.run.ram_charged.connect(func(r: int, moves: Array, _way: Vector2i) -> void: charged.append([r, moves]))
 	main.run.dust = 999
 	main.run.buy("blue")
 	main.run.load_pack("blue")
@@ -305,3 +305,24 @@ func _play_out(main: Main) -> void:
 		await get_tree().process_frame
 	for i: int in 5:
 		await get_tree().process_frame
+
+
+func test_a_ram_from_the_right_stands_mirrored_at_the_right_edge() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: ChargeView = _view(main)
+	view.settled = true
+	var run: RunState = main.run
+	run.ram.sides = true
+	run.ram.turn()
+	view._follow_run()
+	assert_eq(view.way(), Vector2i.LEFT)
+	var sky: Rect2i = run.sky_rect
+	var head: Dictionary[Vector2i, Color] = ChargeView.head_pixels(run.ram.row, sky)
+	var mirrored: Dictionary[Vector2i, Color] = {}
+	for point: Vector2i in head:
+		mirrored[Vector2i(sky.position.x + sky.end.x - 1 - point.x, point.y)] = head[point]
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	_assert_head_shown(pixels, mirrored, "the head at the right edge")
+	for point: Vector2i in head:
+		assert_false(pixels.get(point) == head[point] and not mirrored.has(point), "and none at the left")

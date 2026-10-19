@@ -5,7 +5,9 @@ extends Node2D
 ## rules: RunState.ram says where and when; Sky plays ram_charged here.
 ## Look (the approved step A mock-up, ram A, made bigger in playtest): a pale frontal ram's head with
 ## curled horns (M6, M4, M5, ember eyes), its left edge a pixel in from the sky's, the lane row
-## through its muzzle; stars and landmarks show in front of it. Under it, one hoof pip per launch of
+## through its muzzle; stars and landmarks show in front of it. A ram that charges from the right
+## stands at the right edge: everything of its own (head, prints, pips, dust) is drawn as from the
+## left and mirrored across the sky (the head is symmetric). Under it, one hoof pip per launch of
 ## the clock: a lit one (a launch still to come before the charge) is a filled M6 cloven pair, a spent
 ## one an M4 outline (no pips when it charges after every launch). The lane shows as a sparse track of
 ## cloven hoof prints (N7) every PRINT_STEP px just outside its top and bottom edges, the two rows
@@ -86,6 +88,7 @@ var _time: float = 0.0
 ## What shows, as the run had it when last settled: the lane row, the lit pips, the stars standing
 ## (id -> position, and their sizes), and what the next launch's charge does to them.
 var _row: int = 0
+var _way: Vector2i = StarCharge.WAY
 var _lit: int = 0
 var _stars: Dictionary[int, Vector2i] = {}
 var _sizes: Dictionary[int, int] = {}
@@ -93,6 +96,7 @@ var _preview: StarCharge.Charge = StarCharge.Charge.new()
 ## The charge playing: the seconds since it began (-1: none), its row and its moves.
 var _age: float = -1.0
 var _play_row: int = 0
+var _play_way: Vector2i = StarCharge.WAY
 var _moves: Array[StarCurrent.Move] = []
 ## Stars lost off the far edge cutting out: where, and the seconds since.
 var _losses: Dictionary[Vector2i, float] = {}
@@ -131,6 +135,11 @@ func row() -> int:
 	return _play_row if is_charging() else _row
 
 
+## The way the ram shown charges (right: it stands at the left edge).
+func way() -> Vector2i:
+	return _play_way if is_charging() else _way
+
+
 ## The pips shown lit.
 func lit_pips() -> int:
 	return 0 if is_charging() else _lit
@@ -141,15 +150,16 @@ func cues_shown() -> bool:
 	return has_ram() and settled and not is_charging() and not _preview.lost().is_empty()
 
 
-## The ram charges its lane at `charge_row`: `moves` are the stars it butts (a lost one drained),
-## `sizes` the size of each star shown (id -> Star.Size, the launch's new stars too). Sky drifts the
-## stars; this plays the ram.
-func charge(charge_row: int, moves: Array[StarCurrent.Move], sizes: Dictionary[int, int] = {}) -> void:
+## The ram charges its lane at `charge_row`, running `way`: `moves` are the stars it butts (a lost
+## one drained), `sizes` the size of each star shown (id -> Star.Size, the launch's new stars too).
+## Sky drifts the stars; this plays the ram.
+func charge(charge_row: int, moves: Array[StarCurrent.Move], way: Vector2i = StarCharge.WAY, sizes: Dictionary[int, int] = {}) -> void:
 	_sizes.merge(sizes, true)
 	for move: StarCurrent.Move in moves:
 		if not _stars.has(move.star_id):
 			_stars[move.star_id] = move.from
 	_play_row = charge_row
+	_play_way = way
 	_moves = moves
 	_age = 0.0
 	_preview = StarCharge.Charge.new()
@@ -175,6 +185,8 @@ func flash_loss(at: Vector2i) -> void:
 ## Where a star butted toward `to` (past the far edge) leaves the sky: a pixel past the inner sky.
 func exit_point(to: Vector2i) -> Vector2i:
 	var inner: Rect2i = StarScatter.inner_rect(_run.sky_rect)
+	if to.x < inner.position.x:
+		return Vector2i(inner.position.x - 1, to.y)
 	return Vector2i(mini(to.x, inner.end.x), to.y)
 
 
@@ -210,14 +222,19 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if is_charging():
 		result.merge(_charge_pixels(), true)
 	else:
-		result.merge(print_pixels(_row, _run.ram.lane, _keep_clear(), _run.sky_rect, 0), true)
-		result.merge(_clipped(head_pixels(_row, _run.sky_rect), _keep_clear(), HEAD_PAD), true)
-		result.merge(pip_pixels(_row, _run.sky_rect, _run.ram.every, _lit), true)
+		var sky: Rect2i = _run.sky_rect
+		var clear: Array[Vector3i] = _framed(_keep_clear(), sky, _way)
+		var own: Dictionary[Vector2i, Color] = print_pixels(_row, _run.ram.lane, clear, sky, 0)
+		own.merge(_clipped(head_pixels(_row, sky), clear, HEAD_PAD), true)
+		own.merge(pip_pixels(_row, sky, _run.ram.every, _lit), true)
+		result.merge(_framed_pixels(own, sky, _way), true)
 		if cues_shown():
 			result.merge(_cue_pixels(), true)
-	for at: Vector2i in _losses:
-		result.merge(spark_pixels(at, _losses[at] / LOSS_TIME, at.y), true)
 	var sky: Rect2i = _run.sky_rect
+	for at: Vector2i in _losses:
+		# The sparks spray back into the sky from the edge the star left by.
+		var back: Vector2i = Vector2i.LEFT if at.x >= sky.get_center().x else Vector2i.RIGHT
+		result.merge(spark_pixels(at, _losses[at] / LOSS_TIME, at.y, back), true)
 	for point: Vector2i in result.keys():
 		if not sky.has_point(point):
 			result.erase(point)
@@ -253,16 +270,19 @@ func _charge_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	var sky: Rect2i = _run.sky_rect
 	var lane: int = _run.ram.lane
+	# The ram's own pixels, drawn as from the left and mirrored for a charge from the right.
+	var own: Dictionary[Vector2i, Color] = {}
+	var clear: Array[Vector3i] = _framed(_keep_clear(), sky, _play_way)
 	if _age < REAR_TIME:
 		# The rear: pips spent, the head up, dust at its feet, the prints stamped along; the stars it
 		# takes still ringed.
-		result.merge(print_pixels(_play_row, lane, _keep_clear(), sky, 1), true)
-		result.merge(_clipped(head_pixels(_play_row, sky, LIFT), _keep_clear(), HEAD_PAD), true)
-		result.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
+		own.merge(print_pixels(_play_row, lane, clear, sky, 1), true)
+		own.merge(_clipped(head_pixels(_play_row, sky, LIFT), clear, HEAD_PAD), true)
+		own.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
 		var origin: Vector2i = head_origin(_play_row, sky)
 		var i: int = 0
 		for x: int in range(origin.x + 3, origin.x + head_size().x - 2, 4):
-			result.merge(dust_pixels(Vector2i(x + 4, origin.y + head_size().y + 5), 0.3, i), true)
+			own.merge(dust_pixels(Vector2i(x + 4, origin.y + head_size().y + 5), 0.3, i), true)
 			i += 1
 		for move: StarCurrent.Move in _moves:
 			if not _sizes.has(move.star_id):
@@ -271,9 +291,31 @@ func _charge_pixels() -> Dictionary[Vector2i, Color]:
 				result.merge(HarvestView.lone_ring_pixels(move.from, _sizes[move.star_id], _time * 3.0), true)
 	else:
 		var k: float = (_age - REAR_TIME) / CHARGE_TIME
-		result.merge(rush_pixels(_play_row, lane, sky, k, _keep_clear() + _paths_clear()), true)
-		result.merge(_clipped(head_pixels(_play_row, sky, 0, LUNGE if k < 0.7 else LUNGE / 2), _keep_clear(), HEAD_PAD), true)
-		result.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
+		own.merge(rush_pixels(_play_row, lane, sky, k, clear + _framed(_paths_clear(), sky, _play_way)), true)
+		own.merge(_clipped(head_pixels(_play_row, sky, 0, LUNGE if k < 0.7 else LUNGE / 2), clear, HEAD_PAD), true)
+		own.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
+	result.merge(_framed_pixels(own, sky, _play_way), true)
+	return result
+
+
+## `spots` (x, y, half extent) as the ram running `way` sees them: mirrored across `sky` for a charge
+## from the right, as they are for one from the left.
+static func _framed(spots: Array[Vector3i], sky: Rect2i, way: Vector2i) -> Array[Vector3i]:
+	if way.x > 0:
+		return spots
+	var result: Array[Vector3i] = []
+	for spot: Vector3i in spots:
+		result.append(Vector3i(sky.position.x + sky.end.x - 1 - spot.x, spot.y, spot.z))
+	return result
+
+
+## The ram's own `pixels`, drawn as from the left, where they show for one running `way`.
+static func _framed_pixels(pixels: Dictionary[Vector2i, Color], sky: Rect2i, way: Vector2i) -> Dictionary[Vector2i, Color]:
+	if way.x > 0:
+		return pixels
+	var result: Dictionary[Vector2i, Color] = {}
+	for point: Vector2i in pixels:
+		result[Vector2i(sky.position.x + sky.end.x - 1 - point.x, point.y)] = pixels[point]
 	return result
 
 
@@ -362,12 +404,13 @@ static func dust_pixels(at: Vector2i, k: float, seed_value: int) -> Dictionary[V
 
 
 ## A star cutting out at `at` on the far edge, `k` (0 to 1) through: ember sparks spraying back into
-## the sky and falling (S4, S3, a C3 core at first), scattered by `seed`.
-static func spark_pixels(at: Vector2i, k: float, seed_value: int) -> Dictionary[Vector2i, Color]:
+## the sky (`back`: left from the right edge) and falling (S4, S3, a C3 core at first), scattered by
+## `seed`.
+static func spark_pixels(at: Vector2i, k: float, seed_value: int, back: Vector2i = Vector2i.LEFT) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	for i: int in SPARKS:
 		var a: float = float((seed_value * 13 + i * 29) % 17) / 16.0
-		var dx: int = -int(1.0 + a * 9.0 * (0.5 + k))
+		var dx: int = back.x * int(1.0 + a * 9.0 * (0.5 + k))
 		var dy: int = int((i - 3.5) * 1.5 * (0.6 + k) + 6.0 * k * k)
 		var colour: Color = Palette.C3 if i == 0 and k < 0.5 else (Palette.S4 if i % 2 == 0 else Palette.S3)
 		result[at + Vector2i(dx, dy)] = colour
@@ -423,7 +466,7 @@ func _paths_clear() -> Array[Vector3i]:
 		if not _sizes.has(move.star_id):
 			continue
 		var half: int = StarView.half_extent(_sizes[move.star_id] as Star.Size)
-		for x: int in range(move.from.x, move.to.x, 4):
+		for x: int in range(move.from.x, move.to.x, 4 * signi(move.to.x - move.from.x)):
 			result.append(Vector3i(x, move.from.y, half))
 		result.append(Vector3i(move.to.x, move.to.y, half))
 	return result
@@ -439,9 +482,10 @@ func _follow_run() -> void:
 		stars[star.id] = star.position
 		sizes[star.id] = star.size
 	var lit: int = 0 if _run.is_over() else _run.ram.launches_left()
-	if _run.ram.row == _row and lit == _lit and stars == _stars and sizes == _sizes:
+	if _run.ram.row == _row and _run.ram.way == _way and lit == _lit and stars == _stars and sizes == _sizes:
 		return
 	_row = _run.ram.row
+	_way = _run.ram.way
 	_lit = lit
 	_stars = stars
 	_sizes = sizes
