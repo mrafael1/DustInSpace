@@ -6,6 +6,8 @@ extends GutTest
 
 const Fixtures := preload("res://tests/fixtures.gd")
 const ORIGIN := Vector2i(90, 270)
+const SkyScene := preload("res://game/scenes/sky.tscn")
+const HudScene := preload("res://game/ui/hud.tscn")
 
 var _portrait_skies: Array[Rect2i] = [Fixtures.SKY, ScreenZones.play_sky(102)]
 
@@ -191,3 +193,64 @@ func test_a_side_is_drawn_until_its_own_crash_ends_and_then_not() -> void:
 	assert_false(SeamView.sweep_pixels(-1, 90, true, sky, SeamView.WINDUP_TIME + SeamView.SWEEP_TIME + 0.01, rush).is_empty(), "rushing")
 	assert_false(SeamView.sweep_pixels(-1, 90, true, sky, end - 0.01, rush).is_empty(), "crashing")
 	assert_true(SeamView.sweep_pixels(-1, 90, true, sky, end, rush).is_empty(), "over")
+
+
+# --- what waits for them ----------------------------------------------------------------------
+
+func _sky_view(run: RunState) -> Array:
+	var sequencer := EventSequencer.new()
+	add_child_autofree(sequencer)
+	sequencer.set_process(false)
+	sequencer.bind(run)
+	var view: SkyView = SkyScene.instantiate()
+	add_child_autofree(view)
+	view.setup(run, sequencer)
+	return [view, sequencer]
+
+
+func test_the_sky_holds_a_wave_for_its_rush_on_the_sky_it_plays_on() -> void:
+	for sky: Rect2i in [Fixtures.SKY, Fixtures.WIDE_SKY] as Array[Rect2i]:
+		for great: bool in [false, true]:
+			var run: RunState = _stage(StarMap.pisces_final(), sky)
+			var pair: Array = _sky_view(run)
+			var view: SkyView = pair[0]
+			var sequencer: EventSequencer = pair[1]
+			var seam: SeamView = view.get_node("SeamLayer")
+			seam.setup(run) # Main sets the seam layer up (main.gd).
+			view.call("_wave", Vector2i.LEFT, [], Vector2i.RIGHT, great)
+			var held: float = sequencer.get("_hold_left")
+			assert_eq(held, seam.sweep_wait(), "%s great %s" % [sky, great])
+			if sky == Fixtures.SKY:
+				assert_eq(held, SeamView.sweep_hold(), "portrait: the old hold, exactly")
+			else:
+				assert_gt(held, SeamView.sweep_hold() + 0.5, "wide: the longer rush is waited for")
+
+
+func test_the_sky_holds_virgos_arrival_for_the_sweep_on_its_sky() -> void:
+	for sky: Rect2i in [Fixtures.SKY, Fixtures.WIDE_SKY] as Array[Rect2i]:
+		var pair: Array = _sky_view(_stage(StarMap.virgo_final(), sky))
+		var view: SkyView = pair[0]
+		var sequencer: EventSequencer = pair[1]
+		sequencer.set("_hold_left", 0.0)
+		view.set("_arrival_sweep", true)
+		view.call("_play_harvest_event", EventSequencer.RunEvent.new(&"harvested", [[] as Array[Star]]))
+		var expected: float = HarvestView.sweep_time(sky) + Hud.ARRIVAL_TIME
+		assert_eq(sequencer.get("_hold_left"), expected, str(sky))
+		if sky == Fixtures.SKY:
+			assert_eq(expected, HarvestView.SWEEP_TIME + Hud.ARRIVAL_TIME, "portrait: the old hold, exactly")
+
+
+func test_virgos_arrival_card_waits_for_the_sweep_on_its_sky() -> void:
+	for sky: Rect2i in [Fixtures.SKY, Fixtures.WIDE_SKY] as Array[Rect2i]:
+		var run: RunState = _stage(StarMap.virgo_final(), sky)
+		var sequencer := EventSequencer.new()
+		add_child_autofree(sequencer)
+		sequencer.set_process(false)
+		var hud: Hud = HudScene.instantiate()
+		add_child_autofree(hud)
+		hud.setup(run, sequencer)
+		var banner: BossBanner = hud.get_node("BossBanner")
+		var binding: float = ConstellationView.binding_time(run.scorpio.map)
+		assert_eq(banner.get("_wait"), binding + HarvestView.sweep_time(sky), str(sky))
+		if sky == Fixtures.SKY:
+			assert_eq(banner.get("_wait"), binding + HarvestView.SWEEP_TIME, "portrait: the old wait, exactly")
