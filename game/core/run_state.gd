@@ -293,6 +293,10 @@ var balance: Balance
 ## The seed of the RNG the run started with. Anything replayable derives its randomness from it.
 var run_seed: int = 0
 var sky_rect: Rect2i
+## The run's frame: the portrait 180 columns that hold the constellation (Scorpio.HOME_SKY moved by
+## the figure's shift), over the sky's full height. On a portrait sky it is the sky itself; on a
+## wide one, rules that take their stakes from an edge or an area use it (docs/wide_sky_design.md).
+var frame_rect: Rect2i
 var dust: int = 0
 var light: int = 0
 var owned_packs: Dictionary[String, int] = {}
@@ -359,6 +363,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 	assert(StarScatter.inner_rect(p_sky_rect).has_area(), "sky rect too small for the edge margin")
 	balance = p_balance
 	sky_rect = p_sky_rect
+	frame_rect = Rect2i(Scorpio.HOME_SKY.position.x + Scorpio.shift_in(p_sky_rect).x, p_sky_rect.position.y, Scorpio.HOME_SKY.size.x, p_sky_rect.size.y)
 	_rng = p_rng
 	run_seed = p_rng.seed
 	_layout_rng.seed = p_rng.seed ^ LAYOUT_SEED_SALT
@@ -400,7 +405,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			var ways: Array[Vector2i] = [StarCharge.WAY]
 			if scorpio.map.ram_down:
 				ways.append(Vector2i.DOWN)
-			ram = StarCharge.new(balance.ram_every, lane, butt, _ram_start_row(), ways, sky_rect.get_center().x)
+			ram = StarCharge.new(balance.ram_every, lane, butt, _ram_start_row(), ways, figure_middle().x)
 		if scorpio.map.cords:
 			cords = StarCords.new()
 			cords.tie_fixed(_fish_cord())
@@ -462,11 +467,22 @@ func crosses_seam(a: Vector2i, b: Vector2i) -> bool:
 	return seam_crossing(a, b) != StarCords.NO_CROSSING
 
 
+## Pure: the middle of the figure in this run's sky: HOME_SKY's centre moved by the figure's shift
+## (the sky's centre when there is no constellation).
+func figure_middle() -> Vector2i:
+	return Scorpio.HOME_SKY.get_center() + Scorpio.shift_in(sky_rect)
+
+
+## Pure: where Pisces's water lines cross: the figure's middle.
+func seam_middle() -> Vector2i:
+	return figure_middle()
+
+
 ## Pisces: where a step from `a` to `b` first crosses the seam (StarCords.NO_CROSSING: it doesn't).
 func seam_crossing(a: Vector2i, b: Vector2i) -> Vector2i:
 	if not has_seam():
 		return StarCords.NO_CROSSING
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	var middle: Vector2i = seam_middle()
 	var best: Vector2i = StarCords.NO_CROSSING
 	if seam != StarMap.Seam.HORIZONTAL and signi(a.x - middle.x) * signi(b.x - middle.x) < 0:
 		var t: float = float(middle.x - a.x) / float(b.x - a.x)
@@ -1626,7 +1642,7 @@ func burst_centre(aim: Vector2i) -> Vector2i:
 
 ## Pisces's seam: where `point` falls across it (the sky's middle, where the map is drawn).
 func reflect(point: Vector2i) -> Vector2i:
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	var middle: Vector2i = seam_middle()
 	match seam:
 		StarMap.Seam.VERTICAL:
 			return Vector2i(2 * middle.x - point.x, point.y)
@@ -1714,7 +1730,7 @@ func seam_hit(from: Vector2i, to: Vector2i) -> Vector2i:
 func on_seam(point: Vector2i) -> bool:
 	if not has_seam():
 		return false
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	var middle: Vector2i = seam_middle()
 	return (seam != StarMap.Seam.HORIZONTAL and point.x == middle.x) or (seam != StarMap.Seam.VERTICAL and point.y == middle.y)
 
 
@@ -1854,7 +1870,7 @@ func _great_wave_finale() -> void:
 
 ## A wave on the water line through the sky's middle (with great waves, on the final).
 func _new_wave() -> StarWave:
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	var middle: Vector2i = seam_middle()
 	return StarWave.new(middle, seam == StarMap.Seam.VERTICAL, balance.wave_first_launch, balance.wave_great_after if scorpio.map.wave_great else 0)
 
 
@@ -1897,7 +1913,7 @@ func _wave_intro() -> void:
 ## bursts on the other), two stars on that side, one on the other], along the line where the demo
 ## stars keep furthest from the figure.
 func wave_intro_layout() -> Array[Vector2i]:
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + scorpio.shift
+	var middle: Vector2i = seam_middle()
 	var across: Vector2i = wave.next_way()
 	var along: Vector2i = Vector2i(absi(across.y), absi(across.x))
 	var best: Array[Vector2i] = []
@@ -2075,7 +2091,7 @@ func _ram_intro_burst() -> Vector2i:
 	var first: int = inner.position.x if ram.is_down() else inner.position.y
 	if at - StarScatter.RING_MAX < first:
 		at = line + RAM_INTRO_BURST_AWAY
-	return Vector2i(at, sky_rect.get_center().y) if ram.is_down() else Vector2i(sky_rect.get_center().x, at)
+	return Vector2i(at, figure_middle().y) if ram.is_down() else Vector2i(figure_middle().x, at)
 
 
 ## Pure: whether the ram charges once the next launch has resolved (never once the run is over).

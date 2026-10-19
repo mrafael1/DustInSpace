@@ -334,7 +334,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	if not has_seam():
 		return result
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + _run.scorpio.shift
+	var middle: Vector2i = _run.seam_middle()
 	var seam: Dictionary[Vector2i, Color] = seam_pixels(_run.seam, middle, _run.sky_rect, _drift())
 	if _blocking_left > 0.0:
 		for point: Vector2i in seam:

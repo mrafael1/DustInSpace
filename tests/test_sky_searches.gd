@@ -29,12 +29,14 @@ func test_the_safe_launch_spot_left_of_x_0_is_the_same_spot_moved() -> void:
 	assert_eq(spot, home.safe_launch_spot() + LEFT, "the safe spot nearest the goal, not the one furthest from the circle")
 
 
-func test_the_open_middle_left_of_x_0_is_the_middle() -> void:
+## The figure moves with the sky (Scorpio.shift is 2D), so the open middle is the home one moved.
+func test_the_open_middle_left_of_x_0_is_the_same_spot_moved() -> void:
+	var home := RunState.new(Balance.load_file(), Fixtures.rng(), Fixtures.SKY, StarMap.stinger())
 	var run := RunState.new(Balance.load_file(), Fixtures.rng(), Rect2i(Fixtures.SKY.position + LEFT, Fixtures.SKY.size), StarMap.stinger())
-	var inner: Rect2i = StarScatter.inner_rect(run.sky_rect).grow(-StarScatter.RING_MAX)
+	assert_eq(run.scorpio.shift, LEFT, "the figure stays centred in the sky")
 	var middle: Vector2i = run._open_middle()
 	assert_lt(middle.x, 0)
-	assert_lte(Vector2(middle).distance_to(Vector2(inner.get_center())), Vector2(RunState.SAFE_SPOT_GRID, RunState.SAFE_SPOT_GRID).length() / 2.0, "the figure is far off: the open spot nearest the middle")
+	assert_eq(middle, home._open_middle() + LEFT, "the open spot by the figure, as at home")
 
 
 func test_the_ram_intro_finds_its_layout_left_of_x_0() -> void:

@@ -499,6 +499,35 @@ func test_a_taller_sky_moves_the_map_up_to_stay_centred() -> void:
 	assert_eq(Scorpio.new().shift, Vector2i.ZERO, "a 9:16 sky: the home layout")
 
 
+## A wide sky (docs/wide_sky_design.md §2): the map stays centred, so it only moves up; the frame is
+## the portrait band that holds it, over the sky's full height.
+func test_a_wide_sky_centres_the_map_and_frames_it() -> void:
+	var wide := Rect2i(-230, 38, 640, 212)
+	assert_eq(Scorpio.new(wide).shift, Vector2i(0, -20), "centred across: no sideways shift")
+	assert_eq(Scorpio.shift_in(Rect2i(-200, 78, 180, 172)), Vector2i(-200, 0), "a sky centred elsewhere moves the map across too")
+	var data: Dictionary = Fixtures.balance_dict()
+	data["scorpio"] = SCORPIO
+	var r := RunState.new(Balance.from_dict(data), Fixtures.rng(), wide)
+	assert_eq(r.frame_rect, Rect2i(0, 38, 180, 212), "the figure's 180 columns, the sky's rows")
+	assert_eq(r.figure_middle(), Vector2i(90, 144))
+	assert_eq(r.seam_middle(), r.figure_middle())
+	var moved := RunState.new(Balance.from_dict(data), Fixtures.rng(), Rect2i(-200, 78, 180, 172))
+	assert_eq(moved.frame_rect, Rect2i(-200, 78, 180, 172))
+	assert_eq(moved.figure_middle(), Vector2i(-110, 164))
+
+
+func test_on_a_portrait_sky_the_frame_is_the_sky() -> void:
+	var data: Dictionary = Fixtures.balance_dict()
+	data["scorpio"] = SCORPIO
+	for sky: Rect2i in [Fixtures.SKY, ScreenZones.play_sky(102), ScreenZones.play_sky(41)]:
+		var r := RunState.new(Balance.from_dict(data), Fixtures.rng(), sky)
+		assert_eq(r.frame_rect, sky, "%s" % sky)
+		assert_eq(r.figure_middle(), Scorpio.HOME_SKY.get_center() + r.scorpio.shift, "%s" % sky)
+		assert_eq(r.figure_middle(), sky.get_center(), "%s" % sky)
+	assert_eq(Fixtures.run().frame_rect, Fixtures.SKY, "without a constellation too")
+	assert_eq(Fixtures.run().figure_middle(), Fixtures.SKY.get_center())
+
+
 func test_on_a_taller_sky_the_rules_use_the_moved_map() -> void:
 	var data: Dictionary = Fixtures.balance_dict()
 	data["packs"]["blue"]["big_bang_chance"] = 0.0
