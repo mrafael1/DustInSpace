@@ -313,7 +313,7 @@ func test_a_ram_from_the_right_stands_mirrored_at_the_right_edge() -> void:
 	var view: ChargeView = _view(main)
 	view.settled = true
 	var run: RunState = main.run
-	run.ram.sides = true
+	run.ram.ways = [Vector2i.RIGHT, Vector2i.LEFT] as Array[Vector2i]
 	run.ram.turn()
 	view._follow_run()
 	assert_eq(view.way(), Vector2i.LEFT)
