@@ -1,10 +1,11 @@
 extends GutTest
-## Chapter 7, Aries: its figure and chart, its first stage (the Horns), and the ram's intro.
+## Chapter 7, Aries: its figure and chart, its stages so far (the Horns, the Head, the Fleece), and
+## the ram's intros.
 
 const MainScene := preload("res://game/scenes/main.tscn")
 const Fixtures := preload("res://tests/fixtures.gd")
 const SKY := Rect2i(0, 78, 180, 172)
-const BUILT: Array[String] = ["aries_horns"]
+const BUILT: Array[String] = ["aries_horns", "aries_head", "aries_fleece"]
 
 
 func _run(map: StarMap = StarMap.aries_horns(), seed_value: int = 7) -> RunState:
@@ -99,7 +100,7 @@ func test_the_intro_butts_one_star_past_a_landmark_and_one_out_of_the_sky() -> v
 	var cleared: Array = []
 	run.ram_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append(stars))
 	run.hunt_intro_burst.connect(func(_at: Vector2i, stars: Array) -> void: bursts.append(stars))
-	run.ram_charged.connect(func(row: int, moves: Array[StarCurrent.Move]) -> void: charges.append([row, moves]))
+	run.ram_charged.connect(func(row: int, moves: Array[StarCurrent.Move], _way: Vector2i) -> void: charges.append([row, moves]))
 	run.ram_intro_cleared.connect(func(stars: Array[Star]) -> void: cleared.append(stars))
 	var state: int = run._rng.state
 	run.play_ram_intro()
@@ -132,13 +133,13 @@ func test_the_intro_plays_only_on_an_empty_sky_with_intros() -> void:
 	var run: RunState = _run()
 	run.add_star(Star.Size.SMALL, Vector2i(90, 120))
 	var charges: Array[int] = [0]
-	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move]) -> void: charges[0] += 1)
+	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], _way: Vector2i) -> void: charges[0] += 1)
 	run.play_ram_intro()
 	assert_eq(charges[0], 0, "not with stars already out")
 	var quiet: StarMap = StarMap.aries_horns()
 	quiet.intros = false
 	var other: RunState = _run(quiet)
-	other.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move]) -> void: charges[0] += 1)
+	other.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], _way: Vector2i) -> void: charges[0] += 1)
 	other.play_ram_intro()
 	assert_eq(charges[0], 0, "not on a stage without intros")
 	assert_false(StarMap.ram_trial().intros, "the trial opens without it")
@@ -166,3 +167,90 @@ func test_the_horns_open_with_the_intro_saying_the_rule() -> void:
 	assert_true(view.has_ram())
 	assert_false(view.is_charging())
 	assert_eq(view.row(), main.run.ram.row)
+
+
+## Each stage's map: a tree of 30-40 px strings in the sky, the first lit, the ram on.
+func _assert_ram_stage(map: StarMap, title: String) -> void:
+	assert_eq(map.title, title)
+	assert_true(map.ram)
+	assert_true(map.intros)
+	assert_eq(map.count(), 6)
+	assert_eq(map.starting_lit, [0] as Array[int])
+	assert_eq(map.segment_count(), map.count() - 1, "the strings form a tree")
+	var inner: Rect2i = StarScatter.inner_rect(SKY)
+	for i: int in map.count():
+		assert_true(inner.has_point(map.landmarks[i]))
+	for segment: Vector2i in map.segments:
+		var length: float = Vector2(map.landmarks[segment.x]).distance_to(Vector2(map.landmarks[segment.y]))
+		assert_between(length, 30.0, 40.0, "a string's length")
+
+
+func test_the_head_charges_harder() -> void:
+	var map: StarMap = StarMap.by_id("aries_head")
+	_assert_ram_stage(map, "HEAD")
+	assert_true(map.ram_hard)
+	assert_false(map.ram_sides)
+	var balance: Balance = Balance.load_file()
+	assert_gt(balance.ram_hard_butt, balance.ram_butt)
+	var run: RunState = _run(map)
+	assert_eq(run.ram.butt, balance.ram_hard_butt)
+	assert_false(run.ram.sides)
+	assert_eq(_run().ram.butt, balance.ram_butt, "the Horns keep the normal push")
+	assert_true(run.ram.in_lane(map.landmarks[1]) and run.ram.in_lane(map.landmarks[2]), "the brow shares the root's lane")
+
+
+func test_the_fleece_charges_from_each_side_in_turn() -> void:
+	var map: StarMap = StarMap.by_id("aries_fleece")
+	_assert_ram_stage(map, "FLEECE")
+	assert_true(map.ram_sides)
+	assert_false(map.ram_hard)
+	var run: RunState = _run(map)
+	assert_true(run.ram.sides)
+	assert_eq(run.ram.butt, Balance.load_file().ram_butt)
+	var ways: Array[Vector2i] = []
+	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], way: Vector2i) -> void: ways.append(way))
+	for i: int in 3:
+		Fixtures.launch(run, Vector2i(90, 110))
+	assert_eq(ways, [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.RIGHT] as Array[Vector2i], "left, right, left again")
+	assert_eq(run.ram.way, Vector2i.LEFT, "the next comes from the right")
+
+
+func test_the_head_intro_shows_the_harder_push() -> void:
+	var run: RunState = _run(StarMap.aries_head())
+	var charges: Array = []
+	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], _way: Vector2i) -> void: charges.append(moves))
+	run.play_ram_intro()
+	assert_eq(charges.size(), 1)
+	var kept: int = 0
+	for move: StarCurrent.Move in charges[0]:
+		if not move.drained:
+			kept += 1
+			assert_gte(move.to.x - move.from.x, run.ram.butt, "butted the harder push or more")
+	assert_eq(kept, 1)
+	assert_true(run.stars.is_empty())
+
+
+func test_the_fleece_intro_charges_once_from_each_side() -> void:
+	var run: RunState = _run(StarMap.aries_fleece())
+	var ways: Array[Vector2i] = []
+	var placed: Array[int] = [0]
+	run.ram_intro_placed.connect(func(_stars: Array[Star]) -> void: placed[0] += 1)
+	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], way: Vector2i) -> void:
+		ways.append(way)
+		for move: StarCurrent.Move in moves:
+			assert_eq(signi(move.to.x - move.from.x), way.x, "each star goes the ram's way"))
+	run.play_ram_intro()
+	assert_eq(ways, [Vector2i.RIGHT, Vector2i.LEFT] as Array[Vector2i])
+	assert_eq(placed[0], 2, "a round of demo stars for each side")
+	assert_eq(run.ram.way, Vector2i.RIGHT, "the first real charge comes from the left")
+	assert_true(run.stars.is_empty())
+	assert_eq(run.ram.launches, 0)
+
+
+func test_each_stage_says_its_ram_rule() -> void:
+	assert_eq(Hud.ram_rule(_run()), Hud.RAM_MESSAGE)
+	assert_eq(Hud.ram_rule(_run(StarMap.aries_head())), Hud.RAM_HARD_MESSAGE)
+	assert_eq(Hud.ram_rule(_run(StarMap.aries_fleece())), Hud.RAM_SIDES_MESSAGE)
+	for message: String in [Hud.RAM_HARD_MESSAGE, Hud.RAM_SIDES_MESSAGE]:
+		for line: String in message.split("\n"):
+			assert_lte(line.length(), 24, line)
