@@ -22,6 +22,8 @@ extends Node2D
 ##   the lane from it to the far edge in three rows, fast then slowing, never over a star or a
 ##   landmark; the stars it butts drift right; one butted out of the sky cuts out at the far edge in
 ##   ember sparks (C3, S4, S3) over LOSS_TIME (not waited for).
+## A ram that charges harder (the Head) is heated: its horns ember (S4, S3) and its hoof prints and
+## dust ember too (S4, S3, S2), so the harder push shows before it charges; its face stays pale.
 
 ## The ram's head, frontal: H horn light, h horn dark, F face, f face shade, E eye, n nostril.
 const HEAD: Array[String] = [
@@ -44,6 +46,12 @@ const HEAD: Array[String] = [
 const HEAD_COLOURS: Dictionary[String, Color] = {
 	"H": Palette.M6, "h": Palette.M4, "F": Palette.M5, "f": Palette.M4, "E": Palette.S4, "n": Palette.M3,
 }
+## The heated ram's: ember horns round the pale face.
+const HARD_HEAD_COLOURS: Dictionary[String, Color] = {
+	"H": Palette.S4, "h": Palette.S3, "F": Palette.M5, "f": Palette.M4, "E": Palette.S4, "n": Palette.M3,
+}
+## Its prints and dust: each cool colour of the trail and its ember.
+const HARD_TRAIL: Dictionary[Color, Color] = {Palette.N7: Palette.S4, Palette.N6: Palette.S3, Palette.M4: Palette.S2}
 ## The head's top-left is this far up from the lane row.
 const HEAD_ABOVE: int = 10
 ## The head is left out within this many px of a star or landmark, so they show in front of it.
@@ -135,6 +143,11 @@ func row() -> int:
 	return _play_row if is_charging() else _row
 
 
+## Whether the ram charges harder on this stage (heated: ember horns, prints and dust).
+func is_hard() -> bool:
+	return has_ram() and _run.scorpio.map.ram_hard
+
+
 ## The way the ram shown charges (right: it stands at the left edge).
 func way() -> Vector2i:
 	return _play_way if is_charging() else _way
@@ -224,8 +237,8 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	else:
 		var sky: Rect2i = _run.sky_rect
 		var clear: Array[Vector3i] = _framed(_keep_clear(), sky, _way)
-		var own: Dictionary[Vector2i, Color] = print_pixels(_row, _run.ram.lane, clear, sky, 0)
-		own.merge(_clipped(head_pixels(_row, sky), clear, HEAD_PAD), true)
+		var own: Dictionary[Vector2i, Color] = _trail(print_pixels(_row, _run.ram.lane, clear, sky, 0))
+		own.merge(_clipped(head_pixels(_row, sky, 0, 0, is_hard()), clear, HEAD_PAD), true)
 		own.merge(pip_pixels(_row, sky, _run.ram.every, _lit), true)
 		result.merge(_framed_pixels(own, sky, _way), true)
 		if cues_shown():
@@ -276,13 +289,13 @@ func _charge_pixels() -> Dictionary[Vector2i, Color]:
 	if _age < REAR_TIME:
 		# The rear: pips spent, the head up, dust at its feet, the prints stamped along; the stars it
 		# takes still ringed.
-		own.merge(print_pixels(_play_row, lane, clear, sky, 1), true)
-		own.merge(_clipped(head_pixels(_play_row, sky, LIFT), clear, HEAD_PAD), true)
+		own.merge(_trail(print_pixels(_play_row, lane, clear, sky, 1)), true)
+		own.merge(_clipped(head_pixels(_play_row, sky, LIFT, 0, is_hard()), clear, HEAD_PAD), true)
 		own.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
 		var origin: Vector2i = head_origin(_play_row, sky)
 		var i: int = 0
 		for x: int in range(origin.x + 3, origin.x + head_size().x - 2, 4):
-			own.merge(dust_pixels(Vector2i(x + 4, origin.y + head_size().y + 5), 0.3, i), true)
+			own.merge(_trail(dust_pixels(Vector2i(x + 4, origin.y + head_size().y + 5), 0.3, i)), true)
 			i += 1
 		for move: StarCurrent.Move in _moves:
 			if not _sizes.has(move.star_id):
@@ -291,11 +304,20 @@ func _charge_pixels() -> Dictionary[Vector2i, Color]:
 				result.merge(HarvestView.lone_ring_pixels(move.from, _sizes[move.star_id], _time * 3.0), true)
 	else:
 		var k: float = (_age - REAR_TIME) / CHARGE_TIME
-		own.merge(rush_pixels(_play_row, lane, sky, k, clear + _framed(_paths_clear(), sky, _play_way)), true)
-		own.merge(_clipped(head_pixels(_play_row, sky, 0, LUNGE if k < 0.7 else LUNGE / 2), clear, HEAD_PAD), true)
+		own.merge(_trail(rush_pixels(_play_row, lane, sky, k, clear + _framed(_paths_clear(), sky, _play_way))), true)
+		own.merge(_clipped(head_pixels(_play_row, sky, 0, LUNGE if k < 0.7 else LUNGE / 2, is_hard()), clear, HEAD_PAD), true)
 		own.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
 	result.merge(_framed_pixels(own, sky, _play_way), true)
 	return result
+
+
+## The ram's prints or dust `pixels`, in ember for a heated ram.
+func _trail(pixels: Dictionary[Vector2i, Color]) -> Dictionary[Vector2i, Color]:
+	if not is_hard():
+		return pixels
+	for point: Vector2i in pixels:
+		pixels[point] = HARD_TRAIL.get(pixels[point], pixels[point])
+	return pixels
 
 
 ## `spots` (x, y, half extent) as the ram running `way` sees them: mirrored across `sky` for a charge
@@ -328,9 +350,10 @@ static func head_size() -> Vector2i:
 	return Vector2i(HEAD[0].length(), HEAD.size())
 
 
-static func head_pixels(lane_row: int, sky: Rect2i, lift: int = 0, lunge: int = 0) -> Dictionary[Vector2i, Color]:
+## The head (heated, `hard`: ember horns).
+static func head_pixels(lane_row: int, sky: Rect2i, lift: int = 0, lunge: int = 0, hard: bool = false) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	_blit(result, HEAD, head_origin(lane_row, sky, lift, lunge), HEAD_COLOURS)
+	_blit(result, HEAD, head_origin(lane_row, sky, lift, lunge), HARD_HEAD_COLOURS if hard else HEAD_COLOURS)
 	return result
 
 

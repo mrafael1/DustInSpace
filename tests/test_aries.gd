@@ -254,3 +254,23 @@ func test_each_stage_says_its_ram_rule() -> void:
 	for message: String in [Hud.RAM_HARD_MESSAGE, Hud.RAM_SIDES_MESSAGE]:
 		for line: String in message.split("\n"):
 			assert_lte(line.length(), 24, line)
+
+
+func test_the_harder_ram_is_heated_ember() -> void:
+	for id: String in ["aries_horns", "aries_head", "aries_fleece"]:
+		var main: Main = _main(id)
+		_settle(main)
+		var view: ChargeView = main.get_node("Sky/ChargeLayer")
+		var hard: bool = id == "aries_head"
+		assert_eq(view.is_hard(), hard, id)
+		var head: Dictionary[Vector2i, Color] = ChargeView.head_pixels(main.run.ram.row, main.run.sky_rect, 0, 0, hard)
+		var embers: int = 0
+		for point: Vector2i in head:
+			if head[point] in [Palette.S4, Palette.S3]:
+				embers += 1
+		if hard:
+			assert_gt(embers, head.size() / 3, "ember horns")
+		else:
+			assert_eq(embers, 2, "just its eyes")
+		for colour: Color in ChargeView.HARD_TRAIL.values():
+			assert_true(colour in [Palette.S4, Palette.S3, Palette.S2], "the trail heats on the ember ramp")
