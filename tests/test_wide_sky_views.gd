@@ -71,3 +71,31 @@ func test_on_the_portrait_sky_the_frame_is_the_sky() -> void:
 	var run: RunState = _run("body", Fixtures.SKY)
 	var hud: Hud = _hud(run)
 	assert_eq(hud._volley.position, Vector2(Fixtures.SKY.position + OrionView.FIGURE_AT + Hud.VOLLEY_COUNTER_OFFSET))
+
+
+# --- The frame edge is shaded on drain stages ---------------------------------------------------
+
+func test_a_wide_drain_stage_shades_the_sky_outside_the_frame() -> void:
+	var run: RunState = _run("aquarius_body")
+	var rects: Array[Rect2i] = CurrentView.frame_shade_rects(run.current, run.sky_rect)
+	assert_eq(rects, [Rect2i(-230, 38, 230, 212), Rect2i(180, 38, 230, 212)] as Array[Rect2i])
+	var current := CurrentView.new()
+	add_child_autofree(current)
+	current.setup(run, sequencer)
+	var dots: Dictionary[Vector2i, Color] = current.pixels()
+	for y: int in range(38, 250, 2):
+		assert_eq(dots.get(Vector2i(-1, y)), Palette.S3, "the frame's left side wears the drain line")
+		assert_eq(dots.get(Vector2i(180, y)), Palette.S3)
+
+
+func test_no_shade_without_a_drain_or_on_the_portrait_sky() -> void:
+	var hand: RunState = _run("aquarius_hand")
+	assert_true(CurrentView.frame_shade_rects(hand.current, hand.sky_rect).is_empty(), "the Hand has no drain")
+	for map_id: String in ["aquarius_body", "aquarius_stream", "aquarius_jar", "aquarius_final"]:
+		var home: RunState = _run(map_id, Fixtures.SKY)
+		assert_true(CurrentView.frame_shade_rects(home.current, home.sky_rect).is_empty(), map_id)
+		assert_true(CurrentView.frame_edge_pixels(home.current, home.sky_rect).is_empty(), map_id)
+
+
+func test_the_shade_is_palette_locked() -> void:
+	assert_eq(CurrentView.SHADE_COLOUR, Palette.S1)

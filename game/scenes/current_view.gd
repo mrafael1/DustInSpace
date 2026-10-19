@@ -7,6 +7,9 @@ extends Node2D
 ## At-risk marks, always (#149: the aim's trails went unseen, since the player can't link while
 ## aiming): while not aiming, each star the next launch drains wears a small ember chevron just past
 ## its downstream side, an ember arrow pointing where it goes, nudging a pixel that way every MARK_STEP.
+## The frame edge (a wide sky's drain stage, docs/wide_sky_design.md Q4): the sky outside the run's
+## frame, where every star drains at the next step, is shaded with a sparse SHADE_COLOUR dither, and
+## the frame's sides wear the drain's dotted ember line.
 
 ## The water: streaks gliding downstream in whole pixels, one per STREAK_AREA px² of the field,
 ## each STREAK_LENGTH long at STREAK_SPEED px/s (both by a fixed hash, so the pattern is stable).
@@ -46,6 +49,11 @@ const CHEVRON_CLEAR: int = 10
 ## the order the flow will take them, ARRIVAL_STEP apart, then settles.
 const ARRIVAL_STEP: float = 0.22
 
+## The sky outside a draining flow's frame: one SHADE_COLOUR pixel in every SHADE_TILE square, on
+## alternate rows half a tile across (a sparse, even ember dither over the outer columns).
+const SHADE_TILE: int = 4
+const SHADE_COLOUR: Color = Palette.S1
+
 ## The at-risk arrow's head sits MARK_GAP px past the star's edge; it nudges on every MARK_STEP.
 const MARK_GAP: int = 9
 const MARK_STEP: float = 0.6
@@ -62,10 +70,13 @@ var _arrival: float = -1.0
 ## resolves; the view turns only once that launch has played out (its burst and drift), so the
 ## water never changes way under stars still moving the old way.
 var _shown_flow: Vector2i = Vector2i.ZERO
+## The shade's tile (_shade_tile), made once.
+static var _tile: ImageTexture
 
 
 func _ready() -> void:
 	set_process(false)
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 
 
 func setup(run: RunState, sequencer: EventSequencer) -> void:
@@ -119,6 +130,9 @@ func advance(delta: float) -> void:
 
 
 func _draw() -> void:
+	if _run != null and _run.current != null and not _played_out():
+		for rect: Rect2i in frame_shade_rects(_run.current, _run.sky_rect):
+			draw_texture_rect(_shade_tile(), Rect2(rect), true)
 	var dots: Dictionary[Vector2i, Color] = pixels()
 	for point: Vector2i in dots:
 		draw_rect(Rect2(Vector2(point), Vector2.ONE), dots[point], true)
@@ -147,6 +161,8 @@ func pixels() -> Dictionary[Vector2i, Color]:
 				result[point] = Palette.S2
 		for point: Vector2i in _drain_edge(area, now):
 			result[point] = Palette.S3
+		for point: Vector2i in frame_edge_pixels(_run.current, _run.sky_rect):
+			result[point] = Palette.S3
 		if _run.current.turns.size() > 1:
 			var stars: Array[Vector2i] = []
 			for star: Star in _run.stars:
@@ -159,12 +175,15 @@ func pixels() -> Dictionary[Vector2i, Color]:
 						result[point] = Palette.S4 if _arrival < ARRIVAL_STEP * (k + 1) else Palette.S3
 		for at: Vector2i in _flashes:
 			var went: Vector2i = _flash_ways.get(at, Vector2i.ZERO)
-			result.merge(extinction_pixels(at, went if went != Vector2i.ZERO else _shown_flow, _flashes[at], area), true)
+			# A star stranded outside the frame went where it stood: its flash keeps to the sky there.
+			var near: Rect2i = area if area.grow(2).has_point(at) else _run.sky_rect
+			result.merge(extinction_pixels(at, went if went != Vector2i.ZERO else _shown_flow, _flashes[at], near), true)
 	if not aiming and (_sequencer == null or not _sequencer.is_busy()):
 		var way := Vector2i(signi(_run.current.displacement.x), signi(_run.current.displacement.y))
 		for id: int in _run.launch_drains():
 			var star: Star = _run.find_star(id)
-			result.merge(drain_mark_pixels(star.position, star.size, way, _time), true)
+			var going: Vector2i = _run.current.outward(star.position) if _run.current.stranded(star.position) else way
+			result.merge(drain_mark_pixels(star.position, star.size, going, _time), true)
 	if aiming and not _sequencer.is_busy():
 		var destinations: Dictionary[int, Vector2i] = _run.current_preview()
 		for star: Star in _run.stars:
@@ -182,6 +201,41 @@ func pixels() -> Dictionary[Vector2i, Color]:
 				for dy: int in [-1, 0, 1]:
 					result[to + Vector2i(side * radius, dy)] = Palette.M5
 	return result
+
+
+## The sky outside `flow`'s frame, where a draining flow loses every star (its outer columns, either
+## side), in `sky`; none without a drain or a frame narrower than the sky (a 9:16 sky).
+static func frame_shade_rects(flow: StarCurrent, sky: Rect2i) -> Array[Rect2i]:
+	var rects: Array[Rect2i] = []
+	if not flow.drains or not flow.frame.has_area():
+		return rects
+	var left := Rect2i(sky.position.x, sky.position.y, flow.frame.position.x - sky.position.x, sky.size.y)
+	var right := Rect2i(flow.frame.end.x, sky.position.y, sky.end.x - flow.frame.end.x, sky.size.y)
+	for rect: Rect2i in [left, right]:
+		if rect.has_area():
+			rects.append(rect)
+	return rects
+
+
+## The frame's sides where the shade meets it: the drain's dotted line, one pixel in two, just
+## outside the frame.
+static func frame_edge_pixels(flow: StarCurrent, sky: Rect2i) -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	for rect: Rect2i in frame_shade_rects(flow, sky):
+		var x: int = rect.end.x - 1 if rect.end.x <= flow.frame.position.x else rect.position.x
+		for y: int in range(rect.position.y, rect.end.y, 2):
+			points.append(Vector2i(x, y))
+	return points
+
+
+## The shade's tile: SHADE_COLOUR at (0, 0) and half a tile across on the middle row.
+static func _shade_tile() -> ImageTexture:
+	if _tile == null:
+		var image := Image.create(SHADE_TILE, SHADE_TILE, false, Image.FORMAT_RGBA8)
+		image.set_pixel(0, 0, SHADE_COLOUR)
+		image.set_pixel(SHADE_TILE / 2, SHADE_TILE / 2, SHADE_COLOUR)
+		_tile = ImageTexture.create_from_image(image)
+	return _tile
 
 
 ## A star of `size` at `at` that the next launch drains (flowing `way`), `time` seconds in: a short

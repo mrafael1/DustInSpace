@@ -381,6 +381,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.current_region.has_area() and step > 0:
 			var area: Rect2i = _stage_area(scorpio.map.current_region)
 			current = StarCurrent.new(area, scorpio.map.current_direction * step, scorpio.map.current_drains, scorpio.map.current_turns)
+			current.frame = frame_rect
 		if scorpio.map.heat_change != 0:
 			heat = StarHeat.new(scorpio.map.heat_change, scorpio.map.heat_burns, scorpio.map.heat_turns)
 		if scorpio.map.harvest and balance.harvest_every_for(scorpio.map.id) > 0:
@@ -2374,6 +2375,7 @@ func play_current_intro() -> void:
 		return
 	# A copy as the run starts: the demo turns it, never the run's own flow.
 	var flow := StarCurrent.new(current.region, current.displacement, current.drains, current.turns)
+	flow.frame = current.frame
 	var spots: Array[Vector2i] = current_intro_spots()
 	if spots.is_empty():
 		return

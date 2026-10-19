@@ -870,7 +870,8 @@ func _shoot(star: Star) -> void:
 ## Orion's hunting area (#71): his arrow flies to the ring's centre, and the stars inside burst as
 ## it lands; the next events (the new ring) wait for it.
 ## The current: every moved star drifts; a drained one drifts to the field's edge and cuts out
-## there as the drain flashes, for nothing.
+## there as the drain flashes, for nothing (one stranded outside a wide sky's frame: a step further
+## out, where it stands).
 func _shift(moves: Array[StarCurrent.Move]) -> void:
 	for move: StarCurrent.Move in moves:
 		var view: StarView = _views.get(move.star_id)
@@ -883,7 +884,7 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 		view.drained.connect(func(v: StarView) -> void:
 			_current.flash_drain(Vector2i(v.position), Vector2i(signi(move.to.x - move.from.x), signi(move.to.y - move.from.y)))
 			star_drained.emit(Vector2i(v.position)))
-		view.drain_to(_edge_point(move.to))
+		view.drain_to(move.to if _run.current.stranded(move.from) else _edge_point(move.to))
 	_sequencer.hold(StarView.DRIFT_TIME)
 
 

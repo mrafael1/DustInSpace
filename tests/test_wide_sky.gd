@@ -168,3 +168,82 @@ func test_a_hunted_wide_runs_safe_spot_is_in_the_frame() -> void:
 	var spot: Vector2i = run.safe_launch_spot()
 	assert_true(run.is_safe_launch(spot))
 	assert_true(StarScatter.inner_rect(run.frame_rect).has_point(spot), "%s: the frame is scanned, not the 640 columns" % spot)
+
+
+# --- The frame edge drains (Q4) -----------------------------------------------------------------
+
+func _launch_once(run: RunState) -> void:
+	if run.loaded_pack == "":
+		for kind: String in run.owned_packs:
+			if run.load_pack(kind):
+				break
+	assert_true(run.launch(run.figure_middle()), "the launch goes")
+
+
+func test_on_a_drain_stage_a_star_outside_the_frame_drains_at_the_next_step() -> void:
+	var run: RunState = _stage(StarMap.aquarius_body())
+	var flowing: Star = run.add_star(Star.Size.BIG, Vector2i(300, 150))
+	var still: Star = run.add_star(Star.Size.SMALL, Vector2i(-100, 150))
+	var kept: Star = run.add_star(Star.Size.MEDIUM, Vector2i(150, 230))
+	assert_true(run.current.region.has_point(flowing.position), "in the stretched flow, right of the frame")
+	assert_false(run.current.region.has_point(still.position), "in the still strip left of the frame")
+	var drains: Array[int] = run.launch_drains()
+	assert_true(drains.has(flowing.id) and drains.has(still.id), "both marked before the launch")
+	assert_false(drains.has(kept.id), "a star in the frame, a step from the drain, stays")
+	var drained: Array[int] = []
+	run.stars_shifted.connect(func(moves: Array[StarCurrent.Move]) -> void:
+		for move: StarCurrent.Move in moves:
+			if move.drained:
+				drained.append(move.star_id))
+	_launch_once(run)
+	assert_true(drained.has(flowing.id) and drained.has(still.id))
+	assert_null(run.find_star(flowing.id))
+	assert_null(run.find_star(still.id))
+	assert_not_null(run.find_star(kept.id))
+
+
+func test_a_burst_outside_the_frame_shows_as_draining() -> void:
+	var run: RunState = _stage(StarMap.aquarius_body())
+	assert_true(run.burst_drains_at(Vector2i(-100, 150)), "the aim's ring marks it red")
+	assert_true(run.burst_drains_at(Vector2i(300, 150)))
+	assert_false(run.burst_drains_at(Vector2i(120, 150)), "inside the frame only the drain itself counts")
+
+
+func test_a_stranded_star_leaves_outward() -> void:
+	var run: RunState = _stage(StarMap.aquarius_stream())
+	var left: Star = run.add_star(Star.Size.SMALL, Vector2i(-50, 120))
+	var right: Star = run.add_star(Star.Size.SMALL, Vector2i(250, 120))
+	var preview: Dictionary[int, Vector2i] = run.current_preview()
+	assert_lt(preview[left.id].x, left.position.x, "out to the left")
+	assert_gt(preview[right.id].x, right.position.x, "out to the right")
+	assert_true(run.current.leaves(left.position, preview[left.id]))
+
+
+func test_a_flow_without_a_drain_keeps_the_outer_columns() -> void:
+	var run: RunState = _stage(StarMap.aquarius_hand())
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(300, 150))
+	assert_false(run.current.stranded(star.position))
+	assert_true(run.launch_drains().is_empty())
+	_launch_once(run)
+	assert_not_null(run.find_star(star.id), "the Hand has no drain: it only drifts")
+	assert_lt(run.find_star(star.id).position.x, 300)
+
+
+func test_a_flow_carrying_a_star_past_its_frames_side_drains_it() -> void:
+	var flow := StarCurrent.new(Rect2i(0, 0, 200, 50), Vector2i(24, 0), true)
+	flow.frame = Rect2i(0, 0, 100, 50)
+	var star := Star.new(1, Star.Size.SMALL, Vector2i(90, 20))
+	var to: Dictionary[int, Vector2i] = flow.preview([star] as Array[Star], Rect2i(-50, 0, 300, 50), [] as Array[Vector2i])
+	assert_eq(to[1], Vector2i(114, 20))
+	assert_true(flow.leaves(star.position, to[1]), "out past the frame's side: lost")
+	var moves: Array[StarCurrent.Move] = flow.moves([star] as Array[Star], to)
+	assert_true(moves[0].drained)
+
+
+func test_on_the_portrait_sky_no_star_is_stranded() -> void:
+	for map: StarMap in [StarMap.aquarius_body(), StarMap.aquarius_jar(), StarMap.aquarius_final()]:
+		var run: RunState = _stage(map, Fixtures.SKY)
+		assert_eq(run.current.frame, Fixtures.SKY)
+		var inner: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
+		for at: Vector2i in [inner.position, inner.end - Vector2i.ONE, inner.get_center()]:
+			assert_false(run.current.stranded(at), "%s %s" % [map.id, at])

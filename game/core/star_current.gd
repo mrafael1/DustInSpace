@@ -5,6 +5,10 @@ extends RefCounted
 ## A draining flow loses every star it carries out of its field: it pays nothing.
 ## A turning flow (a tide, a rotating box) runs each way in `turns` in order, one launch each:
 ## turn() moves it on once a launch has resolved, so the aim always previews the flow it will get.
+## A draining flow with a frame (a wide sky's: RunState.frame_rect) also loses every star outside
+## its frame at its next step, and any it would carry out of it (docs/wide_sky_design.md, Q4): the
+## sky beyond the frame's sides is as lost as beyond a phone's edge. On a 9:16 sky the frame is the
+## sky, so this never happens.
 
 class Move:
 	extends RefCounted
@@ -31,6 +35,8 @@ var displacement: Vector2i
 var drains: bool
 ## The ways a turning flow takes, in order (empty: it always runs one way).
 var turns: Array[Vector2i] = []
+## The frame a draining flow keeps its stars in (no area: none, the sky's edge is the only one).
+var frame: Rect2i = Rect2i()
 var _turn: int = 0
 var _step: int = 0
 
@@ -83,7 +89,12 @@ func preview(stars: Array[Star], sky: Rect2i, landmarks: Array[Vector2i], reserv
 	var ordered: Array[Star] = stars.duplicate()
 	ordered.sort_custom(_downstream_first)
 	for star: Star in ordered:
-		if reserved.has(star.id) or not region.has_point(star.position):
+		if reserved.has(star.id):
+			continue
+		if stranded(star.position):
+			destinations[star.id] = off_frame(star.position)
+			continue
+		if not region.has_point(star.position):
 			continue
 		var wanted: Vector2i = StarScatter.clamp_to_sky(star.position + displacement, sky)
 		destinations.erase(star.id)
@@ -104,9 +115,29 @@ func moves(stars: Array[Star], destinations: Dictionary[int, Vector2i]) -> Array
 	return result
 
 
-## Whether a star moving from `from` to `to` is carried out of a draining field (and lost).
+## Whether a star moving from `from` to `to` is carried out of a draining field, or past its frame's
+## sides (and lost). A star already outside the frame is lost wherever it goes (stranded).
 func leaves(from: Vector2i, to: Vector2i) -> bool:
-	return drains and from != to and region.has_point(from) and not region.has_point(to)
+	if stranded(from):
+		return true
+	return drains and from != to and region.has_point(from) and (not region.has_point(to) or (frame.has_area() and not frame.has_point(to)))
+
+
+## Whether a star at `at` stands outside a draining flow's frame: its next step drains it, in the
+## flow or not (a wide sky's outer columns; never on a 9:16 sky, whose frame is the sky).
+func stranded(at: Vector2i) -> bool:
+	return drains and frame.has_area() and not frame.has_point(at)
+
+
+## The way out of the frame from `at` (left of it: left; else right).
+func outward(at: Vector2i) -> Vector2i:
+	return Vector2i.LEFT if at.x < frame.get_center().x else Vector2i.RIGHT
+
+
+## Where a stranded star at `at` goes: a step further out from the frame (the flow's step, or one
+## px), where it leaves the sky.
+func off_frame(at: Vector2i) -> Vector2i:
+	return at + outward(at) * maxi(_step, 1)
 
 
 ## Vacate downstream positions before upstream stars try to follow. Creation age is only

@@ -146,7 +146,9 @@ func _aim(run: RunState, upstream: bool) -> Vector2i:
 			break
 	if upstream and run.current != null and run.current.region.has_point(target):
 		target -= run.current.displacement
-	return target
+	# Inside the frame, as the launch clamps an aim to a 9:16 sky (the same aim there): past a wide
+	# sky's frame a draining flow loses its stars, and the aim's preview shows it.
+	return StarScatter.clamp_to_sky(target, run.frame_rect)
 
 
 func _best_link(run: RunState, links: Array[Array]) -> Array[int]:
