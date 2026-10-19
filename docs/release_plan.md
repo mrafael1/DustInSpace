@@ -9,7 +9,8 @@
 - **Price** (the user, 2026-10-19: "stage 1 free and then 1.99e"): **chapter 1 free, the rest 1.99 EUR.** On phones the app is free to download with one in-app purchase that unlocks chapters 2-6; on Steam the game costs 1.99 EUR and a **free demo** has chapter 1. (**Flagged**: "stage 1" read as chapter 1, the Scorpio, matching the Steam demo.)
 - **iPad and tablets** use the wide sky too. **Big monitors:** my call (track 1.1).
 - **Achievements:** only one per chapter completed, to start (6, on Steam).
-- **Analytics** stay on in release builds, anonymous and disclosed (track 4.2).
+- **No analytics in release builds** (the user's final answer, 2026-10-19; it replaces "analytics would be great"): the release collects nothing (track 4.2).
+- **Part stages' paintings** are redone in the clean line too. **No controller** on Steam at first. **Achievements on Steam only.**
 
 [design.md](design.md) stays the rules reference. Each track below is its own branch and PR (AGENTS.md), and every design guess is flagged in its PR.
 
@@ -22,7 +23,7 @@ These block the store tracks, not the game work:
 | Google Play developer account and an upload keystore | Android | The keystore never goes in the repo |
 | Apple Developer Program and **a Mac** (or a cloud Mac) | iOS, macOS | Godot exports an Xcode project; building, signing and notarizing need macOS |
 | Steamworks partner account, the app fee and an **App ID** | Steam | Also the depot IDs for Windows, macOS and Linux |
-| A privacy policy URL, age rating answers (IARC and Apple), the stores' data-safety forms | All stores | The policy must describe the analytics (track 4.2) |
+| A privacy policy URL, age rating answers (IARC and Apple), the stores' data-safety forms | All stores | The game collects no data; the stores' purchases are the only data, handled by the stores |
 | The in-app product in Play Console and App Store Connect (a non-consumable, 1.99 EUR), and the tax and banking forms | Android, iOS | Paid apps and in-app purchases need them filled in |
 | A second Steam App ID for the demo | Steam | Steam demos are their own app, linked to the game's page |
 
@@ -56,7 +57,7 @@ One branch per chapter (`art/<chapter>-painting`), the approved Scorpio as the t
 | 5 Sagittarius | **none** | research brief first (atlas plates, the archer's pose against our stars) |
 | 6 Pisces | **none** | research brief first (the two fish and the cord knot) |
 
-Process per chapter (as agreed after the Stardust Myth paintings): research brief, then a side-by-side draft sheet with a 5x zoom row, the user's verdict, then wired into the builder and every chapter test. Closed shapes only; the game's stars never move. The part stages' paintings: the plan is to redo them in the clean line too, so a chapter looks the same from stage 1 to its final (**flagged**: today's art direction says part stages keep the older shaded style "for now").
+Process per chapter (as agreed after the Stardust Myth paintings): research brief, then a side-by-side draft sheet with a 5x zoom row, the user's verdict, then wired into the builder and every chapter test. Closed shapes only; the game's stars never move. The part stages' paintings are redone in the clean line too (the user, 2026-10-19), so a chapter looks the same from stage 1 to its final; Scorpio's part stages too, and art-direction.md's "for now" line goes.
 
 The draft PR #202 and its branch get rebased on main and split per chapter.
 
@@ -77,14 +78,9 @@ Branch per finding (`fix/`, `tune/`, `art/`). First a **review pass** that write
 Branches `chore/release-builds`, `feature/full-game-unlock`, `feature/steam`.
 
 1. **Export presets:** Android (AAB, the target API Google Play needs now, portrait, icons and adaptive icon), iOS (Xcode project, portrait, iPhone and iPad), Windows, macOS (universal) and Linux. Version and build numbers from one place. Release builds strip the debug features and the trials (and Aries's stages: only its locked chart entry ships).
-2. **Analytics** (on, the user's call): `AnalyticsUpload` keeps posting run records in release builds. Before release:
-   - **anonymous**: no device ID, advertising ID or account; a random install id at most, stored in `user://`;
-   - **disclosed**: the privacy policy, Google Play's data-safety form and Apple's App Privacy labels say what's sent (stage, outcome, packs, timings);
-   - **an OPTIONS line** (ANALYTICS ON / OFF, on by default) so a player can turn it off (**flagged**: the EU's rules may want it off until the player agrees; the user's call with the privacy policy);
-   - **the endpoint scales**: a Google Apps Script sheet is fine for playtests but has daily quotas; check them against the expected players, or move to a small hosted endpoint (**flagged**).
-   The endpoint URL stays out of the public repo (it's injected at export).
+2. **No analytics** (the user's call): release builds never post. `AnalyticsUpload` already sends nothing without an endpoint, so the export drops `game/config/analytics.json` and a test checks that a release build has no endpoint; the playtest log stays a debug-build feature. The stores' data forms say "no data collected".
 3. **The full-game unlock (phones):** one non-consumable in-app purchase, "the full sky", 1.99 EUR, through the official plugins: Google Play Billing (godot-sdk-integrations) on Android and StoreKit on iOS (Apple requires a RESTORE PURCHASES button). The chart shows chapters 2-6 locked with the price after chapter 1 is won (and from the start, so the player knows), and the purchase unlocks them for good (saved, restored on reinstall). A core `Entitlement` (pure, tested) says which chapters are open; the stores only feed it. Desktop full builds are always unlocked; the **Steam demo** is a build with chapter 1 only and a "get the full game" end card linking to the store page. Debug builds can toggle the unlock.
-4. **Steam:** GodotSteam (the GDExtension for Godot 4.7, to verify it exists for 4.7), the overlay, **cloud saves** (the save under `user://`), and **achievements: one per chapter completed** (6). Steam Deck: the wide sky at 1280x800 and its touch screen (a controller is **out of scope** for the first release, **flagged**).
+4. **Steam:** GodotSteam (the GDExtension for Godot 4.7, to verify it exists for 4.7), the overlay, **cloud saves** (the save under `user://`), and **achievements: one per chapter completed** (6). Steam Deck: the wide sky at 1280x800 and its touch screen (no controller in the first release: the user). No mobile achievements (Steam only).
 5. **Store page assets:** screenshots for each store's sizes (phone 9:16, tablet, 16:9 desktop), the Steam capsules (header, small, main, hero, library), the app icons, a short trailer cut from Movie Maker captures, and the short and long descriptions. Capsules and the icon may carry the game's name as a logo (the "no baked text" rule is for in-game art).
 
 ## Order
@@ -103,9 +99,6 @@ Track 1 and track 2 run side by side (they don't touch the same files: the paint
 
 Answered 2026-10-19: the price (chapter 1 free, then 1.99 EUR; a Steam demo with chapter 1), iPads use the wide sky, big monitors are my call (the biggest pixels), achievements are one per chapter completed, analytics stay on.
 
-Still open:
+Then: the part stages' paintings in the clean line (yes), no controller at first, **no analytics** in release, achievements on Steam only.
 
-1. **Part stages' paintings:** redo in the clean line (the plan) or keep the shaded style?
-2. **A controller** on Steam: out of scope for the first release (the plan)?
-3. **Analytics consent:** on by default with an OPTIONS switch (the plan), or off until the player agrees?
-4. **Mobile achievements** (Google Play Games, Game Center): Steam only for now (the plan)?
+Nothing is open. The one reading to confirm: "stage 1 free" taken as chapter 1.
