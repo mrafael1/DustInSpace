@@ -10,12 +10,15 @@ extends SceneTree
 ## Besides the win rate it counts how many unlit constellation stars each new circle covers (the
 ## circle's placement, #149) and the stars his threats take a run.
 
+const PlaytestSky := preload("res://tools/playtest_sky.gd")
 const POLICIES: Array[String] = ["naive", "careful"]
 ## The careful bot looks this far round the constellation star it aims for, for a launch clear of
 ## the circle (a step of the grid it tries).
 const AIM_SEARCH: int = 48
 const AIM_GRID: int = 4
 
+## The play sky (--sky=WxH, tools/playtest_sky.gd; the 9:16 sky without it).
+var _sky: Rect2i = Scorpio.HOME_SKY
 var _balance: Balance
 var _runs: int = 300
 var _map: String = "heart"
@@ -24,6 +27,8 @@ var _policy: String = ""
 
 
 func _initialize() -> void:
+	_sky = PlaytestSky.from_args()
+	print(PlaytestSky.label(_sky))
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
 			_runs = maxi(1, argument.trim_prefix("--runs=").to_int())
@@ -55,7 +60,7 @@ func _simulate() -> void:
 			policy, row.win_rate, row.losses, row.capped, row.packs_per_win, row.circles_on_landmarks_pct, row.landmarks_per_circle,
 			row.struck_per_run, float(row.shot) / _runs, float(row.volleyed) / _runs])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/hunt/out"))
-	var file: FileAccess = FileAccess.open("res://tools/hunt/out/results-%s.json" % _map, FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(("res://tools/hunt/out/results-%s.json" % _map).trim_suffix(".json") + PlaytestSky.suffix(_sky) + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
 	quit()
 
@@ -64,7 +69,7 @@ func _play(seed_value: int, policy: String, row: Dictionary) -> void:
 	_policy = policy
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, StarMap.by_id(_map))
+	var run := RunState.new(_balance, rng, _sky, StarMap.by_id(_map))
 	var packs: int = 0
 	run.area_marked.connect(func(centre: Vector2i, radius: int) -> void:
 		var covered: int = 0
@@ -109,16 +114,18 @@ func _play(seed_value: int, policy: String, row: Dictionary) -> void:
 ## the careful bot keeps the launch clear of the circle, as near it as it can.
 func _aim(run: RunState) -> Vector2i:
 	var index: int = run.rekindle_target()
-	var target: Vector2i = run.scorpio.landmark_position(index) if index >= 0 else Scorpio.HOME_SKY.get_center()
+	var target: Vector2i = run.scorpio.landmark_position(index) if index >= 0 else run.figure_middle()
 	if _policy != "careful" or run.is_safe_launch(target):
 		return target
-	var best := Vector2i(-1, -1)
+	var best: Vector2i = target
+	var found: bool = false
 	for y: int in range(-AIM_SEARCH, AIM_SEARCH + 1, AIM_GRID):
 		for x: int in range(-AIM_SEARCH, AIM_SEARCH + 1, AIM_GRID):
 			var spot: Vector2i = StarScatter.clamp_to_sky(target + Vector2i(x, y), run.sky_rect)
-			if run.is_safe_launch(spot) and (best.x < 0 or (spot - target).length_squared() < (best - target).length_squared()):
+			if run.is_safe_launch(spot) and (not found or (spot - target).length_squared() < (best - target).length_squared()):
 				best = spot
-	return best if best.x >= 0 else target
+				found = true
+	return best
 
 
 ## The best link: constellation stars first, then (careful) the marked star and the stars in the

@@ -11,9 +11,13 @@ extends SceneTree
 ## aims past that landmark on the side away from the hole, so its stars fall toward it; archer-hoard
 ## aims as the archer and hoards as launch-first.
 
+const PlaytestSky := preload("res://tools/playtest_sky.gd")
 const POLICIES: Array[String] = ["link-first", "launch-first", "archer", "archer-hoard"]
 ## How far past its landmark the archer aims, away from the hole.
 const ARCHER_LEAD: int = 26
+
+## The play sky (--sky=WxH, tools/playtest_sky.gd; the 9:16 sky without it).
+var _sky: Rect2i = Scorpio.HOME_SKY
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "black_hole_trial"
@@ -23,6 +27,8 @@ var _policy: String = ""
 
 
 func _initialize() -> void:
+	_sky = PlaytestSky.from_args()
+	print(PlaytestSky.label(_sky))
 	_balance = Balance.load_file()
 	var what_if: Dictionary = {}
 	for argument: String in OS.get_cmdline_user_args():
@@ -87,7 +93,7 @@ func _simulate() -> void:
 				merges = "  bangs/run %4.2f (wiped/run %4.2f)" % [row.bangs_per_run, row.wiped_per_run]
 			print("%-13s hole=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  swallowed/run %5.2f (on landing %4.2f)%s" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.swallowed_per_run, row.landed_in_per_run, merges])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/gravity/out"))
-	var file: FileAccess = FileAccess.open("res://tools/gravity/out/results-%s-%d-%d.json" % [_map, probe.black_hole_center.x, probe.black_hole_center.y], FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(("res://tools/gravity/out/results-%s-%d-%d.json" % [_map, probe.black_hole_center.x, probe.black_hole_center.y]).trim_suffix(".json") + PlaytestSky.suffix(_sky) + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
 	quit()
 
@@ -116,7 +122,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	_policy = policy
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
+	var run := RunState.new(_balance, rng, _sky, _layout(enabled))
 	var packs: int = 0
 	var landed: Dictionary[int, bool] = {}
 	run.pack_burst.connect(func(_kind: String, _at: Vector2i, stars: Array[Star]) -> void:
@@ -169,7 +175,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 
 ## Just up-left of the first unlit landmark; the archer aims past it, away from the hole.
 func _aim(run: RunState) -> Vector2i:
-	var target := Vector2i(90, 160)
+	var target: Vector2i = Vector2i(90, 160) + run.scorpio.shift
 	for index: int in run.scorpio.map.count():
 		if not run.scorpio.is_lit(index):
 			target = run.scorpio.landmark_position(index)

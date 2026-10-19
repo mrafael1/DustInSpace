@@ -192,3 +192,20 @@ Where the build differs from the plan above, or settles a detail it left open.
 - `WIDE_SKY` is a local constant in that test for now. It moves to `Fixtures` in commit 5.
 - The hole bound is `ceili(Vector2(sky_rect.size).length())`, which is 249 on the 9:16 sky (was 360). For a hole inside the sky, a spot further out than the diagonal is off the sky either way, so the result doesn't change. The identity guard confirms this. A test builds a hole whose third demo star must stand over 400 px out and finds it on `WIDE_SKY`.
 - Not fixed (unrelated, noted for later): `gauge_intro_spots` still reads `GravityView.RING_GAP`, a scene constant, from core.
+
+**Commit 3 (sky margin).**
+- `sky_margin` takes the visible size as a `Vector2`, like `game_offset` (Main passes the viewport's visible rect size), not a `Vector2i`.
+- 1366x768 (683x384 visible) gives a margin of (230, 64): the 640 cap. A 1170x2532 phone gives (7, 102), so tall phones with a few spare columns now get them as sky once Main is switched (commit 17); until then nothing uses it.
+
+**Commit 4 (2D shift, frame, figure middle).**
+- `Scorpio.shift_in(sky)` is the static form of the shift; `RunState` uses it to set `frame_rect` before the Scorpio exists, so a run without a constellation has a frame too (the sky, on portrait). `figure_middle()` is `HOME_SKY.get_center() + shift_in(sky_rect)`, the same value as `+ scorpio.shift`, and works without a constellation.
+- The ram's intro burst uses `figure_middle()` for both axes (the y one was `sky_rect.get_center().y`, always equal). `_ram_start_row`'s fallback `sky_rect.get_center().y` is left as it is (equal too).
+- The 2D shift moves the figure with a sky moved sideways, so commit 2's `_open_middle` test ("the figure is far off") no longer holds: it now asserts the left sky's open middle is the home one moved 200 px left.
+
+**Commit 5 (bots, sim, fixtures).**
+- `tools/playtest_sky.gd` (preloaded, no `class_name`): `parse_sky`, `from_args`, `suffix`, `label`. `--sky=WxH` is the visible area in game px (640x360 for 1080p). Each bot prints the sky as its first line.
+- The results file name gets `-sky<W>x<H>` (the play sky's size) only off the 9:16 sky, so portrait file names stay as they were. `combo_share.json` likewise.
+- Fallback aims: the hunt bot's `HOME_SKY.get_center()` became `run.figure_middle()`; the `(90, 160)` fallbacks became `(90, 160) + run.scorpio.shift` rather than `figure_middle()` (90, 164), so portrait bot numbers stay exactly as before (checked: hunt heart and ram horns match `ws-step2-base` line for line). The hunt and cords bots' grid searches got found flags too.
+- `sim.py --sky=WxH` takes the visible size and builds the play sky as `sky_margin`/`play_sky` do; the default 180x320 gives the old `INNER_SKY_AREA` (portrait output checked identical with a fixed seed). With `--sky=640x360` the sim's hunting circle takes 3.7% of loose stars (17.7% on portrait), because it assumes stars spread evenly over the sky; the spatial hunt bot is the real measure (Q3).
+- `Fixtures.WIDE_SKY` and `Fixtures.run(overrides, seed, sky)`; `test_sky_searches.gd` uses them. `tests/test_playtest_sky.gd` covers the parser.
+- Not fixed (pre-existing, also on `ws-step2-base`): the currents bot's probe errors with "Out of bounds get index" on `current_preview()` (`tools/currents/playtest.gd:182` and `:118`) on the hand map, portrait and wide alike.

@@ -6,12 +6,15 @@ extends SceneTree
 ## --reach=N override currents.step and scorpio.max_link_distance for a what-if (balance.json is
 ## untouched).
 
+const PlaytestSky := preload("res://tools/playtest_sky.gd")
 const POLICIES: Array[Dictionary] = [
 	{"name": "link-first", "launch_first": false, "upstream": false},
 	{"name": "link-first-upstream-aim", "launch_first": false, "upstream": true},
 	{"name": "launch-owned-first", "launch_first": true, "upstream": false},
 ]
 
+## The play sky (--sky=WxH, tools/playtest_sky.gd; the 9:16 sky without it).
+var _sky: Rect2i = Scorpio.HOME_SKY
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "tail"
@@ -21,6 +24,8 @@ var _rows: Array[Dictionary] = []
 
 
 func _initialize() -> void:
+	_sky = PlaytestSky.from_args()
+	print(PlaytestSky.label(_sky))
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
 			_runs = maxi(1, argument.trim_prefix("--runs=").to_int())
@@ -51,7 +56,7 @@ func _simulate() -> void:
 			_rows.append(row)
 			print(JSON.stringify(row))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/currents/out"))
-	var file: FileAccess = FileAccess.open("res://tools/currents/out/results-%s-step%d-reach%d.json" % [_map, _step_shown(), _balance.scorpio_max_link_distance], FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(("res://tools/currents/out/results-%s-step%d-reach%d.json" % [_map, _step_shown(), _balance.scorpio_max_link_distance]).trim_suffix(".json") + PlaytestSky.suffix(_sky) + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(_rows, "  ") + "\n")
 	quit()
 
@@ -74,7 +79,7 @@ func _step_shown() -> int:
 func _play(seed_value: int, enabled: bool, policy: Dictionary, row: Dictionary) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
+	var run := RunState.new(_balance, rng, _sky, _layout(enabled))
 	var packs: int = 0
 	var had_conflict: bool = false
 	var had_waiting_conflict: bool = false
@@ -134,7 +139,7 @@ func _play(seed_value: int, enabled: bool, policy: Dictionary, row: Dictionary) 
 ## Just up-left of the first unlit landmark. Upstream aim moves a target inside the flow one step
 ## against it, so the burst drifts back toward the landmark (it knows the step, not the scatter).
 func _aim(run: RunState, upstream: bool) -> Vector2i:
-	var target := Vector2i(90, 160)
+	var target: Vector2i = Vector2i(90, 160) + run.scorpio.shift
 	for index: int in run.scorpio.map.count():
 		if not run.scorpio.is_lit(index):
 			target = run.scorpio.landmark_position(index) + Vector2i(-12, -18)

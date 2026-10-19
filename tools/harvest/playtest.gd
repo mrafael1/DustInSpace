@@ -11,7 +11,11 @@ extends SceneTree
 ## Measured on the way to this rule (docs/chapter_4_6_plan.md): a harvest that paid dust, sheaves, a
 ## cap and ripe links; none had stakes without the binding.
 
+const PlaytestSky := preload("res://tools/playtest_sky.gd")
 const POLICIES: Array[String] = ["link-first", "launch-first", "bound", "bound-strict"]
+
+## The play sky (--sky=WxH, tools/playtest_sky.gd; the 9:16 sky without it).
+var _sky: Rect2i = Scorpio.HOME_SKY
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "virgo_wing"
@@ -24,6 +28,8 @@ var _policy: String = ""
 
 
 func _initialize() -> void:
+	_sky = PlaytestSky.from_args()
+	print(PlaytestSky.label(_sky))
 	_balance = Balance.load_file()
 	var every: int = -1
 	var link_dust_cut: int = -1
@@ -77,7 +83,7 @@ func _simulate() -> void:
 			rows.append(row)
 			print("%-13s harvest=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  reaped/run %5.2f  put out/run %5.2f" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.reaped_per_run, row.unbound_per_run])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/harvest/out"))
-	var file: FileAccess = FileAccess.open("res://tools/harvest/out/results-%s.json" % _map, FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(("res://tools/harvest/out/results-%s.json" % _map).trim_suffix(".json") + PlaytestSky.suffix(_sky) + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
 	quit()
 
@@ -106,7 +112,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	_policy = policy
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
+	var run := RunState.new(_balance, rng, _sky, _layout(enabled))
 	var packs: int = 0
 	run.harvested.connect(func(stars: Array[Star]) -> void: row.reaped += stars.size())
 	run.landmarks_unbound.connect(func(indices: Array[int]) -> void: row.unbound += indices.size())
@@ -163,7 +169,7 @@ func _joined(run: RunState, index: int) -> bool:
 
 ## Just up-left of the first unlit landmark.
 func _aim(run: RunState) -> Vector2i:
-	var target := Vector2i(90, 160)
+	var target: Vector2i = Vector2i(90, 160) + run.scorpio.shift
 	for index: int in run.scorpio.map.count():
 		if not run.scorpio.is_lit(index):
 			target = run.scorpio.landmark_position(index) + Vector2i(-12, -18)

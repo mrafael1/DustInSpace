@@ -7,7 +7,11 @@ extends SceneTree
 ## hot-first links like link-first but takes the links using stars the heat burns next first (the
 ## skill Leo's final asks, where every link breathes heat).
 
+const PlaytestSky := preload("res://tools/playtest_sky.gd")
 const POLICIES: Array[String] = ["link-first", "launch-first", "ripen", "hot-first"]
+
+## The play sky (--sky=WxH, tools/playtest_sky.gd; the 9:16 sky without it).
+var _sky: Rect2i = Scorpio.HOME_SKY
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "leo_tail"
@@ -16,6 +20,8 @@ var _policy: String = ""
 
 
 func _initialize() -> void:
+	_sky = PlaytestSky.from_args()
+	print(PlaytestSky.label(_sky))
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
 			_runs = maxi(1, argument.trim_prefix("--runs=").to_int())
@@ -41,7 +47,7 @@ func _simulate() -> void:
 			_rows.append(row)
 			print(JSON.stringify(row))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/heat/out"))
-	var file: FileAccess = FileAccess.open("res://tools/heat/out/results-%s.json" % _map, FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(("res://tools/heat/out/results-%s.json" % _map).trim_suffix(".json") + PlaytestSky.suffix(_sky) + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(_rows, "  ") + "\n")
 	quit()
 
@@ -57,7 +63,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	_policy = policy
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
+	var run := RunState.new(_balance, rng, _sky, _layout(enabled))
 	var packs: int = 0
 	var counts: Array[int] = [0, 0]
 	var count := func(changes: Array[StarHeat.Change]) -> void:
@@ -120,7 +126,7 @@ func _ripening(run: RunState, ids: Array) -> bool:
 
 ## Just up-left of the first unlit landmark.
 func _aim(run: RunState) -> Vector2i:
-	var target := Vector2i(90, 160)
+	var target: Vector2i = Vector2i(90, 160) + run.scorpio.shift
 	for index: int in run.scorpio.map.count():
 		if not run.scorpio.is_lit(index):
 			target = run.scorpio.landmark_position(index) + Vector2i(-12, -18)

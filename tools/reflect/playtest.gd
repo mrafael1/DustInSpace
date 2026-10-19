@@ -12,6 +12,7 @@ extends SceneTree
 ## careful plays link-first but nudges its throw (up to CAREFUL_NUDGE px, in CAREFUL_STEP steps) to
 ## lose the fewest stars to the splash and the wave, then to land nearest its target.
 
+const PlaytestSky := preload("res://tools/playtest_sky.gd")
 const POLICIES: Array[String] = ["link-first", "careful", "naive", "careless", "launch-first"]
 const CAREFUL_NUDGE: int = 24
 const CAREFUL_STEP: int = 8
@@ -19,6 +20,9 @@ const CAREFUL_STEP: int = 8
 const TARGET_OFFSET := Vector2i(-12, -18)
 ## How near a burst must land to its target to count as on target, px.
 const ON_TARGET: int = 12
+
+## The play sky (--sky=WxH, tools/playtest_sky.gd; the 9:16 sky without it).
+var _sky: Rect2i = Scorpio.HOME_SKY
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "pisces_circlet"
@@ -32,6 +36,8 @@ var _lost: int = 0
 
 
 func _initialize() -> void:
+	_sky = PlaytestSky.from_args()
+	print(PlaytestSky.label(_sky))
 	_balance = Balance.load_file()
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
@@ -69,7 +75,7 @@ func _simulate() -> void:
 			rows.append(row)
 			print("%-13s on=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  launches/run %5.2f  lost to splash+wave/run %5.2f  on target %5.1f%%  miss %5.1f px  clamped %4.1f%%" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.launches_per_run, row.splashed_out_per_run, row.on_target_rate, row.miss_px_mean, row.clamped_rate])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/reflect/out"))
-	var file: FileAccess = FileAccess.open("res://tools/reflect/out/results-%s.json" % _map, FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(("res://tools/reflect/out/results-%s.json" % _map).trim_suffix(".json") + PlaytestSky.suffix(_sky) + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
 	quit()
 
@@ -90,7 +96,7 @@ func _layout(enabled: bool) -> StarMap:
 ## Each landmark's target, where an aware bot throws for it, and whether that throw (or the
 ## landmark's own reflection) leaves the sky or falls on the land and HUD below it (y >= 230).
 func _print_geometry() -> void:
-	var run := RunState.new(_balance, RandomNumberGenerator.new(), Scorpio.HOME_SKY, _layout(true))
+	var run := RunState.new(_balance, RandomNumberGenerator.new(), _sky, _layout(true))
 	for index: int in run.scorpio.map.count():
 		var landmark: Vector2i = run.scorpio.landmark_position(index)
 		var target: Vector2i = landmark + TARGET_OFFSET
@@ -111,7 +117,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	_policy = policy
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
+	var run := RunState.new(_balance, rng, _sky, _layout(enabled))
 	_lost = 0
 	var count_lost: Callable = func(_at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
 		for move: StarCurrent.Move in moves:
@@ -184,7 +190,7 @@ func _target(run: RunState) -> Vector2i:
 	for index: int in run.scorpio.map.count():
 		if not run.scorpio.is_lit(index):
 			return run.scorpio.landmark_position(index) + TARGET_OFFSET
-	return Vector2i(90, 160)
+	return Vector2i(90, 160) + run.scorpio.shift
 
 
 func _first_link(links: Array[Array]) -> Array[int]:

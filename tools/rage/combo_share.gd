@@ -12,6 +12,7 @@ extends SceneTree
 ## seam); triple-first plays the same, but when a triple and a sequence are both on offer it takes
 ## the best triple.
 
+const PlaytestSky := preload("res://tools/playtest_sky.gd")
 const POLICIES: Array[String] = ["link-first", "triple-first"]
 const MAPS: Array[String] = [
 	"stinger", "tail", "body", "heart", "claws", "final",
@@ -25,6 +26,8 @@ const TARGET_OFFSET := Vector2i(-12, -18)
 const MAX_ACTIONS: int = 400
 const OUT_DIR: String = "res://tools/rage/out"
 
+## The play sky (--sky=WxH, tools/playtest_sky.gd; the 9:16 sky without it).
+var _sky: Rect2i = Scorpio.HOME_SKY
 var _balance: Balance
 var _runs: int = 300
 var _maps: Array[String] = MAPS
@@ -32,6 +35,8 @@ var _policies: Array[String] = POLICIES
 
 
 func _initialize() -> void:
+	_sky = PlaytestSky.from_args()
+	print(PlaytestSky.label(_sky))
 	_balance = Balance.load_file()
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
@@ -61,7 +66,7 @@ func _measure() -> void:
 			rows.append(row)
 			print("%-18s %-12s decisions %6d  both %5.1f%%  triple only %5.1f%%  sequence only %5.1f%%  links/decision %5.2f  turns with both %5.1f%%  landmark both %5.1f%%  won %5.1f%%  [%s]" % [map_id, policy, row.decisions, row.both_pct, row.triple_only_pct, row.sequence_only_pct, row.links_per_decision, row.turns_with_both_pct, row.landmark_both_pct, row.win_rate, row.mechanics])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
-	var file: FileAccess = FileAccess.open("%s/combo_share.json" % OUT_DIR, FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open("%s/combo_share%s.json" % [OUT_DIR, PlaytestSky.suffix(_sky)], FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
 	quit()
 
@@ -90,7 +95,7 @@ func _finish(row: Dictionary) -> void:
 func _play(map_id: String, seed_value: int, policy: String, row: Dictionary) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, StarMap.by_id(map_id))
+	var run := RunState.new(_balance, rng, _sky, StarMap.by_id(map_id))
 	## Whether the link phase since the last launch has offered both kinds yet.
 	var turn_open: bool = false
 	var turn_had_both: bool = false
@@ -185,7 +190,7 @@ func _target(run: RunState) -> Vector2i:
 	for index: int in run.scorpio.map.count():
 		if not run.scorpio.is_lit(index):
 			return run.scorpio.landmark_position(index) + TARGET_OFFSET
-	return Vector2i(90, 160)
+	return Vector2i(90, 160) + run.scorpio.shift
 
 
 ## Landmarks first, then dust plus light (as tools/reflect and tools/gravity pick).

@@ -64,9 +64,33 @@ VOLLEY = ""
 # The maps where Orion hunts an area (#71).
 HUNT_MAPS = {"heart", "claws", "final"}
 HUNT = False
-# The home sky's inner rect (game/core/scorpio.gd HOME_SKY less StarScatter.EDGE_MARGIN), for the
-# share of the sky a hunting circle covers.
-INNER_SKY_AREA = (180 - 16) * (172 - 16)
+# The play sky's inner rect (the sky less StarScatter.EDGE_MARGIN on every side), for the share of
+# the sky a hunting circle covers. --sky sets it; the default is the 9:16 home sky (Scorpio.HOME_SKY).
+EDGE_MARGIN = 8
+INNER_SKY_AREA = (180 - 2 * EDGE_MARGIN) * (172 - 2 * EDGE_MARGIN)
+# game/scenes/screen_zones.gd: the game's screen, its sky and the widest play sky.
+SCREEN = (180, 320)
+SKY_SIZE = (180, 172)
+MAX_SKY_WIDTH = 640
+
+
+def play_sky_size(visible):
+    """The play sky's size, as Main builds it (ScreenZones.sky_margin and play_sky), for a visible
+    area of `visible` (w, h) game px: the extra width split evenly to both sides, capped at
+    MAX_SKY_WIDTH, and every extra row above."""
+    extra_x = max(0, visible[0] - SCREEN[0])
+    extra_y = max(0, visible[1] - SCREEN[1])
+    side = min(extra_x // 2, (MAX_SKY_WIDTH - SKY_SIZE[0]) // 2)
+    return SKY_SIZE[0] + 2 * side, SKY_SIZE[1] + extra_y
+
+
+def parse_sky(text):
+    """`WxH` (the visible area in game px, e.g. 640x360 for a 1080p window) -> (w, h)."""
+    try:
+        w, h = (int(v) for v in text.lower().split("x"))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"--sky wants WxH in game px, e.g. 640x360, not {text!r}")
+    return w, h
 MAX_LANDMARKS_PER_COMBO = 1
 
 
@@ -298,10 +322,15 @@ def main():
                     help="what-if: what a combo that lights a landmark pays (the game: all)")
     ap.add_argument("--orion-rescue", action="store_true",
                     help="Orion's maps: the bots use the marked star first when a combo takes its size")
+    ap.add_argument("--sky", type=parse_sky, default=SCREEN,
+                    help="the visible area in game px, WxH (default 180x320, the 9:16 screen); sets the sky "
+                         "the hunting circle's share is measured on")
     ap.add_argument("--hunt-share", type=float, default=None,
                     help="the hunting circle's maps: the chance a loose star is in it (default: its share of the sky)")
     a = ap.parse_args()
-    global LANDMARK_SIZES, STARTING_LIT, ORION, VOLLEY, HUNT
+    global LANDMARK_SIZES, STARTING_LIT, ORION, VOLLEY, HUNT, INNER_SKY_AREA
+    sky = play_sky_size(a.sky)
+    INNER_SKY_AREA = (sky[0] - 2 * EDGE_MARGIN) * (sky[1] - 2 * EDGE_MARGIN)
     LANDMARK_SIZES, STARTING_LIT, ORION = MAPS[a.map]
     VOLLEY = VOLLEY_MAPS.get(a.map, "")
     HUNT = a.map in HUNT_MAPS
@@ -309,6 +338,8 @@ def main():
         random.seed(a.seed)
     cfg = load(a.set)
     print(f"{a.runs} runs per policy{' with ' + ', '.join(a.set) if a.set else ''}")
+    if a.sky != SCREEN:
+        print(f"visible {a.sky[0]}x{a.sky[1]}: play sky {sky[0]}x{sky[1]}")
     print(f"{'policy':<30}{'win %':>7}{'packs to win':>14}{'runs w/ Big Bang':>18}")
     scorpio = cfg.get("scorpio", {})
     if scorpio.get("enabled"):

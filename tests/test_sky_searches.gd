@@ -4,8 +4,6 @@ extends GutTest
 ## intro's search reaches as far as the sky does.
 
 const Fixtures := preload("res://tests/fixtures.gd")
-## A 1920x1080 window's play sky (the game's frame centred in 640 columns, 20 rows more above).
-const WIDE_SKY := Rect2i(-230, 38, 640, 212)
 ## Far enough left that every spot in the sky is at a negative x (a multiple of the search grid, so
 ## the same spots are scanned).
 const LEFT := Vector2i(-200, 0)
@@ -13,7 +11,7 @@ const LEFT := Vector2i(-200, 0)
 
 func test_the_open_launch_spot_left_of_x_0_is_the_same_spot_moved() -> void:
 	var home: RunState = Fixtures.run()
-	var left := RunState.new(Fixtures.balance(), Fixtures.rng(), Rect2i(Fixtures.SKY.position + LEFT, Fixtures.SKY.size))
+	var left: RunState = Fixtures.run({}, 1, Rect2i(Fixtures.SKY.position + LEFT, Fixtures.SKY.size))
 	var spot: Vector2i = left.open_launch_spot(left.sky_rect.position.y)
 	assert_lt(spot.x, 0)
 	assert_eq(spot, home.open_launch_spot(home.sky_rect.position.y) + LEFT, "nearest the sky's centre, not the clearest")
@@ -53,7 +51,7 @@ func test_the_ram_intro_finds_its_layout_left_of_x_0() -> void:
 
 
 func test_the_hole_intro_reaches_as_far_as_a_wide_sky() -> void:
-	var run := RunState.new(Balance.load_file(), Fixtures.rng(), WIDE_SKY, StarMap.black_hole_trial())
+	var run := RunState.new(Balance.load_file(), Fixtures.rng(), Fixtures.WIDE_SKY, StarMap.black_hole_trial())
 	# A hole whose third demo star must stand over 400 px out: one pull swallows from 208 px, two from
 	# 408 (well past 2 x 180 columns, inside the wide sky's diagonal).
 	run.gravity = StarGravity.new(Vector2i(-200, 150), 8, 80000, 200)
