@@ -87,7 +87,7 @@ func test_the_horns_bring_the_ram_and_its_intro() -> void:
 	assert_false(run.ram.in_lane(map.landmarks[4]), "the curl climbs out of it")
 
 
-func test_the_intro_butts_one_star_into_a_landmark_and_one_out_of_the_sky() -> void:
+func test_the_intro_butts_one_star_past_a_landmark_and_one_out_of_the_sky() -> void:
 	var run: RunState = _run()
 	var layout: Array[Vector2i] = run.ram_intro_layout()
 	assert_eq(layout.size(), 3)
@@ -99,7 +99,7 @@ func test_the_intro_butts_one_star_into_a_landmark_and_one_out_of_the_sky() -> v
 	var cleared: Array = []
 	run.ram_intro_placed.connect(func(stars: Array[Star]) -> void: placed.append(stars))
 	run.hunt_intro_burst.connect(func(_at: Vector2i, stars: Array) -> void: bursts.append(stars))
-	run.ram_charged.connect(func(row: int, moves: Array[StarCurrent.Move], fleeced: Array[int]) -> void: charges.append([row, moves, fleeced]))
+	run.ram_charged.connect(func(row: int, moves: Array[StarCurrent.Move]) -> void: charges.append([row, moves]))
 	run.ram_intro_cleared.connect(func(stars: Array[Star]) -> void: cleared.append(stars))
 	var state: int = run._rng.state
 	run.play_ram_intro()
@@ -111,15 +111,18 @@ func test_the_intro_butts_one_star_into_a_landmark_and_one_out_of_the_sky() -> v
 	var by_id: Dictionary[int, StarCurrent.Move] = {}
 	for move: StarCurrent.Move in moves:
 		by_id[move.star_id] = move
-	assert_eq(charges[0][2], [demo[0].id] as Array[int], "the first stops against a landmark")
-	assert_false(by_id[demo[0].id].drained)
+	var kept: StarCurrent.Move = by_id[demo[0].id]
+	assert_false(kept.drained, "the first is kept")
+	var passed: bool = false
+	for landmark: Vector2i in run.scorpio.landmark_positions():
+		passed = passed or (run.ram.in_lane(landmark) and landmark.x > kept.from.x and landmark.x < kept.to.x)
+	assert_true(passed, "butted on past a landmark in the lane: none shelters it")
 	assert_true(by_id[demo[1].id].drained, "the second is butted out of the sky")
 	assert_false(by_id.has(demo[2].id), "the third, out of the lane, stays")
 	for star: Star in bursts[0]:
 		assert_false(run.ram.in_lane(star.position), "the demo planet's stars land clear of the lane")
 	assert_eq(cleared.size(), 1)
 	assert_true(run.stars.is_empty(), "every demo star goes")
-	assert_true(run.ram.fleeced.is_empty())
 	assert_eq(run.ram.launches, 0, "the intro doesn't count toward the charge")
 	assert_eq(run._rng.state, state, "no RNG drawn from the run")
 	assert_eq(run.dust, 100, "no reward")
@@ -129,13 +132,13 @@ func test_the_intro_plays_only_on_an_empty_sky_with_intros() -> void:
 	var run: RunState = _run()
 	run.add_star(Star.Size.SMALL, Vector2i(90, 120))
 	var charges: Array[int] = [0]
-	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], _fleeced: Array[int]) -> void: charges[0] += 1)
+	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move]) -> void: charges[0] += 1)
 	run.play_ram_intro()
 	assert_eq(charges[0], 0, "not with stars already out")
 	var quiet: StarMap = StarMap.aries_horns()
 	quiet.intros = false
 	var other: RunState = _run(quiet)
-	other.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], _fleeced: Array[int]) -> void: charges[0] += 1)
+	other.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move]) -> void: charges[0] += 1)
 	other.play_ram_intro()
 	assert_eq(charges[0], 0, "not on a stage without intros")
 	assert_false(StarMap.ram_trial().intros, "the trial opens without it")

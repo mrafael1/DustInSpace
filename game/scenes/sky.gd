@@ -466,7 +466,7 @@ func _play_cord_event(event: EventSequencer.RunEvent) -> bool:
 func _play_ram_event(event: EventSequencer.RunEvent) -> bool:
 	match event.type:
 		&"ram_charged":
-			_charge(event.args[0], event.args[1], event.args[2])
+			_charge(event.args[0], event.args[1])
 		&"ram_intro_placed":
 			# A beat to see the demo stars before the planet is thrown and the ram charges.
 			_place_intro(event.args[0])
@@ -946,13 +946,12 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 
 
 ## Aries's ram charges its lane on `row`: it rears, then every star it butts drifts right as it
-## charges; one stopped against a landmark (`fleeced`) flashes and keeps its gold ring; one butted
-## out of the sky drifts to the far edge and cuts out there in sparks, for nothing.
-func _charge(row: int, moves: Array[StarCurrent.Move], fleeced: Array[int]) -> void:
+## charges; one butted out of the sky drifts to the far edge and cuts out there in sparks, for nothing.
+func _charge(row: int, moves: Array[StarCurrent.Move]) -> void:
 	var sizes: Dictionary[int, int] = {}
 	for id: int in _views:
 		sizes[id] = _views[id].size
-	_ram.charge(row, moves, fleeced, sizes)
+	_ram.charge(row, moves, sizes)
 	_sequencer.hold(ChargeView.charge_hold())
 	for move: StarCurrent.Move in moves:
 		var view: StarView = _views.get(move.star_id)

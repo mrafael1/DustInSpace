@@ -1156,10 +1156,10 @@ static func aries() -> StarMap:
 
 ## Aries, stage 1: the Horns. The ram (its intro shows a charge): after every throw it charges from
 ## the sky's left edge along the row of the landmark the last link lit, butting the loose stars in
-## its lane right; a landmark in the lane stops a star (fleeced), one nothing stops is lost off the
-## far edge. The horn curls from its root (big, lit, lower left) right along the bottom, so the first
-## landmarks share the lit row and shelter the stars between them, then up and back over itself, so
-## the lane climbs as the curl is lit. Five to light. Strings are 32-37 px.
+## its lane right, past anything in the way; one butted past the far edge is lost. The horn curls
+## from its root (big, lit, lower left) right along the bottom, so the first landmarks share the lit
+## row and the stars waiting for them are in the lane, then up and back over itself, so the lane
+## climbs as the curl is lit. Five to light. Strings are 32-37 px.
 static func aries_horns() -> StarMap:
 	var map := StarMap.new()
 	map.id = "aries_horns"
