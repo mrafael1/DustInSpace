@@ -4,9 +4,10 @@ extends RefCounted
 ## that launch has fully resolved, it charges right along its lane: the band `lane` px tall centred
 ## on the lane row, the row of the landmark the last link lit. Every loose star whose centre is in the
 ## lane is butted `butt` px its `way`, the frontmost first, and on past a star or a landmark it would
-## land on: nothing shelters it. With `sides`, it charges from each side in turn (`turn` after each
-## charge): from the left (right), then from the right (left). One carried out of the sky is lost, for nothing. No randomness, nodes or
-## rewards. Its moves are StarCurrent.Moves (a lost one `drained`, `to` where it would have gone,
+## land on: nothing shelters it. With more than one of `ways`, the rams take turns (`turn` after each
+## charge): the Fleece's second ram stands at the sky's top and charges down, its lane the band
+## `lane` px wide centred on the lane column (the lit landmark's x). One carried out of the sky is
+## lost, for nothing. No randomness, nodes or rewards. Its moves are StarCurrent.Moves (a lost one `drained`, `to` where it would have gone,
 ## past the sky's edge).
 
 ## What one charge does to the stars standing in the sky.
@@ -35,26 +36,31 @@ const WAY := Vector2i.RIGHT
 
 ## It charges on every this-many-th launch.
 var every: int
-## The lane's height, in px.
+## The lane's breadth across its way, in px.
 var lane: int
 ## How far it butts each star in its lane, in px.
 var butt: int
-## The lane row: the y the lane is centred on.
+## The lane row: the y a lane across the sky is centred on.
 var row: int
-## The way the next charge runs (right: from the left edge; left: from the right edge).
+## The lane column: the x a lane down the sky is centred on.
+var column: int
+## The way each charge runs, in turn (right: from the left edge; down: from the top).
+var ways: Array[Vector2i] = [WAY]
+## The way the next charge runs.
 var way: Vector2i = WAY
-## Whether it charges from each side in turn.
-var sides: bool = false
 ## Launches thrown since the run began (intros don't count).
 var launches: int = 0
+var _turn: int = 0
 
 
-func _init(p_every: int, p_lane: int, p_butt: int, p_row: int, p_sides: bool = false) -> void:
+func _init(p_every: int, p_lane: int, p_butt: int, p_row: int, p_ways: Array[Vector2i] = [WAY], p_column: int = 0) -> void:
 	every = p_every
 	lane = p_lane
 	butt = p_butt
 	row = p_row
-	sides = p_sides
+	column = p_column
+	ways = p_ways
+	way = ways[0]
 
 
 ## The ram charges after the next launch.
@@ -74,29 +80,47 @@ func count_launch() -> bool:
 	return charges
 
 
-## A charge is over: with `sides`, the next comes from the other side.
+## A charge is over: the next ram in `ways` takes its turn.
 func turn() -> void:
-	if sides:
-		way = -way
+	_turn = (_turn + 1) % ways.size()
+	way = ways[_turn]
 
 
-## The lane follows the landmark a link lit, at `y`. Returns whether the row moved.
-func aim(y: int) -> bool:
-	if y == row:
+## The first ram's turn again.
+func rewind() -> void:
+	_turn = 0
+	way = ways[0]
+
+
+## Whether the next charge runs down the sky (its lane a column) rather than across it.
+func is_down() -> bool:
+	return way.y != 0
+
+
+## The lane's centre line across the next charge's way: the lane row, or the column charging down.
+func line() -> int:
+	return column if is_down() else row
+
+
+## The lane follows the landmark a link lit, at `y` (and `x`). Returns whether the lane moved.
+func aim(y: int, x: int = column) -> bool:
+	if y == row and x == column:
 		return false
 	row = y
+	column = x
 	return true
 
 
-## The lane's top row: it runs from there `lane` rows down (the row in its middle, the lower middle
-## for an even height).
+## The lane's first row (or column): it runs from there `lane` px on (its line in its middle, the
+## later middle for an even breadth).
 func lane_top() -> int:
-	return row - lane / 2
+	return line() - lane / 2
 
 
 ## Whether a star centred at `point` stands in the lane.
 func in_lane(point: Vector2i) -> bool:
-	return point.y >= lane_top() and point.y < lane_top() + lane
+	var across: int = point.x if is_down() else point.y
+	return across >= lane_top() and across < lane_top() + lane
 
 
 ## Pure: what charging now does to `stars` (the loose stars), against the `landmarks` standing in
@@ -113,8 +137,8 @@ func charge(stars: Array[Star], sky: Rect2i, landmarks: Array[Vector2i]) -> Char
 		if in_lane(star.position):
 			charged.append(star)
 	charged.sort_custom(func(a: Star, b: Star) -> bool:
-		var ahead_a: int = a.position.x * way.x
-		var ahead_b: int = b.position.x * way.x
+		var ahead_a: int = a.position.x * way.x + a.position.y * way.y
+		var ahead_b: int = b.position.x * way.x + b.position.y * way.y
 		return a.id < b.id if ahead_a == ahead_b else ahead_a > ahead_b)
 	for star: Star in charged:
 		var from: Vector2i = star.position

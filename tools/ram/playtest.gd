@@ -113,18 +113,24 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 			row.capped += 1
 
 
-## `aim` moved up or down (the nearer way that stays in the sky) until its burst ring clears the lane.
+## `aim` moved off the lane (up or down off a row, left or right off a column: the nearer way that
+## stays in the sky) until its burst ring clears it.
 func _out_of_lane(run: RunState, aim: Vector2i) -> Vector2i:
+	var down: bool = run.ram.is_down()
+	var across: Vector2i = Vector2i.RIGHT if down else Vector2i.DOWN
+	var at: int = aim.x if down else aim.y
 	var top: int = run.ram.lane_top()
 	var bottom: int = top + run.ram.lane
-	if aim.y + StarScatter.RING_MAX < top or aim.y - StarScatter.RING_MAX >= bottom:
+	if at + StarScatter.RING_MAX < top or at - StarScatter.RING_MAX >= bottom:
 		return aim
-	var above := Vector2i(aim.x, top - StarScatter.RING_MAX - 2)
-	var below := Vector2i(aim.x, bottom + StarScatter.RING_MAX + 2)
+	var before: Vector2i = aim + across * (top - StarScatter.RING_MAX - 2 - at)
+	var after: Vector2i = aim + across * (bottom + StarScatter.RING_MAX + 2 - at)
 	var inner: Rect2i = StarScatter.inner_rect(run.sky_rect)
-	if below.y >= inner.end.y - 4:
-		return above
-	return above if aim.y - above.y <= below.y - aim.y else below
+	if not inner.grow(-4).has_point(after):
+		return before
+	if not inner.grow(-4).has_point(before):
+		return after
+	return before if at - top <= bottom - at else after
 
 
 ## Just up-left of the first unlit landmark.

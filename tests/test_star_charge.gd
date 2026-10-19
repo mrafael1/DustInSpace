@@ -177,20 +177,25 @@ func test_aim_moves_the_row() -> void:
 	assert_eq(ram.row, ROW + 8)
 
 
-func test_a_ram_from_each_side_turns_after_each_charge() -> void:
-	var ram := StarCharge.new(1, 20, 48, ROW, true)
-	assert_eq(ram.way, Vector2i.RIGHT, "it starts from the left")
+func test_two_rams_take_turns_after_each_charge() -> void:
+	var ram := StarCharge.new(1, 20, 48, ROW, [Vector2i.RIGHT, Vector2i.DOWN] as Array[Vector2i], 90)
+	assert_eq(ram.way, Vector2i.RIGHT, "the first ram first")
+	assert_eq(ram.line(), ROW)
 	ram.turn()
-	assert_eq(ram.way, Vector2i.LEFT)
+	assert_eq(ram.way, Vector2i.DOWN)
+	assert_eq(ram.line(), 90, "the second's lane is the column")
 	ram.turn()
 	assert_eq(ram.way, Vector2i.RIGHT)
+	ram.turn()
+	ram.rewind()
+	assert_eq(ram.way, Vector2i.RIGHT, "rewound to the first")
 	var one := StarCharge.new(1, 20, 48, ROW)
 	one.turn()
-	assert_eq(one.way, Vector2i.RIGHT, "a ram from one side never turns")
+	assert_eq(one.way, Vector2i.RIGHT, "one ram never turns")
 
 
 func test_from_the_right_it_butts_left_and_the_leftmost_goes_first() -> void:
-	var ram := StarCharge.new(1, 20, 48, ROW, true)
+	var ram := StarCharge.new(1, 20, 48, ROW, [Vector2i.RIGHT, Vector2i.LEFT] as Array[Vector2i])
 	ram.turn()
 	var charge: StarCharge.Charge = ram.charge(_stars([Vector2i(100, ROW), Vector2i(120, ROW)]), SKY, [])
 	assert_eq(charge.moves[0].star_id, 1, "the leftmost first")
@@ -199,7 +204,45 @@ func test_from_the_right_it_butts_left_and_the_leftmost_goes_first() -> void:
 
 
 func test_from_the_right_it_butts_out_of_the_left_edge() -> void:
-	var ram := StarCharge.new(1, 20, 48, ROW, true)
+	var ram := StarCharge.new(1, 20, 48, ROW, [Vector2i.RIGHT, Vector2i.LEFT] as Array[Vector2i])
 	ram.turn()
 	var charge: StarCharge.Charge = ram.charge(_stars([Vector2i(30, ROW)]), SKY, [Vector2i(10, ROW)])
 	assert_true(charge.moves[0].drained, "out by the left edge, past a landmark")
+
+
+func _down() -> StarCharge:
+	var ram := StarCharge.new(1, 20, 48, ROW, [Vector2i.DOWN] as Array[Vector2i], 90)
+	return ram
+
+
+func test_down_the_lane_is_a_column_20_wide() -> void:
+	var ram: StarCharge = _down()
+	assert_true(ram.is_down())
+	assert_eq(ram.lane_top(), 80)
+	assert_true(ram.in_lane(Vector2i(80, 120)))
+	assert_true(ram.in_lane(Vector2i(99, 200)))
+	assert_false(ram.in_lane(Vector2i(100, 120)), "a column right of it")
+	assert_false(ram.in_lane(Vector2i(79, 120)))
+	assert_false(ram.in_lane(Vector2i(50, ROW)), "the row means nothing to it")
+
+
+func test_down_it_butts_down_and_the_lowest_goes_first() -> void:
+	var ram: StarCharge = _down()
+	var charge: StarCharge.Charge = ram.charge(_stars([Vector2i(90, 120), Vector2i(90, 140)]), SKY, [])
+	assert_eq(charge.moves[0].star_id, 2, "the lowest first")
+	assert_eq(_move(charge, 2).to, Vector2i(90, 188))
+	assert_eq(_move(charge, 1).to, Vector2i(90, 168))
+
+
+func test_down_it_butts_out_of_the_bottom() -> void:
+	var ram: StarCharge = _down()
+	var inner: Rect2i = StarScatter.inner_rect(SKY)
+	var charge: StarCharge.Charge = ram.charge(_stars([Vector2i(90, inner.end.y - 20)]), SKY, [Vector2i(90, inner.end.y - 8)])
+	assert_true(charge.moves[0].drained, "off the bottom, past a landmark")
+
+
+func test_aim_moves_the_column_too() -> void:
+	var ram: StarCharge = _down()
+	assert_false(ram.aim(ROW, 90))
+	assert_true(ram.aim(ROW, 120))
+	assert_eq(ram.line(), 120)
