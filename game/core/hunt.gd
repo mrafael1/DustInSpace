@@ -59,27 +59,27 @@ func strike(loose: Array[Star]) -> Array[Star]:
 	return hit
 
 
-## Marks a new circle, wholly inside `sky` (whose top-left is Orion's corner) and clear of his
-## figure, so it always threatens something: round a loose star of `loose` picked at random, which
+## Marks a new circle, wholly inside `sky` and clear of his figure (Volley.ORION_CORNER from `corner`,
+## the run's frame's top-left: the sky's on a 9:16 sky), so it always threatens something: round a loose star of `loose` picked at random, which
 ## is inside it (the centre is anywhere within the radius of it). Of those centres, it takes one
 ## covering the fewest of `avoid` (the constellation stars still to light), at random among them
 ## (#149: on the compact maps a circle round any star near the figure lay over it, where the player
 ## launches to light it; it still threatens its star, only from the side away from the figure).
 ## Anywhere in the sky when no loose star can be covered (an empty sky, or only stars in its far
 ## corners), again covering as few of `avoid` as a few tries find. Returns the centre.
-func mark(sky: Rect2i, loose: Array[Star] = [], avoid: Array[Vector2i] = []) -> Vector2i:
-	var corner := Rect2i(sky.position + Volley.ORION_CORNER.position, Volley.ORION_CORNER.size).grow(radius)
+func mark(sky: Rect2i, corner: Vector2i, loose: Array[Star] = [], avoid: Array[Vector2i] = []) -> Vector2i:
+	var figure := Rect2i(corner + Volley.ORION_CORNER.position, Volley.ORION_CORNER.size).grow(radius)
 	var room: Rect2i = sky.grow(-radius) if sky.grow(-radius).has_area() else StarScatter.inner_rect(sky)
 	_marked = true
 	var prey: Array[Star] = loose.duplicate()
 	while not prey.is_empty():
 		var star: Star = prey.pop_at(_rng.randi_range(0, prey.size() - 1))
-		if _mark_round(star.position, room, corner, avoid):
+		if _mark_round(star.position, room, figure, avoid):
 			return centre
 	var fewest: int = -1
 	for attempt: int in ANYWHERE_TRIES:
 		var spot := Vector2i(_rng.randi_range(room.position.x, room.end.x - 1), _rng.randi_range(room.position.y, room.end.y - 1))
-		if corner.has_point(spot):
+		if figure.has_point(spot):
 			if fewest < 0:
 				centre = spot
 			continue

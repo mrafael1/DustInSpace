@@ -179,7 +179,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_waiting.clear()
 	_arrival_sweep = false
 	_constellation.setup(run)
-	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.sky_rect, _orion_keeps_clear_of(run))
+	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.frame_rect, _orion_keeps_clear_of(run))
 	if run.volley != null:
 		_orion.show_volley_charge(run.volley.links_left(), run.volley.interval)
 	if run.scorpio != null and run.scorpio.map.boss:

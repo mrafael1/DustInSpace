@@ -44,3 +44,55 @@ func test_on_the_portrait_sky_the_regions_are_as_laid_out() -> void:
 	assert_eq(_stage(StarMap.aquarius_body(), Fixtures.SKY).current.region, StarMap.aquarius_body().current_region)
 	var run: RunState = _stage(StarMap.aquarius_hand(), Fixtures.SKY)
 	assert_eq(run._stage_area(Rect2i(0, 100, 60, 40)), Rect2i(0, 100, 60, 40))
+
+
+# --- Orion's corner is the frame's --------------------------------------------------------------
+
+func _figure(corner: Vector2i, grow: int) -> Rect2i:
+	return Rect2i(corner + Volley.ORION_CORNER.position, Volley.ORION_CORNER.size).grow(grow)
+
+
+func test_the_hunt_may_circle_a_star_in_the_wide_skys_corner() -> void:
+	var frame: Vector2i = Vector2i(0, Fixtures.WIDE_SKY.position.y)
+	var prey := Star.new(1, Star.Size.SMALL, Fixtures.WIDE_SKY.position + Vector2i(15, 15))
+	for seed_value: int in range(1, 11):
+		var hunt := Hunt.new(38, seed_value)
+		var centre: Vector2i = hunt.mark(Fixtures.WIDE_SKY, frame, [prey] as Array[Star])
+		assert_lte((centre - prey.position).length(), 38.0, "Orion doesn't stand there: the circle goes round it")
+
+
+func test_the_hunt_keeps_off_orion_in_the_frames_corner() -> void:
+	var frame: Vector2i = Vector2i(0, Fixtures.WIDE_SKY.position.y)
+	var hugging := Star.new(1, Star.Size.SMALL, frame + Vector2i(20, 22))
+	for seed_value: int in range(1, 11):
+		var hunt := Hunt.new(38, seed_value)
+		var centre: Vector2i = hunt.mark(Fixtures.WIDE_SKY, frame, [hugging] as Array[Star])
+		assert_false(_figure(frame, 38).has_point(centre), "never over his figure")
+
+
+func test_a_wide_hunt_marks_off_the_frames_corner() -> void:
+	var run := RunState.new(Balance.load_file(), Fixtures.rng(2), Fixtures.WIDE_SKY, StarMap.heart())
+	var marks: Array[Vector2i] = []
+	run.area_marked.connect(func(at: Vector2i, _radius: int) -> void: marks.append(at))
+	for i: int in 4:
+		if run.is_over():
+			break
+		if run.loaded_pack == "":
+			for kind: String in run.owned_packs:
+				if run.load_pack(kind):
+					break
+		if run.loaded_pack == "":
+			break
+		run.launch(run.figure_middle())
+	assert_false(marks.is_empty())
+	for at: Vector2i in marks:
+		assert_false(_figure(run.frame_rect.position, run.hunt.radius).has_point(at), "%s off Orion" % at)
+
+
+func test_the_volley_intro_keeps_off_the_frames_corner() -> void:
+	var frame: Vector2i = Vector2i(0, Fixtures.WIDE_SKY.position.y)
+	var inner: Rect2i = StarScatter.inner_rect(Rect2i(frame, Vector2i(180, Fixtures.WIDE_SKY.size.y)))
+	for seed_value: int in range(1, 21):
+		var volley := Volley.new(3, 0.5, seed_value)
+		for spot: Vector2i in volley.intro_spots(inner, frame):
+			assert_false(_figure(frame, Volley.INTRO_CLEAR).has_point(spot), "%s clear of his figure" % spot)

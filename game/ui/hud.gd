@@ -336,7 +336,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	clear_message()
 	_volley.visible = run.volley != null
 	if run.volley != null:
-		_volley.position = Vector2(run.sky_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
+		_volley.position = Vector2(run.frame_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
 		_volley.reset(run.volley.links_left(), run.volley.interval)
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
@@ -1147,9 +1147,9 @@ func _show_encounter(threat: int, step: int) -> void:
 ## on a volley stage (#149: on the Body it hid three of the five arrows and ran into the lit spine
 ## top), the nearest spot below that keeps ENCOUNTER_CLEAR px clear of both (and of the screen's
 ## edge): at each height it's tried centred, then slid a pixel at a time either way. Where no spot is
-## clear, the usual one.
+## clear, the usual one. All of it within the run's frame (the sky on a 9:16 sky), by Orion.
 func encounter_block(line: String) -> Rect2i:
-	var sky: Rect2i = _run.sky_rect
+	var sky: Rect2i = _run.frame_rect
 	var left: int = sky.position.x + ENCOUNTER_LINE_LEFT
 	var size: Vector2i = _guide.text_size(line)
 	var usual := Rect2i(Vector2i(left + (sky.end.x - left - size.x) / 2, sky.position.y + TutorialView.TOP), size)
