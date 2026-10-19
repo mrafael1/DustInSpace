@@ -20,8 +20,10 @@ signal tremble_started
 enum Flight { NONE, FLYING, TREMBLING }
 
 ## Aim feel, not balance. The weakest launch (MIN_PULL) reaches MIN_REACH px, just into the
-## sky above the launcher; each further pixel of pull adds AIM_GAIN px. A full pull reaches
-## 206 px, past the farthest sky corner (about 201 px away), so every corner and edge is aimable.
+## sky above the launcher; each further pixel of pull adds the run's gain: AIM_GAIN px, or more
+## on a sky whose farthest inner corner a full pull at AIM_GAIN would fall short of (gain_for).
+## On the 9:16 sky a full pull reaches 206 px, past the farthest corner (about 201 px away), so
+## the gain stays AIM_GAIN; a taller or wider sky raises it so every corner and edge is aimable.
 const MAX_PULL: int = 24
 const AIM_GAIN: int = 9
 const MIN_REACH: int = 26
@@ -52,8 +54,10 @@ var _sequencer: EventSequencer
 var _loaded_kind: String = ""
 var _owned: Dictionary[String, int] = {}
 var _pulling: bool = false
+## Px of aim per pixel of pull on this run's sky (gain_for), set in setup.
+var _gain: int = AIM_GAIN
 ## The pull as the finger reports it. The aim uses it unrounded: finger positions are finer than
-## the 180x320 grid, and rounding first would snap the aim to AIM_GAIN px steps.
+## the 180x320 grid, and rounding first would snap the aim to whole gain steps.
 var _pull: Vector2 = Vector2.ZERO
 var _flight: Flight = Flight.NONE
 var _flight_time: float = 0.0
@@ -89,6 +93,7 @@ func _draw() -> void:
 
 func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_run = run
+	_gain = gain_for(origin(), run.sky_rect)
 	if _sequencer != sequencer:
 		if _sequencer != null:
 			_sequencer.event_played.disconnect(_on_event_played)
@@ -121,9 +126,14 @@ func is_pulling() -> bool:
 	return _pulling
 
 
+## Px of aim per pixel of pull on this run's sky.
+func aim_gain() -> int:
+	return _gain
+
+
 ## Where the pack would burst if released now (the same clamp the core applies).
 func burst_preview() -> Vector2i:
-	return StarScatter.clamp_to_sky(aim_target(origin(), _pull), _run.sky_rect)
+	return StarScatter.clamp_to_sky(aim_target(origin(), _pull, _gain), _run.sky_rect)
 
 
 ## Feeds one touch or drag (in this node's coordinates). Returns true if it was used.
@@ -233,14 +243,26 @@ static func clamp_pull(finger: Vector2) -> Vector2:
 	return finger.limit_length(MAX_PULL)
 
 
-## The aim: opposite the pull, MIN_REACH px at the shortest launch and AIM_GAIN px more per
+## The aim: opposite the pull, MIN_REACH px at the shortest launch and `gain` px more per
 ## pixel pulled, on the grid. Not clamped into the sky; the core does that.
-static func aim_target(launcher: Vector2i, pull: Vector2) -> Vector2i:
+static func aim_target(launcher: Vector2i, pull: Vector2, gain: int = AIM_GAIN) -> Vector2i:
 	var length: float = pull.length()
 	if length < 0.001:
 		return launcher
-	var reach: float = MIN_REACH + (length - MIN_PULL) * AIM_GAIN
+	var reach: float = MIN_REACH + (length - MIN_PULL) * gain
 	return launcher - Vector2i((pull / length * reach).round())
+
+
+## The gain for a launcher at `launcher` on `sky`: the least whole gain (at least AIM_GAIN) whose
+## full pull, MIN_REACH + (MAX_PULL - MIN_PULL) * gain px, reaches the farthest inner sky corner.
+static func gain_for(launcher: Vector2i, sky: Rect2i) -> int:
+	var inner: Rect2i = StarScatter.inner_rect(sky)
+	var lo: Vector2i = inner.position
+	var hi: Vector2i = inner.end - Vector2i.ONE
+	var far: float = 0.0
+	for corner: Vector2i in [lo, Vector2i(hi.x, lo.y), Vector2i(lo.x, hi.y), hi]:
+		far = maxf(far, Vector2(corner - launcher).length())
+	return maxi(AIM_GAIN, ceili((far - MIN_REACH) / float(MAX_PULL - MIN_PULL)))
 
 
 func _start_pull(point: Vector2i) -> bool:
@@ -262,7 +284,7 @@ func _end_pull(release: bool) -> bool:
 	var pull: Vector2 = _pull
 	cancel_pull()
 	if release and pull.length() >= MIN_PULL:
-		_run.launch(aim_target(origin(), pull))
+		_run.launch(aim_target(origin(), pull, _gain))
 	else:
 		pull_cancelled.emit()
 	return true

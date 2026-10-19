@@ -12,6 +12,7 @@ var inner: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
 
 
 func before_each() -> void:
+	inner = StarScatter.inner_rect(Fixtures.SKY)
 	run = Fixtures.run({"start_packs": {"blue": 12, "red": 0}, "sun_target": 100000})
 	sequencer = EventSequencer.new()
 	add_child_autofree(sequencer)
@@ -47,6 +48,41 @@ func test_launching_at_corners_and_edges_keeps_every_star_in_the_sky() -> void:
 			assert_true(inner.has_point(star.position), "%s inside the sky" % star.position)
 		run.load_pack("blue")
 		_play_until_idle()
+
+
+func test_the_9_16_sky_keeps_the_portrait_gain() -> void:
+	assert_eq(launcher.aim_gain(), Launcher.AIM_GAIN, "on the 9:16 sky a full pull already reaches every corner")
+	assert_eq(Launcher.AIM_GAIN, 9)
+
+
+func test_every_corner_and_edge_of_a_wide_sky_can_be_aimed_at() -> void:
+	_setup_on(Fixtures.WIDE_SKY)
+	assert_gt(launcher.aim_gain(), Launcher.AIM_GAIN, "the wide sky's corners are past a full pull at AIM_GAIN")
+	_assert_every_corner_and_edge_aimable()
+
+
+func test_every_corner_and_edge_of_a_tall_phone_sky_can_be_aimed_at() -> void:
+	# A 1170x2532 phone: 102 rows above and 7 columns each side (ScreenZones.sky_margin).
+	_setup_on(ScreenZones.play_sky(102, 7))
+	var top: Vector2i = inner.position
+	var old_reach: float = Launcher.MIN_REACH + (Launcher.MAX_PULL - Launcher.MIN_PULL) * Launcher.AIM_GAIN
+	assert_gt(Vector2(top - ORIGIN).length(), old_reach, "this corner was out of reach before")
+	assert_gt(launcher.aim_gain(), Launcher.AIM_GAIN)
+	_assert_every_corner_and_edge_aimable()
+
+
+func test_the_gain_is_the_least_that_reaches_the_farthest_corner() -> void:
+	for sky: Rect2i in [Fixtures.SKY, Fixtures.WIDE_SKY, ScreenZones.play_sky(102), ScreenZones.play_sky(30, 7)] as Array[Rect2i]:
+		var gain: int = Launcher.gain_for(ORIGIN, sky)
+		var lo: Vector2i = StarScatter.inner_rect(sky).position
+		var hi: Vector2i = StarScatter.inner_rect(sky).end - Vector2i.ONE
+		var far: float = 0.0
+		for corner: Vector2i in [lo, Vector2i(hi.x, lo.y), Vector2i(lo.x, hi.y), hi] as Array[Vector2i]:
+			far = maxf(far, Vector2(corner - ORIGIN).length())
+		var span: int = Launcher.MAX_PULL - Launcher.MIN_PULL
+		assert_gte(Launcher.MIN_REACH + span * gain, far, "%s: a full pull reaches the farthest corner" % sky)
+		if gain > Launcher.AIM_GAIN:
+			assert_lt(Launcher.MIN_REACH + span * (gain - 1), far, "%s: no smaller gain would" % sky)
 
 
 func test_the_weakest_launch_still_reaches_the_sky() -> void:
@@ -206,6 +242,25 @@ func test_the_grown_frame_is_one_pixel_bigger() -> void:
 	assert_ne(PackView.pixels("blue", false, true), PackView.pixels("blue"), "bright lifts the ramp")
 
 
+## Puts the launcher on a fresh run on `sky`.
+func _setup_on(sky: Rect2i) -> void:
+	run = Fixtures.run({"start_packs": {"blue": 12, "red": 0}, "sun_target": 100000}, 1, sky)
+	sequencer.bind(run)
+	launcher.setup(run, sequencer)
+	inner = StarScatter.inner_rect(sky)
+
+
+## Every inner corner and edge midpoint is within a full pull, and the preview lands on it.
+func _assert_every_corner_and_edge_aimable() -> void:
+	for target: Vector2i in _corners_and_edges():
+		var pull: Vector2 = _pull_toward(target)
+		assert_lte(pull.length(), float(Launcher.MAX_PULL), "%s is within a full pull" % target)
+		_press(Vector2i.ZERO)
+		_drag(pull)
+		assert_eq(launcher.burst_preview(), target)
+		launcher.cancel_pull()
+
+
 ## Inner sky corners and edge midpoints.
 func _corners_and_edges() -> Array[Vector2i]:
 	var lo: Vector2i = inner.position
@@ -218,7 +273,7 @@ func _corners_and_edges() -> Array[Vector2i]:
 ## The pull that aims straight at `target` (aim_target inverted).
 func _pull_toward(target: Vector2i) -> Vector2:
 	var away := Vector2(ORIGIN - target)
-	var length: float = Launcher.MIN_PULL + (away.length() - Launcher.MIN_REACH) / Launcher.AIM_GAIN
+	var length: float = Launcher.MIN_PULL + (away.length() - Launcher.MIN_REACH) / launcher.aim_gain()
 	return away.normalized() * length
 
 
