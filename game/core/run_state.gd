@@ -1590,12 +1590,16 @@ func _apply_heat(changes: Array[StarHeat.Change]) -> void:
 
 
 ## A stage region in home layout, placed in this sky: shifted with the map, and one spanning the
-## home sky's full height spans this sky's.
+## home sky's full height spans this sky's. Likewise sideways: one reaching the home sky's right
+## edge runs to this sky's right edge, and one from its left edge from this sky's left edge (a wide
+## sky, docs/wide_sky_design.md; on a 180-wide sky the frame is the sky and nothing changes).
 func _stage_area(region: Rect2i) -> Rect2i:
 	var area := Rect2i(region.position + scorpio.shift, region.size)
 	if region.position.y <= Scorpio.HOME_SKY.position.y and region.end.y >= Scorpio.HOME_SKY.end.y:
 		area = Rect2i(area.position.x, sky_rect.position.y, area.size.x, sky_rect.size.y)
-	return area
+	var left: int = sky_rect.position.x if region.position.x <= Scorpio.HOME_SKY.position.x else area.position.x
+	var right: int = sky_rect.end.x if region.end.x >= Scorpio.HOME_SKY.end.x else area.end.x
+	return Rect2i(left, area.position.y, right - left, area.size.y)
 
 
 ## Scorpio's rekindle or completion: every star left in the sky goes, for `dust_per_star` each.

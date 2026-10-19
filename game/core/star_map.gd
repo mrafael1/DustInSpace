@@ -417,8 +417,8 @@ static func aquarius_final() -> StarMap:
 	return map
 
 
-## A current over the home sky's full height (a taller sky stretches it: RunState) from `x` to the
-## right edge.
+## A current over the home sky's full height from `x` to the right edge (a taller sky stretches it
+## up, a wider one out to its own right edge: RunState._stage_area).
 static func _full_height_from(x: int) -> Rect2i:
 	return Rect2i(x, Scorpio.HOME_SKY.position.y, Scorpio.HOME_SKY.end.x - x, Scorpio.HOME_SKY.size.y)
 
