@@ -931,16 +931,19 @@ func safe_launch_spot() -> Vector2i:
 			if not goal_set:
 				goal = at
 				goal_set = true
-	var best: Vector2i = Vector2i(-1, -1)
+	# An explicit flag, not a (-1, -1) marker: a wide sky has real spots at negative x.
+	var best: Vector2i = goal
+	var found: bool = false
 	var furthest: Vector2i = goal
 	for y: int in range(inner.position.y, inner.end.y, SAFE_SPOT_GRID):
 		for x: int in range(inner.position.x, inner.end.x, SAFE_SPOT_GRID):
 			var spot := Vector2i(x, y)
 			if (spot - hunt.centre).length_squared() > (furthest - hunt.centre).length_squared():
 				furthest = spot
-			if is_safe_launch(spot) and (best.x < 0 or (spot - goal).length_squared() < (best - goal).length_squared()):
+			if is_safe_launch(spot) and (not found or (spot - goal).length_squared() < (best - goal).length_squared()):
 				best = spot
-	return best if best.x >= 0 else furthest
+				found = true
+	return best if found else furthest
 
 
 ## The guided run's launch spot (#148): an aim whose stars land in open sky, away from the
@@ -961,8 +964,8 @@ func open_launch_spot(top: int) -> Vector2i:
 	for star: Star in stars:
 		taken.append(star.position)
 	var centre: Vector2i = inner.get_center()
-	var best: Vector2i = Vector2i(-1, -1)
-	var best_clear: int = -1
+	var best: Vector2i = centre
+	var found: bool = false
 	var clearest: Vector2i = centre
 	var clearest_clear: int = -1
 	for y: int in range(area.position.y, area.end.y, SAFE_SPOT_GRID / 2):
@@ -977,9 +980,10 @@ func open_launch_spot(top: int) -> Vector2i:
 			if clear > clearest_clear:
 				clearest = spot
 				clearest_clear = clear
-			if clear >= OPEN_CLEARANCE and (best.x < 0 or (spot - centre).length_squared() < (best - centre).length_squared()):
+			if clear >= OPEN_CLEARANCE and (not found or (spot - centre).length_squared() < (best - centre).length_squared()):
 				best = spot
-	return best if best.x >= 0 else clearest
+				found = true
+	return best if found else clearest
 
 
 ## How far the nearest of `taken` is from the nearest of `points`, in whole px (a large number when
@@ -2042,14 +2046,16 @@ func ram_intro_layout() -> Array[Vector2i]:
 	if lost.is_empty():
 		return []
 	var second: Vector2i = Vector2i(lost[0].y, lost[0].z)
-	var first: Vector2i = Vector2i(-1, -1)
+	var first: Vector2i = second
+	var found: bool = false
 	# The best kept one clear of the lost one, else a second lost one.
 	for candidate: Vector3i in kept + lost.slice(1):
 		var at := Vector2i(candidate.y, candidate.z)
 		if Vector2(at).distance_to(Vector2(second)) >= RAM_INTRO_APART:
 			first = at
+			found = true
 			break
-	if first.x < 0:
+	if not found:
 		return []
 	# Out of the lane on the far side from the first, else the other if the sky ends there.
 	var first_across: int = first.x * across.x + first.y * across.y
@@ -2303,7 +2309,8 @@ func _open_middle() -> Vector2i:
 	for segment: int in scorpio.map.segment_count():
 		var ends: Array[int] = scorpio.map.segment_landmarks(segment)
 		strings.append([Vector2(landmarks[ends[0]]), Vector2(landmarks[ends[1]])])
-	var best: Vector2i = Vector2i(-1, -1)
+	var best: Vector2i = middle
+	var found: bool = false
 	var best_far: int = -1
 	var clearest: Vector2i = middle
 	var clearest_near: int = -1
@@ -2323,10 +2330,11 @@ func _open_middle() -> Vector2i:
 			if near < HEAT_INTRO_CLEARANCE * HEAT_INTRO_CLEARANCE:
 				continue
 			var far: int = (spot - middle).length_squared()
-			if best_far < 0 or far < best_far:
+			if not found or far < best_far:
 				best = spot
 				best_far = far
-	return best if best.x >= 0 else clearest
+				found = true
+	return best if found else clearest
 
 
 ## Aquarius's current intro (#148), as a current stage opens (the scene calls it once its views are
@@ -2442,7 +2450,9 @@ func hole_intro_spots() -> Array[Vector2i]:
 	# How far out each stands: the nearest spot that falls in on pull k (the last: survives them all).
 	var distances: Array[int] = []
 	var distance: int = gravity.horizon + 2
-	while distances.size() <= HOLE_INTRO_PULLS and distance < 2 * ScreenZones.SCREEN.x:
+	# No further than the sky's diagonal: a spot that far out is off the sky whichever way.
+	var reach: int = ceili(Vector2(sky_rect.size).length())
+	while distances.size() <= HOLE_INTRO_PULLS and distance < reach:
 		var pulls: int = gravity.pulls_to_swallow(distance)
 		if pulls == distances.size() + 1 or (distances.size() == HOLE_INTRO_PULLS and pulls > HOLE_INTRO_PULLS):
 			distances.append(distance)
