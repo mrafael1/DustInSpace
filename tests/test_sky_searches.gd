@@ -72,6 +72,6 @@ func test_the_hole_intro_search_stops_at_the_sky() -> void:
 func _hunted(sky: Rect2i) -> RunState:
 	var run := RunState.new(Fixtures.balance(), Fixtures.rng(), sky)
 	run.hunt = Hunt.new(38, run.run_seed)
-	run.hunt.mark(sky, run.frame_rect.position)
+	run.hunt.mark(run.frame_rect)
 	run.hunt.centre = StarScatter.inner_rect(sky).get_center()
 	return run

@@ -878,7 +878,7 @@ func launch(target: Vector2i) -> bool:
 	# arrow is about to take.
 	if hunt != null:
 		_hunt_strike()
-		area_marked.emit(hunt.mark(sky_rect, frame_rect.position, stars, _unlit_positions()), hunt.radius)
+		area_marked.emit(hunt.mark(frame_rect, stars, _unlit_positions()), hunt.radius)
 		if encounter != null and encounter.area_marked():
 			encounter_step.emit(encounter.threat, encounter.step)
 	if orion != null and not orion.has_target():
@@ -2740,7 +2740,7 @@ func play_hunt_intro() -> void:
 		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ Hunt.SEED_SALT ^ LAYOUT_SEED_SALT
-	var centre: Vector2i = hunt.mark(frame_rect, frame_rect.position, [] as Array[Star], _unlit_positions())
+	var centre: Vector2i = hunt.mark(frame_rect, [] as Array[Star], _unlit_positions())
 	var placed: Array[Star] = _hunt_intro_stars(balance.hunt_intro_stars, centre, layout)
 	hunt_intro_placed.emit(placed)
 	area_marked.emit(centre, hunt.radius)

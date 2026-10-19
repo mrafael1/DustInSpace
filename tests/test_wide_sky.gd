@@ -52,22 +52,72 @@ func _figure(corner: Vector2i, grow: int) -> Rect2i:
 	return Rect2i(corner + Volley.ORION_CORNER.position, Volley.ORION_CORNER.size).grow(grow)
 
 
-func test_the_hunt_may_circle_a_star_in_the_wide_skys_corner() -> void:
-	var frame: Vector2i = Vector2i(0, Fixtures.WIDE_SKY.position.y)
+func _wide_frame() -> Rect2i:
+	return RunState.new(Fixtures.balance(), Fixtures.rng(), Fixtures.WIDE_SKY).frame_rect
+
+
+func test_the_hunt_passes_over_a_star_in_the_wide_skys_corner() -> void:
+	var frame: Rect2i = _wide_frame()
 	var prey := Star.new(1, Star.Size.SMALL, Fixtures.WIDE_SKY.position + Vector2i(15, 15))
 	for seed_value: int in range(1, 11):
 		var hunt := Hunt.new(38, seed_value)
-		var centre: Vector2i = hunt.mark(Fixtures.WIDE_SKY, frame, [prey] as Array[Star])
-		assert_lte((centre - prey.position).length(), 38.0, "Orion doesn't stand there: the circle goes round it")
+		var centre: Vector2i = hunt.mark(frame, [prey] as Array[Star])
+		assert_true(frame.grow(-38).has_point(centre), "%s: the circle stays in the frame" % centre)
+		assert_false(hunt.contains(prey.position), "outside the frame, so never under its circle")
 
 
 func test_the_hunt_keeps_off_orion_in_the_frames_corner() -> void:
-	var frame: Vector2i = Vector2i(0, Fixtures.WIDE_SKY.position.y)
-	var hugging := Star.new(1, Star.Size.SMALL, frame + Vector2i(20, 22))
+	var frame: Rect2i = _wide_frame()
+	var hugging := Star.new(1, Star.Size.SMALL, frame.position + Vector2i(20, 22))
 	for seed_value: int in range(1, 11):
 		var hunt := Hunt.new(38, seed_value)
-		var centre: Vector2i = hunt.mark(Fixtures.WIDE_SKY, frame, [hugging] as Array[Star])
-		assert_false(_figure(frame, 38).has_point(centre), "never over his figure")
+		var centre: Vector2i = hunt.mark(frame, [hugging] as Array[Star])
+		assert_false(_figure(frame.position, 38).has_point(centre), "never over his figure")
+
+
+func test_the_hunting_circle_stays_within_the_frame_across_seeds() -> void:
+	var frame: Rect2i = _wide_frame()
+	for seed_value: int in range(1, 201):
+		var hunt := Hunt.new(38, seed_value)
+		var layout := Fixtures.rng(seed_value)
+		var loose: Array[Star] = []
+		for i: int in layout.randi_range(0, 12):
+			var at := Vector2i(layout.randi_range(Fixtures.WIDE_SKY.position.x, Fixtures.WIDE_SKY.end.x - 1),
+				layout.randi_range(Fixtures.WIDE_SKY.position.y, Fixtures.WIDE_SKY.end.y - 1))
+			loose.append(Star.new(i + 1, Star.Size.SMALL, at))
+		var centre: Vector2i = hunt.mark(frame, loose)
+		assert_true(frame.grow(-38).has_point(centre), "seed %d: %s wholly inside the frame %s" % [seed_value, centre, frame])
+
+
+func test_a_wide_heart_runs_circles_all_stand_in_the_frame() -> void:
+	for seed_value: int in range(1, 21):
+		var run := RunState.new(Balance.load_file(), Fixtures.rng(seed_value), Fixtures.WIDE_SKY, StarMap.heart())
+		var circles: Array[Vector2i] = []
+		run.area_marked.connect(func(at: Vector2i, _radius: int) -> void: circles.append(at))
+		for i: int in 8:
+			if run.is_over():
+				break
+			if run.loaded_pack == "":
+				for kind: String in run.owned_packs:
+					if run.load_pack(kind):
+						break
+			if run.loaded_pack == "":
+				break
+			# Launch out in the outer columns, so loose stars lie outside the frame.
+			var side: int = Fixtures.WIDE_SKY.position.x + 40 if i % 2 == 0 else Fixtures.WIDE_SKY.end.x - 40
+			run.launch(Vector2i(side, run.figure_middle().y))
+		assert_false(circles.is_empty())
+		for at: Vector2i in circles:
+			assert_true(run.frame_rect.grow(-run.hunt.radius).has_point(at), "seed %d: %s wholly inside the frame" % [seed_value, at])
+
+
+func test_on_the_portrait_sky_the_hunts_frame_is_the_sky() -> void:
+	var run := RunState.new(Balance.load_file(), Fixtures.rng(3), Fixtures.SKY, StarMap.heart())
+	assert_eq(run.frame_rect, run.sky_rect)
+	var prey := Star.new(1, Star.Size.SMALL, Fixtures.SKY.position + Vector2i(15, 15))
+	var by_frame := Hunt.new(38, 7)
+	var by_sky := Hunt.new(38, 7)
+	assert_eq(by_frame.mark(run.frame_rect, [prey] as Array[Star]), by_sky.mark(Fixtures.SKY, [prey] as Array[Star]))
 
 
 func test_a_wide_hunt_marks_off_the_frames_corner() -> void:
@@ -163,7 +213,7 @@ func test_the_guide_spots_and_open_middle_stay_in_the_frame() -> void:
 func test_a_hunted_wide_runs_safe_spot_is_in_the_frame() -> void:
 	var run := RunState.new(Fixtures.balance(), Fixtures.rng(), Fixtures.WIDE_SKY)
 	run.hunt = Hunt.new(38, run.run_seed)
-	run.hunt.mark(run.sky_rect, run.frame_rect.position)
+	run.hunt.mark(run.frame_rect)
 	run.hunt.centre = run.figure_middle()
 	var spot: Vector2i = run.safe_launch_spot()
 	assert_true(run.is_safe_launch(spot))

@@ -171,7 +171,7 @@ func test_a_circle_is_marked_round_a_star_even_at_the_skys_edge_or_by_orion() ->
 		for seed_value: int in range(1, 11):
 			var hunt := Hunt.new(40, seed_value)
 			var star := Star.new(1, Star.Size.SMALL, at)
-			var centre: Vector2i = hunt.mark(Fixtures.SKY, Fixtures.SKY.position, [star] as Array[Star])
+			var centre: Vector2i = hunt.mark(Fixtures.SKY, [star] as Array[Star])
 			assert_true(hunt.contains(at), "%s, seed %d: the star is inside" % [at, seed_value])
 			assert_true(Fixtures.SKY.grow(-40).has_point(centre), "the whole circle in the sky")
 			assert_false(corner.grow(40).has_point(centre), "clear of Orion's figure")
@@ -184,7 +184,7 @@ func test_a_star_hugging_orion_is_passed_over_for_one_the_circle_can_reach() -> 
 	var open := Star.new(2, Star.Size.SMALL, MID_SKY)
 	for seed_value: int in range(1, 21):
 		var hunt := Hunt.new(40, seed_value)
-		hunt.mark(Fixtures.SKY, Fixtures.SKY.position, [hugging, far, open] as Array[Star])
+		hunt.mark(Fixtures.SKY, [hugging, far, open] as Array[Star])
 		assert_true(hunt.contains(open.position), "seed %d" % seed_value)
 
 
@@ -195,7 +195,7 @@ func test_a_circle_takes_the_side_of_its_star_away_from_the_figure() -> void:
 	var figure: Array[Vector2i] = [Vector2i(110, 160), Vector2i(100, 172)]
 	for seed_value: int in range(1, 21):
 		var hunt := Hunt.new(38, seed_value)
-		var centre: Vector2i = hunt.mark(Fixtures.SKY, Fixtures.SKY.position, [prey] as Array[Star], figure)
+		var centre: Vector2i = hunt.mark(Fixtures.SKY, [prey] as Array[Star], figure)
 		assert_true(hunt.contains(prey.position), "seed %d: its star is inside" % seed_value)
 		assert_eq(_covering(centre, figure, 38), 0, "seed %d: none of the figure under it" % seed_value)
 
@@ -206,7 +206,7 @@ func test_a_star_inside_the_figure_gets_the_circle_covering_the_fewest() -> void
 	var figure: Array[Vector2i] = [Vector2i(92, 160), Vector2i(108, 160), Vector2i(100, 152), Vector2i(100, 168)]
 	for seed_value: int in range(1, 21):
 		var hunt := Hunt.new(38, seed_value)
-		var centre: Vector2i = hunt.mark(Fixtures.SKY, Fixtures.SKY.position, [prey] as Array[Star], figure)
+		var centre: Vector2i = hunt.mark(Fixtures.SKY, [prey] as Array[Star], figure)
 		assert_true(hunt.contains(prey.position))
 		assert_eq(_covering(centre, figure, 38), 1, "seed %d: the fewest a circle round it can cover" % seed_value)
 
@@ -215,7 +215,7 @@ func test_with_no_star_to_circle_it_still_keeps_off_the_figure() -> void:
 	var figure: Array[Vector2i] = [Vector2i(90, 150), Vector2i(120, 180), Vector2i(70, 200)]
 	for seed_value: int in range(1, 21):
 		var hunt := Hunt.new(38, seed_value)
-		var centre: Vector2i = hunt.mark(Fixtures.SKY, Fixtures.SKY.position, [] as Array[Star], figure)
+		var centre: Vector2i = hunt.mark(Fixtures.SKY, [] as Array[Star], figure)
 		assert_true(Fixtures.SKY.grow(-38).has_point(centre))
 		assert_eq(_covering(centre, figure, 38), 0, "seed %d" % seed_value)
 
@@ -247,7 +247,7 @@ func test_on_the_heart_every_circle_covers_the_fewest_constellation_stars_round_
 
 func test_an_empty_sky_still_gets_a_circle() -> void:
 	var hunt := Hunt.new(40, 7)
-	var centre: Vector2i = hunt.mark(Fixtures.SKY, Fixtures.SKY.position)
+	var centre: Vector2i = hunt.mark(Fixtures.SKY)
 	assert_true(hunt.has_area())
 	assert_true(Fixtures.SKY.grow(-40).has_point(centre))
 
@@ -494,7 +494,7 @@ func _fewest_round(at: Vector2i, points: Array[Vector2i], radius: int) -> int:
 ## Whether a circle of `radius` could be marked round `star` on its own.
 func _reachable(star: Star, radius: int) -> bool:
 	var hunt := Hunt.new(radius, 0)
-	hunt.mark(Fixtures.SKY, Fixtures.SKY.position, [star] as Array[Star])
+	hunt.mark(Fixtures.SKY, [star] as Array[Star])
 	return hunt.contains(star.position)
 
 
