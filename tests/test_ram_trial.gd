@@ -188,7 +188,7 @@ func test_the_charge_butts_the_lane_after_the_launch() -> void:
 	var row: int = run.ram.row
 	var sheltered: Star = run.add_star(Star.Size.SMALL, Vector2i(44, row + 4))
 	var off: Star = run.add_star(Star.Size.MEDIUM, Vector2i(150, row + 5))
-	var outside: Star = run.add_star(Star.Size.BIG, Vector2i(44, row + 12))
+	var outside: Star = run.add_star(Star.Size.BIG, Vector2i(44, row + 24))
 	_to_the_charge(run)
 	var seen: Array = []
 	run.ram_charged.connect(func(at: int, moves: Array[StarCurrent.Move], fleeced: Array[int]) -> void: seen.append([at, moves, fleeced]))
@@ -204,7 +204,7 @@ func test_the_charge_butts_the_lane_after_the_launch() -> void:
 	assert_true(run.ram.is_fleeced(sheltered.id))
 	assert_null(run.find_star(off.id), "butted out of the sky")
 	assert_eq(run.dust, dust, "lost for nothing")
-	assert_eq(outside.position, Vector2i(44, row + 12), "out of the lane, untouched")
+	assert_eq(outside.position, Vector2i(44, row + 24), "out of the lane, untouched")
 
 
 func test_a_star_with_nothing_ahead_is_butted_72_px() -> void:
@@ -227,8 +227,8 @@ func test_the_preview_matches_the_charge() -> void:
 	Fixtures.launch(run, HIGH_AIM)
 	var preview: StarCharge.Charge = run.charge_preview()
 	assert_eq(preview.moves.size(), 4)
-	assert_eq(preview.lost().size(), 1)
-	assert_eq(preview.fleeced.size(), 3, "each stopped by the next landmark in the lane")
+	assert_eq(preview.lost().size(), 2, "the one passing under landmark 3 goes by, and out")
+	assert_eq(preview.fleeced.size(), 2, "each running into the next landmark")
 	var executed: Array = []
 	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], fleeced: Array[int]) -> void: executed.append_array([moves, fleeced]))
 	Fixtures.launch(run, HIGH_AIM)
