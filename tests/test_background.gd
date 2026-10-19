@@ -150,6 +150,35 @@ func test_the_view_fills_a_landscape_window_with_the_game_centred() -> void:
 		assert_eq(ScreenZones.game_offset(Vector2(ScreenZones.fill_size(window))), case[3], "%s game offset (an odd extra width leaves its last column on the right)" % window)
 
 
+## The play sky on those windows (docs/wide_sky_design.md §1): the same extra columns on both sides,
+## capped at MAX_SKY_WIDTH, and every extra row above.
+func test_the_play_sky_widens_to_both_sides_up_to_the_cap() -> void:
+	var cases: Array[Array] = [
+		# window, sky_margin, play sky
+		[Vector2i(1920, 1080), Vector2i(230, 40), Rect2i(-230, 38, 640, 212)],
+		[Vector2i(1280, 800), Vector2i(230, 80), Rect2i(-230, -2, 640, 252)],
+		[Vector2i(1536, 2048), Vector2i(38, 21), Rect2i(-38, 57, 256, 193)],
+		[Vector2i(2048, 1536), Vector2i(166, 64), Rect2i(-166, 14, 512, 236)],
+		[Vector2i(1366, 768), Vector2i(230, 64), Rect2i(-230, 14, 640, 236)],
+		[Vector2i(2560, 1080), Vector2i(230, 40), Rect2i(-230, 38, 640, 212)],
+		[Vector2i(1080, 1920), Vector2i(0, 0), ScreenZones.SKY],
+		[Vector2i(1170, 2532), Vector2i(7, 102), Rect2i(-7, -24, 194, 274)],
+	]
+	for case: Array in cases:
+		var window: Vector2i = case[0]
+		var margin: Vector2i = ScreenZones.sky_margin(Vector2(ScreenZones.fill_size(window)))
+		assert_eq(margin, case[1], "%s sky margin" % window)
+		var sky: Rect2i = ScreenZones.play_sky(margin.y, margin.x)
+		assert_eq(sky, case[2], "%s play sky" % window)
+		assert_lte(sky.size.x, ScreenZones.MAX_SKY_WIDTH, "%s within the cap" % window)
+		assert_eq(sky.position.x + sky.end.x, 180, "%s centred on x 90" % window)
+	# 1366x768 shows 683 columns: 503 extra, an odd number. The cap leaves 640 either way.
+	assert_eq(ScreenZones.sky_margin(Vector2(181, 320)), Vector2i(0, 0), "one odd extra column stays backdrop")
+	assert_eq(ScreenZones.sky_margin(Vector2(185, 320)), Vector2i(2, 0), "an odd extra width splits evenly, the leftover is backdrop")
+	assert_eq(ScreenZones.play_sky(102), Rect2i(0, -24, 180, 274), "side 0 is today's tall sky")
+	assert_eq(ScreenZones.play_sky(0), ScreenZones.SKY)
+
+
 func test_the_game_sits_on_the_bottom_edge_centred_across() -> void:
 	assert_eq(ScreenZones.game_offset(Vector2(180, 320)), Vector2i.ZERO, "9:16: nothing around it")
 	assert_eq(ScreenZones.game_offset(Vector2(180, 400)), Vector2i(0, 80), "a taller phone: all the extra is sky above")

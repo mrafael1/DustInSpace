@@ -16,9 +16,25 @@ const SCREEN := Vector2i(180, 320)
 const SUN_CENTRE := Vector2i(90, 39)
 
 
-## The play sky when the screen shows `extra` more rows above the game's 180x320.
-static func play_sky(extra: int) -> Rect2i:
-	return Rect2i(SKY.position.x, SKY.position.y - extra, SKY.size.x, SKY.size.y + extra)
+## The widest play sky, in game px: 16:9 shows 640 columns at every whole-number scale (1080p at
+## 3x, 1440p at 4x, 4K at 6x). A wider window keeps a 640-wide sky and the Backdrop fills the rest.
+const MAX_SKY_WIDTH := 640
+
+
+## The play sky when the screen shows `rows` more rows above the game's 180x320 and `side` more
+## columns on each side of it. With side 0 it is the portrait sky, the game's own 180 columns.
+static func play_sky(rows: int, side: int = 0) -> Rect2i:
+	return Rect2i(SKY.position.x - side, SKY.position.y - rows, SKY.size.x + 2 * side, SKY.size.y + rows)
+
+
+## How far the play sky reaches past the game's screen in a visible area of `visible` px: x is the
+## columns added on EACH side, y the rows added above. Both sides get the same columns (game_offset's
+## floor of half the extra width), so the sky stays centred on x 90 and an odd leftover column is
+## backdrop; the width caps at MAX_SKY_WIDTH. Rows have no cap: tall phones already grow upward.
+static func sky_margin(visible: Vector2) -> Vector2i:
+	var offset: Vector2i = game_offset(visible)
+	var side: int = mini(offset.x, (MAX_SKY_WIDTH - SKY.size.x) / 2)
+	return Vector2i(side, offset.y)
 
 
 ## The Sun's centre when the screen shows `extra` more rows above the game's 180x320.
