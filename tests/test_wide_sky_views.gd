@@ -122,3 +122,33 @@ func test_no_frame_edge_without_a_splash_or_on_the_portrait_sky() -> void:
 	var home: RunState = _run("pisces_knot", Fixtures.SKY)
 	assert_true(CurrentView.outside_frame(home.frame_rect, home.sky_rect).is_empty())
 	assert_true(CurrentView.frame_side_pixels(home.frame_rect, home.sky_rect).is_empty())
+
+
+# --- The ram stands at the frame's edge ---------------------------------------------------------
+
+func test_the_ram_and_its_lane_are_drawn_within_the_frame() -> void:
+	var run: RunState = _run("aries_horns")
+	var view: ChargeView = _sky_view(run).get_node("ChargeLayer")
+	view.setup(run)
+	var dots: Dictionary[Vector2i, Color] = view.pixels()
+	assert_false(dots.is_empty())
+	for p: Vector2i in dots:
+		assert_true(run.frame_rect.has_point(p), "%s inside the frame %s" % [p, run.frame_rect])
+	var head: Vector2i = ChargeView.head_origin(run.ram.row, run.frame_rect)
+	assert_eq(head.x, run.frame_rect.position.x + 1, "a pixel in from the frame's left edge")
+
+
+func test_a_wide_ram_stage_shades_and_dots_the_frame_edge() -> void:
+	var run: RunState = _run("aries_horns")
+	var current := CurrentView.new()
+	add_child_autofree(current)
+	current.setup(run, sequencer)
+	var dots: Dictionary[Vector2i, Color] = current.pixels()
+	for y: int in range(38, 250, 2):
+		assert_eq(dots.get(Vector2i(-1, y)), Palette.S3)
+		assert_eq(dots.get(Vector2i(180, y)), Palette.S3)
+	var home: RunState = _run("aries_horns", Fixtures.SKY)
+	var home_current := CurrentView.new()
+	add_child_autofree(home_current)
+	home_current.setup(home, sequencer)
+	assert_true(home_current.pixels().is_empty(), "nothing on the 9:16 sky")

@@ -9,6 +9,9 @@ extends RefCounted
 ## `lane` px wide centred on the lane column (the lit landmark's x). One carried out of the sky is
 ## lost, for nothing. No randomness, nodes or rewards. Its moves are StarCurrent.Moves (a lost one `drained`, `to` where it would have gone,
 ## past the sky's edge).
+## A wide sky (docs/wide_sky_design.md Q4): RunState passes its frame as the sky, so the ram stands
+## at the frame's edge and a star carried past the frame's far side is lost; a star behind the ram
+## (outside the frame on its own side) is out of its way and stays.
 
 ## What one charge does to the stars standing in the sky.
 class Charge:
@@ -134,7 +137,7 @@ func charge(stars: Array[Star], sky: Rect2i, landmarks: Array[Vector2i]) -> Char
 	var charged: Array[Star] = []
 	for star: Star in stars:
 		occupied[star.id] = star.position
-		if in_lane(star.position):
+		if in_lane(star.position) and not behind(star.position, sky):
 			charged.append(star)
 	charged.sort_custom(func(a: Star, b: Star) -> bool:
 		var ahead_a: int = a.position.x * way.x + a.position.y * way.y
@@ -152,6 +155,18 @@ func charge(stars: Array[Star], sky: Rect2i, landmarks: Array[Vector2i]) -> Char
 			occupied[star.id] = to
 		result.moves.append(StarCurrent.Move.new(star.id, from, to, lost))
 	return result
+
+
+## Whether `point` stands behind the ram charging `way` from `sky`'s edge (outside it on the ram's
+## own side), out of its way. Never on a 9:16 sky, where every star is inside it.
+func behind(point: Vector2i, sky: Rect2i) -> bool:
+	if way.x > 0:
+		return point.x < sky.position.x
+	if way.x < 0:
+		return point.x >= sky.end.x
+	if way.y > 0:
+		return point.y < sky.position.y
+	return point.y >= sky.end.y
 
 
 ## Whether a star butted to `point` has left the sky (where stars live: StarScatter.inner_rect).

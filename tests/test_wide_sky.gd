@@ -374,3 +374,70 @@ func _free_pulls(hole: StarGravity, distance: int) -> int:
 	var free: StarGravity = hole.copy()
 	free.frame = Rect2i()
 	return free.pulls_to_swallow(distance, 40)
+
+
+# --- The ram charges against the frame ---------------------------------------------------------
+
+func _ram_run(sky: Rect2i = Fixtures.WIDE_SKY) -> RunState:
+	return RunState.new(Balance.load_file(), Fixtures.rng(1), sky, StarMap.aries_horns())
+
+
+func test_the_ram_butts_a_star_out_past_the_frames_far_side() -> void:
+	var run: RunState = _ram_run()
+	var row: int = run.ram.row
+	var near: Star = run.add_star(Star.Size.SMALL, Vector2i(150, row))
+	var ahead: Star = run.add_star(Star.Size.SMALL, Vector2i(250, row))
+	var behind: Star = run.add_star(Star.Size.SMALL, Vector2i(-100, row))
+	var preview: StarCharge.Charge = run.charge_preview()
+	assert_true(preview.lost().has(near.id), "butted to x 222: past the frame, though the sky goes on")
+	assert_true(preview.lost().has(ahead.id), "in its way, out past the frame")
+	assert_false(preview.destinations().has(behind.id), "behind the ram: out of its way")
+	run._charge_ram()
+	assert_null(run.find_star(near.id))
+	assert_null(run.find_star(ahead.id))
+	assert_eq(run.find_star(behind.id).position, Vector2i(-100, row), "stays where it stood")
+
+
+func test_a_star_the_ram_keeps_in_the_frame_is_butted_on() -> void:
+	var run: RunState = _ram_run()
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(20, run.ram.row))
+	var preview: StarCharge.Charge = run.charge_preview()
+	assert_false(preview.lost().has(star.id))
+	assert_gt(preview.destinations()[star.id].x, 20 + run.ram.butt - 1)
+
+
+func test_a_ram_charging_down_or_from_the_right_keeps_off_whats_behind_it() -> void:
+	var frame := Rect2i(0, 38, 180, 212)
+	var left := StarCharge.new(1, 36, 72, 100, [Vector2i.LEFT] as Array[Vector2i])
+	assert_true(left.behind(Vector2i(200, 100), frame))
+	assert_false(left.behind(Vector2i(-20, 100), frame), "ahead of a ram from the right")
+	var down := StarCharge.new(1, 36, 72, 100, [Vector2i.DOWN] as Array[Vector2i], 90)
+	assert_false(down.behind(Vector2i(90, 40), frame))
+
+
+func test_on_the_portrait_sky_the_ram_loses_at_the_skys_edge() -> void:
+	var run: RunState = _ram_run(Fixtures.SKY)
+	assert_eq(run.frame_rect, run.sky_rect)
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(150, run.ram.row))
+	assert_true(run.charge_preview().lost().has(star.id), "as before")
+
+
+func test_the_ram_intro_plays_inside_the_frame() -> void:
+	for map: StarMap in [StarMap.aries_horns(), StarMap.aries_head(), StarMap.aries_fleece()]:
+		var run := RunState.new(Balance.load_file(), Fixtures.rng(2), Fixtures.WIDE_SKY, map)
+		var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+		var placed: Array[Vector2i] = []
+		var lost: Array[int] = []
+		run.ram_intro_placed.connect(func(shown: Array[Star]) -> void:
+			for star: Star in shown:
+				placed.append(star.position))
+		run.ram_charged.connect(func(_line: int, moves: Array[StarCurrent.Move], _way: Vector2i) -> void:
+			for move: StarCurrent.Move in moves:
+				if move.drained:
+					lost.append(move.star_id)
+					assert_false(inner.has_point(move.to), "%s: lost past the frame" % map.id))
+		run.play_ram_intro()
+		assert_false(placed.is_empty(), map.id)
+		assert_false(lost.is_empty(), "%s: the demo butts one out" % map.id)
+		for at: Vector2i in placed:
+			assert_true(inner.has_point(at), "%s: demo star %s by the figure" % [map.id, at])

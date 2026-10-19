@@ -9,7 +9,9 @@ extends Node2D
 ## its downstream side, an ember arrow pointing where it goes, nudging a pixel that way every MARK_STEP.
 ## The frame edge (a wide sky's drain stage, docs/wide_sky_design.md Q4): the sky outside the run's
 ## frame, where every star drains at the next step, is shaded with a sparse SHADE_COLOUR dither, and
-## the frame's sides wear the drain's dotted ember line.
+## the frame's sides wear the drain's dotted ember line. A ram stage (no current) shows the same, as a
+## star its ram butts past the frame is lost (ChargeView sits over the stars, so the shade is drawn
+## here, under them).
 
 ## The water: streaks gliding downstream in whole pixels, one per STREAK_AREA px² of the field,
 ## each STREAK_LENGTH long at STREAK_SPEED px/s (both by a fixed hash, so the pattern is stable).
@@ -133,6 +135,8 @@ func _draw() -> void:
 	if _run != null and _run.current != null and not _played_out():
 		for rect: Rect2i in frame_shade_rects(_run.current, _run.sky_rect):
 			draw_texture_rect(shade_tile(), Rect2(rect), true)
+	elif _run != null and _run.ram != null and not _played_out():
+		draw_frame_shade(self, _run.frame_rect, _run.sky_rect)
 	var dots: Dictionary[Vector2i, Color] = pixels()
 	for point: Vector2i in dots:
 		draw_rect(Rect2(Vector2(point), Vector2.ONE), dots[point], true)
@@ -147,7 +151,12 @@ func _played_out() -> bool:
 
 func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	if _run == null or _run.current == null or _played_out():
+	if _run == null or _played_out():
+		return result
+	if _run.current == null:
+		if _run.ram != null:
+			for point: Vector2i in frame_side_pixels(_run.frame_rect, _run.sky_rect):
+				result[point] = Palette.S3
 		return result
 	var area: Rect2i = _run.current.region
 	result.merge(water_pixels(area, _shown_flow, _time))

@@ -28,6 +28,9 @@ extends Node2D
 ##   ember sparks (C3, S4, S3) over LOSS_TIME (not waited for).
 ## A ram that charges harder (the Head) is heated: its horns ember (S4, S3) and its hoof prints and
 ## dust ember too (S4, S3, S2), so the harder push shows before it charges; its face stays pale.
+## A wide sky: everything above is drawn against the run's frame (RunState.frame_rect), not the sky,
+## so the ram stands at the frame's edge and its dust runs to the frame's far side; CurrentView shades
+## the sky outside the frame.
 
 ## The ram's head, frontal: H horn light, h horn dark, F face, f face shade, E eye, n nostril.
 const HEAD: Array[String] = [
@@ -234,7 +237,8 @@ func flash_loss(at: Vector2i) -> void:
 	queue_redraw()
 
 
-## Where a star butted toward `to` (past the far edge) leaves the sky: a pixel past the inner sky.
+## Where a star butted toward `to` (past the frame's far edge) leaves: `to` itself while it's over
+## the sky (a wide sky's outer columns), else a pixel past the inner sky.
 func exit_point(to: Vector2i) -> Vector2i:
 	var inner: Rect2i = StarScatter.inner_rect(_run.sky_rect)
 	return Vector2i(clampi(to.x, inner.position.x - 1, inner.end.x), clampi(to.y, inner.position.y - 1, inner.end.y))
@@ -285,7 +289,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if is_charging():
 		result.merge(_charge_pixels(), true)
 	else:
-		var sky: Rect2i = _run.sky_rect
+		var sky: Rect2i = _run.frame_rect
 		var frame: Rect2i = _frame_sky(sky, _way)
 		var clear: Array[Vector3i] = _framed(_keep_clear(), sky, _way)
 		result.merge(_waiting_head(_way), true)
@@ -296,7 +300,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		result.merge(_head(_way, at, 0, 0, _head_colours()), true)
 		if cues_shown():
 			result.merge(_cue_pixels(), true)
-	var sky: Rect2i = _run.sky_rect
+	var sky: Rect2i = _run.frame_rect
 	var inner: Rect2i = StarScatter.inner_rect(sky)
 	for at: Vector2i in _losses:
 		# The sparks spray back into the sky from the edge the star left by.
@@ -305,7 +309,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 			back = Vector2i.UP
 		result.merge(spark_pixels(at, _losses[at] / LOSS_TIME, at.y, back), true)
 	for point: Vector2i in result.keys():
-		if not sky.has_point(point):
+		if not _run.sky_rect.has_point(point):
 			result.erase(point)
 	return result
 
@@ -337,7 +341,7 @@ func _cue_pixels() -> Dictionary[Vector2i, Color]:
 ## The charge playing: the ram rearing, then charging with its dust; the stars it butts.
 func _charge_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	var sky: Rect2i = _run.sky_rect
+	var sky: Rect2i = _run.frame_rect
 	var lane: int = _run.ram.lane
 	# The ram's own pixels, drawn as from the left and mirrored for a charge from the right.
 	var own: Dictionary[Vector2i, Color] = {}
@@ -375,7 +379,7 @@ func _charge_pixels() -> Dictionary[Vector2i, Color]:
 ## `colours`, where it shows: one across the sky at its edge (mirrored from the right); one charging
 ## down at the top, upright. Left out next to a star or landmark.
 func _head(way: Vector2i, charge_line: int, lift: int, lunge: int, colours: Dictionary[String, Color]) -> Dictionary[Vector2i, Color]:
-	var sky: Rect2i = _run.sky_rect
+	var sky: Rect2i = _run.frame_rect
 	var result: Dictionary[Vector2i, Color] = {}
 	if way.y != 0:
 		_blit(result, HEAD, down_head_origin(charge_line, sky, lift, lunge), colours)

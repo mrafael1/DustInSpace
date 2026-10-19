@@ -1999,7 +1999,7 @@ func _ram_intro_round(layout: Array[Vector2i]) -> void:
 	for star: Star in stars:
 		occupied.append(star.position)
 	var born: Array[Star] = []
-	for spot: Vector2i in StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, occupied, spread, scorpio.landmark_positions()):
+	for spot: Vector2i in StarScatter.place(HEAT_INTRO_SIZES.size(), burst, frame_rect, occupied, spread, scorpio.landmark_positions()):
 		var star: Star = add_star(HEAT_INTRO_SIZES[born.size()], spot)
 		if ram.in_lane(spot):
 			# A burst star in the lane would muddle the demo: it never lands there.
@@ -2007,7 +2007,7 @@ func _ram_intro_round(layout: Array[Vector2i]) -> void:
 			continue
 		born.append(star)
 	hunt_intro_burst.emit(burst, born.duplicate())
-	var charge: StarCharge.Charge = ram.charge(stars, sky_rect, scorpio.landmark_positions())
+	var charge: StarCharge.Charge = ram.charge(stars, frame_rect, scorpio.landmark_positions())
 	for move: StarCurrent.Move in charge.moves:
 		var star: Star = find_star(move.star_id)
 		if move.drained:
@@ -2028,11 +2028,12 @@ func _ram_intro_round(layout: Array[Vector2i]) -> void:
 ## there's no room to lose one.
 func ram_intro_layout() -> Array[Vector2i]:
 	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
-	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(frame_rect)
 	var way: Vector2i = ram.way
 	var across: Vector2i = Vector2i(absi(way.y), absi(way.x))
-	# The ram's edge and the far one: how deep a point is along the charge, and how far it has to go.
-	var edge := Vector2i(sky_rect.position.x if way.x >= 0 else sky_rect.end.x - 1, sky_rect.position.y if way.y >= 0 else sky_rect.end.y - 1)
+	# The ram's edge and the far one (the frame's): how deep a point is along the charge, and how far
+	# it has to go.
+	var edge := Vector2i(frame_rect.position.x if way.x >= 0 else frame_rect.end.x - 1, frame_rect.position.y if way.y >= 0 else frame_rect.end.y - 1)
 	var far := Vector2i(inner.end.x if way.x > 0 else inner.position.x - 1, inner.end.y if way.y > 0 else inner.position.y - 1)
 	var depth: Callable = func(p: Vector2i) -> int: return (p - edge).x * way.x + (p - edge).y * way.y
 	var to_far: Callable = func(p: Vector2i) -> int: return (far - p).x * way.x + (far - p).y * way.y
@@ -2050,7 +2051,7 @@ func ram_intro_layout() -> Array[Vector2i]:
 			var clearance: int = _clearance([at] as Array[Vector2i], landmarks)
 			if not inner.has_point(at) or not ram.in_lane(at) or clearance < StarScatter.LANDMARK_SPACING + 4:
 				continue
-			var alone: StarCharge.Charge = ram.charge([Star.new(-1, Star.Size.SMALL, at)] as Array[Star], sky_rect, landmarks)
+			var alone: StarCharge.Charge = ram.charge([Star.new(-1, Star.Size.SMALL, at)] as Array[Star], frame_rect, landmarks)
 			if alone.moves.is_empty():
 				continue
 			var to: Vector2i = alone.moves[0].to
@@ -2094,7 +2095,7 @@ func ram_intro_layout() -> Array[Vector2i]:
 ## Where the ram intro's demo planet bursts: to one side of the lane (above it, else below; left of a
 ## column, else right), over the sky's middle along it.
 func _ram_intro_burst() -> Vector2i:
-	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(frame_rect)
 	var line: int = ram.line()
 	var at: int = line - RAM_INTRO_BURST_AWAY
 	var first: int = inner.position.x if ram.is_down() else inner.position.y
@@ -2115,7 +2116,7 @@ func ram_charges_next() -> bool:
 func charge_preview() -> StarCharge.Charge:
 	if not ram_charges_next():
 		return StarCharge.Charge.new()
-	return ram.charge(stars, sky_rect, scorpio.landmark_positions())
+	return ram.charge(stars, frame_rect, scorpio.landmark_positions())
 
 
 ## Pure: the lane row once a link of `star_ids` (in pick order) is made: the row of the last landmark
@@ -2142,10 +2143,11 @@ func ram_row_for(star_ids: Array[int]) -> int:
 
 
 ## Aries's ram, once a launch has resolved: the clock counts it, and on every `every`-th launch the
-## ram charges its lane, the stars it butts out of the sky lost for nothing.
+## ram charges its lane from the frame's edge, the stars it butts out of the frame (the sky on a 9:16
+## sky) lost for nothing.
 func _charge_ram() -> void:
 	if ram.count_launch():
-		var charge: StarCharge.Charge = ram.charge(stars, sky_rect, scorpio.landmark_positions())
+		var charge: StarCharge.Charge = ram.charge(stars, frame_rect, scorpio.landmark_positions())
 		var lost: Array[Star] = []
 		for move: StarCurrent.Move in charge.moves:
 			var star: Star = find_star(move.star_id)
