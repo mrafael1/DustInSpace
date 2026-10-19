@@ -200,6 +200,8 @@ func start_run(balance: Balance) -> bool:
 	run.play_gauge_intro()
 	# And a Pisces stage with a seam: a demo planet thrown on one side bursts on the other.
 	run.play_reflect_intro()
+	# And an Aries stage with the ram: a demo throw, then the ram's charge on demo stars.
+	run.play_ram_intro()
 	# The threat's guided encounter, once its intro has shown it (#93).
 	if encounter:
 		run.encounter_step.connect(_on_encounter_step)

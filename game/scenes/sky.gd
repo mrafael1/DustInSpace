@@ -467,6 +467,15 @@ func _play_ram_event(event: EventSequencer.RunEvent) -> bool:
 	match event.type:
 		&"ram_charged":
 			_charge(event.args[0], event.args[1], event.args[2])
+		&"ram_intro_placed":
+			# A beat to see the demo stars before the planet is thrown and the ram charges.
+			_place_intro(event.args[0])
+		&"ram_intro_cleared":
+			# A beat to see where the charge left them, then they go: no reward.
+			_sequencer.hold(INTRO_HOLD * 2.0 + StarView.DISSOLVE_TIME)
+			var tween: Tween = create_tween()
+			tween.tween_interval(INTRO_HOLD * 1.5)
+			tween.tween_callback(_clear_intro.bind(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD * 0.5))
 		_:
 			return false
 	return true
