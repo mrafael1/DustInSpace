@@ -441,3 +441,42 @@ func test_the_ram_intro_plays_inside_the_frame() -> void:
 		assert_false(lost.is_empty(), "%s: the demo butts one out" % map.id)
 		for at: Vector2i in placed:
 			assert_true(inner.has_point(at), "%s: demo star %s by the figure" % [map.id, at])
+
+
+# --- The fish's cord ends run to the sky's sides ------------------------------------------------
+
+func _cord_run(fish: Array[Vector2i], sky: Rect2i = Fixtures.WIDE_SKY) -> RunState:
+	var map: StarMap = StarMap.cord_trial()
+	map.fish_cord = fish
+	return RunState.new(Balance.load_file(), Fixtures.rng(1), sky, map)
+
+
+func test_a_cord_end_on_the_home_skys_side_runs_on_to_the_wide_skys() -> void:
+	var run: RunState = _cord_run(StarMap.cord_trial().fish_cord)
+	var points: Array[Array] = run.cords.fixed_segments()
+	assert_eq(points[0][0], Vector2i(166, 58), "an end on the home sky's top stays, shifted (as on a tall phone)")
+	assert_eq(points[0][1], Vector2i(56, 166))
+	assert_eq(points[-1][1], Vector2i(Fixtures.WIDE_SKY.end.x - 1, 246), "on along its arm from (179, 194) to the right side")
+	assert_true(run.cords.crosses(Vector2i(300, 200), Vector2i(300, 250)), "it splits the outer columns too")
+
+
+func test_an_arm_reaching_the_top_first_stops_there() -> void:
+	var fish: Array[Vector2i] = [Vector2i(0, 100), Vector2i(90, 140), Vector2i(179, 100)]
+	var run: RunState = _cord_run(fish)
+	var segments: Array[Array] = run.cords.fixed_segments()
+	for end: Vector2i in [segments[0][0], segments[-1][1]]:
+		assert_eq(end.y, Fixtures.WIDE_SKY.position.y, "%s: the arm climbs 42 px over 95 columns, so it meets the top" % end)
+		assert_true(Fixtures.WIDE_SKY.has_point(end))
+	assert_eq(segments[0][0].x, -94, "on the arm's line: from (90, 120) through (0, 80), 42 px up to y 38 (94.5 columns on)")
+	assert_eq(segments[-1][1].x, 179 + 93, "from (90, 120) through (179, 80): 93.45 columns on")
+
+
+func test_on_the_portrait_sky_the_cord_ends_stay() -> void:
+	for sky: Rect2i in [Fixtures.SKY, ScreenZones.play_sky(102)]:
+		var run: RunState = _cord_run(StarMap.cord_trial().fish_cord, sky)
+		var expected: Array[Vector2i] = []
+		for point: Vector2i in StarMap.cord_trial().fish_cord:
+			expected.append(point + run.scorpio.shift)
+		var segments: Array[Array] = run.cords.fixed_segments()
+		assert_eq(segments[0][0], expected[0])
+		assert_eq(segments[-1][1], expected[-1], "%s" % sky)

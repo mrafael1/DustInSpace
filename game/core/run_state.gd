@@ -2162,12 +2162,39 @@ func _charge_ram() -> void:
 		ram.turn()
 
 
-## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map).
+## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map). An end on
+## the home sky's left or right edge runs on along its arm to this sky's side (a wide sky's: the cord
+## still splits the sky, docs/wide_sky_design.md §3); on a 9:16 sky that is where it already is.
 func _fish_cord() -> Array[Vector2i]:
+	var home: Array[Vector2i] = scorpio.map.fish_cord
 	var points: Array[Vector2i] = []
-	for point: Vector2i in scorpio.map.fish_cord:
+	for point: Vector2i in home:
 		points.append(point + scorpio.shift)
+	if points.size() >= 2:
+		points[0] = _cord_end_to_side(home[0], points[0], points[1])
+		points[-1] = _cord_end_to_side(home[-1], points[-1], points[-2])
 	return points
+
+
+## A fish's cord end at `end` (`home_end` in the home layout), its arm coming from `from`: on the
+## home sky's left or right edge, it runs on along the arm to this sky's same side (stopping at the
+## sky's top or bottom if it reaches one first); any other end stays.
+func _cord_end_to_side(home_end: Vector2i, end: Vector2i, from: Vector2i) -> Vector2i:
+	var side: int
+	if home_end.x == Scorpio.HOME_SKY.position.x:
+		side = sky_rect.position.x
+	elif home_end.x == Scorpio.HOME_SKY.end.x - 1:
+		side = sky_rect.end.x - 1
+	else:
+		return end
+	var arm: Vector2i = end - from
+	if side == end.x or arm.x == 0 or signi(side - end.x) != signi(arm.x):
+		return end
+	var t: float = float(side - end.x) / arm.x
+	if arm.y != 0:
+		var edge: int = sky_rect.position.y if arm.y < 0 else sky_rect.end.y - 1
+		t = minf(t, float(edge - end.y) / arm.y)
+	return end + Vector2i((Vector2(arm) * t).round())
 
 
 ## Pisces: the sky was cleared, and the links' cords go with it (the fish's cord stays). Nothing is
