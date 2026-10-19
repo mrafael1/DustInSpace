@@ -162,9 +162,33 @@ static func pisces() -> ChapterDef:
 	return def
 
 
+## Chapter 7: Aries, the ram, whose charge butts the stars along the row of the landmark the last
+## link lit. Opens once Pisces's final is won; on the sky, the sign after Pisces. Travelled from the
+## horns: the horns, the head, the fleece, the legs, the tail, then the whole Aries (stage 4 on
+## aren't built yet).
+static func aries() -> ChapterDef:
+	var def := ChapterDef.new()
+	def.id = "aries"
+	def.title = "ARIES"
+	def.number = 7
+	def.stages = [
+		{"name": "HORNS", "map": "aries_horns", "piece": "horns", "stars": [0, 1, 2]},
+		{"name": "HEAD", "map": "aries_head", "piece": "head", "stars": [4, 3]},
+		{"name": "FLEECE", "map": "aries_fleece", "piece": "fleece", "stars": [7, 8, 9]},
+		{"name": "LEGS", "map": "", "piece": "legs", "stars": [5, 6, 10]},
+		{"name": "TAIL", "map": "", "piece": "tail", "stars": [11, 12, 13]},
+		{"name": "ARIES", "map": "", "stars": []},
+	]
+	def.figure = StarMap.aries()
+	def.final_at = Vector2i(96, 76)
+	def.piece = "res://assets/art/aries_piece_%s.png"
+	def.unlocked_by = "pisces"
+	return def
+
+
 ## Every chapter, in campaign order.
 static func all() -> Array[ChapterDef]:
-	return [scorpio(), aquarius(), leo(), virgo(), sagittarius(), pisces()]
+	return [scorpio(), aquarius(), leo(), virgo(), sagittarius(), pisces(), aries()]
 
 
 ## A won part's piece of the painting, or "" while it has no map (and so no piece).

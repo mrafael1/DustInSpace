@@ -27,6 +27,9 @@ const SAGITTARIUS_PART := "res://assets/art/sagittarius_part_%s.png"
 ## Chapter 6's Pisces and its stages' paintings, once drawn (a missing one is left out).
 const PISCES_FIGURE := "res://assets/art/pisces_figure.png"
 const PISCES_PART := "res://assets/art/pisces_part_%s.png"
+## Chapter 7's Aries and its stages' paintings, once drawn (a missing one is left out).
+const ARIES_FIGURE := "res://assets/art/aries_figure.png"
+const ARIES_PART := "res://assets/art/aries_part_%s.png"
 
 ## Pisces's seam: none, up and down the sky's middle (throw left, stars land right), across it
 ## (throw high, stars land low), or both crossing at the middle (stars land in the opposite corner).
@@ -136,10 +139,16 @@ var wave_great: bool = false
 ## Winning ends in a great wave (the final): it washes the sky and every loose star left bursts for
 ## dust (balance.json's wave.finale_dust_per_star), instead of the completion clearing them for nothing.
 var wave_finale: bool = false
-## Aries's ram (chapter 7, a debug trial): every balance.json's ram.every-th launch, once it has
+## Aries's ram (chapter 7): every balance.json's ram.every-th launch, once it has
 ## resolved, the ram charges right along the row of the landmark the last link lit, butting the loose
 ## stars there (StarCharge).
 var ram: bool = false
+## The ram charges harder here: it butts balance.json's ram.hard_butt px instead of ram.butt, along a
+## lane ram.hard_lane px wide instead of ram.lane.
+var ram_hard: bool = false
+## A second ram stands at the sky's top: the two take turns, the first charging across the lit
+## landmark's row, the second down its column.
+var ram_down: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -1118,6 +1127,96 @@ static func pisces_final() -> StarMap:
 	return map
 
 
+## The full Aries, the ram lying with its head to the right: the horns (iota, Mesarthim, Sheratan)
+## curl under Hamal's brow, the forelegs (eta, theta) hang from the chest, the back runs left through
+## the fleece (35, 39 and 41 Ari) and epsilon to the rump and tail (Botein, zeta, tau). From the real
+## stars, spread to the chart.
+static func aries() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aries"
+	map.title = "ARIES"
+	# 0 iota, 1 gamma (Mesarthim), 2 beta (Sheratan) (the horns), 3 lambda, 4 alpha (Hamal) (the
+	# head), 5 eta, 6 theta, 10 epsilon (the legs), 7 35, 8 39, 9 41 Ari (the fleece), 11 delta
+	# (Botein), 12 zeta, 13 tau (the tail).
+	map.landmarks = [
+		Vector2i(148, 198), Vector2i(166, 178), Vector2i(150, 154), Vector2i(156, 126),
+		Vector2i(128, 140), Vector2i(112, 164), Vector2i(96, 186), Vector2i(86, 114),
+		Vector2i(64, 98), Vector2i(56, 124), Vector2i(44, 158), Vector2i(30, 186),
+		Vector2i(20, 160), Vector2i(14, 132),
+	]
+	map.segments = [
+		Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 4), Vector2i(3, 4), Vector2i(4, 5),
+		Vector2i(5, 6), Vector2i(4, 7), Vector2i(7, 8), Vector2i(8, 9), Vector2i(9, 10),
+		Vector2i(10, 11), Vector2i(11, 12), Vector2i(12, 13),
+	]
+	map.sizes = [
+		Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM, Star.Size.SMALL,
+		Star.Size.BIG, Star.Size.SMALL, Star.Size.SMALL, Star.Size.SMALL,
+		Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM,
+		Star.Size.SMALL, Star.Size.SMALL,
+	]
+	map.starting_lit = [0]
+	map.painting = ARIES_FIGURE
+	return map
+
+
+## Aries, stage 1: the Horns. The ram (its intro shows a charge): after every throw it charges from
+## the sky's left edge along the row of the landmark the last link lit, butting the loose stars in
+## its lane right, past anything in the way; one butted past the far edge is lost. The horn curls
+## from its root (big, lit, lower left) right along the bottom, so the first landmarks share the lit
+## row and the stars waiting for them are in the lane, then up and back over itself, so the lane
+## climbs as the curl is lit. Five to light. Strings are 32-37 px.
+static func aries_horns() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aries_horns"
+	map.title = "HORNS"
+	map.landmarks = [Vector2i(36, 196), Vector2i(70, 204), Vector2i(104, 196), Vector2i(132, 172), Vector2i(138, 140), Vector2i(112, 122)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = ARIES_PART % "horns"
+	map.ram = true
+	return map
+
+
+## Aries, stage 2: the Head. The ram charges harder (balance.json's ram.hard_butt; its intro shows
+## it): a star in the lane is butted most of the sky's width. From the horn's root at the brow (lit,
+## left) the head runs right along the brow to the muzzle and back under the jaw, so the brow's
+## stars share one lane and each lit one aims the charge at the next one's waiting stars; the jaw
+## drops out of it last. Five to light. Strings are 33-36 px.
+static func aries_head() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aries_head"
+	map.title = "HEAD"
+	map.landmarks = [Vector2i(40, 150), Vector2i(72, 142), Vector2i(104, 150), Vector2i(136, 166), Vector2i(126, 198), Vector2i(94, 206)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.BIG, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = ARIES_PART % "head"
+	map.ram = true
+	map.ram_hard = true
+	return map
+
+
+## Aries, stage 3: the Fleece. A second ram stands at the sky's top, and the two take turns (its
+## intro shows both): the first charges across the lit landmark's row, the second down its column,
+## so the stars waiting under (or over) the lit star are in its way too. The fleece is a long back
+## across the sky's middle, all in one row, so no end of it is safe from the first for long, and a
+## curl at its right end climbs out of it last. Five to light. Strings are 32-36 px.
+static func aries_fleece() -> StarMap:
+	var map := StarMap.new()
+	map.id = "aries_fleece"
+	map.title = "FLEECE"
+	map.landmarks = [Vector2i(24, 168), Vector2i(56, 158), Vector2i(90, 166), Vector2i(124, 156), Vector2i(156, 166), Vector2i(150, 134)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 5)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = ARIES_PART % "fleece"
+	map.ram = true
+	map.ram_down = true
+	return map
+
+
 ## The map for `id`, the full Scorpio for anything unknown.
 static func by_id(p_id: String) -> StarMap:
 	match p_id:
@@ -1193,6 +1292,14 @@ static func by_id(p_id: String) -> StarMap:
 			return pisces()
 		"pisces_circlet":
 			return pisces_circlet()
+		"aries":
+			return aries()
+		"aries_horns":
+			return aries_horns()
+		"aries_head":
+			return aries_head()
+		"aries_fleece":
+			return aries_fleece()
 		"pisces_west_cord":
 			return pisces_west_cord()
 		"pisces_knot":

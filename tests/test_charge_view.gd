@@ -117,8 +117,7 @@ func test_cues_show_only_when_settled_and_the_next_launch_charges() -> void:
 	var view: ChargeView = _view(main)
 	var row: int = main.run.ram.row
 	var right: int = StarScatter.inner_rect(main.run.sky_rect).end.x
-	# One star near the far edge in the lane (lost), one just short of landmark 3, the next landmark
-	# in the lane ahead of it (fleeced).
+	# One star near the far edge in the lane (lost), one just short of landmark 3 (no shelter: lost).
 	var lm: Vector2i = main.run.scorpio.landmark_position(3)
 	var stars: Array[Star] = _stand(main, [[Star.Size.MEDIUM, Vector2i(right - 10, row)], [Star.Size.SMALL, Vector2i(lm.x - 16, row)]])
 	main.run.ram.every = 2
@@ -133,39 +132,30 @@ func test_cues_show_only_when_settled_and_the_next_launch_charges() -> void:
 	view.settled = true
 	assert_true(view.cues_shown())
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
-	var ring: Dictionary[Vector2i, Color] = HarvestView.lone_ring_pixels(stars[0].position, stars[0].size, 0.0)
-	var ringed: int = 0
-	for point: Vector2i in ring:
-		if main.run.sky_rect.has_point(point) and pixels.get(point) in [Palette.S4, Palette.S3]:
-			ringed += 1
-	assert_gt(ringed, ring.size() / 2, "the star it loses wears an ember ring")
-	var stop: Vector2i = main.run.charge_preview().destinations()[stars[1].id]
-	var corner: int = StarView.half_extent(stars[1].size) + 1
-	assert_eq(pixels.get(stop + Vector2i(corner, corner)), Palette.C1, "corner dots where it will stop")
-	assert_eq(pixels.get(stop + Vector2i(-corner, -corner)), Palette.C1)
+	for star: Star in stars:
+		var ring: Dictionary[Vector2i, Color] = HarvestView.lone_ring_pixels(star.position, star.size, 0.0)
+		var ringed: int = 0
+		for point: Vector2i in ring:
+			if main.run.sky_rect.has_point(point) and pixels.get(point) in [Palette.S4, Palette.S3]:
+				ringed += 1
+		assert_gt(ringed, ring.size() / 3, "each star it loses wears an ember ring")
+	assert_eq(_count(pixels, [Palette.C1, Palette.C2]), 0, "no gold: nothing is sheltered")
 
 
-func test_cues_and_gone_stars_rings_dont_linger_while_something_plays() -> void:
+func test_cues_dont_linger_while_something_plays() -> void:
 	var main: Main = _main()
 	_settle(main)
 	var view: ChargeView = _view(main)
 	var row: int = main.run.ram.row
 	var right: int = StarScatter.inner_rect(main.run.sky_rect).end.x
-	var lm: Vector2i = main.run.scorpio.landmark_position(3)
-	var stars: Array[Star] = _stand(main, [[Star.Size.MEDIUM, Vector2i(right - 10, row)], [Star.Size.SMALL, Vector2i(lm.x - 16, row)], [Star.Size.SMALL, Vector2i(60, row + 40)]])
+	_stand(main, [[Star.Size.MEDIUM, Vector2i(right - 10, row)]])
 	main.run.ram.launches = 1
-	main.run.ram.fleece([stars[2].id])
 	view.settled = true
 	assert_true(view.cues_shown())
 	var head_embers: int = _count(ChargeView.head_pixels(row, main.run.sky_rect), [Palette.S4])
-	assert_gt(_count(view.pixels(), [Palette.C1]), 0)
-	# Something plays (a link taking the fleeced star, say): the cues go, and the gone star's ring.
-	main.run.stars.erase(stars[2])
 	view.settled = false
 	assert_false(view.cues_shown(), "no cues while something plays")
-	var pixels: Dictionary[Vector2i, Color] = view.pixels()
-	assert_eq(_count(pixels, [Palette.S4, Palette.S3]) - head_embers, 0, "no ember ring")
-	assert_eq(_count(pixels, [Palette.C1, Palette.C2]), 0, "no corner dots, tick or ring round empty sky")
+	assert_eq(_count(view.pixels(), [Palette.S4, Palette.S3]) - head_embers, 0, "no ember ring")
 
 
 func test_the_charge_plays_and_a_lost_star_is_gone_after() -> void:
@@ -175,30 +165,23 @@ func test_the_charge_plays_and_a_lost_star_is_gone_after() -> void:
 	var sky: SkyView = main.get_node("Sky")
 	var row: int = main.run.ram.row
 	var right: int = StarScatter.inner_rect(main.run.sky_rect).end.x
-	var lm: Vector2i = main.run.scorpio.landmark_position(3)
-	var stars: Array[Star] = _stand(main, [[Star.Size.MEDIUM, Vector2i(right - 10, row)], [Star.Size.SMALL, Vector2i(lm.x - 16, row)]])
+	var stars: Array[Star] = _stand(main, [[Star.Size.MEDIUM, Vector2i(right - 10, row)], [Star.Size.SMALL, Vector2i(40, row + 30)]])
 	main.run.ram.launches = 1
 	view.settled = true
 	var lost: StarView = sky.star_view(stars[0].id)
 	assert_not_null(lost)
 	var charged: Array = []
-	main.run.ram_charged.connect(func(r: int, moves: Array, fleeced: Array) -> void: charged.append([r, moves, fleeced]))
+	main.run.ram_charged.connect(func(r: int, moves: Array, _way: Vector2i) -> void: charged.append([r, moves]))
 	main.run.dust = 999
 	main.run.buy("blue")
 	main.run.load_pack("blue")
 	assert_true(main.run.launch(Vector2i(90, main.run.sky_rect.position.y + 20)))
-	assert_eq(charged.size(), 1, "the second launch charges")
+	assert_eq(charged.size(), 1, "the launch charges")
 	await _play_out(main)
 	assert_false(view.is_charging())
 	assert_null(sky.star_view(stars[0].id), "the lost star's view is gone")
 	assert_true(not is_instance_valid(lost) or lost.is_queued_for_deletion(), "and freed")
-	assert_true(main.run.ram.is_fleeced(stars[1].id))
-	view.settled = true
-	var at: Vector2i = main.run.find_star(stars[1].id).position
-	var ring: Dictionary[Vector2i, Color] = ChargeView.fleece_ring_pixels(at, stars[1].size)
-	var pixels: Dictionary[Vector2i, Color] = view.pixels()
-	for point: Vector2i in ring:
-		assert_eq(pixels.get(point), ring[point], "the fleeced star keeps a gold ring")
+	assert_eq(main.run.find_star(stars[1].id).position, Vector2i(40, row + 30), "out of the lane, untouched")
 	assert_eq(view.lit_pips(), main.run.ram.every, "the pips refill")
 
 
@@ -208,7 +191,7 @@ func test_the_charge_rears_then_charges() -> void:
 	var view: ChargeView = _view(main)
 	var sky: Rect2i = main.run.sky_rect
 	var row: int = main.run.ram.row
-	view.charge(row, [] as Array[StarCurrent.Move], [] as Array[int])
+	view.charge(row, [] as Array[StarCurrent.Move])
 	assert_true(view.is_charging())
 	assert_eq(view.lit_pips(), 0, "the pips are spent")
 	var reared: Dictionary[Vector2i, Color] = ChargeView.head_pixels(row, sky, ChargeView.LIFT)
@@ -221,32 +204,7 @@ func test_the_charge_rears_then_charges() -> void:
 	assert_gt(_count(pixels, [Palette.N6]), 0, "its dust streaks along the lane")
 	view.advance(ChargeView.charge_hold())
 	assert_false(view.is_charging())
-	assert_almost_eq(ChargeView.charge_hold(), maxf(ChargeView.REAR_TIME + ChargeView.CHARGE_TIME, ChargeView.REAR_TIME + StarView.DRIFT_TIME + ChargeView.FLASH_TIME), 0.001)
-
-
-func test_the_rear_keeps_the_stop_cue_and_the_stop_flash_plays_in_full() -> void:
-	var main: Main = _main()
-	_settle(main)
-	var view: ChargeView = _view(main)
-	var row: int = main.run.ram.row
-	var lm: Vector2i = main.run.scorpio.landmark_position(3)
-	# Past landmark 2, 4 px short of where landmark 3 stops it.
-	var stars: Array[Star] = _stand(main, [[Star.Size.SMALL, Vector2i(lm.x - 18, row)]])
-	main.run.ram.launches = 1
-	view.settled = true
-	var charge: StarCharge.Charge = main.run.charge_preview()
-	assert_eq(charge.fleeced, [stars[0].id] as Array[int])
-	var stop: Vector2i = charge.moves[0].to
-	var corner: int = StarView.half_extent(stars[0].size) + 1
-	view.charge(row, charge.moves, charge.fleeced)
-	assert_eq(view.pixels().get(stop + Vector2i(corner, corner)), Palette.C1, "the rear keeps the corner dots")
-	stars[0].position = stop
-	view.advance(ChargeView.REAR_TIME + StarView.DRIFT_TIME + ChargeView.FLASH_TIME * 0.9)
-	assert_true(view.is_charging(), "held through the flash")
-	var flash: Dictionary[Vector2i, Color] = ChargeView.flash_pixels(stop, stars[0].size)
-	var pixels: Dictionary[Vector2i, Color] = view.pixels()
-	for point: Vector2i in flash:
-		assert_eq(pixels.get(point), Palette.C0, "the stop flash, to its last frame")
+	assert_almost_eq(ChargeView.charge_hold(), maxf(ChargeView.REAR_TIME + ChargeView.CHARGE_TIME, ChargeView.REAR_TIME + StarView.DRIFT_TIME), 0.001)
 
 
 func test_the_hoof_dust_never_covers_a_star_or_landmark() -> void:
@@ -265,7 +223,7 @@ func test_the_hoof_dust_never_covers_a_star_or_landmark() -> void:
 	for move: StarCurrent.Move in charge.moves:
 		spots.append(Vector3i(move.from.x, move.from.y, StarView.half_extent(stars[0].size)))
 		spots.append(Vector3i(move.to.x, move.to.y, StarView.half_extent(stars[0].size)))
-	view.charge(row, charge.moves, charge.fleeced)
+	view.charge(row, charge.moves)
 	view.advance(ChargeView.REAR_TIME)
 	var covered: int = 0
 	var dust: int = 0
@@ -312,11 +270,10 @@ func test_every_colour_is_from_the_palette() -> void:
 	var lm: Vector2i = main.run.scorpio.landmark_position(3)
 	var stars: Array[Star] = _stand(main, [[Star.Size.MEDIUM, Vector2i(right - 10, row)], [Star.Size.SMALL, Vector2i(lm.x - 16, row)]])
 	main.run.ram.launches = 1
-	main.run.ram.fleece([stars[1].id])
 	view.settled = true
 	var frames: Array[Dictionary] = [view.pixels()]
 	var charge: StarCharge.Charge = main.run.charge_preview()
-	view.charge(row, charge.moves, charge.fleeced)
+	view.charge(row, charge.moves)
 	for i: int in 12:
 		frames.append(view.pixels())
 		view.advance(0.05)
@@ -348,3 +305,46 @@ func _play_out(main: Main) -> void:
 		await get_tree().process_frame
 	for i: int in 5:
 		await get_tree().process_frame
+
+
+func test_a_ram_from_the_right_stands_mirrored_at_the_right_edge() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: ChargeView = _view(main)
+	view.settled = true
+	var run: RunState = main.run
+	run.ram.ways = [Vector2i.RIGHT, Vector2i.LEFT] as Array[Vector2i]
+	run.ram.turn()
+	view._follow_run()
+	assert_eq(view.way(), Vector2i.LEFT)
+	var sky: Rect2i = run.sky_rect
+	var head: Dictionary[Vector2i, Color] = ChargeView.head_pixels(run.ram.row, sky)
+	var mirrored: Dictionary[Vector2i, Color] = {}
+	for point: Vector2i in head:
+		mirrored[Vector2i(sky.position.x + sky.end.x - 1 - point.x, point.y)] = head[point]
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	_assert_head_shown(pixels, mirrored, "the head at the right edge")
+	for point: Vector2i in head:
+		assert_false(pixels.get(point) == head[point] and not mirrored.has(point), "and none at the left")
+
+
+func test_a_ram_slides_to_its_new_lane() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: ChargeView = _view(main)
+	view.settled = true
+	var before: int = view.row()
+	main.run.ram.aim(before + 30)
+	view.settled = true
+	assert_eq(view.row(), before + 30, "the lane has moved")
+	assert_eq(view.drawn_line(Vector2i.RIGHT), before, "the ram hasn't yet")
+	var seen: Array[int] = [before]
+	for i: int in 30:
+		view.advance(1.0 / 60.0)
+		var at: int = view.drawn_line(Vector2i.RIGHT)
+		assert_lte(at - seen[-1], 10, "no jump")
+		assert_gte(at, seen[-1], "always on its way")
+		seen.append(at)
+	assert_eq(seen[-1], before + 30, "there within half a second")
+	assert_false(view.is_sliding())
+	_assert_head_shown(view.pixels(), ChargeView.head_pixels(before + 30, main.run.sky_rect), "drawn on the new lane")

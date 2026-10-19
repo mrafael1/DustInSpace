@@ -1,29 +1,33 @@
 class_name ChargeView
 extends Node2D
-## Aries's ram (chapter 7, a debug trial): its head at the sky's left edge on the lane row, the hoof
-## pips counting the launches left until it charges, the lane's hoof-print track, and the charge
-## itself. Owns no rules: RunState.ram says where and when; Sky plays ram_charged here.
-## Look (the approved step A mock-up, ram A): a pale frontal ram's head with curled horns (M6, M4,
-## M5, ember eyes), its left edge a pixel in from the sky's, the lane row through its muzzle. Under
-## it, one hoof pip per launch of the clock: a lit one (a launch still to come before the charge) is
-## a filled M6 cloven pair, a spent one an M4 outline (no pips when it charges after every launch). The lane shows as a sparse track of cloven
-## hoof prints (N7) every PRINT_STEP px just outside its top and bottom edges, the two rows
+## Aries's ram (chapter 7): its head at the sky's left edge on the lane row, the hoof pips counting
+## the launches left until it charges, the lane's hoof-print track, and the charge itself. Owns no
+## rules: RunState.ram says where and when; Sky plays ram_charged here.
+## Look (the approved step A mock-up, ram A, made bigger in playtest): a pale frontal ram's head with
+## curled horns (M6, M4, M5, ember eyes), its left edge a pixel in from the sky's, the lane row
+## through its muzzle; stars and landmarks show in front of it. A ram that charges from the right
+## stands at the right edge: everything of its own (head, prints, pips, dust) is drawn as from the
+## left and mirrored across the sky (the head is symmetric). The Fleece's second ram stands at the
+## sky's top, upright, the lane column through its muzzle: its prints and dust are drawn as from
+## the left and turned down the sky (x and y swapped). Of two rams, the one charging next is shown
+## (its prints too); the other waits, dimmed (M4, M3), with no prints. When a lane moves, its ram
+## (and prints) slides there, easing in over about 0.3 s, never jumping. Under it, one hoof pip per launch of
+## the clock: a lit one (a launch still to come before the charge) is a filled M6 cloven pair, a spent
+## one an M4 outline (no pips when it charges after every launch). The lane shows as a sparse track of
+## cloven hoof prints (N7) every PRINT_STEP px just outside its top and bottom edges, the two rows
 ## staggered, with no line; a print within PRINT_PAD px of a star is left out.
 ## While the next launch charges and nothing is playing (`settled`), the charge's outcome shows on
 ## the stars standing now (RunState.charge_preview): a crawling ember ring (HarvestView's) round each
-## star it would butt out of the sky, and four C1 corner dots where each star it would stop against a
-## landmark comes to rest, with a dotted C2 tick from the star to them. A fleeced star wears a solid
-## gold ring (C1 over the top, C2 under) until it's linked or lost (while something plays, only one
-## still standing in the run keeps it).
+## star it would butt out of the sky.
 ## The charge plays in two beats (charge_hold):
 ## - rear (REAR_TIME): the pips are spent, the ram rears up LIFT px, its hooves kick up dust and the
-##   prints shift as it stamps; the stars it will take still wear their rings, and the corner dots
-##   still show where each it fleeces will stop;
+##   prints shift as it stamps; the stars it will take still wear their rings;
 ## - charge (CHARGE_TIME): the head lunges LUNGE px and a cloud of hoof dust (N7, N6, M4) streaks along
-##   the lane from it to the far edge, fast then slowing, never over a star or a landmark; the stars
-##   it butts drift right; one stopped against a landmark flashes a C0 ring for FLASH_TIME as it stops
-##   (held for) and keeps its gold ring; one butted out of the
-##   sky cuts out at the far edge in ember sparks (C3, S4, S3) over LOSS_TIME (not waited for).
+##   the lane from it to the far edge in three rows, fast then slowing, never over a star or a
+##   landmark; the stars it butts drift right; one butted out of the sky cuts out at the far edge in
+##   ember sparks (C3, S4, S3) over LOSS_TIME (not waited for).
+## A ram that charges harder (the Head) is heated: its horns ember (S4, S3) and its hoof prints and
+## dust ember too (S4, S3, S2), so the harder push shows before it charges; its face stays pale.
 
 ## The ram's head, frontal: H horn light, h horn dark, F face, f face shade, E eye, n nostril.
 const HEAD: Array[String] = [
@@ -46,6 +50,16 @@ const HEAD: Array[String] = [
 const HEAD_COLOURS: Dictionary[String, Color] = {
 	"H": Palette.M6, "h": Palette.M4, "F": Palette.M5, "f": Palette.M4, "E": Palette.S4, "n": Palette.M3,
 }
+## A ram waiting for its turn: dimmed.
+const WAIT_HEAD_COLOURS: Dictionary[String, Color] = {
+	"H": Palette.M4, "h": Palette.M3, "F": Palette.M3, "f": Palette.M3, "E": Palette.S2, "n": Palette.M2,
+}
+## The heated ram's: ember horns round the pale face.
+const HARD_HEAD_COLOURS: Dictionary[String, Color] = {
+	"H": Palette.S4, "h": Palette.S3, "F": Palette.M5, "f": Palette.M4, "E": Palette.S4, "n": Palette.M3,
+}
+## Its prints and dust: each cool colour of the trail and its ember.
+const HARD_TRAIL: Dictionary[Color, Color] = {Palette.N7: Palette.S4, Palette.N6: Palette.S3, Palette.M4: Palette.S2}
 ## The head's top-left is this far up from the lane row.
 const HEAD_ABOVE: int = 10
 ## The head is left out within this many px of a star or landmark, so they show in front of it.
@@ -63,15 +77,10 @@ const PRINT_COLOUR: Color = Palette.N7
 const PRINT_STEP: int = 14
 ## A print is left out within this many px of a star's sprite.
 const PRINT_PAD: int = 4
-## The fleece preview's corner dots and tick, and a fleeced star's ring.
-const STOP_COLOUR: Color = Palette.C1
-const TICK_COLOUR: Color = Palette.C2
-## The charge's beats: the rear, then the charge (both waited for); the sparks of a lost star, and
-## the C0 flash of one stopped against a landmark.
+## The charge's beats: the rear, then the charge (both waited for); the sparks of a lost star.
 const REAR_TIME: float = 0.15
 const CHARGE_TIME: float = 0.35
 const LOSS_TIME: float = 0.3
-const FLASH_TIME: float = 0.1
 ## The ram rears up LIFT px, then lunges LUNGE px as it charges.
 const LIFT: int = 3
 const LUNGE: int = 10
@@ -81,6 +90,9 @@ const DUST_STEP: int = 6
 const DUST_TRAIL: int = 110
 ## The sparks a lost star cuts out in.
 const SPARKS: int = 8
+## How fast a ram slides to its lane's new line: the gap left shrinks by this rate a second (eased
+## out, about 0.3 s to settle), snapping home within half a px.
+const SLIDE_RATE: float = 14.0
 
 ## Nothing is playing (Main sets it each frame): what shows follows the run.
 var settled: bool = true:
@@ -93,20 +105,22 @@ var _run: RunState
 ## Seconds shown, for the rings' crawl.
 var _time: float = 0.0
 ## What shows, as the run had it when last settled: the lane row, the lit pips, the stars standing
-## (id -> position, and their sizes), the fleeced ones, and whether the next launch charges (its
-## outcome on the stars standing).
+## (id -> position, and their sizes), and what the next launch's charge does to them.
 var _row: int = 0
+var _column: int = 0
+## Where each ram is drawn, sliding toward its lane's row and column.
+var _shown_row: float = 0.0
+var _shown_column: float = 0.0
+var _way: Vector2i = StarCharge.WAY
 var _lit: int = 0
 var _stars: Dictionary[int, Vector2i] = {}
 var _sizes: Dictionary[int, int] = {}
-var _fleeced: Array[int] = []
 var _preview: StarCharge.Charge = StarCharge.Charge.new()
-## The charge playing: the seconds since it began (-1: none), its row, its moves and the stars it
-## fleeced.
+## The charge playing: the seconds since it began (-1: none), its row and its moves.
 var _age: float = -1.0
 var _play_row: int = 0
+var _play_way: Vector2i = StarCharge.WAY
 var _moves: Array[StarCurrent.Move] = []
-var _play_fleeced: Array[int] = []
 ## Stars lost off the far edge cutting out: where, and the seconds since.
 var _losses: Dictionary[Vector2i, float] = {}
 
@@ -121,14 +135,14 @@ func setup(run: RunState) -> void:
 	_time = 0.0
 	_losses.clear()
 	_moves.clear()
-	_play_fleeced.clear()
 	_stars.clear()
 	_sizes.clear()
-	_fleeced.clear()
 	_preview = StarCharge.Charge.new()
 	visible = has_ram()
 	set_process(visible)
 	_follow_run()
+	_shown_row = _row
+	_shown_column = _column
 	queue_redraw()
 
 
@@ -146,6 +160,33 @@ func row() -> int:
 	return _play_row if is_charging() else _row
 
 
+## The lane's line shown: its row, or its column for a ram charging down.
+func line() -> int:
+	if is_charging():
+		return _play_row
+	return _column if _way.y != 0 else _row
+
+
+## Where the ram running `way` is drawn now, sliding to its lane's line: its row, or its column.
+func drawn_line(way: Vector2i) -> int:
+	return roundi(_shown_column if way.y != 0 else _shown_row)
+
+
+## Whether a ram is still sliding to its lane.
+func is_sliding() -> bool:
+	return drawn_line(Vector2i.RIGHT) != _row or drawn_line(Vector2i.DOWN) != _column
+
+
+## Whether the ram charges harder on this stage (heated: ember horns, prints and dust).
+func is_hard() -> bool:
+	return has_ram() and _run.scorpio.map.ram_hard
+
+
+## The way the ram shown charges (right: it stands at the left edge).
+func way() -> Vector2i:
+	return _play_way if is_charging() else _way
+
+
 ## The pips shown lit.
 func lit_pips() -> int:
 	return 0 if is_charging() else _lit
@@ -153,20 +194,25 @@ func lit_pips() -> int:
 
 ## Whether the charge's outcome shows on the stars (the next launch charges and nothing plays).
 func cues_shown() -> bool:
-	return has_ram() and settled and not is_charging() and (not _preview.lost().is_empty() or not _preview.fleeced.is_empty())
+	return has_ram() and settled and not is_charging() and not _preview.lost().is_empty()
 
 
-## The ram charges its lane at `charge_row`: `moves` are the stars it butts (a lost one drained),
-## `fleeced` the ones a landmark stopped, `sizes` the size of each star shown (id -> Star.Size, the
-## launch's new stars too). Sky drifts the stars; this plays the ram.
-func charge(charge_row: int, moves: Array[StarCurrent.Move], fleeced: Array[int], sizes: Dictionary[int, int] = {}) -> void:
+## The ram charges its lane at `charge_row` (its column, running down), running `way`: `moves` are the stars it butts (a lost
+## one drained), `sizes` the size of each star shown (id -> Star.Size, the launch's new stars too).
+## Sky drifts the stars; this plays the ram.
+func charge(charge_row: int, moves: Array[StarCurrent.Move], way: Vector2i = StarCharge.WAY, sizes: Dictionary[int, int] = {}) -> void:
 	_sizes.merge(sizes, true)
 	for move: StarCurrent.Move in moves:
 		if not _stars.has(move.star_id):
 			_stars[move.star_id] = move.from
 	_play_row = charge_row
+	_play_way = way
+	# It charges from its lane (where it has slid by now, as a launch comes after the link).
+	if way.y != 0:
+		_shown_column = charge_row
+	else:
+		_shown_row = charge_row
 	_moves = moves
-	_play_fleeced = fleeced
 	_age = 0.0
 	_preview = StarCharge.Charge.new()
 	queue_redraw()
@@ -176,10 +222,10 @@ func is_charging() -> bool:
 	return _age >= 0.0
 
 
-## How long the charge is waited for: its rear and its charge, or until the flash of a star stopped
-## against a landmark is over if that's later (a lost star's sparks aren't waited for).
+## How long the charge is waited for: its rear and its charge, or until the stars it butts have
+## drifted to a stop if that's later (a lost star's sparks aren't waited for).
 static func charge_hold() -> float:
-	return maxf(REAR_TIME + CHARGE_TIME, REAR_TIME + StarView.DRIFT_TIME + FLASH_TIME)
+	return maxf(REAR_TIME + CHARGE_TIME, REAR_TIME + StarView.DRIFT_TIME)
 
 
 ## A star butted out of the sky cuts out at `at`, the far edge, in sparks.
@@ -191,7 +237,7 @@ func flash_loss(at: Vector2i) -> void:
 ## Where a star butted toward `to` (past the far edge) leaves the sky: a pixel past the inner sky.
 func exit_point(to: Vector2i) -> Vector2i:
 	var inner: Rect2i = StarScatter.inner_rect(_run.sky_rect)
-	return Vector2i(mini(to.x, inner.end.x), to.y)
+	return Vector2i(clampi(to.x, inner.position.x - 1, inner.end.x), clampi(to.y, inner.position.y - 1, inner.end.y))
 
 
 ## Plays the charge and the sparks, and crawls the rings. Driven by `_process`; tests call it directly.
@@ -205,11 +251,24 @@ func advance(delta: float) -> void:
 		if _losses[at] >= LOSS_TIME:
 			_losses.erase(at)
 		queue_redraw()
+	if is_sliding():
+		var keep: float = exp(-SLIDE_RATE * delta)
+		_shown_row = _row + (_shown_row - _row) * keep
+		_shown_column = _column + (_shown_column - _column) * keep
+		if absf(_shown_row - _row) < 0.5:
+			_shown_row = _row
+		if absf(_shown_column - _column) < 0.5:
+			_shown_column = _column
+		queue_redraw()
 	if _age >= 0.0:
 		_age += delta
 		if _age >= charge_hold():
 			_age = -1.0
-			_follow_run()
+			# The next ram in turn is shown at once (an intro's next round too); the rest once settled.
+			var ways: Array[Vector2i] = _run.ram.ways
+			_way = ways[(ways.find(_play_way) + 1) % ways.size()]
+			if settled:
+				_follow_run()
 		queue_redraw()
 
 
@@ -226,17 +285,25 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if is_charging():
 		result.merge(_charge_pixels(), true)
 	else:
-		result.merge(print_pixels(_row, _run.ram.lane, _keep_clear(), _run.sky_rect, 0), true)
-		result.merge(_clipped(head_pixels(_row, _run.sky_rect), _keep_clear(), HEAD_PAD), true)
-		result.merge(pip_pixels(_row, _run.sky_rect, _run.ram.every, _lit), true)
+		var sky: Rect2i = _run.sky_rect
+		var frame: Rect2i = _frame_sky(sky, _way)
+		var clear: Array[Vector3i] = _framed(_keep_clear(), sky, _way)
+		result.merge(_waiting_head(_way), true)
+		var at: int = drawn_line(_way)
+		var own: Dictionary[Vector2i, Color] = _trail(print_pixels(at, _run.ram.lane, clear, frame, 0))
+		own.merge(pip_pixels(at, frame, _run.ram.every, _lit), true)
+		result.merge(_framed_pixels(own, sky, _way), true)
+		result.merge(_head(_way, at, 0, 0, _head_colours()), true)
 		if cues_shown():
 			result.merge(_cue_pixels(), true)
-		for id: int in _fleeced:
-			if _stars.has(id) and (settled or _run.find_star(id) != null):
-				result.merge(fleece_ring_pixels(_stars[id], _sizes[id]), true)
-	for at: Vector2i in _losses:
-		result.merge(spark_pixels(at, _losses[at] / LOSS_TIME, at.y), true)
 	var sky: Rect2i = _run.sky_rect
+	var inner: Rect2i = StarScatter.inner_rect(sky)
+	for at: Vector2i in _losses:
+		# The sparks spray back into the sky from the edge the star left by.
+		var back: Vector2i = Vector2i.LEFT if at.x >= sky.get_center().x else Vector2i.RIGHT
+		if at.y >= inner.end.y:
+			back = Vector2i.UP
+		result.merge(spark_pixels(at, _losses[at] / LOSS_TIME, at.y, back), true)
 	for point: Vector2i in result.keys():
 		if not sky.has_point(point):
 			result.erase(point)
@@ -244,7 +311,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 
 
 ## The outcome of the coming charge on the stars standing: an ember ring on each it loses (clipped
-## where it would run into a neighbour's), corner dots where each it fleeces stops.
+## where it would run into a neighbour's).
 func _cue_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	var lost: Array[int] = _preview.lost()
@@ -264,10 +331,6 @@ func _cue_pixels() -> Dictionary[Vector2i, Color]:
 					clear = false
 			if clear:
 				result[point] = ring[point]
-	var destinations: Dictionary[int, Vector2i] = _preview.destinations()
-	for id: int in _preview.fleeced:
-		if _stars.has(id):
-			result.merge(fleece_preview_pixels(_stars[id], destinations.get(id, _stars[id]), _sizes[id]), true)
 	return result
 
 
@@ -276,48 +339,105 @@ func _charge_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	var sky: Rect2i = _run.sky_rect
 	var lane: int = _run.ram.lane
-	var moved: Dictionary[int, StarCurrent.Move] = {}
-	for move: StarCurrent.Move in _moves:
-		moved[move.star_id] = move
-	var stopped: bool = _age >= REAR_TIME + StarView.DRIFT_TIME
+	# The ram's own pixels, drawn as from the left and mirrored for a charge from the right.
+	var own: Dictionary[Vector2i, Color] = {}
+	var frame: Rect2i = _frame_sky(sky, _play_way)
+	var clear: Array[Vector3i] = _framed(_keep_clear(), sky, _play_way)
+	var head: Dictionary[Vector2i, Color] = {}
+	result.merge(_waiting_head(_play_way), true)
 	if _age < REAR_TIME:
 		# The rear: pips spent, the head up, dust at its feet, the prints stamped along; the stars it
 		# takes still ringed.
-		result.merge(print_pixels(_play_row, lane, _keep_clear(), sky, 1), true)
-		result.merge(_clipped(head_pixels(_play_row, sky, LIFT), _keep_clear(), HEAD_PAD), true)
-		result.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
-		var origin: Vector2i = head_origin(_play_row, sky)
+		own.merge(_trail(print_pixels(_play_row, lane, clear, frame, 1)), true)
+		head = _head(_play_way, _play_row, LIFT, 0, _head_colours())
+		own.merge(pip_pixels(_play_row, frame, _run.ram.every, 0), true)
+		var origin: Vector2i = head_origin(_play_row, frame)
 		var i: int = 0
 		for x: int in range(origin.x + 3, origin.x + head_size().x - 2, 4):
-			result.merge(dust_pixels(Vector2i(x + 4, origin.y + head_size().y + 5), 0.3, i), true)
+			own.merge(_trail(dust_pixels(Vector2i(x + 4, origin.y + head_size().y + 5), 0.3, i)), true)
 			i += 1
 		for move: StarCurrent.Move in _moves:
 			if not _sizes.has(move.star_id):
 				continue
 			if move.drained:
 				result.merge(HarvestView.lone_ring_pixels(move.from, _sizes[move.star_id], _time * 3.0), true)
-			elif _play_fleeced.has(move.star_id):
-				result.merge(fleece_preview_pixels(move.from, move.to, _sizes[move.star_id]), true)
 	else:
 		var k: float = (_age - REAR_TIME) / CHARGE_TIME
-		result.merge(rush_pixels(_play_row, lane, sky, k, _keep_clear() + _paths_clear()), true)
-		result.merge(_clipped(head_pixels(_play_row, sky, 0, LUNGE if k < 0.7 else LUNGE / 2), _keep_clear(), HEAD_PAD), true)
-		result.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
-	# The fleeced stars: those that stand still keep their rings; those it moves show theirs as they stop.
-	for id: int in _fleeced:
-		if _stars.has(id) and not moved.has(id):
-			result.merge(fleece_ring_pixels(_stars[id], _sizes[id]), true)
-	if stopped:
-		# Every star has come to rest where the run has it.
-		for id: int in _fleeced + _play_fleeced:
-			var star: Star = _run.find_star(id)
-			if star != null and (moved.has(id) or _play_fleeced.has(id)):
-				result.merge(fleece_ring_pixels(star.position, star.size), true)
-		if _age < REAR_TIME + StarView.DRIFT_TIME + FLASH_TIME:
-			for id: int in _play_fleeced:
-				var star: Star = _run.find_star(id)
-				if star != null:
-					result.merge(flash_pixels(star.position, star.size), true)
+		own.merge(_trail(rush_pixels(_play_row, lane, frame, k, clear + _framed(_paths_clear(), sky, _play_way))), true)
+		head = _head(_play_way, _play_row, 0, LUNGE if k < 0.7 else LUNGE / 2, _head_colours())
+		own.merge(pip_pixels(_play_row, frame, _run.ram.every, 0), true)
+	result.merge(_framed_pixels(own, sky, _play_way), true)
+	result.merge(head, true)
+	return result
+
+
+## The ram charging `way`'s head on its lane's `charge_line`, reared `lift` and lunged `lunge` px, in
+## `colours`, where it shows: one across the sky at its edge (mirrored from the right); one charging
+## down at the top, upright. Left out next to a star or landmark.
+func _head(way: Vector2i, charge_line: int, lift: int, lunge: int, colours: Dictionary[String, Color]) -> Dictionary[Vector2i, Color]:
+	var sky: Rect2i = _run.sky_rect
+	var result: Dictionary[Vector2i, Color] = {}
+	if way.y != 0:
+		_blit(result, HEAD, down_head_origin(charge_line, sky, lift, lunge), colours)
+	else:
+		_blit(result, HEAD, head_origin(charge_line, sky, lift, lunge), colours)
+		result = _framed_pixels(result, sky, way)
+	return _clipped(result, _keep_clear(), HEAD_PAD)
+
+
+## The head of the ram not charging `way` (of two), dimmed on its own lane's line; none for one ram.
+func _waiting_head(way: Vector2i) -> Dictionary[Vector2i, Color]:
+	for other: Vector2i in _run.ram.ways:
+		if other != way:
+			return _head(other, drawn_line(other), 0, 0, WAIT_HEAD_COLOURS)
+	return {}
+
+
+func _head_colours() -> Dictionary[String, Color]:
+	return HARD_HEAD_COLOURS if is_hard() else HEAD_COLOURS
+
+
+## The sky as the ram running `way` draws its own pixels, as from the left: turned for one charging
+## down (x and y swapped).
+static func _frame_sky(sky: Rect2i, way: Vector2i) -> Rect2i:
+	if way.y != 0:
+		return Rect2i(sky.position.y, sky.position.x, sky.size.y, sky.size.x)
+	return sky
+
+
+## The ram's prints or dust `pixels`, in ember for a heated ram.
+func _trail(pixels: Dictionary[Vector2i, Color]) -> Dictionary[Vector2i, Color]:
+	if not is_hard():
+		return pixels
+	for point: Vector2i in pixels:
+		pixels[point] = HARD_TRAIL.get(pixels[point], pixels[point])
+	return pixels
+
+
+## `spots` (x, y, half extent) as the ram running `way` sees them: mirrored across `sky` for a charge
+## from the right, turned (x and y swapped) for one down, as they are for one from the left.
+static func _framed(spots: Array[Vector3i], sky: Rect2i, way: Vector2i) -> Array[Vector3i]:
+	if way.x > 0:
+		return spots
+	var result: Array[Vector3i] = []
+	for spot: Vector3i in spots:
+		if way.y != 0:
+			result.append(Vector3i(spot.y, spot.x, spot.z))
+		else:
+			result.append(Vector3i(sky.position.x + sky.end.x - 1 - spot.x, spot.y, spot.z))
+	return result
+
+
+## The ram's own `pixels`, drawn as from the left, where they show for one running `way`.
+static func _framed_pixels(pixels: Dictionary[Vector2i, Color], sky: Rect2i, way: Vector2i) -> Dictionary[Vector2i, Color]:
+	if way.x > 0:
+		return pixels
+	var result: Dictionary[Vector2i, Color] = {}
+	for point: Vector2i in pixels:
+		if way.y != 0:
+			result[Vector2i(point.y, point.x)] = pixels[point]
+		else:
+			result[Vector2i(sky.position.x + sky.end.x - 1 - point.x, point.y)] = pixels[point]
 	return result
 
 
@@ -326,13 +446,21 @@ static func head_origin(lane_row: int, sky: Rect2i, lift: int = 0, lunge: int = 
 	return Vector2i(sky.position.x + 1 + lunge, lane_row - HEAD_ABOVE - lift)
 
 
+## The head's top-left for a ram charging down the lane `column`: upright at the sky's top, the
+## column through its muzzle, LIFT px down so it has room to rear.
+static func down_head_origin(column: int, sky: Rect2i, lift: int = 0, lunge: int = 0) -> Vector2i:
+	@warning_ignore("integer_division")
+	return Vector2i(column - HEAD[0].length() / 2, sky.position.y + 1 + LIFT - lift + lunge)
+
+
 static func head_size() -> Vector2i:
 	return Vector2i(HEAD[0].length(), HEAD.size())
 
 
-static func head_pixels(lane_row: int, sky: Rect2i, lift: int = 0, lunge: int = 0) -> Dictionary[Vector2i, Color]:
+## The head (heated, `hard`: ember horns).
+static func head_pixels(lane_row: int, sky: Rect2i, lift: int = 0, lunge: int = 0, hard: bool = false) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	_blit(result, HEAD, head_origin(lane_row, sky, lift, lunge), HEAD_COLOURS)
+	_blit(result, HEAD, head_origin(lane_row, sky, lift, lunge), HARD_HEAD_COLOURS if hard else HEAD_COLOURS)
 	return result
 
 
@@ -406,46 +534,20 @@ static func dust_pixels(at: Vector2i, k: float, seed_value: int) -> Dictionary[V
 
 
 ## A star cutting out at `at` on the far edge, `k` (0 to 1) through: ember sparks spraying back into
-## the sky and falling (S4, S3, a C3 core at first), scattered by `seed`.
-static func spark_pixels(at: Vector2i, k: float, seed_value: int) -> Dictionary[Vector2i, Color]:
+## the sky (`back`: left from the right edge) and falling (S4, S3, a C3 core at first), scattered by
+## `seed`.
+static func spark_pixels(at: Vector2i, k: float, seed_value: int, back: Vector2i = Vector2i.LEFT) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	for i: int in SPARKS:
 		var a: float = float((seed_value * 13 + i * 29) % 17) / 16.0
-		var dx: int = -int(1.0 + a * 9.0 * (0.5 + k))
+		var dx: int = back.x * int(1.0 + a * 9.0 * (0.5 + k))
 		var dy: int = int((i - 3.5) * 1.5 * (0.6 + k) + 6.0 * k * k)
+		if back.y != 0:
+			# Off the bottom: they spray back up, spread across.
+			dx = int((i - 3.5) * 1.5 * (0.6 + k))
+			dy = back.y * int(1.0 + a * 9.0 * (0.5 + k)) + int(4.0 * k * k)
 		var colour: Color = Palette.C3 if i == 0 and k < 0.5 else (Palette.S4 if i % 2 == 0 else Palette.S3)
 		result[at + Vector2i(dx, dy)] = colour
-	return result
-
-
-## A fleeced star's ring: solid, 3 px clear of the star, C1 over the top and C2 under.
-static func fleece_ring_pixels(at: Vector2i, size: int) -> Dictionary[Vector2i, Color]:
-	var result: Dictionary[Vector2i, Color] = {}
-	for offset: Vector2i in ConstellationView.circle_pixels(StarView.half_extent(size as Star.Size) + 3):
-		result[at + offset] = STOP_COLOUR if offset.y < 0 else TICK_COLOUR
-	return result
-
-
-## A star at `at` the charge will stop against a landmark at `stop`: four C1 corner dots round the
-## stop, and a dotted C2 tick running to them from the star, under its path.
-static func fleece_preview_pixels(at: Vector2i, stop: Vector2i, size: int) -> Dictionary[Vector2i, Color]:
-	var result: Dictionary[Vector2i, Color] = {}
-	var half: int = StarView.half_extent(size as Star.Size)
-	var corner: int = half + 1
-	for dx: int in [-corner, corner]:
-		for dy: int in [-corner, corner]:
-			result[stop + Vector2i(dx, dy)] = STOP_COLOUR
-	for x: int in range(at.x + half + 2, stop.x - corner, 2):
-		result[Vector2i(x, stop.y + corner + 1)] = TICK_COLOUR
-	return result
-
-
-## The C0 flash of a star stopping against a landmark: a dotted ring 5 px clear of it.
-static func flash_pixels(at: Vector2i, size: int) -> Dictionary[Vector2i, Color]:
-	var result: Dictionary[Vector2i, Color] = {}
-	for offset: Vector2i in ConstellationView.circle_pixels(StarView.half_extent(size as Star.Size) + 5):
-		if posmod(offset.x + offset.y, 2) == 0:
-			result[at + offset] = Palette.C0
 	return result
 
 
@@ -498,8 +600,11 @@ func _paths_clear() -> Array[Vector3i]:
 		if not _sizes.has(move.star_id):
 			continue
 		var half: int = StarView.half_extent(_sizes[move.star_id] as Star.Size)
-		for x: int in range(move.from.x, move.to.x, 4):
-			result.append(Vector3i(x, move.from.y, half))
+		var step: Vector2i = (move.to - move.from).sign() * 4
+		var at: Vector2i = move.from
+		while (move.to.x - at.x) * step.x + (move.to.y - at.y) * step.y > 0:
+			result.append(Vector3i(at.x, at.y, half))
+			at += step
 		result.append(Vector3i(move.to.x, move.to.y, half))
 	return result
 
@@ -514,13 +619,13 @@ func _follow_run() -> void:
 		stars[star.id] = star.position
 		sizes[star.id] = star.size
 	var lit: int = 0 if _run.is_over() else _run.ram.launches_left()
-	var fleeced: Array[int] = _run.ram.fleeced.duplicate()
-	if _run.ram.row == _row and lit == _lit and stars == _stars and sizes == _sizes and fleeced == _fleeced:
+	if _run.ram.row == _row and _run.ram.column == _column and _run.ram.way == _way and lit == _lit and stars == _stars and sizes == _sizes:
 		return
 	_row = _run.ram.row
+	_column = _run.ram.column
+	_way = _run.ram.way
 	_lit = lit
 	_stars = stars
 	_sizes = sizes
-	_fleeced = fleeced
 	_preview = _run.charge_preview()
 	queue_redraw()

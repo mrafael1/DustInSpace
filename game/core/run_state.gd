@@ -121,11 +121,17 @@ signal splash_intro_placed(stars: Array[Star])
 ## before the sky clears for its jackpot.
 signal wave_struck(way: Vector2i, lost: Array[Star], next_way: Vector2i, great: bool)
 ## Aries's ram charged its lane, centred on `row`, once the launch had resolved: `moves` are the stars
-## it butted, rightmost first (a move `drained`: butted out of the sky, for nothing), and `fleeced`
-## the stars it stopped against a landmark. Sent for every charge, even one that moves nothing.
-signal ram_charged(row: int, moves: Array[StarCurrent.Move], fleeced: Array[int])
+## it butted, frontmost first (a move `drained`: butted out of the sky, for nothing), running `way`
+## (right: from the left edge; left: from the right). Sent for every charge, even one that moves
+## nothing.
+signal ram_charged(row: int, moves: Array[StarCurrent.Move], way: Vector2i)
 ## Aries's lane moved to `row`: a link lit a landmark in another row.
 signal ram_aimed(row: int)
+## The ram's intro placed its demo stars in the lane and out of it (copies, where they stand before
+## the charge).
+signal ram_intro_placed(stars: Array[Star])
+## The ram's intro is over: its demo stars still standing go, for nothing.
+signal ram_intro_cleared(stars: Array[Star])
 ## Scorpio: the Sun filled, so it rekindles at 0 light and lights `landmark` (-1: none left).
 ## Its light then clears the sky: sky_cleared follows the landmark's events.
 signal sun_rekindled(landmark: int)
@@ -236,6 +242,18 @@ const SPLASH_INTRO_IN: int = 22
 ## Its demo stars, from where it's thrown: one by the edge (the splash pushes it out of the sky) and
 ## two inside the splash that it pushes on (for a seam up and down; turned for one across).
 const SPLASH_INTRO_STARS: Array[Vector2i] = [Vector2i(-20, 0), Vector2i(6, -20), Vector2i(6, 20)]
+## Aries's ram intro: its demo planet's stars' layout stream (XOR'd into the run seed), and how far
+## from the lane row it bursts (above, else below), so its stars land clear of the lane.
+const RAM_INTRO_SEED_SALT: int = 0x7A3
+const RAM_INTRO_BURST_AWAY: int = 64
+## Its demo stars wait at least this far in from the sky's left edge, clear of the ram's head.
+const RAM_INTRO_IN: int = 44
+## How far from the figure counts toward placing them; past it, the longer butt wins.
+const RAM_INTRO_ROOM: int = 24
+## What passing a landmark in the lane counts for, placing the kept one (more than any butt's length).
+const RAM_INTRO_PASS: int = 200
+## Its two demo stars in the lane stand at least this far apart.
+const RAM_INTRO_APART: int = 24
 ## Leo's heat intro: the stars it shows (one of each size), and how many times at most the heat acts
 ## on them. Its layout's own RNG stream (XOR'd into the run seed).
 const HEAT_INTRO_SIZES: Array[Star.Size] = [Star.Size.SMALL, Star.Size.MEDIUM, Star.Size.BIG]
@@ -377,7 +395,12 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.wave and seam != StarMap.Seam.NONE and seam != StarMap.Seam.CROSS and balance.wave_first_launch > 0:
 			wave = _new_wave()
 		if scorpio.map.ram and balance.ram_every > 0:
-			ram = StarCharge.new(balance.ram_every, balance.ram_lane, balance.ram_butt, _ram_start_row())
+			var butt: int = balance.ram_hard_butt if scorpio.map.ram_hard and balance.ram_hard_butt > 0 else balance.ram_butt
+			var lane: int = balance.ram_hard_lane if scorpio.map.ram_hard and balance.ram_hard_lane > 0 else balance.ram_lane
+			var ways: Array[Vector2i] = [StarCharge.WAY]
+			if scorpio.map.ram_down:
+				ways.append(Vector2i.DOWN)
+			ram = StarCharge.new(balance.ram_every, lane, butt, _ram_start_row(), ways, sky_rect.get_center().x)
 		if scorpio.map.cords:
 			cords = StarCords.new()
 			cords.tie_fixed(_fish_cord())
@@ -1070,8 +1093,6 @@ func link(star_ids: Array[int]) -> String:
 		_orion_shoot()
 	if volley != null and not scorpio.is_complete():
 		_count_for_volley()
-	if ram != null:
-		ram.keep_fleeced(stars)
 	_check_end()
 	if encounter != null and encounter.linked():
 		encounter_step.emit(encounter.threat, encounter.step)
@@ -1196,7 +1217,7 @@ func _light_landmark(index: int) -> void:
 	for segment: int in formed:
 		string_built.emit(segment)
 	# Aries: the lane follows the landmark a link lit (a link lighting two, by a rekindle: the last).
-	if ram != null and ram.aim(scorpio.landmark_position(index).y):
+	if ram != null and ram.aim(scorpio.landmark_position(index).y, scorpio.landmark_position(index).x):
 		ram_aimed.emit(ram.row)
 
 
@@ -1906,11 +1927,149 @@ func _splash(at: Vector2i) -> void:
 
 
 ## Aries: the lane row before any link has lit a landmark: the row of the map's first landmark lit
-## from the start, else the sky's middle.
+## from the start, else the sky's middle. (The column starts in the sky's middle.)
 func _ram_start_row() -> int:
 	if not scorpio.map.starting_lit.is_empty():
 		return scorpio.landmark_position(scorpio.map.starting_lit[0]).y
 	return sky_rect.get_center().y
+
+
+## Aries's ram intro, as a stage with the ram and intros opens: demo stars wait, two in the lane and
+## one out of it; a demo planet is thrown clear of the lane and bursts, then the ram charges: the
+## first is butted on past a landmark (none shelters it) when one can be, the second off the far
+## edge, the one out of the lane stays. Then every demo star goes after a beat. Two rams each do it
+## once, in turn, and the first is left to charge first. No
+## pack, no reward, no RNG drawn from the run, and it doesn't count toward the charge.
+func play_ram_intro() -> void:
+	if ram == null or not scorpio.map.intros or not stars.is_empty() or is_over():
+		return
+	for side: int in ram.ways.size():
+		var layout: Array[Vector2i] = ram_intro_layout()
+		if layout.size() < 3:
+			break
+		_ram_intro_round(layout)
+		ram.turn()
+	ram.rewind()
+
+
+## One round of the ram intro on the demo stars at `layout`.
+func _ram_intro_round(layout: Array[Vector2i]) -> void:
+	var demo: Array[Star] = []
+	for i: int in 3:
+		demo.append(add_star(HEAT_INTRO_SIZES[i], layout[i]))
+	var shown: Array[Star] = []
+	for star: Star in demo:
+		shown.append(Star.new(star.id, star.size, star.position))
+	ram_intro_placed.emit(shown)
+	var burst: Vector2i = _ram_intro_burst()
+	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
+	hunt_intro_launched.emit(kind, burst)
+	var spread := RandomNumberGenerator.new()
+	spread.seed = run_seed ^ RAM_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
+	var occupied: Array[Vector2i] = []
+	for star: Star in stars:
+		occupied.append(star.position)
+	var born: Array[Star] = []
+	for spot: Vector2i in StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, occupied, spread, scorpio.landmark_positions()):
+		var star: Star = add_star(HEAT_INTRO_SIZES[born.size()], spot)
+		if ram.in_lane(spot):
+			# A burst star in the lane would muddle the demo: it never lands there.
+			stars.erase(star)
+			continue
+		born.append(star)
+	hunt_intro_burst.emit(burst, born.duplicate())
+	var charge: StarCharge.Charge = ram.charge(stars, sky_rect, scorpio.landmark_positions())
+	for move: StarCurrent.Move in charge.moves:
+		var star: Star = find_star(move.star_id)
+		if move.drained:
+			stars.erase(star)
+		else:
+			star.position = move.to
+	ram_charged.emit(ram.line(), charge.moves, ram.way)
+	var left: Array[Star] = stars.duplicate()
+	stars.clear()
+	ram_intro_cleared.emit(left)
+
+
+## Pure: the ram intro's demo stars for its next charge, [butted on and kept, butted out of the sky,
+## out of the lane]: on the lane's line (or a few px off it) where each alone ends as it should, kept
+## furthest from the figure (up to RAM_INTRO_ROOM px) and with the longest way to go (the first
+## passing a landmark if one can; with nowhere to keep it, a second one lost), the nearer the line
+## the better; the third just past the lane's edge, by the first on the far side from it. Empty if
+## there's no room to lose one.
+func ram_intro_layout() -> Array[Vector2i]:
+	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var way: Vector2i = ram.way
+	var across: Vector2i = Vector2i(absi(way.y), absi(way.x))
+	# The ram's edge and the far one: how deep a point is along the charge, and how far it has to go.
+	var edge := Vector2i(sky_rect.position.x if way.x >= 0 else sky_rect.end.x - 1, sky_rect.position.y if way.y >= 0 else sky_rect.end.y - 1)
+	var far := Vector2i(inner.end.x if way.x > 0 else inner.position.x - 1, inner.end.y if way.y > 0 else inner.position.y - 1)
+	var depth: Callable = func(p: Vector2i) -> int: return (p - edge).x * way.x + (p - edge).y * way.y
+	var to_far: Callable = func(p: Vector2i) -> int: return (far - p).x * way.x + (far - p).y * way.y
+	var line: int = ram.line()
+	var start: int = inner.position.y if ram.is_down() else inner.position.x
+	var end: int = inner.end.y if ram.is_down() else inner.end.x
+	# Each candidate as (score, x, y), best first.
+	var kept: Array[Vector3i] = []
+	var lost: Array[Vector3i] = []
+	for t: int in range(start, end, 2):
+		for d: int in [0, -6, 6, -10, 10, -14, 14]:
+			var at: Vector2i = Vector2i(line + d, t) if ram.is_down() else Vector2i(t, line + d)
+			if depth.call(at) < RAM_INTRO_IN:
+				continue
+			var clearance: int = _clearance([at] as Array[Vector2i], landmarks)
+			if not inner.has_point(at) or not ram.in_lane(at) or clearance < StarScatter.LANDMARK_SPACING + 4:
+				continue
+			var alone: StarCharge.Charge = ram.charge([Star.new(-1, Star.Size.SMALL, at)] as Array[Star], sky_rect, landmarks)
+			if alone.moves.is_empty():
+				continue
+			var to: Vector2i = alone.moves[0].to
+			# Clear of the figure (up to a point) and near the lane's line, then past a landmark, then
+			# the longest way to go, so the butt reads.
+			var room: int = mini(clearance, RAM_INTRO_ROOM) - absi(d) * 2
+			if alone.moves[0].drained:
+				lost.append(Vector3i(room + to_far.call(at), at.x, at.y))
+				continue
+			var passes: int = 0
+			for landmark: Vector2i in landmarks:
+				if ram.in_lane(landmark) and depth.call(landmark) > depth.call(at) and depth.call(landmark) < depth.call(to):
+					passes = RAM_INTRO_PASS
+			kept.append(Vector3i(room + passes + depth.call(to) - depth.call(at), at.x, at.y))
+	var best_first: Callable = func(a: Vector3i, b: Vector3i) -> bool: return a.x > b.x
+	kept.sort_custom(best_first)
+	lost.sort_custom(best_first)
+	if lost.is_empty():
+		return []
+	var second: Vector2i = Vector2i(lost[0].y, lost[0].z)
+	var first: Vector2i = Vector2i(-1, -1)
+	# The best kept one clear of the lost one, else a second lost one.
+	for candidate: Vector3i in kept + lost.slice(1):
+		var at := Vector2i(candidate.y, candidate.z)
+		if Vector2(at).distance_to(Vector2(second)) >= RAM_INTRO_APART:
+			first = at
+			break
+	if first.x < 0:
+		return []
+	# Out of the lane on the far side from the first, else the other if the sky ends there.
+	var first_across: int = first.x * across.x + first.y * across.y
+	var away: int = 1 if first_across < line else -1
+	var still: Vector2i = first + across * (line + away * (ram.lane / 2 + 10) - first_across)
+	if not inner.has_point(still):
+		still = first + across * (line - away * (ram.lane / 2 + 10) - first_across)
+	return [first, second, still]
+
+
+## Where the ram intro's demo planet bursts: to one side of the lane (above it, else below; left of a
+## column, else right), over the sky's middle along it.
+func _ram_intro_burst() -> Vector2i:
+	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var line: int = ram.line()
+	var at: int = line - RAM_INTRO_BURST_AWAY
+	var first: int = inner.position.x if ram.is_down() else inner.position.y
+	if at - StarScatter.RING_MAX < first:
+		at = line + RAM_INTRO_BURST_AWAY
+	return Vector2i(at, sky_rect.get_center().y) if ram.is_down() else Vector2i(sky_rect.get_center().x, at)
 
 
 ## Pure: whether the ram charges once the next launch has resolved (never once the run is over).
@@ -1919,7 +2078,7 @@ func ram_charges_next() -> bool:
 
 
 ## Pure: what the ram's charge after the next launch does to the stars standing now (where each it
-## butts ends up, which it loses and which it fleeces); nothing when that launch brings no charge.
+## butts ends up, and which it loses); nothing when that launch brings no charge.
 ## The stars that launch brings aren't known yet, so they're not in it, and neither is what the
 ## launch's other mechanics do first.
 func charge_preview() -> StarCharge.Charge:
@@ -1952,8 +2111,7 @@ func ram_row_for(star_ids: Array[int]) -> int:
 
 
 ## Aries's ram, once a launch has resolved: the clock counts it, and on every `every`-th launch the
-## ram charges its lane, the stars it butts out of the sky lost for nothing. The fleeced marks of
-## stars the launch took go.
+## ram charges its lane, the stars it butts out of the sky lost for nothing.
 func _charge_ram() -> void:
 	if ram.count_launch():
 		var charge: StarCharge.Charge = ram.charge(stars, sky_rect, scorpio.landmark_positions())
@@ -1967,9 +2125,8 @@ func _charge_ram() -> void:
 		for star: Star in lost:
 			stars.erase(star)
 		_orion_forget(lost)
-		ram.fleece(charge.fleeced)
-		ram_charged.emit(ram.row, charge.moves, charge.fleeced)
-	ram.keep_fleeced(stars)
+		ram_charged.emit(ram.line(), charge.moves, ram.way)
+		ram.turn()
 
 
 ## Pisces: the fish's cord (StarMap.fish_cord) placed in this sky (shifted with the map).

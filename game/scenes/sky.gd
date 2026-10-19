@@ -467,6 +467,15 @@ func _play_ram_event(event: EventSequencer.RunEvent) -> bool:
 	match event.type:
 		&"ram_charged":
 			_charge(event.args[0], event.args[1], event.args[2])
+		&"ram_intro_placed":
+			# A beat to see the demo stars before the planet is thrown and the ram charges.
+			_place_intro(event.args[0])
+		&"ram_intro_cleared":
+			# A beat to see where the charge left them, then they go: no reward.
+			_sequencer.hold(INTRO_HOLD * 2.0 + StarView.DISSOLVE_TIME)
+			var tween: Tween = create_tween()
+			tween.tween_interval(INTRO_HOLD * 1.5)
+			tween.tween_callback(_clear_intro.bind(event.args[0], StarView.DISSOLVE_TIME + INTRO_HOLD * 0.5))
 		_:
 			return false
 	return true
@@ -936,14 +945,13 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 			_halo_layer.queue_redraw.call_deferred())
 
 
-## Aries's ram charges its lane on `row`: it rears, then every star it butts drifts right as it
-## charges; one stopped against a landmark (`fleeced`) flashes and keeps its gold ring; one butted
-## out of the sky drifts to the far edge and cuts out there in sparks, for nothing.
-func _charge(row: int, moves: Array[StarCurrent.Move], fleeced: Array[int]) -> void:
+## Aries's ram charges its lane on `row`, running `way`: it rears, then every star it butts drifts on as it
+## charges; one butted out of the sky drifts to the far edge and cuts out there in sparks, for nothing.
+func _charge(row: int, moves: Array[StarCurrent.Move], way: Vector2i) -> void:
 	var sizes: Dictionary[int, int] = {}
 	for id: int in _views:
 		sizes[id] = _views[id].size
-	_ram.charge(row, moves, fleeced, sizes)
+	_ram.charge(row, moves, way, sizes)
 	_sequencer.hold(ChargeView.charge_hold())
 	for move: StarCurrent.Move in moves:
 		var view: StarView = _views.get(move.star_id)
