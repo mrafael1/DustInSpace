@@ -211,13 +211,13 @@ const SWIPE: int = 28
 ## the milky way and the nebulae stay put. Forward (the next chapter) is to the right.
 ## The zodiac closes into a ring (docs/chapter_4_6_plan.md): after Virgo comes Libra, then Scorpio
 ## again, every RING px. A chapter's place is its sign plus its lap (CHAPTER_LAPS: Sagittarius,
-## chapter 5, is on the second lap, three signs on from Virgo, and Pisces three on from it). The constellations between, the
+## chapter 5, is on the second lap, three signs on from Virgo, Pisces three on from it and Aries next). The constellations between, the
 ## chapters' own figures and the background stars repeat round the ring, so a voyage passes the
 ## earlier chapters again, faint and named; only a chapter's own place shows its chart.
 const ZODIAC: Array[String] = ["scorpio", "sagittarius", "capricornus", "aquarius", "pisces", "aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra"]
 const SKY_SPAN: int = 180
 const RING: int = 12 * SKY_SPAN
-const CHAPTER_LAPS: Dictionary[String, int] = {"sagittarius": 1, "pisces": 1}
+const CHAPTER_LAPS: Dictionary[String, int] = {"sagittarius": 1, "pisces": 1, "aries": 1}
 const VOYAGE_BASE: float = 0.6
 const VOYAGE_PER_SIGN: float = 0.28
 const VOYAGE_EASE: float = 0.25
@@ -227,7 +227,7 @@ const STREAK_MAX: int = 3
 ## The constellations passed on a voyage, in their screen's home place: their stars (an N8 cross
 ## with an M5 heart, the brightest an M6 glint with M5 arms), their strings (solid N5, stopping short
 ## of each star), their name (3x5, N8) centred under them. One that's also a chapter (Sagittarius,
-## Pisces) is drawn as the chapter's figure instead, once that chapter exists.
+## Pisces, Aries) is drawn as the chapter's figure instead, once that chapter exists.
 const PASSING: Dictionary = {
 	"sagittarius": {"name": "SAGITTARIUS", "stars": [Vector2i(56, 172), Vector2i(78, 158), Vector2i(98, 164), Vector2i(94, 188), Vector2i(70, 192), Vector2i(86, 138), Vector2i(118, 156), Vector2i(124, 184)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(4, 0), Vector2i(1, 5), Vector2i(5, 2), Vector2i(2, 6), Vector2i(3, 7)], "bright": [1, 2]},
 	"capricornus": {"name": "CAPRICORNUS", "stars": [Vector2i(40, 140), Vector2i(70, 150), Vector2i(110, 160), Vector2i(140, 150), Vector2i(150, 128), Vector2i(100, 190), Vector2i(66, 180)], "lines": [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(0, 6), Vector2i(6, 5), Vector2i(5, 3)], "bright": [0, 4]},
