@@ -70,7 +70,7 @@ var _arrival: float = -1.0
 ## resolves; the view turns only once that launch has played out (its burst and drift), so the
 ## water never changes way under stars still moving the old way.
 var _shown_flow: Vector2i = Vector2i.ZERO
-## The shade's tile (_shade_tile), made once.
+## The shade's tile (shade_tile), made once.
 static var _tile: ImageTexture
 
 
@@ -132,7 +132,7 @@ func advance(delta: float) -> void:
 func _draw() -> void:
 	if _run != null and _run.current != null and not _played_out():
 		for rect: Rect2i in frame_shade_rects(_run.current, _run.sky_rect):
-			draw_texture_rect(_shade_tile(), Rect2(rect), true)
+			draw_texture_rect(shade_tile(), Rect2(rect), true)
 	var dots: Dictionary[Vector2i, Color] = pixels()
 	for point: Vector2i in dots:
 		draw_rect(Rect2(Vector2(point), Vector2.ONE), dots[point], true)
@@ -206,30 +206,52 @@ func pixels() -> Dictionary[Vector2i, Color]:
 ## The sky outside `flow`'s frame, where a draining flow loses every star (its outer columns, either
 ## side), in `sky`; none without a drain or a frame narrower than the sky (a 9:16 sky).
 static func frame_shade_rects(flow: StarCurrent, sky: Rect2i) -> Array[Rect2i]:
-	var rects: Array[Rect2i] = []
 	if not flow.drains or not flow.frame.has_area():
-		return rects
-	var left := Rect2i(sky.position.x, sky.position.y, flow.frame.position.x - sky.position.x, sky.size.y)
-	var right := Rect2i(flow.frame.end.x, sky.position.y, sky.end.x - flow.frame.end.x, sky.size.y)
+		return [] as Array[Rect2i]
+	return outside_frame(flow.frame, sky)
+
+
+## The frame's sides where the shade meets it: the drain's dotted line, one pixel in two, just
+## outside the frame.
+static func frame_edge_pixels(flow: StarCurrent, sky: Rect2i) -> Array[Vector2i]:
+	if not flow.drains or not flow.frame.has_area():
+		return [] as Array[Vector2i]
+	return frame_side_pixels(flow.frame, sky)
+
+
+## The sky outside `frame` (its outer columns, either side), in `sky`; none when the frame spans the
+## sky (a 9:16 sky). Shared by every view that shades a wide sky's frame edge (the drain, the splash,
+## the ram: docs/wide_sky_design.md Q4).
+static func outside_frame(frame: Rect2i, sky: Rect2i) -> Array[Rect2i]:
+	var rects: Array[Rect2i] = []
+	var left := Rect2i(sky.position.x, sky.position.y, frame.position.x - sky.position.x, sky.size.y)
+	var right := Rect2i(frame.end.x, sky.position.y, sky.end.x - frame.end.x, sky.size.y)
 	for rect: Rect2i in [left, right]:
 		if rect.has_area():
 			rects.append(rect)
 	return rects
 
 
-## The frame's sides where the shade meets it: the drain's dotted line, one pixel in two, just
+## `frame`'s sides where the shade outside it meets it: a dotted line, one pixel in two, just
 ## outside the frame.
-static func frame_edge_pixels(flow: StarCurrent, sky: Rect2i) -> Array[Vector2i]:
+static func frame_side_pixels(frame: Rect2i, sky: Rect2i) -> Array[Vector2i]:
 	var points: Array[Vector2i] = []
-	for rect: Rect2i in frame_shade_rects(flow, sky):
-		var x: int = rect.end.x - 1 if rect.end.x <= flow.frame.position.x else rect.position.x
+	for rect: Rect2i in outside_frame(frame, sky):
+		var x: int = rect.end.x - 1 if rect.end.x <= frame.position.x else rect.position.x
 		for y: int in range(rect.position.y, rect.end.y, 2):
 			points.append(Vector2i(x, y))
 	return points
 
 
-## The shade's tile: SHADE_COLOUR at (0, 0) and half a tile across on the middle row.
-static func _shade_tile() -> ImageTexture:
+## Draws the shade over the sky outside `frame` on `canvas` (none on a 9:16 sky).
+static func draw_frame_shade(canvas: CanvasItem, frame: Rect2i, sky: Rect2i) -> void:
+	for rect: Rect2i in outside_frame(frame, sky):
+		canvas.draw_texture_rect(shade_tile(), Rect2(rect), true)
+
+
+## The shade's tile: SHADE_COLOUR at (0, 0) and half a tile across on the middle row. The canvas
+## drawing it needs texture_repeat on.
+static func shade_tile() -> ImageTexture:
 	if _tile == null:
 		var image := Image.create(SHADE_TILE, SHADE_TILE, false, Image.FORMAT_RGBA8)
 		image.set_pixel(0, 0, SHADE_COLOUR)

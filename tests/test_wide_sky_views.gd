@@ -99,3 +99,26 @@ func test_no_shade_without_a_drain_or_on_the_portrait_sky() -> void:
 
 func test_the_shade_is_palette_locked() -> void:
 	assert_eq(CurrentView.SHADE_COLOUR, Palette.S1)
+
+
+# --- The frame edge is shaded on splash stages --------------------------------------------------
+
+func test_a_wide_splash_stage_dots_the_frames_sides() -> void:
+	var run: RunState = _run("pisces_knot")
+	var seam: SeamView = _sky_view(run).get_node("SeamLayer")
+	seam.setup(run)
+	var dots: Dictionary[Vector2i, Color] = seam.pixels()
+	for y: int in range(38, 250, 2):
+		assert_eq(dots.get(Vector2i(-1, y)), SeamView.FRAME_EDGE_COLOUR, "the frame's left side")
+		assert_eq(dots.get(Vector2i(180, y)), SeamView.FRAME_EDGE_COLOUR, "the frame's right side")
+	assert_eq(SeamView.FRAME_EDGE_COLOUR, Palette.S3)
+
+
+func test_no_frame_edge_without_a_splash_or_on_the_portrait_sky() -> void:
+	var circlet: RunState = _run("pisces_circlet")
+	var seam: SeamView = _sky_view(circlet).get_node("SeamLayer")
+	seam.setup(circlet)
+	assert_false(seam.pixels().has(Vector2i(-1, 100)), "the Circlet has no splash")
+	var home: RunState = _run("pisces_knot", Fixtures.SKY)
+	assert_true(CurrentView.outside_frame(home.frame_rect, home.sky_rect).is_empty())
+	assert_true(CurrentView.frame_side_pixels(home.frame_rect, home.sky_rect).is_empty())

@@ -247,3 +247,58 @@ func test_on_the_portrait_sky_no_star_is_stranded() -> void:
 		var inner: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
 		for at: Vector2i in [inner.position, inner.end - Vector2i.ONE, inner.get_center()]:
 			assert_false(run.current.stranded(at), "%s %s" % [map.id, at])
+
+
+# --- The splash loses stars at the frame's edge -------------------------------------------------
+
+func test_a_splash_pushing_a_star_past_the_frames_side_loses_it() -> void:
+	var run: RunState = _stage(StarMap.pisces_knot())
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(14, 100))
+	var kept: Star = run.add_star(Star.Size.SMALL, Vector2i(60, 100))
+	var moves: Array[StarCurrent.Move] = []
+	run.stars_splashed.connect(func(_at: Vector2i, moved: Array[StarCurrent.Move]) -> void: moves.assign(moved))
+	run._splash(Vector2i(32, 100))
+	assert_null(run.find_star(star.id), "pushed to x -4: past the frame, though the sky goes on")
+	assert_not_null(run.find_star(kept.id), "pushed on, inside the frame")
+	assert_eq(moves.size(), 2)
+	for move: StarCurrent.Move in moves:
+		assert_eq(move.drained, move.star_id == star.id)
+
+
+func test_a_splash_in_the_outer_columns_loses_what_it_pushes_outward() -> void:
+	var run: RunState = _stage(StarMap.pisces_knot())
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(-100, 100))
+	run._splash(Vector2i(-90, 100))
+	assert_null(run.find_star(star.id), "pushed to x -118: still over the sky, but out of the frame")
+
+
+func test_the_aims_splash_preview_marks_the_frames_losses() -> void:
+	var run: RunState = _stage(StarMap.pisces_knot())
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(14, 100))
+	assert_true(run.launch_splashes(Vector2i(32, 100)).has(star.id), "the aim's preview loses it too")
+
+
+func test_on_the_portrait_sky_the_splash_loses_at_the_skys_edge() -> void:
+	var run: RunState = _stage(StarMap.pisces_knot(), Fixtures.SKY)
+	assert_eq(run.frame_rect, run.sky_rect)
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(14, 120))
+	run._splash(Vector2i(32, 120))
+	assert_null(run.find_star(star.id), "as before: out of the sky")
+
+
+func test_the_splash_intro_throws_by_the_frames_edge() -> void:
+	var run: RunState = _stage(StarMap.pisces_knot())
+	var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+	assert_eq(run.splash_intro_spot().x, inner.position.x + RunState.SPLASH_INTRO_IN, "measured from the frame, not the sky")
+	var placed: Array[Star] = []
+	var lost: Array[int] = []
+	run.splash_intro_placed.connect(func(shown: Array[Star]) -> void: placed.assign(shown))
+	run.stars_splashed.connect(func(_at: Vector2i, moved: Array[StarCurrent.Move]) -> void:
+		for move: StarCurrent.Move in moved:
+			if move.drained:
+				lost.append(move.star_id))
+	run.play_reflect_intro()
+	assert_eq(placed.size(), 3)
+	for star: Star in placed:
+		assert_true(inner.has_point(star.position), "demo star %s by the figure" % star.position)
+	assert_eq(lost.size(), 1, "the splash pushes the edge one out of the frame")
