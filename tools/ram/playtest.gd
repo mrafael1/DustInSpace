@@ -15,9 +15,8 @@ var _balance: Balance
 var _runs: int = 200
 var _map: String = "aries_horns"
 var _policies: Array[String] = POLICIES
-## Stars the ram butted out of the sky this run, and stars it fleeced.
+## Stars the ram butted out of the sky this run.
 var _lost: int = 0
-var _fleeced: int = 0
 
 
 func _initialize() -> void:
@@ -41,7 +40,7 @@ func _simulate() -> void:
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
 		for enabled: bool in [false, true]:
-			var row: Dictionary = {"policy": policy, "on": enabled, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "lost": 0, "fleeced": 0}
+			var row: Dictionary = {"policy": policy, "on": enabled, "wins": 0, "losses": 0, "capped": 0, "packs_in_wins": 0, "launches": 0, "lost": 0}
 			for seed_value: int in range(1, _runs + 1):
 				_play(seed_value, enabled, policy, row)
 				if seed_value % 20 == 0:
@@ -50,11 +49,10 @@ func _simulate() -> void:
 			row["packs_per_win"] = snappedf(float(row.packs_in_wins) / maxi(1, row.wins), 0.01)
 			row["launches_per_run"] = snappedf(float(row.launches) / _runs, 0.01)
 			row["lost_per_run"] = snappedf(float(row.lost) / _runs, 0.01)
-			row["fleeced_per_run"] = snappedf(float(row.fleeced) / _runs, 0.01)
-			for key: String in ["packs_in_wins", "launches", "lost", "fleeced"]:
+			for key: String in ["packs_in_wins", "launches", "lost"]:
 				row.erase(key)
 			rows.append(row)
-			print("%-13s on=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  launches/run %5.2f  butted out/run %5.2f  fleeced/run %5.2f" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.launches_per_run, row.lost_per_run, row.fleeced_per_run])
+			print("%-13s on=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  launches/run %5.2f  butted out/run %5.2f" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.launches_per_run, row.lost_per_run])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/ram/out"))
 	var file: FileAccess = FileAccess.open("res://tools/ram/out/results-%s.json" % _map, FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
@@ -72,12 +70,10 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	rng.seed = seed_value
 	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
 	_lost = 0
-	_fleeced = 0
-	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], fleeced: Array[int]) -> void:
+	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move]) -> void:
 		for move: StarCurrent.Move in moves:
 			if move.drained:
-				_lost += 1
-		_fleeced += fleeced.size())
+				_lost += 1)
 	var packs: int = 0
 	for action: int in 400:
 		if run.is_over():
@@ -105,7 +101,6 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 		packs += 1
 		row.launches += 1
 	row.lost += _lost
-	row.fleeced += _fleeced
 	match run.outcome:
 		RunState.Outcome.WON:
 			row.wins += 1
