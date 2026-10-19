@@ -253,10 +253,146 @@ Where the build differs from the plan above, or settles a detail it left open.
 - The currents bot's aim is clamped to the inner frame, as the launch clamps an aim to a 9:16 sky (portrait numbers unchanged).
 - **Raised: the drain stages are harder on the wide sky.** Currents bot (200 seeds), wide minus portrait win %: Body launch-owned-first -10.0; Legs link-first -3.5, launch-owned-first -7.0; Jar within 1; Stream within 1.5; final -14.5 (upstream aim) to -30.5. The cause: bursts near the frame's sides scatter past them and drain, where a 9:16 sky's edge clamps the scatter in (a human sees the red preview; the bot doesn't). Measured alternative (not built): on drain stages, a burst inside the frame scatters within the frame (`StarScatter.place(..., frame_rect, ...)`). It brings the Legs back to within 0.5 and the final to -6 to -14, the Body launch-owned-first stays at -10. Question: keep the design's rule, add the scatter clamp, or more?
 
+**Commit 10 (splash loss at the frame edge).**
+- `frame_rect` replaces `sky_rect` everywhere the splash decides a loss: `_splash` and its moves, `splash_preview`/`launch_splashes` (`_splash_chain`), and the splash intro. `StarSplash` itself is unchanged: its `sky` parameter is now the loss edge, and RunState passes the frame. The splash intro, which commit 8 left for this commit, now throws its demo planet `SPLASH_INTRO_IN` (22) px in from the frame's edge (`splash_intro_spot` scans `inner_rect(frame_rect)`). Its demo burst is clamped to the frame and scatters inside it. The wave intro still works on the whole sky, since it wipes half of it.
+- A lost star still drifts to where it was pushed and cuts out there. `SeamView.exit_point` clamps only at the sky's edge, so in a wide sky's outer columns the star cuts out at its destination. Only the function's comment changed.
+- The shade: on a seam stage with a splash (the Circlet has none), SeamView draws the same sparse S1 tile outside the frame and the drain's dotted S3 line along the frame's sides. The helpers moved out of CurrentView's drain code into shared statics (`outside_frame`, `frame_side_pixels`, `draw_frame_shade`, `shade_tile`), and the drain's `frame_shade_rects`/`frame_edge_pixels` now call them. As with commit 9, nobody has checked this in a capture yet.
+- Tests (`tests/test_wide_sky.gd`, `tests/test_wide_sky_views.gd`, 7 new):
+  - A push past the frame's side loses the star even though the sky goes on, and a star the push leaves in the frame moves on.
+  - A splash in the outer columns loses every star it pushes.
+  - The aim's preview marks the same losses.
+  - On the 9:16 sky the loss is at the sky's edge, as before.
+  - The intro throws from the frame's edge, keeps its demo stars by the figure and loses exactly one.
+  - The frame's sides are dotted on a wide splash stage. There is no shade and no dotted line without a splash or on the 9:16 sky.
+  - The identity guard is unchanged.
+- Reflect bot, 200 paired seeds, splash on. Wide = `--sky=640x360`, before = `ws-step4-base` (`162941aa`). Win % is portrait / wide before / wide after (after minus portrait). Lost a run counts the stars the splash and the wave took, portrait / wide before / wide after:
+
+| Stage | Policy | Win % | Lost a run |
+|---|---|---|---|
+| Knot | link-first | 100.0 / 100.0 / 100.0 (+0.0) | 1.13 / 0.81 / 0.82 |
+| Knot | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.00 / 0.00 / 0.00 |
+| Knot | naive | 91.0 / 96.5 / 91.0 (+0.0) | 2.76 / 0.97 / 2.60 |
+| Knot | careless | 100.0 / 100.0 / 100.0 (+0.0) | 1.60 / 1.05 / 1.13 |
+| Knot | launch-first | 100.0 / 100.0 / 100.0 (+0.0) | 1.39 / 1.29 / 1.29 |
+| East Cord | link-first | 96.5 / 96.5 / 96.5 (+0.0) | 2.07 / 1.87 / 1.93 |
+| East Cord | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.02 / 0.01 / 0.01 |
+| East Cord | naive | 91.5 / 95.0 / 94.5 (+3.0) | 2.76 / 1.67 / 2.15 |
+| East Cord | careless | 91.5 / 92.0 / 91.0 (-0.5) | 2.89 / 2.40 / 2.52 |
+| East Cord | launch-first | 94.0 / 93.5 / 93.5 (-0.5) | 1.86 / 1.66 / 1.72 |
+| North Fish | link-first | 100.0 / 100.0 / 100.0 (+0.0) | 1.92 / 1.94 / 1.94 |
+| North Fish | careful | 100.0 / 100.0 / 100.0 (+0.0) | 1.87 / 1.90 / 1.90 |
+| North Fish | naive | 24.0 / 30.0 / 28.5 (**+4.5**) | 8.00 / 7.72 / 7.73 |
+| North Fish | careless | 99.5 / 99.5 / 99.5 (+0.0) | 2.42 / 2.28 / 2.31 |
+| North Fish | launch-first | 82.5 / 82.5 / 82.5 (+0.0) | 6.45 / 6.45 / 6.45 |
+| Final | link-first | 93.0 / 94.5 / 94.5 (+1.5) | 6.34 / 6.13 / 6.19 |
+| Final | careful | 98.0 / 97.0 / 97.0 (-1.0) | 5.39 / 5.70 / 5.66 |
+| Final | naive | 26.5 / 36.5 / 31.0 (**+4.5**) | 13.03 / 13.08 / 13.42 |
+| Final | careless | 80.5 / 83.5 / 82.5 (+2.0) | 8.69 / 8.53 / 8.75 |
+| Final | launch-first | 3.0 / 3.0 / 3.0 (+0.0) | 9.32 / 9.33 / 9.34 |
+
+- Packs a win stay within 0.5 of portrait's on every row. The frame edge brings the wide splash losses back to portrait's level (Knot naive: 0.97 rises to 2.60, against 2.76 on portrait). Every policy that plays the seam is within ±3.
+- **Raised: "naive" stays +4.5 on the North Fish and the final.** The naive policy throws without regard to the seam, and both of these are wave stages. The commit blames the wave for the rest of the gap, not the splash: the wave still wipes half of the whole wide sky (§3). That split was not measured. Not addressed here.
+
+**Commit 11 (gravity `d_eff` cap).**
+- `StarGravity.frame` is set from `frame_rect` when the run builds its hole. `copy()` keeps it, so an intro's copy has it too. `step_at` divides the pull by `min(d, reach(hole))`, where `reach` is the distance from the hole to the farthest of the four corners of `inner_rect(frame)` (end corners at `end - 1`). With no frame set, there is no cap.
+- Differs from the plan: `reach` is worked out on every call from where the hole is now, not once per hole from the home frame. This keeps it right for the Legs' twins as they drift. On any 9:16 sky the frame is the sky and every star stands within the reach, so nothing changes there.
+- `pulls_to_swallow` (used for the hole intro's layout) counts with the same reach, measured from the main hole's centre. The hole intro's spots are still found around the hole, as commit 8 left them.
+- Tests (`tests/test_wide_sky.gd`, 5 new):
+  - A star out past the frame falls at the frame edge's rate, not at the slow uncapped rate.
+  - Inside the frame the pull is unchanged.
+  - On the portrait sky no star is past the reach.
+  - The reach follows the drifting twins.
+  - `pulls_to_swallow` counts with the reach.
+  - The identity guard is unchanged.
+- Gravity bot, 200 paired seeds, hole on, wide = `--sky=640x360`. The wide numbers before (`ws-step4-base`) and after this commit are identical, so the table has one wide column. Win % is portrait / wide (wide minus portrait). Swallowed a run is portrait / wide:
+
+| Stage | Policy | Win % | Swallowed a run |
+|---|---|---|---|
+| Hole trial | link-first | 41.0 / 41.0 (+0.0) | 9.23 / 9.23 |
+| Hole trial | launch-first | 7.0 / 6.5 (-0.5) | 9.54 / 9.52 |
+| Hole trial | archer | 99.5 / 100.0 (+0.5) | 2.97 / 2.88 |
+| Hole trial | archer-hoard | 86.0 / 86.0 (+0.0) | 6.43 / 6.37 |
+| Arrow | link-first | 97.0 / 97.0 (+0.0) | 4.50 / 4.51 |
+| Arrow | launch-first | 53.5 / 53.5 (+0.0) | 8.23 / 8.23 |
+| Arrow | archer | 100.0 / 100.0 (+0.0) | 3.03 / 2.90 |
+| Arrow | archer-hoard | 92.5 / 93.5 (+1.0) | 6.59 / 6.46 |
+| Bow | link-first | 89.5 / 92.0 (+2.5) | 7.64 / 7.28 |
+| Bow | launch-first | 45.5 / 52.0 (**+6.5**) | 9.94 / 9.70 |
+| Bow | archer | 100.0 / 100.0 (+0.0) | 2.59 / 1.98 |
+| Bow | archer-hoard | 85.0 / 95.5 (**+10.5**) | 7.35 / 6.34 |
+| Body | link-first | 51.0 / 50.5 (-0.5) | 10.83 / 10.87 |
+| Body | launch-first | 13.0 / 14.0 (+1.0) | 10.69 / 10.81 |
+| Body | archer | 100.0 / 99.5 (-0.5) | 3.66 / 3.74 |
+| Body | archer-hoard | 88.5 / 89.5 (+1.0) | 7.52 / 7.36 |
+| Legs | link-first | 54.0 / 55.5 (+1.5) | 7.05 / 6.95 |
+| Legs | launch-first | 0.0 / 0.0 (+0.0) | 4.09 / 4.10 |
+| Legs | archer | 97.0 / 97.0 (+0.0) | 2.09 / 1.94 |
+| Legs | archer-hoard | 0.0 / 0.0 (+0.0) | 4.72 / 4.72 |
+| Head | link-first | 33.5 / 33.5 (+0.0) | 8.78 / 8.79 |
+| Head | launch-first | 2.5 / 2.5 (+0.0) | 9.51 / 9.51 |
+| Head | archer | 98.0 / 98.0 (+0.0) | 1.24 / 1.29 |
+| Head | archer-hoard | 78.0 / 77.5 (-0.5) | 3.34 / 3.33 |
+| Final | link-first | 26.5 / 26.0 (-0.5) | 8.83 / 8.84 |
+| Final | launch-first | 0.0 / 0.0 (+0.0) | 8.76 / 8.76 |
+| Final | archer | 86.5 / 76.5 (**-10.0**) | 3.68 / 3.69 |
+| Final | archer-hoard | 0.0 / 0.0 (+0.0) | 6.06 / 6.05 |
+
+- Packs a win stay within 0.15 of portrait's. The cap changes no bot number, because the bot aims by the landmarks and its stars never stand past the frame's reach.
+- **Raised: three gaps over ±3 that existed before this commit**, so the cap didn't cause them:
+  - The Bow is easier on the wide sky: archer-hoard +10.5 and launch-first +6.5, with fewer stars swallowed (7.35 drops to 6.34, and 9.94 to 9.70).
+  - The final is harder for the archer: -10.0, with the same number of stars swallowed.
+  - Nobody has looked into the cause on this branch. Question: should these be investigated before the switch (commit 17), or accepted?
+
+**Commit 12 (ram charges against the frame).**
+- `frame_rect` replaces `sky_rect` in every `ram.charge` call (`_charge_ram`, `charge_preview`, the ram intro). It also replaces it in the intro's layout, burst and scatter (`ram_intro_layout`, `_ram_intro_burst`, `_ram_intro_round`), which commit 8 left for this commit. The ram stands at the frame's edge, and a star it carries past the frame's far side is lost even though the sky goes on.
+- Settled here: a star **behind** the ram (outside the frame on the ram's own side) is out of its way and stays (`StarCharge.behind(point, frame)`). A star ahead of the ram in its lane, out in the far outer columns, is carried on and lost. A ram charging down starts at the frame's top, which is the sky's top, so nothing can stand behind it.
+- ChargeView draws the head, pips, prints and dust against `frame_rect`. Its pixels are still cut to the sky. A lost star cuts out where it was butted, because `exit_point` clamps only at the sky's edge, like SeamView's. CurrentView now also draws the frame shade and the dotted S3 sides on a ram stage, which has no current. It draws them under the stars, since ChargeView sits above the stars. Nobody has checked this in a capture yet.
+- Tests (`tests/test_wide_sky.gd`, `tests/test_wide_sky_views.gd`, 7 new):
+  - The ram butts a star out past the frame's far side.
+  - A star the ram keeps in the frame is butted on.
+  - Charging down or from the right, the ram leaves alone whatever stands behind it.
+  - On the 9:16 sky the ram loses stars at the sky's edge, as before.
+  - The ram intro plays inside the frame.
+  - The ram and its lane are drawn within the frame.
+  - A wide ram stage shades the sky outside the frame and dots the frame's sides.
+  - The identity guard is unchanged.
+- Ram bot, 200 paired seeds, ram on. Wide = `--sky=640x360`, before = `ws-step4-base`. Win % is portrait / wide before / wide after (after minus portrait). Lost a run is portrait / wide before / wide after:
+
+| Stage | Policy | Win % | Lost a run |
+|---|---|---|---|
+| Horns | link-first | 100.0 / 100.0 / 100.0 (+0.0) | 2.52 / 0.00 / 2.52 |
+| Horns | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.26 / 0.00 / 0.26 |
+| Horns | careless | 95.0 / 100.0 / 95.0 (+0.0) | 3.77 / 0.04 / 3.76 |
+| Horns | launch-first | 86.0 / 100.0 / 86.0 (+0.0) | 6.42 / 0.01 / 6.42 |
+| Head | link-first | 48.0 / 100.0 / 48.0 (+0.0) | 8.37 / 0.20 / 8.37 |
+| Head | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.53 / 0.00 / 0.48 |
+| Head | careless | 30.5 / 96.5 / 30.5 (+0.0) | 10.07 / 0.71 / 10.07 |
+| Head | launch-first | 34.0 / 93.0 / 34.0 (+0.0) | 8.68 / 0.66 / 8.68 |
+| Fleece | link-first | 99.5 / 100.0 / 99.5 (+0.0) | 1.62 / 0.01 / 1.35 |
+| Fleece | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.36 / 0.01 / 0.34 |
+| Fleece | careless | 93.5 / 100.0 / 95.0 (+1.5) | 3.40 / 0.18 / 3.09 |
+| Fleece | launch-first | 100.0 / 100.0 / 99.5 (-0.5) | 1.11 / 0.10 / 1.08 |
+| Ram trial | link-first | 98.5 / 100.0 / 98.5 (+0.0) | 2.21 / 0.00 / 2.22 |
+| Ram trial | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.02 / 0.00 / 0.02 |
+| Ram trial | careless | 96.0 / 100.0 / 96.0 (+0.0) | 3.92 / 0.03 / 3.91 |
+| Ram trial | launch-first | 95.0 / 100.0 / 95.0 (+0.0) | 5.17 / 0.01 / 5.17 |
+
+- Before this commit, the wide ram ran 640 px to the sky's far edge and almost never lost a star, which made the Head up to 66 points easier. Now every wide number is within ±1.5 of portrait's. Packs a win match too, except on the Head careful row (3.92 portrait, 4.32 wide), where both skies win 100%.
+
+**Commit 13 (fish-cord ends snap to the sky edge).**
+- `_fish_cord` shifts the map's cord as before. Then each **end** whose home point lies on `HOME_SKY`'s left or right edge runs on along its arm (the segment leading into that end) to the same side of the sky (`_cord_end_to_side`, rounded to whole pixels). If the arm meets the sky's top or bottom first, the end stops there. Inner points don't move.
+- Narrower than the plan's "ends on a `HOME_SKY` edge": only the left and right edges count. An end on the home top or bottom stays where the shift puts it, as it already does on a tall phone. On a 9:16 sky the side is already where the end is, so nothing changes.
+- Example: on `WIDE_SKY` the cord trial's right end runs on from (179, 194) to (409, 246), so the cord still splits the outer columns. Its end on the home top stays at (166, 58), 20 px below the wide sky's top (y 38). Stars can therefore pass around that end through the strip above it, as on a tall phone today. Left as it is, since the plan covers only the sides.
+- Tests (`tests/test_wide_sky.gd`, 3 new):
+  - A side end runs on to the wide sky's side, and the cord crosses a step in the outer columns.
+  - An arm that reaches the top first stops there, on the arm's line.
+  - On the 9:16 sky and on `play_sky(102)`, the ends stay where they were.
+  - The identity guard is unchanged (it plays `cord_trial`).
+- No bot table: the cord trial is debug-only, and only `cord_trial` has a fish cord (`StarMap`), so no shipped stage moves.
+
 **Commit 14 (slingshot gain follows the sky).**
 - `Launcher.gain_for(launcher, sky)` is the spec's formula: `max(AIM_GAIN, ceili((far - MIN_REACH) / float(MAX_PULL - MIN_PULL)))`, `far` the distance from the launcher to the farthest of the four inner sky corners (`StarScatter.inner_rect`, end corner at `end - 1`, the same corners the clamp lands on). `setup(run)` stores it in `_gain` (`aim_gain()` reads it); `burst_preview` and the launch pass it to `aim_target(launcher, pull, gain = AIM_GAIN)`. AIM_GAIN, MIN_REACH and the pulls stay scene constants (aim feel, not balance).
 - The formula checked against the mapping: a full pull reaches `MIN_REACH + (MAX_PULL - MIN_PULL) * gain`, so the ceiling makes that at least `far`, and a pull shorter than full reaches every nearer point along the same direction; anything past the sky is clamped by the core as before. No adjustment needed.
 - Gains with the launcher at (90, 270): the 9:16 sky 9 (corner 201.4 px, a full pull 206); `WIDE_SKY` 18 (corner 384.1 px); a 1170x2532 phone (`play_sky(102, 7)`) 14 (299.5 px). The doc's "above about 30 rows" is loose: a top corner passes 206 px from about 6 extra rows (20 rows gives 10, 30 rows 11), so most tall phones get a slightly faster aim (Q2).
 - The telescope overrides `burst_preview` and aims at the touch, so it is unchanged. No bot or the identity guard uses the slingshot (they call `RunState.launch` with a target), so there is no bot table and the guard can't move.
 - Tests (`tests/test_launcher.gd`): the 9:16 sky keeps gain 9; every inner corner and edge midpoint of `WIDE_SKY` and of the tall phone's sky is within a full pull and the preview lands on it exactly (the tall phone's top corner was out of reach at gain 9); `gain_for` is the least gain reaching the farthest corner on four skies. Full suite 1469/1469.
-- Build notes for commits 10 to 13 are still missing from this section.
