@@ -92,12 +92,12 @@ Track 1 and track 2 run side by side (they don't touch the same files: the paint
 | 1 | 1 (wide sky) and 2 (Aquarius, Leo, Virgo from the drafts; Sagittarius and Pisces research briefs) | PRs, draft sheets for the user's verdict |
 | 2 | 4.1 export presets, Aries teaser lock | test builds on a phone and on desktop |
 | 3 | 2 (Sagittarius, Pisces) and 3 (review pass) | paintings, the punch list |
-| 4 | 3 (fixes), 4.2-4.4 (analytics, the unlock, Steam and its demo) | release candidate builds |
+| 4 | 3 (fixes), 4.2-4.4 (no analytics in release, the unlock, Steam and its demo) | release candidate builds |
 | 5 | 4.5 store assets | store pages ready |
 
 ## Open questions (the user's)
 
-Answered 2026-10-19: the price (chapter 1 free, then 1.99 EUR; a Steam demo with chapter 1), iPads use the wide sky, big monitors are my call (the biggest pixels), achievements are one per chapter completed, analytics stay on.
+Answered 2026-10-19: the price (chapter 1 free, then 1.99 EUR; a Steam demo with chapter 1), iPads use the wide sky, big monitors are my call (the biggest pixels), achievements are one per chapter completed (and analytics on, reversed below).
 
 Then: the part stages' paintings in the clean line (yes), no controller at first, **no analytics** in release, achievements on Steam only.
 
