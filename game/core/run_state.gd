@@ -929,10 +929,11 @@ func encounter_link() -> Array[int]:
 
 ## The hunt's encounter: a spot to launch the loaded pack at so its stars land clear of the circle
 ## (is_safe_launch), near where it helps: the first unlit constellation star that's safe (in map
-## order), else the safe spot of the inner sky nearest the first unlit one, else the spot furthest
-## from the circle.
+## order), else the safe spot of the inner frame nearest the first unlit one, else the spot furthest
+## from the circle. It scans the run's frame only (the sky on a 9:16 sky), so the guide stays by the
+## figure.
 func safe_launch_spot() -> Vector2i:
-	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(frame_rect)
 	if hunt == null or not hunt.has_area():
 		return inner.get_center()
 	var goal: Vector2i = inner.get_center()
@@ -964,10 +965,11 @@ func safe_launch_spot() -> Vector2i:
 
 ## The guided run's launch spot (#148): an aim whose stars land in open sky, away from the
 ## constellation and the stars already out, so the new ones read as new. Every point the loaded
-## pack bursts at keeps its scatter ring inside the inner sky and below `top` (the guide's line).
-## Of the spots OPEN_CLEARANCE clear, the one nearest the sky's centre; else the clearest.
+## pack bursts at keeps its scatter ring inside the inner frame (the run's frame: the sky on a 9:16
+## sky, by the figure on a wide one) and below `top` (the guide's line). Of the spots OPEN_CLEARANCE
+## clear, the one nearest the frame's centre; else the clearest.
 func open_launch_spot(top: int) -> Vector2i:
-	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(frame_rect)
 	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
 	var pack: Balance.PackDef = balance.packs[kind]
 	var reach := Vector2i(StarScatter.RING_MAX, ceili(StarScatter.RING_MAX * StarScatter.RING_SQUASH))
@@ -1384,7 +1386,7 @@ func gauge_intro_spots() -> Array[Vector2i]:
 	var spots: Array[Vector2i] = []
 	if gravity == null:
 		return spots
-	var inner: Rect2i = StarScatter.inner_rect(sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(frame_rect)
 	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
 	var middle: Vector2i = _open_middle()
 	for dy: int in [0, 16, -16, 32, -32, 48, -48, 64]:
@@ -1674,7 +1676,7 @@ func play_reflect_intro() -> void:
 	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ REFLECT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
-	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, [] as Array[Vector2i], layout, scorpio.landmark_positions())
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, frame_rect, [] as Array[Vector2i], layout, scorpio.landmark_positions())
 	var born: Array[Star] = []
 	for i: int in spots.size():
 		born.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
@@ -2204,7 +2206,7 @@ func play_volley_intro() -> void:
 	if volley == null or volley.intro_stars <= 0 or not scorpio.map.intros or not stars.is_empty() or is_over():
 		return
 	var sizes: Array[int] = volley.intro_sizes(volley.intro_stars)
-	var spots: Array[Vector2i] = volley.intro_spots(StarScatter.inner_rect(sky_rect), frame_rect.position)
+	var spots: Array[Vector2i] = volley.intro_spots(StarScatter.inner_rect(frame_rect), frame_rect.position)
 	var placed: Array[Star] = []
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ Volley.SEED_SALT ^ LAYOUT_SEED_SALT
@@ -2213,7 +2215,7 @@ func play_volley_intro() -> void:
 		var occupied: Array[Vector2i] = []
 		for star: Star in placed:
 			occupied.append(star.position)
-		for p: Vector2i in StarScatter.place(count, spots[spot], sky_rect, occupied, layout, scorpio.landmark_positions()):
+		for p: Vector2i in StarScatter.place(count, spots[spot], frame_rect, occupied, layout, scorpio.landmark_positions()):
 			placed.append(add_star(sizes[placed.size()] as Star.Size, p))
 	volley_intro_placed.emit(placed)
 	for star: Star in placed:
@@ -2249,7 +2251,7 @@ func play_heat_intro() -> void:
 		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ HEAT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
-	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), _open_middle(), sky_rect, [], layout, scorpio.landmark_positions())
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), _open_middle(), frame_rect, [], layout, scorpio.landmark_positions())
 	# As they were placed: the heat changes the stars themselves before the views show them.
 	var shown: Array[Star] = []
 	for i: int in spots.size():
@@ -2289,7 +2291,7 @@ func _breath_intro() -> void:
 	layout.seed = run_seed ^ HEAT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
 	var sizes: Array[Star.Size] = BREATH_INTRO_LINK.duplicate()
 	sizes.append_array(HEAT_INTRO_SIZES)
-	var spots: Array[Vector2i] = StarScatter.place(sizes.size(), _open_middle(), sky_rect, [], layout, scorpio.landmark_positions())
+	var spots: Array[Vector2i] = StarScatter.place(sizes.size(), _open_middle(), frame_rect, [], layout, scorpio.landmark_positions())
 	var shown: Array[Star] = []
 	for i: int in spots.size():
 		var star: Star = add_star(sizes[i], spots[i])
@@ -2318,11 +2320,12 @@ func _breath_intro() -> void:
 		heat_intro_cleared.emit(left)
 
 
-## The spot nearest the sky's middle at least HEAT_INTRO_CLEARANCE from every constellation star and
-## string (the middle itself when it's clear); where no spot is (the Mane's figure fills the sky),
-## the spot furthest from them. Its scatter ring stays inside the sky.
+## The spot nearest the frame's middle at least HEAT_INTRO_CLEARANCE from every constellation star
+## and string (the middle itself when it's clear); where no spot is (the Mane's figure fills the
+## sky), the spot furthest from them. Its scatter ring stays inside the frame (the run's frame: the
+## sky on a 9:16 sky), so the intros it places play by the figure.
 func _open_middle() -> Vector2i:
-	var inner: Rect2i = StarScatter.inner_rect(sky_rect).grow(-StarScatter.RING_MAX)
+	var inner: Rect2i = StarScatter.inner_rect(frame_rect).grow(-StarScatter.RING_MAX)
 	var middle: Vector2i = inner.get_center()
 	var landmarks: Array[Vector2i] = scorpio.landmark_positions()
 	var strings: Array[Array] = []
@@ -2510,7 +2513,7 @@ func current_intro_spots() -> Array[Vector2i]:
 	var spots: Array[Vector2i] = []
 	if current == null:
 		return spots
-	var area: Rect2i = current.region.intersection(StarScatter.inner_rect(sky_rect))
+	var area: Rect2i = current.region.intersection(StarScatter.inner_rect(frame_rect))
 	var way := Vector2i(signi(current.displacement.x), signi(current.displacement.y))
 	var step: int = maxi(absi(current.displacement.x), absi(current.displacement.y))
 	if not area.has_area() or step <= 0:
@@ -2534,7 +2537,7 @@ func current_intro_spots() -> Array[Vector2i]:
 				break
 			var at: Vector2i = edge - way * upstream
 			at = at - at * across + across * (line + CURRENT_INTRO_ACROSS[k])
-			row.append(StarScatter.clamp_to_sky(at, sky_rect))
+			row.append(StarScatter.clamp_to_sky(at, frame_rect))
 		var path: Array[Vector2i] = []
 		for at: Vector2i in row:
 			for pulse: int in CURRENT_INTRO_PULSES + 1:
@@ -2592,7 +2595,7 @@ func play_harvest_intro() -> void:
 		for demo: Array in [[near, false], [far, true]]:
 			var index: int = demo[0]
 			var size: Star.Size = scorpio.map.sizes[index] as Star.Size
-			var spots: Array[Vector2i] = StarScatter.place(2, scorpio.landmark_position(index), sky_rect, [], layout, scorpio.landmark_positions())
+			var spots: Array[Vector2i] = StarScatter.place(2, scorpio.landmark_position(index), frame_rect, [], layout, scorpio.landmark_positions())
 			var pair: Array[Star] = [add_star(size, spots[0]), add_star(size, spots[1])]
 			harvest_intro_placed.emit(pair.duplicate())
 			var ordered: Array[Star] = _chain_order([pair[0], pair[1], scorpio.landmark_star(index)] as Array[Star])
@@ -2616,21 +2619,21 @@ func play_harvest_intro() -> void:
 	# the demo's stars leave.
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ HARVEST_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
-	var middle: Vector2i = StarScatter.inner_rect(sky_rect).get_center()
-	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), middle + HARVEST_INTRO_STANDING, sky_rect, [], layout, scorpio.landmark_positions())
+	var middle: Vector2i = StarScatter.inner_rect(frame_rect).get_center()
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), middle + HARVEST_INTRO_STANDING, frame_rect, [], layout, scorpio.landmark_positions())
 	var shown: Array[Star] = []
 	for i: int in spots.size():
 		shown.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
 	# The stage opens on the clock's last ear (playtest), the stars standing.
 	harvest_intro_clock.emit(1)
 	harvest_intro_placed.emit(shown.duplicate())
-	var burst: Vector2i = StarScatter.clamp_to_sky(middle + HARVEST_INTRO_BURST, sky_rect)
+	var burst: Vector2i = StarScatter.clamp_to_sky(middle + HARVEST_INTRO_BURST, frame_rect)
 	hunt_intro_launched.emit("blue", burst)
 	for star: Star in shown:
 		stars.erase(star)
 	harvested.emit(shown)
 	var landed: Array[Star] = []
-	for p: Vector2i in StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, [], layout, scorpio.landmark_positions()):
+	for p: Vector2i in StarScatter.place(HEAT_INTRO_SIZES.size(), burst, frame_rect, [], layout, scorpio.landmark_positions()):
 		landed.append(add_star(HEAT_INTRO_SIZES[landed.size()], p))
 	hunt_intro_burst.emit(burst, landed.duplicate())
 	harvest_intro_clock.emit(harvest.every)
@@ -2704,7 +2707,7 @@ func play_hunt_intro() -> void:
 		return
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ Hunt.SEED_SALT ^ LAYOUT_SEED_SALT
-	var centre: Vector2i = hunt.mark(sky_rect, frame_rect.position, [] as Array[Star], _unlit_positions())
+	var centre: Vector2i = hunt.mark(frame_rect, frame_rect.position, [] as Array[Star], _unlit_positions())
 	var placed: Array[Star] = _hunt_intro_stars(balance.hunt_intro_stars, centre, layout)
 	hunt_intro_placed.emit(placed)
 	area_marked.emit(centre, hunt.radius)
@@ -2722,7 +2725,7 @@ func _hunt_intro_stars(count: int, centre: Vector2i, layout: RandomNumberGenerat
 	for star: Star in stars:
 		occupied.append(star.position)
 	var sizes: Array[int] = hunt.intro_sizes(count)
-	var spots: Array[Vector2i] = StarScatter.place(count, centre, sky_rect, occupied, layout, scorpio.landmark_positions())
+	var spots: Array[Vector2i] = StarScatter.place(count, centre, frame_rect, occupied, layout, scorpio.landmark_positions())
 	var placed: Array[Star] = []
 	for i: int in count:
 		var spot: Vector2i = spots[i]

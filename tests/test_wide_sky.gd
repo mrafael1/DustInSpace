@@ -96,3 +96,75 @@ func test_the_volley_intro_keeps_off_the_frames_corner() -> void:
 		var volley := Volley.new(3, 0.5, seed_value)
 		for spot: Vector2i in volley.intro_spots(inner, frame):
 			assert_false(_figure(frame, Volley.INTRO_CLEAR).has_point(spot), "%s clear of his figure" % spot)
+
+
+# --- Intros and guide spots play by the figure -------------------------------------------------
+
+## Every map with an intro that commit 8 limits to the frame (the splash, wave and ram intros follow
+## their own edge rules; the hole's stands round the hole).
+const INTRO_MAPS: Array[String] = [
+	"body", "heart", "claws", "final",
+	"aquarius_hand", "aquarius_body", "aquarius_stream", "aquarius_jar", "aquarius_final",
+	"leo_tail", "leo_haunch", "leo_heart", "leo_mane", "leo_head",
+	"virgo_head", "virgo_wing", "virgo_robe", "virgo_feet", "virgo_wheat",
+	"sagittarius_arrow", "sagittarius_bow", "sagittarius_body", "sagittarius_legs", "sagittarius_head",
+	"pisces_circlet", "pisces_west_cord",
+]
+
+
+func test_the_intros_place_their_demo_stars_inside_the_frame() -> void:
+	for map_id: String in INTRO_MAPS:
+		for seed_value: int in range(1, 6):
+			_check_intros_in_frame(map_id, seed_value)
+
+
+func _check_intros_in_frame(map_id: String, seed_value: int) -> void:
+	var run := RunState.new(Balance.load_file(), Fixtures.rng(seed_value), Fixtures.WIDE_SKY, StarMap.by_id(map_id))
+	var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+	var seen: Array[Vector2i] = []
+	var record: Callable = func(placed: Array[Star]) -> void:
+		for star: Star in placed:
+			seen.append(star.position)
+	for name: StringName in [&"volley_intro_placed", &"hunt_intro_placed", &"heat_intro_placed", &"harvest_intro_placed", &"current_intro_placed", &"gauge_intro_placed"]:
+		run.connect(name, record)
+	run.hunt_intro_burst.connect(func(_at: Vector2i, placed: Array[Star]) -> void: record.call(placed))
+	run.play_volley_intro()
+	run.play_hunt_intro()
+	run.play_heat_intro()
+	run.play_harvest_intro()
+	run.play_current_intro()
+	run.play_gauge_intro()
+	if run.splash == null and run.wave == null:
+		run.play_reflect_intro()
+	for at: Vector2i in seen:
+		assert_true(inner.has_point(at), "%s: demo star at %s inside the frame %s" % [map_id, at, inner])
+
+
+func test_the_hunt_intros_circle_stands_in_the_frame() -> void:
+	for seed_value: int in range(1, 11):
+		var run := RunState.new(Balance.load_file(), Fixtures.rng(seed_value), Fixtures.WIDE_SKY, StarMap.heart())
+		var circles: Array[Vector2i] = []
+		run.area_marked.connect(func(at: Vector2i, _radius: int) -> void: circles.append(at))
+		run.play_hunt_intro()
+		assert_eq(circles.size(), 1)
+		for at: Vector2i in circles:
+			assert_true(run.frame_rect.grow(-run.hunt.radius).has_point(at), "%s wholly inside the frame" % at)
+
+
+func test_the_guide_spots_and_open_middle_stay_in_the_frame() -> void:
+	for map_id: String in ["tail", "heart", "leo_mane", "virgo_wheat", "pisces_circlet"]:
+		var run := RunState.new(Balance.load_file(), Fixtures.rng(6), Fixtures.WIDE_SKY, StarMap.by_id(map_id))
+		var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+		assert_true(inner.has_point(run.open_launch_spot(run.sky_rect.position.y)), "%s: the guided launch by the figure" % map_id)
+		assert_true(inner.has_point(run.safe_launch_spot()), map_id)
+		assert_true(inner.has_point(run._open_middle()), map_id)
+
+
+func test_a_hunted_wide_runs_safe_spot_is_in_the_frame() -> void:
+	var run := RunState.new(Fixtures.balance(), Fixtures.rng(), Fixtures.WIDE_SKY)
+	run.hunt = Hunt.new(38, run.run_seed)
+	run.hunt.mark(run.sky_rect, run.frame_rect.position)
+	run.hunt.centre = run.figure_middle()
+	var spot: Vector2i = run.safe_launch_spot()
+	assert_true(run.is_safe_launch(spot))
+	assert_true(StarScatter.inner_rect(run.frame_rect).has_point(spot), "%s: the frame is scanned, not the 640 columns" % spot)
