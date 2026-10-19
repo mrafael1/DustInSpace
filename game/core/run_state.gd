@@ -391,6 +391,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.black_hole and hole.pull > 0:
 			var hunger: int = hole.hunger if scorpio.map.black_hole_hungry else 0
 			gravity = StarGravity.new(scorpio.map.black_hole_center + scorpio.shift, hole.horizon, hole.pull, hole.max_step, hunger, hole.max_horizon)
+			gravity.frame = frame_rect
 			if scorpio.map.black_hole_twins:
 				gravity.add_twin(scorpio.map.black_hole_twin + scorpio.shift, hole.drift, hole.merge_horizon)
 			if scorpio.map.black_hole_gauge and hole.gauge > 0:

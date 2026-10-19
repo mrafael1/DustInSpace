@@ -302,3 +302,75 @@ func test_the_splash_intro_throws_by_the_frames_edge() -> void:
 	for star: Star in placed:
 		assert_true(inner.has_point(star.position), "demo star %s by the figure" % star.position)
 	assert_eq(lost.size(), 1, "the splash pushes the edge one out of the frame")
+
+
+# --- The black hole's pull: d_eff = min(d, reach) -----------------------------------------------
+
+const HOLE_MAPS: Array[String] = ["black_hole_trial", "sagittarius_arrow", "sagittarius_bow", "sagittarius_body", "sagittarius_legs", "sagittarius_head", "sagittarius_final"]
+
+
+func _hole_run(map_id: String, sky: Rect2i = Fixtures.WIDE_SKY) -> RunState:
+	var map: StarMap = StarMap.by_id(map_id) if map_id != "black_hole_trial" else StarMap.black_hole_trial()
+	return RunState.new(Balance.load_file(), Fixtures.rng(1), sky, map)
+
+
+func _uncapped(hole: StarGravity, point: Vector2i) -> int:
+	var free: StarGravity = hole.copy()
+	free.frame = Rect2i()
+	return free.step_at(point)
+
+
+func test_a_star_out_past_the_frame_falls_at_the_frame_edges_rate() -> void:
+	var run: RunState = _hole_run("sagittarius_arrow")
+	var hole: StarGravity = run.gravity
+	assert_eq(hole.frame, run.frame_rect)
+	var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+	var far: float = hole.reach(hole.center)
+	assert_gt(far, 0.0)
+	var out := Vector2i(Fixtures.WIDE_SKY.position.x + 10, hole.center.y)
+	assert_false(inner.has_point(out))
+	assert_eq(hole.step_at(out), clampi(roundi(hole.pull / far), 1, hole.max_step), "reckoned at the reach")
+	assert_gt(hole.step_at(out), _uncapped(hole, out), "faster than its own distance would give")
+
+
+func test_inside_the_frame_the_pull_is_unchanged() -> void:
+	var run: RunState = _hole_run("sagittarius_bow")
+	var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+	for x: int in range(inner.position.x, inner.end.x, 9):
+		for y: int in range(inner.position.y, inner.end.y, 9):
+			var at := Vector2i(x, y)
+			assert_eq(run.gravity.step_at(at), _uncapped(run.gravity, at), "%s" % at)
+
+
+func test_on_the_portrait_sky_no_star_is_past_the_reach() -> void:
+	for sky: Rect2i in [Fixtures.SKY, ScreenZones.play_sky(102)]:
+		for map_id: String in HOLE_MAPS:
+			var run: RunState = _hole_run(map_id, sky)
+			var inner: Rect2i = StarScatter.inner_rect(sky)
+			for hole: Vector2i in run.gravity.centers:
+				for corner: Vector2i in [inner.position, Vector2i(inner.end.x - 1, inner.position.y), Vector2i(inner.position.x, inner.end.y - 1), inner.end - Vector2i.ONE]:
+					assert_lte(Vector2(hole).distance_to(Vector2(corner)), run.gravity.reach(hole) + 0.001, "%s %s" % [map_id, sky])
+				assert_eq(run.gravity.step_at(inner.position), _uncapped(run.gravity, inner.position))
+
+
+func test_the_reach_follows_drifting_twins() -> void:
+	var run: RunState = _hole_run("sagittarius_legs")
+	var hole: StarGravity = run.gravity
+	assert_true(hole.has_twins())
+	var before: float = hole.reach(hole.centers[0])
+	hole.drift_holes()
+	assert_ne(hole.reach(hole.centers[0]), before, "reckoned from where the hole is now")
+	assert_eq(hole.copy().frame, hole.frame, "an intro's copy keeps the frame")
+
+
+func test_pulls_to_swallow_counts_with_the_reach() -> void:
+	var run: RunState = _hole_run("sagittarius_arrow")
+	var hole: StarGravity = run.gravity
+	var far: int = ceili(hole.reach(hole.center)) + 120
+	assert_lt(hole.pulls_to_swallow(far, 40), _free_pulls(hole, far), "a far star comes in at the reach's rate")
+
+
+func _free_pulls(hole: StarGravity, distance: int) -> int:
+	var free: StarGravity = hole.copy()
+	free.frame = Rect2i()
+	return free.pulls_to_swallow(distance, 40)

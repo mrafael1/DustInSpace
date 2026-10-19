@@ -15,6 +15,9 @@ extends RefCounted
 ## A hole with a light gauge (set_gauge) drinks `gauge_share` percent of each link's light (rounded
 ## down; the rest goes to the Sun); when `absorbed` reaches `capacity` it's full (the run plays it as
 ## a Big Bang) and empties.
+## A wide sky (docs/wide_sky_design.md §3): with a `frame` set, a star falls as if it stood no
+## further from its hole than the inner frame's farthest corner (reach), so stars out past the frame
+## fall at the frame edge's rate. Every star on a 9:16 sky is within that reach: nothing changes there.
 ## No randomness, nodes or rewards. Existing destinations can be reserved before a burst, so newly
 ## arriving stars never invalidate the aiming preview (as StarCurrent's).
 
@@ -66,6 +69,9 @@ var merge_horizon: int = 0
 var capacity: int = 0
 var gauge_share: int = 0
 var absorbed: int = 0
+## The run's frame (RunState.frame_rect): the falls are reckoned within its inner rect's reach. Unset
+## (no area): no cap.
+var frame: Rect2i = Rect2i()
 
 
 func _init(p_center: Vector2i, p_horizon: int, p_pull: int, p_max_step: int, p_hunger: int = 0, p_max_horizon: int = 0) -> void:
@@ -134,6 +140,7 @@ func copy() -> StarGravity:
 	twin.capacity = capacity
 	twin.gauge_share = gauge_share
 	twin.absorbed = absorbed
+	twin.frame = frame
 	return twin
 
 
@@ -205,12 +212,26 @@ func nearest(point: Vector2i) -> int:
 	return best
 
 
-## How far a star at `point` falls on a launch (0 at a hole itself, or with no pull).
+## How far a star at `point` falls on a launch (0 at a hole itself, or with no pull). Its distance
+## counts at most the hole's reach (d_eff = min(d, reach)).
 func step_at(point: Vector2i) -> int:
-	var distance: float = Vector2(point).distance_to(Vector2(centers[nearest(point)]))
+	var hole: Vector2i = centers[nearest(point)]
+	var distance: float = Vector2(point).distance_to(Vector2(hole))
 	if distance <= 0.0 or pull <= 0:
 		return 0
-	return clampi(roundi(pull / distance), 1, max_step)
+	return clampi(roundi(pull / minf(distance, reach(hole))), 1, max_step)
+
+
+## How far from a hole at `hole` a star's distance counts: to the inner frame's farthest corner
+## (INF without a frame). Worked out from where the hole is now, so drifting twins keep it right.
+func reach(hole: Vector2i) -> float:
+	if not frame.has_area():
+		return INF
+	var inner: Rect2i = StarScatter.inner_rect(frame)
+	var far: float = 0.0
+	for corner: Vector2i in [inner.position, Vector2i(inner.end.x - 1, inner.position.y), Vector2i(inner.position.x, inner.end.y - 1), inner.end - Vector2i.ONE]:
+		far = maxf(far, Vector2(hole).distance_to(Vector2(corner)))
+	return far
 
 
 ## Whether a star at `point` is inside a horizon (swallowed).
@@ -225,10 +246,11 @@ func inside(point: Vector2i) -> bool:
 ## in and unblocked (the hole not growing), at most `limit` (more: limit + 1).
 func pulls_to_swallow(distance: int, limit: int = 8) -> int:
 	var r: float = distance
+	var far: float = reach(center)
 	for k: int in range(1, limit + 1):
 		if pull <= 0:
 			break
-		var step: int = clampi(roundi(pull / r), 1, max_step) if r > 0.0 else 0
+		var step: int = clampi(roundi(pull / minf(r, far)), 1, max_step) if r > 0.0 else 0
 		if r - step <= horizon:
 			return k
 		r -= step
