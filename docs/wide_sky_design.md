@@ -62,8 +62,8 @@ static func play_sky(rows: int, side: int = 0) -> Rect2i:
 |---|---|---|
 | Scatter, launch clamp, split points, link press | Follow `sky_rect`. No change. | `star_scatter.gd`, `run_state.launch`, `sky.gd:572` |
 | Orion mark, volley pick, heat, breath, scythe, binding | Position-free, so they already act on the whole width. No change. | `orion.gd`, `volley.gd`, `star_heat.gd`, `star_harvest.gd` |
-| Orion's corner | ⚠ Anchored to the frame's top-left, not the sky's, so he stands by the constellation. `Hunt.mark` and `Volley.intro_spots` take an explicit `corner: Vector2i` (= `frame_rect.position`). | `hunt.gd:71`, `volley.gd:69`, `run_state.gd:863,2177,2677` |
-| Hunt circle | ⚠ Radius 38 is unchanged and the circle may land anywhere in the sky (it is placed round a random loose star). Risk: players spread stars wider, so each strike hits fewer stars as collateral. Measure with the hunt bot. Q3 covers what to do if strike coverage falls more than 10%. | `hunt.gd` |
+| Orion's corner | ⚠ Anchored to the frame's top-left, not the sky's, so he stands by the constellation. `Volley.intro_spots` takes an explicit `corner: Vector2i` (= `frame_rect.position`); `Hunt.mark` takes the frame itself and uses its top-left (since commit 7b). | `hunt.gd:71`, `volley.gd:69`, `run_state.gd:863,2177,2677` |
+| Hunt circle | ⚠ Radius 38 is unchanged. The circle stays wholly inside the frame (`Hunt.mark(frame_rect, ...)`), so on a wide sky it lands by the constellation as on a phone; a loose star outside the frame is never circled (the user, 2026-10-19, Q3). | `hunt.gd`, `run_state.gd:881` |
 | Seam, reflect, wave | Use `seam_middle()`. The halves extend across the whole width, and a wave still wipes exactly half the sky. A symmetric sky means the mirror of any aim lands on the sky. | see §2 |
 | Current regions | ⚠ `_stage_area` (1574) also stretches sideways: a region with `end.x >= HOME_SKY.end.x` runs to `sky_rect.end.x`, and one with `position.x <= HOME_SKY.position.x` runs to `sky_rect.position.x`. On a 180-wide sky this does nothing. This fixes the Hand, Body and Legs. | `run_state.gd:1574`, comment at `star_map.gd:420` |
 | Still strips on drain stages | ⚠ **Frame-edge rule:** on stages with a drain (Body, Legs, Stream, Jar, final box), a star outside `frame_rect` counts as drained at the next flow step. Portrait has no area outside the frame, so it is identical there. The preview ring already marks these stars red through `burst_drains_at`. | `StarCurrent.leaves(p, frame)` |
@@ -173,7 +173,8 @@ static func play_sky(rows: int, side: int = 0) -> Rect2i:
 - **Q4 frame edge:** on drain, splash and ram stages, a star carried past the frame's sides is lost, as at a phone's sky edge; the sky outside the frame is shaded on those stages.
 - **Q5 HUD:** the dust counter, planet slots and telescope stay a centred 180 px cluster; the corners go to the screen corners as today.
 - **Q2 slingshot:** its reach follows the sky everywhere, tall phones included (they gain today's unreachable corners).
-- Defaults taken (flagged in the PRs): **Q1** desktop minimum window 1280x720, the run keeps its sky and the game pauses until it fits; **Q3** measure the hunt with its bot first, and ask if strike coverage falls more than 10%; **Q6** the chart's neighbours drawn dimmed, not tappable; **Q7** the play sky caps at 640, the chart and title show more on ultrawide; **Q8** no decorative stars over the play sky; **Q9** the iPad's landscape sky follows the same rules.
+- **Q3 hunt circle:** "hunt should keep its circle inside the frame to prevent the stage from being too easy": the hunting circle stays wholly inside the frame (commit 7b). It was a default (measure first, ask past a 10% fall in strike coverage); commit 7's bot numbers went past it.
+- Defaults taken (flagged in the PRs): **Q1** desktop minimum window 1280x720, the run keeps its sky and the game pauses until it fits; **Q6** the chart's neighbours drawn dimmed, not tappable; **Q7** the play sky caps at 640, the chart and title show more on ultrawide; **Q8** no decorative stars over the play sky; **Q9** the iPad's landscape sky follows the same rules.
 
 ## Build notes
 
@@ -217,6 +218,29 @@ Where the build differs from the plan above, or settles a detail it left open.
 **Commit 7 (Orion anchored to the frame).**
 - `Hunt.mark(sky, corner, loose, avoid)` and `Volley.intro_spots(inner, corner)`: the corner is the second, required parameter (the tests' calls pass `Fixtures.SKY.position`). `OrionView.setup` takes the frame rect itself (its top and bottom are the sky's), so the arrow row, its fall and the figure follow it without more changes. `Hud.encounter_block` works within `frame_rect`.
 - **Q3, raised.** The hunt bot shows the hunting circle spreading over the wider sky: on the Heart, Claws and final, circles over the figure fall from 28-48% (portrait) to 6-17% (wide), stars struck a run by 26-72%, and wide win rates rise by 10-22 points (e.g. Heart naive 84.7 → 95.0, final careful 13.7 → 35.7). This commit itself moves the wide numbers by at most a few points; the gap comes from the circle being placed "as far off the constellation as the sky allows". Over the 10% line, so a question: should `Hunt.mark` keep its circles within the frame (or the frame grown by a radius)?
+
+**Commit 7b (hunting circle in the frame).**
+- The user, 2026-10-19, on Q3: "hunt should keep its circle inside the frame to prevent the stage from being too easy".
+- Reading taken: the **whole circle** stays inside the frame (its centre in `frame_rect.grow(-radius)`), not just its centre. That is what `Hunt.mark` already did against the sky, so on the 9:16 sky (frame = sky) it is identical; a centre-only reading would have let portrait circles hang over the sky's edge. A loose star outside the frame is passed over as prey (no circle in the frame can cover it); with no reachable prey the circle goes anywhere in the frame, as before.
+- `Hunt.mark(frame, loose, avoid)`: the separate `corner` parameter is gone, Orion's corner is the frame's top-left. Both call sites (the launch's mark and the hunt intro, which already passed the frame since commit 8) pass `frame_rect`. OrionView's arrow row and figure, the encounter line and `safe_launch_spot` already worked from the frame or the circle's centre, so nothing else changed.
+- Tests (`tests/test_wide_sky.gd`): a star in the wide sky's corner is not circled; Orion's corner kept clear; on `WIDE_SKY` 200 seeds of random loose stars over the whole width all give a circle wholly inside the frame; 20 wide Heart runs launching into the outer columns mark every circle inside the frame; on the 9:16 sky the frame is the sky and the mark matches. Full suite 1465/1465, identity guard unchanged.
+- Hunt bot, 300 paired seeds per stage, wide = `--sky=640x360` (play sky 640x212). Portrait numbers are unchanged from commit 7. Win % / circles over the figure % / stars struck a run:
+
+| Stage | Policy | Portrait | Wide, commit 7 | Wide, 7b |
+|---|---|---|---|---|
+| Tail | naive | 100.0 / 0 / 0 | 100.0 / 0 / 0 | 100.0 / 0 / 0 |
+| Tail | careful | 100.0 / 0 / 0 | 100.0 / 0 / 0 | 100.0 / 0 / 0 |
+| Body | naive | 73.0 / 0 / 0 | 73.0 / 0 / 0 | 73.0 / 0 / 0 |
+| Body | careful | 73.0 / 0 / 0 | 73.0 / 0 / 0 | 73.0 / 0 / 0 |
+| Heart | naive | 84.7 / 28.2 / 6.40 | 95.0 / 8.2 / 4.75 | 88.3 / 18.8 / 5.44 |
+| Heart | careful | 97.0 / 30.7 / 2.20 | 99.3 / 7.3 / 0.96 | 98.0 / 17.4 / 1.48 |
+| Claws | naive | 79.7 / 30.1 / 6.34 | 93.7 / 6.0 / 4.91 | 85.0 / 20.4 / 5.80 |
+| Claws | careful | 93.0 / 35.8 / 3.10 | 99.3 / 7.2 / 1.03 | 97.7 / 24.6 / 1.81 |
+| Final | naive | 4.7 / 42.2 / 8.17 | 12.7 / 12.5 / 5.85 | 8.7 / 22.2 / 6.75 |
+| Final | careful | 13.7 / 48.0 / 5.30 | 35.7 / 17.1 / 1.49 | 32.3 / 28.3 / 2.38 |
+
+- The gap closes by roughly half to two thirds on the Heart and Claws, but wide is still easier than portrait by +1 to +5 points there, +4 on the final naive and **+18.6 on the final careful** (over §6's ±3). The rest of the gap: stars launched into the outer columns are now never struck (the careful bot aims clear of the circle and often lands them there), and the circle still sits "as far off the constellation as the frame allows". Not addressed here; options if it should close further: on hunt stages, also shrink the launch clamp or the scatter to the frame, or let the circle's prey include stars outside the frame with the circle clamped to the frame grown by a radius.
+- `sim.py` is unchanged: it models stars spread evenly over the sky, so its circle share (circle area over the sky's inner area) doesn't see where the circle is placed.
 
 **Commit 8 (intros and guide spots in the frame).**
 - Limited to the frame: the volley, hunt (its circle too: `hunt.mark(frame_rect, ...)`), heat, breath, harvest, gauge, current and plain reflection intros, `_open_middle`, `open_launch_spot` and `safe_launch_spot`. `open_launch_spot` still computes a red's split points on the sky, as the launch does, and keeps those inside the frame.
