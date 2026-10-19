@@ -6,7 +6,7 @@ extends Node2D
 ## Look (the approved step A mock-up, ram A): a pale frontal ram's head with curled horns (M6, M4,
 ## M5, ember eyes), its left edge a pixel in from the sky's, the lane row through its muzzle. Under
 ## it, one hoof pip per launch of the clock: a lit one (a launch still to come before the charge) is
-## a filled M6 cloven pair, a spent one an M4 outline. The lane shows as a sparse track of cloven
+## a filled M6 cloven pair, a spent one an M4 outline (no pips when it charges after every launch). The lane shows as a sparse track of cloven
 ## hoof prints (N7) every PRINT_STEP px just outside its top and bottom edges, the two rows
 ## staggered, with no line; a print within PRINT_PAD px of a star is left out.
 ## While the next launch charges and nothing is playing (`settled`), the charge's outcome shows on
@@ -27,23 +27,29 @@ extends Node2D
 
 ## The ram's head, frontal: H horn light, h horn dark, F face, f face shade, E eye, n nostril.
 const HEAD: Array[String] = [
-	"..hhhh.....hhhh..",
-	".hHHHHh...hHHHHh.",
-	"hHh..hHhFhHh..hHh",
-	"hH...hHFFFHh...Hh",
-	"hH.hHhfFFFfhHh.Hh",
-	".hHHh.EFFFE.hHHh.",
-	"..hh..fFFFf..hh..",
-	"......fFFFf......",
-	".......FFF.......",
-	".......fFf.......",
-	".......fnf.......",
+	"...hhhhh.........hhhhh...",
+	"..hHHHHHhh.....hhHHHHHh..",
+	".hHh...hHHhhFhhHHh...hHh.",
+	"hHh.hhh.hHHFFFHHh.hhh.hHh",
+	"hH.hHHHh.hHFFFHh.hHHHh.Hh",
+	"hH.hH..Hh.hFFFh.hH..Hh.Hh",
+	"hH..hh.Hh.fFFFf.hH.hh..Hh",
+	".hH....Hh.fFFFf.hH....Hh.",
+	"..hHHHHh.EfFFFfE.hHHHHh..",
+	"...hhhh...fFFFf...hhhh...",
+	"..........fFFFf..........",
+	"...........FFF...........",
+	"...........fFf...........",
+	"...........fFf...........",
+	"...........fnf...........",
 ]
 const HEAD_COLOURS: Dictionary[String, Color] = {
 	"H": Palette.M6, "h": Palette.M4, "F": Palette.M5, "f": Palette.M4, "E": Palette.S4, "n": Palette.M3,
 }
 ## The head's top-left is this far up from the lane row.
-const HEAD_ABOVE: int = 7
+const HEAD_ABOVE: int = 10
+## The head is left out within this many px of a star or landmark, so they show in front of it.
+const HEAD_PAD: int = 1
 ## A hoof pip: two 3x3 toes with a 1 px cleft, filled when lit, an outline when spent.
 const PIP_LIT: Array[String] = ["XXX.XXX", "XXX.XXX", "XXX.XXX"]
 const PIP_SPENT: Array[String] = ["XXX.XXX", "X.X.X.X", "XXX.XXX"]
@@ -67,12 +73,12 @@ const CHARGE_TIME: float = 0.35
 const LOSS_TIME: float = 0.3
 const FLASH_TIME: float = 0.1
 ## The ram rears up LIFT px, then lunges LUNGE px as it charges.
-const LIFT: int = 2
-const LUNGE: int = 6
+const LIFT: int = 3
+const LUNGE: int = 10
 ## The dust cloud: a puff every DUST_STEP px along the lane, at most DUST_TRAIL px behind its front.
 const DUST: Array[Color] = [Palette.N7, Palette.N6, Palette.M4]
 const DUST_STEP: int = 6
-const DUST_TRAIL: int = 70
+const DUST_TRAIL: int = 110
 ## The sparks a lost star cuts out in.
 const SPARKS: int = 8
 
@@ -221,7 +227,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 		result.merge(_charge_pixels(), true)
 	else:
 		result.merge(print_pixels(_row, _run.ram.lane, _keep_clear(), _run.sky_rect, 0), true)
-		result.merge(head_pixels(_row, _run.sky_rect), true)
+		result.merge(_clipped(head_pixels(_row, _run.sky_rect), _keep_clear(), HEAD_PAD), true)
 		result.merge(pip_pixels(_row, _run.sky_rect, _run.ram.every, _lit), true)
 		if cues_shown():
 			result.merge(_cue_pixels(), true)
@@ -278,7 +284,7 @@ func _charge_pixels() -> Dictionary[Vector2i, Color]:
 		# The rear: pips spent, the head up, dust at its feet, the prints stamped along; the stars it
 		# takes still ringed.
 		result.merge(print_pixels(_play_row, lane, _keep_clear(), sky, 1), true)
-		result.merge(head_pixels(_play_row, sky, LIFT), true)
+		result.merge(_clipped(head_pixels(_play_row, sky, LIFT), _keep_clear(), HEAD_PAD), true)
 		result.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
 		var origin: Vector2i = head_origin(_play_row, sky)
 		var i: int = 0
@@ -295,7 +301,7 @@ func _charge_pixels() -> Dictionary[Vector2i, Color]:
 	else:
 		var k: float = (_age - REAR_TIME) / CHARGE_TIME
 		result.merge(rush_pixels(_play_row, lane, sky, k, _keep_clear() + _paths_clear()), true)
-		result.merge(head_pixels(_play_row, sky, 0, LUNGE if k < 0.7 else LUNGE / 2), true)
+		result.merge(_clipped(head_pixels(_play_row, sky, 0, LUNGE if k < 0.7 else LUNGE / 2), _keep_clear(), HEAD_PAD), true)
 		result.merge(pip_pixels(_play_row, sky, _run.ram.every, 0), true)
 	# The fleeced stars: those that stand still keep their rings; those it moves show theirs as they stop.
 	for id: int in _fleeced:
@@ -330,9 +336,12 @@ static func head_pixels(lane_row: int, sky: Rect2i, lift: int = 0, lunge: int = 
 	return result
 
 
-## One pip per launch of the clock (`every`) under the head, the first `lit` lit.
+## One pip per launch of the clock (`every`) under the head, the first `lit` lit; none when it
+## charges after every launch (there's nothing to count).
 static func pip_pixels(lane_row: int, sky: Rect2i, every: int, lit: int) -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
+	if every <= 1:
+		return result
 	var origin: Vector2i = head_origin(lane_row, sky)
 	for i: int in every:
 		var on: bool = i < lit
@@ -359,7 +368,8 @@ static func print_pixels(lane_row: int, lane: int, clear: Array[Vector3i], sky: 
 	return result
 
 
-## The charge `k` (0 to 1) of the way: hoof dust streaking from the ram along the lane to its front,
+## The charge `k` (0 to 1) of the way: hoof dust streaking in three rows (its edges and, thickest,
+## the lane row) from the ram along the lane to its front,
 ## fast then slowing, thinning out DUST_TRAIL px behind it; no speck within PRINT_PAD px of a star or
 ## landmark in `clear` (x, y, half extent each).
 static func rush_pixels(lane_row: int, lane: int, sky: Rect2i, k: float, clear: Array[Vector3i] = []) -> Dictionary[Vector2i, Color]:
@@ -375,6 +385,7 @@ static func rush_pixels(lane_row: int, lane: int, sky: Rect2i, k: float, clear: 
 		@warning_ignore("integer_division")
 		var step: int = (x - sky.position.x) / DUST_STEP
 		result.merge(dust_pixels(Vector2i(x, bottom - 2 - step % 3), 0.6, x), true)
+		result.merge(dust_pixels(Vector2i(x + 2, lane_row + 1 - step % 2), 0.9, x + 2), true)
 		result.merge(dust_pixels(Vector2i(x + 3, top + 4 + step % 2), 0.2, x + 1), true)
 	for point: Vector2i in result.keys():
 		if _near_star(Rect2i(point, Vector2i.ONE), clear):
@@ -451,9 +462,17 @@ static func _blit(result: Dictionary[Vector2i, Color], art: Array[String], origi
 				result[origin + Vector2i(x, y)] = colours[key]
 
 
-static func _near_star(area: Rect2i, clear: Array[Vector3i]) -> bool:
+## `pixels` without those within `pad` px of a star in `clear` (x, y, half extent each).
+static func _clipped(pixels: Dictionary[Vector2i, Color], clear: Array[Vector3i], pad: int) -> Dictionary[Vector2i, Color]:
+	for point: Vector2i in pixels.keys():
+		if _near_star(Rect2i(point, Vector2i.ONE), clear, pad):
+			pixels.erase(point)
+	return pixels
+
+
+static func _near_star(area: Rect2i, clear: Array[Vector3i], pad: int = PRINT_PAD) -> bool:
 	for spot: Vector3i in clear:
-		var reach: int = spot.z + PRINT_PAD
+		var reach: int = spot.z + pad
 		if Rect2i(spot.x - reach, spot.y - reach, reach * 2 + 1, reach * 2 + 1).intersects(area):
 			return true
 	return false

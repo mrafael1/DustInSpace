@@ -41,6 +41,15 @@ func _stand(main: Main, spec: Array) -> Array[Star]:
 	return born
 
 
+## The head shows where `pixels` has it, left out only next to a star or landmark (most of it shows).
+func _assert_head_shown(pixels: Dictionary[Vector2i, Color], head: Dictionary[Vector2i, Color], text: String) -> void:
+	var shown: int = 0
+	for point: Vector2i in head:
+		if pixels.get(point) == head[point]:
+			shown += 1
+	assert_gt(shown, head.size() / 2, text)
+
+
 func _count(pixels: Dictionary[Vector2i, Color], colours: Array[Color]) -> int:
 	var n: int = 0
 	for point: Vector2i in pixels:
@@ -57,13 +66,27 @@ func test_the_head_sits_on_the_lane_row_at_the_left_edge() -> void:
 	assert_true(view.has_ram())
 	assert_eq(view.row(), main.run.ram.row)
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
-	var head: Dictionary[Vector2i, Color] = ChargeView.head_pixels(main.run.ram.row, main.run.sky_rect)
-	for point: Vector2i in head:
-		assert_eq(pixels.get(point), head[point])
+	_assert_head_shown(pixels, ChargeView.head_pixels(main.run.ram.row, main.run.sky_rect), "the head")
 	var origin: Vector2i = ChargeView.head_origin(main.run.ram.row, main.run.sky_rect)
 	assert_eq(origin.x, main.run.sky_rect.position.x + 1, "a pixel in from the sky's left edge")
 	assert_between(main.run.ram.row, origin.y, origin.y + ChargeView.head_size().y - 1, "the row runs through the head")
 	assert_eq(view.lit_pips(), main.run.ram.launches_left())
+
+
+func test_a_star_by_the_head_shows_in_front_of_it() -> void:
+	var main: Main = _main()
+	_settle(main)
+	var view: ChargeView = _view(main)
+	var row: int = main.run.ram.row
+	var star: Star = _stand(main, [[Star.Size.BIG, Vector2i(14, row)]])[0]
+	view.settled = true
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	var half: int = StarView.half_extent(star.size)
+	for point: Vector2i in pixels:
+		assert_false(absi(point.x - star.position.x) <= half and absi(point.y - star.position.y) <= half, "nothing drawn over the star")
+	assert_gt(_count(pixels, [Palette.M6]), 0, "the rest of the head shows")
+	assert_eq(view.lit_pips(), 1)
+	assert_true(ChargeView.pip_pixels(row, main.run.sky_rect, main.run.ram.every, 1).is_empty(), "no pips when it charges every launch")
 
 
 func test_no_ram_no_view() -> void:
@@ -98,6 +121,7 @@ func test_cues_show_only_when_settled_and_the_next_launch_charges() -> void:
 	# in the lane ahead of it (fleeced).
 	var lm: Vector2i = main.run.scorpio.landmark_position(3)
 	var stars: Array[Star] = _stand(main, [[Star.Size.MEDIUM, Vector2i(right - 10, row)], [Star.Size.SMALL, Vector2i(lm.x - 16, row)]])
+	main.run.ram.every = 2
 	main.run.ram.launches = 0
 	view.settled = true
 	assert_false(main.run.ram_charges_next())
@@ -189,13 +213,11 @@ func test_the_charge_rears_then_charges() -> void:
 	assert_eq(view.lit_pips(), 0, "the pips are spent")
 	var reared: Dictionary[Vector2i, Color] = ChargeView.head_pixels(row, sky, ChargeView.LIFT)
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
-	for point: Vector2i in reared:
-		assert_eq(pixels.get(point), reared[point], "it rears up")
+	_assert_head_shown(pixels, reared, "it rears up")
 	view.advance(ChargeView.REAR_TIME + ChargeView.CHARGE_TIME * 0.5)
 	pixels = view.pixels()
 	var lunge: Dictionary[Vector2i, Color] = ChargeView.head_pixels(row, sky, 0, ChargeView.LUNGE)
-	for point: Vector2i in lunge:
-		assert_eq(pixels.get(point), lunge[point], "it lunges")
+	_assert_head_shown(pixels, lunge, "it lunges")
 	assert_gt(_count(pixels, [Palette.N6]), 0, "its dust streaks along the lane")
 	view.advance(ChargeView.charge_hold())
 	assert_false(view.is_charging())
@@ -265,12 +287,13 @@ func test_a_lost_star_cuts_out_in_ember_sparks() -> void:
 	_settle(main)
 	var view: ChargeView = _view(main)
 	var at := Vector2i(main.run.sky_rect.end.x - 6, main.run.ram.row)
-	var head_embers: int = _count(ChargeView.head_pixels(main.run.ram.row, main.run.sky_rect), [Palette.S4])
-	var head_shade: int = _count(ChargeView.head_pixels(main.run.ram.row, main.run.sky_rect), [Palette.M5, Palette.M4])
+	var before: Dictionary[Vector2i, Color] = view.pixels()
+	var head_embers: int = _count(before, [Palette.S4])
+	var head_shade: int = _count(before, [Palette.M5, Palette.M4])
 	view.flash_loss(at)
 	var pixels: Dictionary[Vector2i, Color] = view.pixels()
 	assert_gt(_count(pixels, [Palette.S4, Palette.S3, Palette.C3]) - head_embers, 4)
-	assert_eq(_count(pixels, [Palette.M5, Palette.M4]) - head_shade - _count(ChargeView.pip_pixels(main.run.ram.row, main.run.sky_rect, main.run.ram.every, view.lit_pips()), [Palette.M4]), 0, "embers, not water droplets")
+	assert_eq(_count(pixels, [Palette.M5, Palette.M4]) - head_shade, 0, "embers, not water droplets")
 	view.advance(ChargeView.LOSS_TIME + 0.01)
 	assert_eq(_count(view.pixels(), [Palette.S4, Palette.S3, Palette.C3]) - head_embers, 0, "the sparks are gone")
 
