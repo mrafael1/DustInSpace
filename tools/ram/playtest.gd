@@ -1,7 +1,8 @@
 extends SceneTree
 ## Paired seeded runs of Aries's ram (chapter 7) through the spatial core, the ram off and on.
 ## Bots are deliberately simple; this is pressure evidence, not a prediction of human difficulty.
-## --map=<StarMap id> (default aries_horns), --runs=N, --policies=a,b.
+## --map=<StarMap id> (default aries_horns), --runs=N, --policies=a,b, and what-ifs --butt=PX,
+## --lane=PX (over balance.json's).
 ## Policies: link-first links the best link before launching and aims at the first unlit landmark;
 ## careful plays link-first but aims its burst out of the lane (the next charge's) when the target is
 ## in it; careless links the first valid link found; launch-first launches every owned pack before
@@ -26,6 +27,10 @@ func _initialize() -> void:
 			_runs = maxi(1, argument.trim_prefix("--runs=").to_int())
 		elif argument.begins_with("--map="):
 			_map = argument.trim_prefix("--map=")
+		elif argument.begins_with("--butt="):
+			_balance.ram_butt = argument.trim_prefix("--butt=").to_int()
+		elif argument.begins_with("--lane="):
+			_balance.ram_lane = argument.trim_prefix("--lane=").to_int()
 		elif argument.begins_with("--policies="):
 			_policies.assign(argument.trim_prefix("--policies=").split(","))
 	_simulate.call_deferred()
