@@ -132,6 +132,24 @@ func test_the_view_fills_a_phone_at_a_whole_number_scale() -> void:
 	assert_eq(ScreenZones.fill_size(Vector2i(64, 64)), Vector2i(180, 320), "never smaller than the game")
 
 
+## Landscape and tablet windows (docs/wide_sky_design.md §1): the same whole-number scale that still
+## shows 180x320, the extra width split evenly to both sides and the extra height above.
+func test_the_view_fills_a_landscape_window_with_the_game_centred() -> void:
+	var cases: Array[Array] = [
+		# window, scale, visible game px, game_offset
+		[Vector2i(1920, 1080), 3, Vector2i(640, 360), Vector2i(230, 40)],
+		[Vector2i(1280, 800), 2, Vector2i(640, 400), Vector2i(230, 80)],
+		[Vector2i(1536, 2048), 6, Vector2i(256, 341), Vector2i(38, 21)],
+		[Vector2i(2048, 1536), 4, Vector2i(512, 384), Vector2i(166, 64)],
+		[Vector2i(1366, 768), 2, Vector2i(683, 384), Vector2i(251, 64)],
+	]
+	for case: Array in cases:
+		var window: Vector2i = case[0]
+		assert_eq(ScreenZones.fill_scale(window), case[1], "%s scale" % window)
+		assert_eq(ScreenZones.fill_size(window), case[2], "%s visible game px" % window)
+		assert_eq(ScreenZones.game_offset(Vector2(ScreenZones.fill_size(window))), case[3], "%s game offset (an odd extra width leaves its last column on the right)" % window)
+
+
 func test_the_game_sits_on_the_bottom_edge_centred_across() -> void:
 	assert_eq(ScreenZones.game_offset(Vector2(180, 320)), Vector2i.ZERO, "9:16: nothing around it")
 	assert_eq(ScreenZones.game_offset(Vector2(180, 400)), Vector2i(0, 80), "a taller phone: all the extra is sky above")
