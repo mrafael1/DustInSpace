@@ -122,6 +122,12 @@ var wave_first_launch: int = 0
 ## star pays when the win's great wave washes the sky (both optional: 0).
 var wave_great_after: int = 0
 var wave_finale_dust_per_star: int = 0
+## Aries's ram (chapter 7): every ram_every-th launch, once it has resolved, the ram charges a lane
+## ram_lane px tall and butts each loose star in it ram_butt px along it. Optional: without a "ram"
+## block there is none (0).
+var ram_every: int = 0
+var ram_lane: int = 0
+var ram_butt: int = 0
 
 
 var errors: Array[String] = []
@@ -239,6 +245,11 @@ func _parse(data: Dictionary) -> void:
 			wave_great_after = _read_int(wave, "great_after", "wave.", 1)
 		if wave.has("finale_dust_per_star"):
 			wave_finale_dust_per_star = _read_int(wave, "finale_dust_per_star", "wave.", 0)
+	if data.has("ram"):
+		var ram: Dictionary = _read_dict(data, "ram", "")
+		ram_every = _read_int(ram, "every", "ram.", 1)
+		ram_lane = _read_int(ram, "lane", "ram.", 1)
+		ram_butt = _read_int(ram, "butt", "ram.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
 	if data.has("black_hole"):

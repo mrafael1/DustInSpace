@@ -118,6 +118,10 @@ func _ready() -> void:
 			open_current_trial(true, 0, "cord")
 		elif "--cord-off" in OS.get_cmdline_user_args():
 			open_current_trial(false, 0, "cord")
+		elif "--ram" in OS.get_cmdline_user_args():
+			open_current_trial(true, 0, "ram")
+		elif "--ram-off" in OS.get_cmdline_user_args():
+			open_current_trial(false, 0, "ram")
 
 
 func _notification(what: int) -> void:
@@ -164,6 +168,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_P:
 		open_current_trial(not key.shift_pressed, 0, "cord")
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_H:
+		open_current_trial(not key.shift_pressed, 0, "ram")
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_U:
 		debug_win_parts()
@@ -373,7 +380,7 @@ func options() -> OptionsMenu:
 
 
 ## No progress callbacks: experimental wins never count toward Scorpio. `layout`: "tail", "aquarius",
-## "black_hole" or "cord" (StarMap.current_layout).
+## "black_hole", "cord" or "ram" (StarMap.current_layout).
 func open_current_trial(enabled: bool = true, seed_value: int = 0, layout: String = "tail") -> void:
 	if not OS.is_debug_build() or _stage != null:
 		return

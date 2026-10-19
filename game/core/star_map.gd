@@ -136,6 +136,10 @@ var wave_great: bool = false
 ## Winning ends in a great wave (the final): it washes the sky and every loose star left bursts for
 ## dust (balance.json's wave.finale_dust_per_star), instead of the completion clearing them for nothing.
 var wave_finale: bool = false
+## Aries's ram (chapter 7, a debug trial): every balance.json's ram.every-th launch, once it has
+## resolved, the ram charges right along the row of the landmark the last link lit, butting the loose
+## stars there (StarCharge).
+var ram: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -204,7 +208,7 @@ static func current_trial(enabled: bool = true) -> StarMap:
 
 
 ## A debug trial's map: "aquarius" (the flow layout), "black_hole" (chapter 5's trial), "cord"
-## (chapter 6's) or the Tail trial (anything else).
+## (chapter 6's), "ram" (chapter 7's) or the Tail trial (anything else).
 static func current_layout(layout: String, enabled: bool = true) -> StarMap:
 	match layout:
 		"aquarius":
@@ -213,6 +217,8 @@ static func current_layout(layout: String, enabled: bool = true) -> StarMap:
 			return black_hole_trial(enabled)
 		"cord":
 			return cord_trial(enabled)
+		"ram":
+			return ram_trial(enabled)
 	return current_trial(enabled)
 
 
@@ -264,6 +270,26 @@ static func cord_trial(enabled: bool = true) -> StarMap:
 	map.cords = enabled
 	if enabled:
 		map.fish_cord = [Vector2i(166, 78), Vector2i(56, 186), Vector2i(179, 214)]
+	return map
+
+
+## Debug experiment for chapter 7 (Aries): a ram's back of five stars with no other threat, laid out
+## as a chain running right across the sky's middle, so the row of the landmark just lit holds the
+## next one, and with it the stars that landmark waits for (docs/chapter_7_8_plan.md, 7A). From the
+## lit rump (left) the back runs right through three stars a row apart by at most 8 px, then the
+## last rises to the head (upper right). Four to light. Strings are 32-34 px. The RAM ON/OFF switch
+## turns the ram off to replay the same seed. No progress identity; the Tail's painting stands in.
+static func ram_trial(enabled: bool = true) -> StarMap:
+	var map := StarMap.new()
+	map.id = "ram_trial" if enabled else "ram_off"
+	map.title = "RAM" if enabled else "RAM OFF"
+	map.landmarks = [Vector2i(30, 170), Vector2i(62, 164), Vector2i(94, 170), Vector2i(126, 162), Vector2i(152, 140)]
+	map.segments = [Vector2i(0, 1), Vector2i(1, 2), Vector2i(2, 3), Vector2i(3, 4)]
+	map.sizes = [Star.Size.MEDIUM, Star.Size.SMALL, Star.Size.BIG, Star.Size.SMALL, Star.Size.MEDIUM]
+	map.starting_lit = [0]
+	map.painting = PART_PAINTING % "tail"
+	map.intros = false
+	map.ram = enabled
 	return map
 
 
@@ -1177,6 +1203,10 @@ static func by_id(p_id: String) -> StarMap:
 			return pisces_north_fish()
 		"pisces_final":
 			return pisces_final()
+		"ram_trial":
+			return ram_trial()
+		"ram_off":
+			return ram_trial(false)
 	return scorpio()
 
 

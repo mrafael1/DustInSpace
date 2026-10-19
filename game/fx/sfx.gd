@@ -273,6 +273,9 @@ func _on_event_played(event: EventSequencer.RunEvent) -> void:
 			play(&"pack_ready")
 		&"star_marked", &"area_marked":
 			play(&"link_reject", 0.6)
+		&"ram_charged":
+			# Aries's ram charges: a low rush along its lane (a star it loses sounds on its own).
+			play(&"launch", 0.55)
 		&"wave_struck":
 			# Pisces's wave: it rears up, rushes out and crashes on the sky's edge; the great one deeper.
 			play(&"wave", 0.8 if event.args[3] else 1.0)
