@@ -21,6 +21,13 @@ func _run(map: StarMap = StarMap.ram_trial(), seed_value: int = 7, balance: Bala
 	return run
 
 
+## The balance with the ram charging every second launch, to test its clock.
+func _every_second() -> Balance:
+	var balance: Balance = Balance.load_file()
+	balance.ram_every = 2
+	return balance
+
+
 ## Launches high, away from the lane, until the ram is one launch from charging.
 func _to_the_charge(run: RunState) -> void:
 	while not run.ram.charges_next():
@@ -47,10 +54,10 @@ func test_the_trial_map_has_the_ram_and_off_has_none() -> void:
 	assert_eq(off.landmarks, map.landmarks, "the same layout")
 	assert_null(_run(off).ram)
 	var balance: Balance = Balance.load_file()
-	assert_eq([balance.ram_every, balance.ram_lane, balance.ram_butt], [2, 20, 48])
+	assert_eq([balance.ram_every, balance.ram_lane, balance.ram_butt], [1, 36, 72])
 	var ram: StarCharge = _run().ram
 	assert_not_null(ram)
-	assert_eq([ram.every, ram.lane, ram.butt], [2, 20, 48])
+	assert_eq([ram.every, ram.lane, ram.butt], [1, 36, 72])
 
 
 func test_the_chain_holds_the_next_landmark_in_the_lit_ones_lane() -> void:
@@ -84,8 +91,18 @@ func test_the_lane_starts_on_the_first_lit_landmark_else_the_middle() -> void:
 	assert_eq(_run(unordered).ram.row, _landmark(run, 3).y, "the first one the map lists")
 
 
-func test_the_ram_charges_after_every_second_launch() -> void:
+func test_the_ram_charges_after_every_launch() -> void:
 	var run: RunState = _run()
+	var charges: Array[int] = [0]
+	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], _fleeced: Array[int]) -> void: charges[0] += 1)
+	for i: int in 4:
+		assert_true(run.ram_charges_next(), "the next launch always charges")
+		Fixtures.launch(run, HIGH_AIM)
+		assert_eq(charges[0], i + 1)
+
+
+func test_the_ram_can_charge_after_every_second_launch() -> void:
+	var run: RunState = _run(StarMap.ram_trial(), 7, _every_second())
 	var charged_after: Array[int] = []
 	var launches: Array[int] = [0]
 	run.pack_launched.connect(func(_kind: String, _at: Vector2i) -> void: launches[0] += 1)
@@ -101,7 +118,7 @@ func test_the_ram_charges_after_every_second_launch() -> void:
 func test_intros_dont_count_toward_the_charge() -> void:
 	var map: StarMap = StarMap.pisces_north_fish()
 	map.ram = true
-	var run := RunState.new(Balance.load_file(), Fixtures.rng(3), SKY, map)
+	var run := RunState.new(_every_second(), Fixtures.rng(3), SKY, map)
 	var intro_launched: Array[bool] = [false]
 	run.hunt_intro_launched.connect(func(_kind: String, _at: Vector2i) -> void: intro_launched[0] = true)
 	run.play_reflect_intro()
@@ -190,19 +207,19 @@ func test_the_charge_butts_the_lane_after_the_launch() -> void:
 	assert_eq(outside.position, Vector2i(44, row + 12), "out of the lane, untouched")
 
 
-func test_a_star_with_nothing_ahead_is_butted_48_px() -> void:
+func test_a_star_with_nothing_ahead_is_butted_72_px() -> void:
 	var run: RunState = _run()
 	# A lane below the figure, with no landmark in it.
 	run.ram.aim(220)
 	var free: Star = run.add_star(Star.Size.SMALL, Vector2i(40, 215))
 	_to_the_charge(run)
 	Fixtures.launch(run, HIGH_AIM)
-	assert_eq(free.position, Vector2i(88, 215))
+	assert_eq(free.position, Vector2i(112, 215))
 	assert_false(run.ram.is_fleeced(free.id))
 
 
 func test_the_preview_matches_the_charge() -> void:
-	var run: RunState = _run()
+	var run: RunState = _run(StarMap.ram_trial(), 7, _every_second())
 	var row: int = run.ram.row
 	for point: Vector2i in [Vector2i(44, row + 4), Vector2i(76, row - 9), Vector2i(100, row + 8), Vector2i(150, row + 5)]:
 		run.add_star(Star.Size.SMALL, point)
@@ -232,7 +249,7 @@ func test_a_big_bang_launch_leaves_the_charge_nothing() -> void:
 	Fixtures.launch(run, HIGH_AIM)
 	assert_true(run.stars.is_empty(), "the Big Bang cleared the sky")
 	assert_eq(seen, [[0, 0]], "the charge still comes, moving nothing")
-	assert_eq(run.ram.launches, 2, "the Big Bang launch counts")
+	assert_eq(run.ram.launches, 1, "the Big Bang launch counts")
 
 
 func test_the_charge_draws_no_random_numbers() -> void:
