@@ -396,10 +396,11 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			wave = _new_wave()
 		if scorpio.map.ram and balance.ram_every > 0:
 			var butt: int = balance.ram_hard_butt if scorpio.map.ram_hard and balance.ram_hard_butt > 0 else balance.ram_butt
+			var lane: int = balance.ram_hard_lane if scorpio.map.ram_hard and balance.ram_hard_lane > 0 else balance.ram_lane
 			var ways: Array[Vector2i] = [StarCharge.WAY]
 			if scorpio.map.ram_down:
 				ways.append(Vector2i.DOWN)
-			ram = StarCharge.new(balance.ram_every, balance.ram_lane, butt, _ram_start_row(), ways, sky_rect.get_center().x)
+			ram = StarCharge.new(balance.ram_every, lane, butt, _ram_start_row(), ways, sky_rect.get_center().x)
 		if scorpio.map.cords:
 			cords = StarCords.new()
 			cords.tie_fixed(_fish_cord())

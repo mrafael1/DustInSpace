@@ -31,6 +31,7 @@ func _initialize() -> void:
 			_balance.ram_hard_butt = _balance.ram_butt
 		elif argument.begins_with("--lane="):
 			_balance.ram_lane = argument.trim_prefix("--lane=").to_int()
+			_balance.ram_hard_lane = _balance.ram_lane
 		elif argument.begins_with("--policies="):
 			_policies.assign(argument.trim_prefix("--policies=").split(","))
 	_simulate.call_deferred()
@@ -38,7 +39,8 @@ func _initialize() -> void:
 
 func _simulate() -> void:
 	var butt: int = _balance.ram_hard_butt if StarMap.by_id(_map).ram_hard and _balance.ram_hard_butt > 0 else _balance.ram_butt
-	print("Paired seeds 1..%d; %s; ram every %d, lane %d, butt %d" % [_runs, _map, _balance.ram_every, _balance.ram_lane, butt])
+	var lane: int = _balance.ram_hard_lane if StarMap.by_id(_map).ram_hard and _balance.ram_hard_lane > 0 else _balance.ram_lane
+	print("Paired seeds 1..%d; %s; ram every %d, lane %d, butt %d" % [_runs, _map, _balance.ram_every, lane, butt])
 	var rows: Array[Dictionary] = []
 	for policy: String in _policies:
 		for enabled: bool in [false, true]:

@@ -123,12 +123,14 @@ var wave_first_launch: int = 0
 var wave_great_after: int = 0
 var wave_finale_dust_per_star: int = 0
 ## Aries's ram (chapter 7): every ram_every-th launch, once it has resolved, the ram charges a lane
-## ram_lane px tall and butts each loose star in it ram_butt px along it (ram_hard_butt on a stage
-## where it charges harder; optional, 0: ram_butt). Optional: without a "ram" block there is none (0).
+## ram_lane px tall and butts each loose star in it ram_butt px along it (ram_hard_lane and
+## ram_hard_butt on a stage where it charges harder; each optional, 0: ram_lane, ram_butt).
+## Optional: without a "ram" block there is none (0).
 var ram_every: int = 0
 var ram_lane: int = 0
 var ram_butt: int = 0
 var ram_hard_butt: int = 0
+var ram_hard_lane: int = 0
 
 
 var errors: Array[String] = []
@@ -253,6 +255,8 @@ func _parse(data: Dictionary) -> void:
 		ram_butt = _read_int(ram, "butt", "ram.", 1)
 		if ram.has("hard_butt"):
 			ram_hard_butt = _read_int(ram, "hard_butt", "ram.", 1)
+		if ram.has("hard_lane"):
+			ram_hard_lane = _read_int(ram, "hard_lane", "ram.", 1)
 	if data.has("harvest"):
 		_parse_harvest(_read_dict(data, "harvest", ""))
 	if data.has("black_hole"):

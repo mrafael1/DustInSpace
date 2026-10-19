@@ -143,7 +143,8 @@ var wave_finale: bool = false
 ## resolved, the ram charges right along the row of the landmark the last link lit, butting the loose
 ## stars there (StarCharge).
 var ram: bool = false
-## The ram charges harder here: it butts balance.json's ram.hard_butt px instead of ram.butt.
+## The ram charges harder here: it butts balance.json's ram.hard_butt px instead of ram.butt, along a
+## lane ram.hard_lane px wide instead of ram.lane.
 var ram_hard: bool = false
 ## A second ram stands at the sky's top: the two take turns, the first charging across the lit
 ## landmark's row, the second down its column.
