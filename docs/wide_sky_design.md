@@ -174,3 +174,21 @@ static func play_sky(rows: int, side: int = 0) -> Rect2i:
 - **Q5 HUD:** the dust counter, planet slots and telescope stay a centred 180 px cluster; the corners go to the screen corners as today.
 - **Q2 slingshot:** its reach follows the sky everywhere, tall phones included (they gain today's unreachable corners).
 - Defaults taken (flagged in the PRs): **Q1** desktop minimum window 1280x720, the run keeps its sky and the game pauses until it fits; **Q3** measure the hunt with its bot first, and ask if strike coverage falls more than 10%; **Q6** the chart's neighbours drawn dimmed, not tappable; **Q7** the play sky caps at 640, the chart and title show more on ultrawide; **Q8** no decorative stars over the play sky; **Q9** the iPad's landscape sky follows the same rules.
+
+## Build notes
+
+Where the build differs from the plan above, or settles a detail it left open.
+
+**Commit 1 (identity guard).**
+- `tests/test_portrait_identity.gd` plays the 47 maps `StarMap.by_id` knows (the chapters' whole figures, every stage, `ram_trial`) plus the four debug trials it doesn't build (`current_trial`, `aquarius_flow`, `black_hole_trial`, `cord_trial`). Seeds 1-20, on `Fixtures.SKY` and `play_sky(102)`.
+- The bot: Main's intros in Main's order, then the guide spots (`safe_launch_spot`, `open_launch_spot`, plus `ram_intro_layout` and `hole_intro_spots` where they apply) at the start and after the first launch, then the best link (landmarks first, then dust plus light) or a launch just up-left of the first unlit landmark (reflected), up to 300 actions. On hunt maps it also asks `safe_launch_spot` before every launch.
+- The digest is wider than the plan's "positions, dust, light and outcome": every signal the run emits, with its arguments (stars by id, size and position; other objects by their script variables), and the end state. It is one md5 per map and sky. On a mismatch the test prints the new table.
+- It plays the shipped `balance.json` (`Balance.load_file`), because that is what switches each stage's mechanics on. A deliberate balance change therefore needs the table recorded again. The wide-sky branch doesn't touch the balance.
+- It was recorded on `feature/wide-sky` at `34b317b1` (main plus this doc), which has the same code as `main`. It adds about 50 s to the suite.
+- `game_offset` takes the visible size as a `Vector2`, so the landscape cases in `test_background.gd` pass `fill_size(window)` through `Vector2(...)`. The table in §1 holds. 1366x768 gives 683x384 and an offset of (251, 64); the 640 cap there is commit 3's.
+
+**Commit 2 (found flags, hole bound).**
+- The tests (`tests/test_sky_searches.gd`) mostly use the 9:16 sky moved 200 px left, so every spot is at a negative x, rather than `WIDE_SKY`. This is because the figure doesn't move sideways until commit 4. Without a figure, `open_launch_spot` and `safe_launch_spot` must return exactly the 9:16 sky's spot moved 200 px. `_open_middle` (tested directly, though private) must land on the middle. `ram_intro_layout` must find its three stars. Each test failed on the old code.
+- `WIDE_SKY` is a local constant in that test for now. It moves to `Fixtures` in commit 5.
+- The hole bound is `ceili(Vector2(sky_rect.size).length())`, which is 249 on the 9:16 sky (was 360). For a hole inside the sky, a spot further out than the diagonal is off the sky either way, so the result doesn't change. The identity guard confirms this. A test builds a hole whose third demo star must stand over 400 px out and finds it on `WIDE_SKY`.
+- Not fixed (unrelated, noted for later): `gauge_intro_spots` still reads `GravityView.RING_GAP`, a scene constant, from core.
