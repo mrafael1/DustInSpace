@@ -189,30 +189,42 @@ func test_the_head_charges_harder() -> void:
 	var map: StarMap = StarMap.by_id("aries_head")
 	_assert_ram_stage(map, "HEAD")
 	assert_true(map.ram_hard)
-	assert_false(map.ram_sides)
+	assert_false(map.ram_down)
 	var balance: Balance = Balance.load_file()
 	assert_gt(balance.ram_hard_butt, balance.ram_butt)
 	var run: RunState = _run(map)
 	assert_eq(run.ram.butt, balance.ram_hard_butt)
-	assert_false(run.ram.sides)
+	assert_eq(run.ram.ways.size(), 1)
 	assert_eq(_run().ram.butt, balance.ram_butt, "the Horns keep the normal push")
 	assert_true(run.ram.in_lane(map.landmarks[1]) and run.ram.in_lane(map.landmarks[2]), "the brow shares the root's lane")
 
 
-func test_the_fleece_charges_from_each_side_in_turn() -> void:
+func test_the_fleece_has_a_second_ram_charging_down_in_turn() -> void:
 	var map: StarMap = StarMap.by_id("aries_fleece")
 	_assert_ram_stage(map, "FLEECE")
-	assert_true(map.ram_sides)
+	assert_true(map.ram_down)
 	assert_false(map.ram_hard)
 	var run: RunState = _run(map)
-	assert_true(run.ram.sides)
+	assert_eq(run.ram.ways, [Vector2i.RIGHT, Vector2i.DOWN] as Array[Vector2i])
 	assert_eq(run.ram.butt, Balance.load_file().ram_butt)
-	var ways: Array[Vector2i] = []
-	run.ram_charged.connect(func(_row: int, _moves: Array[StarCurrent.Move], way: Vector2i) -> void: ways.append(way))
+	assert_eq(run.ram.column, map.landmarks[0].x, "the column starts on the lit root")
+	var charges: Array = []
+	run.ram_charged.connect(func(line: int, _moves: Array[StarCurrent.Move], way: Vector2i) -> void: charges.append([line, way]))
 	for i: int in 3:
 		Fixtures.launch(run, Vector2i(90, 110))
-	assert_eq(ways, [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.RIGHT] as Array[Vector2i], "left, right, left again")
-	assert_eq(run.ram.way, Vector2i.LEFT, "the next comes from the right")
+	assert_eq(charges.size(), 3)
+	assert_eq(charges[0], [run.ram.row, Vector2i.RIGHT], "across the row")
+	assert_eq(charges[1], [run.ram.column, Vector2i.DOWN], "then down the column")
+	assert_eq(charges[2][1], Vector2i.RIGHT, "then across again")
+	assert_eq(run.ram.way, Vector2i.DOWN, "the next comes down")
+
+
+func test_lighting_a_landmark_aims_both_lanes() -> void:
+	var run: RunState = _run(StarMap.aries_fleece())
+	var at: Vector2i = run.scorpio.landmark_position(1)
+	run._light_landmark(1)
+	assert_eq(run.ram.row, at.y)
+	assert_eq(run.ram.column, at.x)
 
 
 func test_the_head_intro_shows_the_harder_push() -> void:
@@ -230,19 +242,22 @@ func test_the_head_intro_shows_the_harder_push() -> void:
 	assert_true(run.stars.is_empty())
 
 
-func test_the_fleece_intro_charges_once_from_each_side() -> void:
+func test_the_fleece_intro_shows_each_ram_once() -> void:
 	var run: RunState = _run(StarMap.aries_fleece())
 	var ways: Array[Vector2i] = []
 	var placed: Array[int] = [0]
+	var lost: Array[int] = [0]
 	run.ram_intro_placed.connect(func(_stars: Array[Star]) -> void: placed[0] += 1)
-	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], way: Vector2i) -> void:
+	run.ram_charged.connect(func(_line: int, moves: Array[StarCurrent.Move], way: Vector2i) -> void:
 		ways.append(way)
 		for move: StarCurrent.Move in moves:
-			assert_eq(signi(move.to.x - move.from.x), way.x, "each star goes the ram's way"))
+			lost[0] += 1 if move.drained else 0
+			assert_eq((move.to - move.from).sign(), way, "each star goes the ram's way"))
 	run.play_ram_intro()
-	assert_eq(ways, [Vector2i.RIGHT, Vector2i.LEFT] as Array[Vector2i])
-	assert_eq(placed[0], 2, "a round of demo stars for each side")
-	assert_eq(run.ram.way, Vector2i.RIGHT, "the first real charge comes from the left")
+	assert_eq(ways, [Vector2i.RIGHT, Vector2i.DOWN] as Array[Vector2i])
+	assert_eq(placed[0], 2, "a round of demo stars for each ram")
+	assert_eq(lost[0], 2, "each loses one")
+	assert_eq(run.ram.way, Vector2i.RIGHT, "the first real charge is the first ram's")
 	assert_true(run.stars.is_empty())
 	assert_eq(run.ram.launches, 0)
 
@@ -250,8 +265,8 @@ func test_the_fleece_intro_charges_once_from_each_side() -> void:
 func test_each_stage_says_its_ram_rule() -> void:
 	assert_eq(Hud.ram_rule(_run()), Hud.RAM_MESSAGE)
 	assert_eq(Hud.ram_rule(_run(StarMap.aries_head())), Hud.RAM_HARD_MESSAGE)
-	assert_eq(Hud.ram_rule(_run(StarMap.aries_fleece())), Hud.RAM_SIDES_MESSAGE)
-	for message: String in [Hud.RAM_HARD_MESSAGE, Hud.RAM_SIDES_MESSAGE]:
+	assert_eq(Hud.ram_rule(_run(StarMap.aries_fleece())), Hud.RAM_DOWN_MESSAGE)
+	for message: String in [Hud.RAM_HARD_MESSAGE, Hud.RAM_DOWN_MESSAGE]:
 		for line: String in message.split("\n"):
 			assert_lte(line.length(), 24, line)
 
@@ -274,3 +289,27 @@ func test_the_harder_ram_is_heated_ember() -> void:
 			assert_eq(embers, 2, "just its eyes")
 		for colour: Color in ChargeView.HARD_TRAIL.values():
 			assert_true(colour in [Palette.S4, Palette.S3, Palette.S2], "the trail heats on the ember ramp")
+
+
+func test_the_fleece_shows_both_rams_the_next_one_bright() -> void:
+	var main: Main = _main("aries_fleece")
+	_settle(main)
+	var view: ChargeView = main.get_node("Sky/ChargeLayer")
+	view.advance(5.0)
+	view.settled = true
+	var run: RunState = main.run
+	var sky: Rect2i = run.sky_rect
+	var pixels: Dictionary[Vector2i, Color] = view.pixels()
+	var top: Vector2i = ChargeView.down_head_origin(run.ram.column, sky)
+	var side: Vector2i = ChargeView.head_origin(run.ram.row, sky)
+	assert_eq(view.way(), Vector2i.RIGHT)
+	assert_eq(pixels.get(side + Vector2i(4, 1)), Palette.M6, "the side ram, next, in full")
+	assert_eq(pixels.get(top + Vector2i(4, 1)), Palette.M4, "the top ram waits, dimmed")
+	run.ram.turn()
+	view._follow_run()
+	pixels = view.pixels()
+	assert_eq(view.way(), Vector2i.DOWN)
+	assert_eq(view.line(), run.ram.column)
+	assert_eq(pixels.get(top + Vector2i(4, 1)), Palette.M6, "now the top ram is next")
+	assert_eq(pixels.get(side + Vector2i(4, 1)), Palette.M4)
+	assert_eq(view.exit_point(Vector2i(90, 400)).y, StarScatter.inner_rect(sky).end.y, "a star off the bottom leaves at the bottom")

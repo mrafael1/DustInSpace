@@ -138,9 +138,9 @@ const GAUGE_MESSAGE: String = "THE HOLE DRINKS ALL LIGHT\nFULL IT BANGS THE SKY"
 const CORD_MESSAGE: String = "EVERY LINK LEAVES A CORD\nNO LINK CAN CROSS ONE"
 ## Aries's ram (chapter 7 trial): after every throw it charges the row of the landmark the last link lit.
 const RAM_MESSAGE: String = "EVERY THROW THE RAM\nCHARGES THE ROW YOU LIT"
-## The Head: it charges harder. The Fleece: from each side in turn.
+## The Head: it charges harder. The Fleece: a second ram, down the lit column, in turn with the first.
 const RAM_HARD_MESSAGE: String = "THE RAM CHARGES HARDER\nON THE ROW YOU LIT"
-const RAM_SIDES_MESSAGE: String = "THE RAM CHARGES FROM\nEACH SIDE IN TURN"
+const RAM_DOWN_MESSAGE: String = "TWO RAMS TAKE TURNS ON\nTHE ROW AND COLUMN LIT"
 ## Pisces's reflection: a planet bursts across the seam from where it's thrown, up and down or across.
 const SEAM_VERTICAL_MESSAGE: String = "AIM LEFT TO PLAY RIGHT\nAIM RIGHT TO PLAY LEFT"
 const SEAM_HORIZONTAL_MESSAGE: String = "AIM HIGH TO PLAY LOW\nAIM LOW TO PLAY HIGH"
@@ -559,8 +559,8 @@ static func harvest_rule(harvest: StarHarvest) -> String:
 
 ## What Aries's ram says: when and where it charges, or what's new about it on this stage.
 static func ram_rule(run: RunState) -> String:
-	if run.scorpio.map.ram_sides:
-		return RAM_SIDES_MESSAGE
+	if run.scorpio.map.ram_down:
+		return RAM_DOWN_MESSAGE
 	if run.scorpio.map.ram_hard:
 		return RAM_HARD_MESSAGE
 	return RAM_MESSAGE

@@ -145,8 +145,9 @@ var wave_finale: bool = false
 var ram: bool = false
 ## The ram charges harder here: it butts balance.json's ram.hard_butt px instead of ram.butt.
 var ram_hard: bool = false
-## The ram charges from each side in turn: from the left, then from the right, and so on.
-var ram_sides: bool = false
+## A second ram stands at the sky's top: the two take turns, the first charging across the lit
+## landmark's row, the second down its column.
+var ram_down: bool = false
 ## Winning ends in the Big Bang (Sagittarius's final): the hole swallows the stars left and bangs, a
 ## jackpot (the Big Bang's dust), instead of the completion clearing them for nothing.
 var big_bang_finale: bool = false
@@ -1196,10 +1197,11 @@ static func aries_head() -> StarMap:
 	return map
 
 
-## Aries, stage 3: the Fleece. The ram charges from each side in turn (its intro shows both): from
-## the left, then from the right, its head swapping edges to show where the next comes from. The
-## fleece is a long back across the sky's middle, all in one lane, so no end of it is safe for long,
-## and a curl at its right end climbs out of it last. Five to light. Strings are 32-36 px.
+## Aries, stage 3: the Fleece. A second ram stands at the sky's top, and the two take turns (its
+## intro shows both): the first charges across the lit landmark's row, the second down its column,
+## so the stars waiting under (or over) the lit star are in its way too. The fleece is a long back
+## across the sky's middle, all in one row, so no end of it is safe from the first for long, and a
+## curl at its right end climbs out of it last. Five to light. Strings are 32-36 px.
 static func aries_fleece() -> StarMap:
 	var map := StarMap.new()
 	map.id = "aries_fleece"
@@ -1210,7 +1212,7 @@ static func aries_fleece() -> StarMap:
 	map.starting_lit = [0]
 	map.painting = ARIES_PART % "fleece"
 	map.ram = true
-	map.ram_sides = true
+	map.ram_down = true
 	return map
 
 
