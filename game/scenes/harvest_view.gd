@@ -17,7 +17,8 @@ extends Node2D
 ## moment it's lit until it's joined or put out, so the risk shows at once. The binding intro's
 ## kept star glints gold: a ring of C0, then C1, then C2 spreading out.
 
-## The blade crosses the sky in SWEEP_TIME, bowed BOW px at the middle of its height.
+## The blade crosses the frame's 180 columns in SWEEP_TIME (300 px/s), bowed BOW px at the middle
+## of its height; a wider sky takes longer at the same speed (sweep_time).
 const SWEEP_TIME: float = 0.6
 const BOW: int = 14
 const BLADE: Array[Color] = [Palette.C0, Palette.C1, Palette.C2]
@@ -68,6 +69,8 @@ var tracing_alone: int = -1:
 var _run: RunState
 var _sequencer: EventSequencer
 var _sweep_time: float = -1.0
+## How long the blade takes to cross this run's sky (sweep_time).
+var _sweep_lasts: float = SWEEP_TIME
 var _chaff: Dictionary[Vector2i, float] = {}
 var _put_outs: Dictionary[Vector2i, float] = {}
 var _kept: Dictionary[Vector2i, float] = {}
@@ -92,6 +95,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	aiming = false
 	tracing_alone = -1
 	_sweep_time = -1.0
+	_sweep_lasts = SWEEP_TIME
 	_chaff.clear()
 	_put_outs.clear()
 	_kept.clear()
@@ -110,8 +114,15 @@ func _process(delta: float) -> void:
 ## Starts the blade's sweep. Returns how long it takes.
 func sweep() -> float:
 	_sweep_time = 0.0
+	_sweep_lasts = sweep_time(_run.sky_rect) if _run != null else SWEEP_TIME
 	queue_redraw()
-	return SWEEP_TIME
+	return _sweep_lasts
+
+
+## How long the blade takes to cross `sky`: SWEEP_TIME over the portrait 180 columns, at the same
+## 300 px/s over a wider sky (docs/wide_sky_design.md §4).
+static func sweep_time(sky: Rect2i) -> float:
+	return SWEEP_TIME * ScreenZones.stretch(float(sky.size.x), float(Scorpio.HOME_SKY.size.x))
 
 
 func is_sweeping() -> bool:
@@ -121,7 +132,7 @@ func is_sweeping() -> bool:
 ## Seconds after the sweep starts that the blade reaches column `x`.
 func cut_delay(x: int) -> float:
 	var sky: Rect2i = _run.sky_rect
-	return clampf(float(x - sky.position.x) / maxi(1, sky.size.x), 0.0, 1.0) * SWEEP_TIME
+	return clampf(float(x - sky.position.x) / maxi(1, sky.size.x), 0.0, 1.0) * sweep_time(sky)
 
 
 ## A star cut at `at`: its chaff falls.
@@ -167,7 +178,7 @@ func advance(delta: float) -> void:
 	_time += delta
 	if _sweep_time >= 0.0:
 		_sweep_time += delta
-		if _sweep_time >= SWEEP_TIME:
+		if _sweep_time >= _sweep_lasts:
 			_sweep_time = -1.0
 	if _run != null and _run.harvest != null and (_sequencer == null or not _sequencer.is_busy()):
 		_lone_shown.clear()
@@ -225,7 +236,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	for at: Vector2i in _put_outs:
 		result.merge(put_out_pixels(at, _put_outs[at]), true)
 	if _sweep_time >= 0.0:
-		result.merge(blade_pixels(_run.sky_rect, _sweep_time / SWEEP_TIME), true)
+		result.merge(blade_pixels(_run.sky_rect, _sweep_time / _sweep_lasts), true)
 	return result
 
 

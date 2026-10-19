@@ -196,6 +196,34 @@ func test_the_pack_flies_trembles_then_bursts() -> void:
 	assert_eq(launcher.shown_pack(), "", "the fork stays empty until the player loads a pack")
 
 
+func test_a_portrait_flight_to_the_far_corner_takes_flight_time() -> void:
+	var corner: Vector2i = inner.position
+	_pull_and_release(_pull_toward(corner))
+	sequencer.advance(0.0)
+	assert_eq(launcher.flight_lasts(), Launcher.FLIGHT_TIME)
+
+
+func test_a_wide_flight_past_the_frame_takes_longer_and_lands_on_its_burst() -> void:
+	_setup_on(Fixtures.WIDE_SKY)
+	var corner: Vector2i = inner.position
+	_pull_and_release(_pull_toward(corner))
+	sequencer.advance(0.0)
+	var lasts: float = Launcher.flight_time(ORIGIN, corner, run.frame_rect)
+	assert_eq(launcher.flight_lasts(), lasts)
+	assert_gt(lasts, Launcher.FLIGHT_TIME * 1.5)
+	var flying: PackView = launcher.get_node("FlyingPack")
+	watch_signals(launcher)
+	var elapsed: float = 0.0
+	while elapsed < lasts + Launcher.TREMBLE_TIME - 0.02:
+		_step()
+		elapsed += STEP
+		assert_true(sequencer.is_busy(), "the burst waits for the longer flight and the tremble")
+		if elapsed < lasts - 0.02:
+			assert_signal_not_emitted(launcher, "tremble_started", "still flying at %.2f s" % elapsed)
+	assert_signal_emitted(launcher, "tremble_started")
+	assert_lte(float((Vector2i(flying.position) + ORIGIN - corner).length_squared()), 2.0, "trembling on the burst point")
+
+
 func test_a_restart_mid_flight_or_tremble_clears_the_flying_pack() -> void:
 	for into: float in [Launcher.FLIGHT_TIME * 0.5, Launcher.FLIGHT_TIME + Launcher.TREMBLE_TIME * 0.75]:
 		_pull_and_release(Vector2(0, 12))

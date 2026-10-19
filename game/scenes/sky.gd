@@ -496,7 +496,7 @@ func _play_harvest_event(event: EventSequencer.RunEvent) -> bool:
 			if _arrival_sweep:
 				# Virgo's final's arrival: play waits for the title card after the sweep to go too.
 				_arrival_sweep = false
-				_sequencer.hold(HarvestView.SWEEP_TIME + Hud.ARRIVAL_TIME)
+				_sequencer.hold(HarvestView.sweep_time(_run.sky_rect) + Hud.ARRIVAL_TIME)
 		&"landmarks_unbound":
 			_put_out(event.args[0])
 		&"harvest_intro_ended":
@@ -915,7 +915,7 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 	for star: Star in lost:
 		caught.append(star.position)
 	_seam.sweep(way, next_way, caught, great)
-	_sequencer.hold(SeamView.sweep_hold())
+	_sequencer.hold(_seam.sweep_wait())
 	for star: Star in lost:
 		var view: StarView = _views.get(star.id)
 		if view == null:
@@ -927,7 +927,8 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 		var its_way: Vector2i = _seam.way_for(way, from) if great else way
 		var to: Vector2i = _seam.carry_point(its_way, from)
 		var reached: float = _seam.sweep_delay(its_way, from)
-		var share: float = (reached - SeamView.WINDUP_TIME) / SeamView.SWEEP_TIME
+		var rush: float = _seam.rush_seconds(its_way)
+		var share: float = (reached - SeamView.WINDUP_TIME) / rush
 		var tween: Tween = create_tween()
 		tween.tween_interval(reached)
 		tween.tween_callback(func() -> void:
@@ -938,7 +939,7 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 			var at: float = (SeamView.rush_reach(share) if share < 1.0 else 1.0)
 			var t: float = 1.0 if at >= 1.0 else clampf((reach - at) / (1.0 - at), 0.0, 1.0)
 			view.position = Vector2(Vector2(from).lerp(Vector2(to), t).round())
-			_halo_layer.queue_redraw(), 0.0, 1.0, maxf(0.01, SeamView.sweep_hold() - reached))
+			_halo_layer.queue_redraw(), 0.0, 1.0, maxf(0.01, SeamView.WINDUP_TIME + rush - reached))
 		tween.tween_callback(func() -> void:
 			_seam.flash_loss(Vector2i(view.position))
 			star_drained.emit(Vector2i(view.position))

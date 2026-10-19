@@ -37,6 +37,24 @@ static func sky_margin(visible: Vector2) -> Vector2i:
 	return Vector2i(side, offset.y)
 
 
+## The distance from `from` to the farthest corner pixel of `rect` (its last column and row are
+## `end - 1`).
+static func farthest_corner(from: Vector2i, rect: Rect2i) -> float:
+	var lo: Vector2i = rect.position
+	var hi: Vector2i = rect.end - Vector2i.ONE
+	var far: float = 0.0
+	for corner: Vector2i in [lo, Vector2i(hi.x, lo.y), Vector2i(lo.x, hi.y), hi]:
+		far = maxf(far, Vector2(corner - from).length())
+	return far
+
+
+## How much longer an animation that covers `far` px runs than one covering `home` px, the farthest
+## it covers on the portrait frame (docs/wide_sky_design.md §4): 1 up to `home`, so a portrait sky
+## keeps today's timing; past it, in proportion, so it keeps today's speed.
+static func stretch(far: float, home: float) -> float:
+	return maxf(1.0, far / home) if home > 0.0 else 1.0
+
+
 ## The Sun's centre when the screen shows `extra` more rows above the game's 180x320.
 static func sun_centre(extra: int) -> Vector2i:
 	return SUN_CENTRE - Vector2i(0, extra)

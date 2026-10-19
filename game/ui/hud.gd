@@ -344,7 +344,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		if run.harvest != null:
 			# Virgo's: harvest gold over the wheat's ripe gold, once the maiden is bound and the scythe
 			# has swept (#149).
-			var wait: float = ConstellationView.binding_time(run.scorpio.map) + HarvestView.SWEEP_TIME
+			var wait: float = ConstellationView.binding_time(run.scorpio.map) + HarvestView.sweep_time(run.sky_rect)
 			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.C1, Palette.C3, wait)
 		elif run.scorpio.map.heat_on_links:
 			# Leo's: summer gold over ember, once the lion has caught fire and roars.

@@ -33,7 +33,8 @@ const MIN_PULL: int = 4
 const HIT_RADIUS: int = SkyView.HIT_RADIUS
 ## Pull frames: the fork's gems light up in PULL_FRAMES steps as the pull grows.
 const PULL_FRAMES: int = 4
-## Timings from the game-feel skill.
+## Timings from the game-feel skill. FLIGHT_TIME is the flight to the frame's farthest corner or
+## nearer; a farther flight on a wide sky keeps that speed and takes longer (flight_time).
 const FLIGHT_TIME: float = 0.43
 const TREMBLE_TIME: float = 0.28
 const ARC_HEIGHT: int = 20
@@ -61,6 +62,8 @@ var _gain: int = AIM_GAIN
 var _pull: Vector2 = Vector2.ZERO
 var _flight: Flight = Flight.NONE
 var _flight_time: float = 0.0
+## How long this flight takes (flight_time).
+var _flight_lasts: float = FLIGHT_TIME
 var _flight_to: Vector2i = Vector2i.ZERO
 var _burst_time: float = -1.0
 var _burst_at: Vector2i = Vector2i.ZERO
@@ -173,9 +176,9 @@ func advance(delta: float) -> void:
 		_flying_pack.position = Vector2(flight_offset())
 		_flying_pack.grown = _flight == Flight.TREMBLING and _flight_time >= TREMBLE_TIME * 0.5
 		_flying_pack.bright = _flight == Flight.TREMBLING and _flight_time >= TREMBLE_TIME * 0.25
-		if _flight == Flight.FLYING and _flight_time >= FLIGHT_TIME:
+		if _flight == Flight.FLYING and _flight_time >= _flight_lasts:
 			_flight = Flight.TREMBLING
-			_flight_time -= FLIGHT_TIME
+			_flight_time -= _flight_lasts
 			tremble_started.emit()
 	if _split_time >= 0.0:
 		_split_time += delta
@@ -193,7 +196,7 @@ func advance(delta: float) -> void:
 func flight_offset() -> Vector2i:
 	if _flight == Flight.TREMBLING:
 		return _flight_to + Motion.shake(TREMBLE_SHAKE[int(_flight_time / TREMBLE_STEP) % TREMBLE_SHAKE.size()])
-	var k: float = clampf(_flight_time / FLIGHT_TIME, 0.0, 1.0)
+	var k: float = clampf(_flight_time / _flight_lasts, 0.0, 1.0)
 	var eased: float = 1.0 - (1.0 - k) * (1.0 - k)
 	var point: Vector2 = Vector2(_flight_from()).lerp(Vector2(_flight_to), eased)
 	return Vector2i(point.round()) + Vector2i(0, -roundi(sin(k * PI) * ARC_HEIGHT))
@@ -322,10 +325,7 @@ func _launch_view(kind: String, burst: Vector2i) -> void:
 	_flying_pack.bright = false
 	_flying_pack.position = Vector2(_flight_from())
 	_flying_pack.visible = true
-	_flight = Flight.FLYING
-	_flight_time = 0.0
-	_flight_to = burst - origin()
-	_sequencer.hold(FLIGHT_TIME + TREMBLE_TIME)
+	_start_flight(burst)
 
 
 ## The hunting intro's demo launch (#71): a pack of `kind` flies to `burst` and trembles like a real
@@ -336,10 +336,31 @@ func _demo_launch_view(kind: String, burst: Vector2i) -> void:
 	_flying_pack.bright = false
 	_flying_pack.position = Vector2(_flight_from())
 	_flying_pack.visible = true
+	_start_flight(burst)
+
+
+## The flying pack sets off for `burst` (in the run's coordinates); the sequence waits for its
+## flight and tremble.
+func _start_flight(burst: Vector2i) -> void:
 	_flight = Flight.FLYING
 	_flight_time = 0.0
 	_flight_to = burst - origin()
-	_sequencer.hold(FLIGHT_TIME + TREMBLE_TIME)
+	var from: Vector2i = origin() + _flight_from()
+	_flight_lasts = flight_time(from, burst, _run.frame_rect) if _run != null else FLIGHT_TIME
+	_sequencer.hold(_flight_lasts + TREMBLE_TIME)
+
+
+## How long a flight from `from` to `burst` takes: FLIGHT_TIME, stretched by how much farther
+## `burst` is than the frame's farthest corner from `from` (docs/wide_sky_design.md §4). Every burst
+## on a portrait sky is in its frame, so it keeps FLIGHT_TIME; a flight past the frame on a wide
+## sky keeps the portrait's top speed.
+static func flight_time(from: Vector2i, burst: Vector2i, frame: Rect2i) -> float:
+	return FLIGHT_TIME * ScreenZones.stretch(Vector2(burst - from).length(), ScreenZones.farthest_corner(from, frame))
+
+
+## How long the flight in the air takes (flight_time), or FLIGHT_TIME when none has flown.
+func flight_lasts() -> float:
+	return _flight_lasts
 
 
 ## Where the flight starts, in this node's coordinates: the fork, where the pack rests.
