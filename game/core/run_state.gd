@@ -399,7 +399,7 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 			var ways: Array[Vector2i] = [StarCharge.WAY]
 			if scorpio.map.ram_down:
 				ways.append(Vector2i.DOWN)
-			ram = StarCharge.new(balance.ram_every, balance.ram_lane, butt, _ram_start().y, ways, _ram_start().x)
+			ram = StarCharge.new(balance.ram_every, balance.ram_lane, butt, _ram_start_row(), ways, sky_rect.get_center().x)
 		if scorpio.map.cords:
 			cords = StarCords.new()
 			cords.tie_fixed(_fish_cord())
@@ -1925,12 +1925,12 @@ func _splash(at: Vector2i) -> void:
 	stars_splashed.emit(at, moved)
 
 
-## Aries: the lane row and column before any link has lit a landmark: the map's first landmark lit
-## from the start, else the sky's middle.
-func _ram_start() -> Vector2i:
+## Aries: the lane row before any link has lit a landmark: the row of the map's first landmark lit
+## from the start, else the sky's middle. (The column starts in the sky's middle.)
+func _ram_start_row() -> int:
 	if not scorpio.map.starting_lit.is_empty():
-		return scorpio.landmark_position(scorpio.map.starting_lit[0])
-	return sky_rect.get_center()
+		return scorpio.landmark_position(scorpio.map.starting_lit[0]).y
+	return sky_rect.get_center().y
 
 
 ## Aries's ram intro, as a stage with the ram and intros opens: demo stars wait, two in the lane and

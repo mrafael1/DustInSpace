@@ -207,7 +207,7 @@ func test_the_fleece_has_a_second_ram_charging_down_in_turn() -> void:
 	var run: RunState = _run(map)
 	assert_eq(run.ram.ways, [Vector2i.RIGHT, Vector2i.DOWN] as Array[Vector2i])
 	assert_eq(run.ram.butt, Balance.load_file().ram_butt)
-	assert_eq(run.ram.column, map.landmarks[0].x, "the column starts on the lit root")
+	assert_eq(run.ram.column, SKY.get_center().x, "the column starts in the sky's middle")
 	var charges: Array = []
 	run.ram_charged.connect(func(line: int, _moves: Array[StarCurrent.Move], way: Vector2i) -> void: charges.append([line, way]))
 	for i: int in 3:
