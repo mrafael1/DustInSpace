@@ -422,6 +422,8 @@ func _hold_for_sky() -> void:
 
 ## The cover, while held: the action line by the cause (SkyHoldCover.action_line); over the player's
 ## open pause menu it drops its PAUSED heading and sits below the menu, so only one PAUSED reads.
+## On a desktop it also names the fullscreen key (SkyHoldCover.key_line): a maximised window can't
+## grow, but F11 can take the run back to fullscreen.
 func _show_sky_cover() -> void:
 	var offset: Vector2i = ScreenZones.game_offset(_visible)
 	_sky_cover.offset = Vector2(offset)
@@ -432,7 +434,8 @@ func _show_sky_cover() -> void:
 	var below := Rect2i()
 	if _hud != null and _hud.pause_menu().is_open():
 		below = _hud.pause_menu().plaque_rect()
-	_sky_cover.show_hold(true, Rect2i(-offset, Vector2i(_visible.floor())), action, below)
+	var key: String = SkyHoldCover.key_line(OS.has_feature("pc"))
+	_sky_cover.show_hold(true, Rect2i(-offset, Vector2i(_visible.floor())), action, below, key)
 
 
 func _drop_presses() -> void:

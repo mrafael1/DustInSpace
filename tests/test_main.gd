@@ -553,6 +553,69 @@ func test_one_paused_heading_over_the_pause_menu() -> void:
 	assert_false(cover.is_showing())
 
 
+## On a desktop the cover names the fullscreen key (a maximised window can't grow, F11 gets out);
+## a phone or tablet has no key, so its cover is the two lines as before, on the same plaque.
+func test_the_cover_names_the_fullscreen_key_on_desktop_only() -> void:
+	assert_eq(SkyHoldCover.key_line(true), SkyHoldCover.KEY_TEXT, "on pc")
+	assert_eq(SkyHoldCover.key_line(false), "", "none on mobile")
+	var screen := Rect2i(Vector2i(-60, -13), Vector2i(300, 333))
+	var cover := SkyHoldCover.new()
+	add_child_autofree(cover)
+	cover.show_hold(true, screen, SkyHoldCover.GROW_TEXT, Rect2i(), SkyHoldCover.key_line(false))
+	assert_eq(cover.key_text(), "", "mobile: no key line")
+	assert_eq(cover.plaque_rect().size, Vector2i(SkyHoldCover.WIDTH, 41), "mobile: the plaque as before")
+	cover.show_hold(true, screen, SkyHoldCover.GROW_TEXT, Rect2i(), SkyHoldCover.key_line(true))
+	assert_eq(cover.key_text(), SkyHoldCover.KEY_TEXT, "pc: the key line")
+	assert_eq(cover.plaque_rect().size, Vector2i(SkyHoldCover.WIDTH, 41 + SkyHoldCover.LINE_STEP), "a row taller")
+	assert_lte(absi(cover.plaque_rect().get_center().y - (-13 + 166)), 1, "still centred")
+	_assert_cover_lines_inside(cover)
+	cover.show_hold(true, screen, SkyHoldCover.GROW_TEXT, Rect2i(), "")
+	assert_eq(cover.key_text(), "", "shown again without it: gone")
+	assert_eq(cover.plaque_rect().size.y, 41)
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	main.fit_visible(Vector2(640, 359))
+	var held: SkyHoldCover = main.get_node("SkyHoldCover")
+	assert_eq(held.key_text(), SkyHoldCover.key_line(OS.has_feature("pc")), "Main asks by the pc feature")
+
+
+## At the smallest held screens (the game's own 180x320; a wide run and a portrait run with rows),
+## the plaque with the key line stays on the visible screen, centred, alone or under the pause menu.
+func test_the_cover_with_the_key_fits_the_smallest_held_screens() -> void:
+	var hud: Hud = main.get_node("HUD")
+	var cover: SkyHoldCover = main.get_node("SkyHoldCover")
+	for built: Vector2 in [Vector2(640, 360), Vector2(195, 422)] as Array[Vector2]:
+		main.fit_visible(built)
+		assert_true(main.restart())
+		for small: Vector2 in [Vector2(180, 320), Vector2(195, 330)] as Array[Vector2]:
+			main.fit_visible(small)
+			assert_true(main.is_held_for_sky(), "%s held at %s" % [built, small])
+			var screen := Rect2i(-ScreenZones.game_offset(small), Vector2i(small))
+			for menu_open: bool in [false, true]:
+				if menu_open:
+					hud.open_pause()
+				else:
+					hud.close_pause()
+				cover.show_hold(true, screen, SkyHoldCover.WIDEN_TEXT,
+						hud.pause_menu().plaque_rect() if menu_open else Rect2i(), SkyHoldCover.KEY_TEXT)
+				var plaque: Rect2i = cover.plaque_rect()
+				assert_true(screen.encloses(plaque), "%s at %s, menu %s: on screen" % [built, small, menu_open])
+				assert_lte(absi(plaque.get_center().x - screen.get_center().x), 1, "centred across")
+				if menu_open:
+					assert_false(plaque.intersects(hud.pause_menu().plaque_rect()), "below the menu")
+				_assert_cover_lines_inside(cover)
+			hud.close_pause()
+
+
+## Every shown line of the cover sits inside its plaque, its border clear.
+func _assert_cover_lines_inside(cover: SkyHoldCover) -> void:
+	var inner: Rect2i = cover.plaque_rect().grow(-1)
+	for label: Label in cover.get_child(0).get_children():
+		if label.visible and not label.text.is_empty():
+			var box := Rect2i(Vector2i(label.position), Vector2i(label.size.ceil()))
+			assert_true(inner.encloses(box), "%s inside the plaque" % label.text)
+
+
 ## While held the pause and COMBOS buttons can't be tapped, so they don't show; they come back.
 func test_the_hold_hides_the_pause_and_combos_buttons() -> void:
 	main.fit_visible(Vector2(640, 360))
