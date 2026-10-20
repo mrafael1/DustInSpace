@@ -125,6 +125,20 @@ func test_the_portrait_space_is_flat() -> void:
 			assert_eq(image.get_pixel(x, y), ChapterSelect._space_colour(Vector2i(x, y) + PHONE.position, a, along))
 
 
+## A window resized on the chart (the camera still) gets the background stars of its new screen,
+## not the old screen's: none missing at the new edges, none under the moved heading.
+func test_the_background_stars_follow_a_resize() -> void:
+	var chart: ChapterSelect = _leo(WIDE)
+	await wait_frames(2)
+	var bigger := Rect2i(-251, -64, 683, 384)
+	chart.fit_screen(bigger)
+	await wait_frames(2)
+	var local: Rect2i = _local(bigger)
+	var stars_x: int = roundi(float(chart.get("_camera")) * ChapterSelect.STAR_PARALLAX)
+	var want: Array[Vector3i] = ChapterSelect.sky_stars(local, ChapterDef.leo(), stars_x, 0, 0, 0, [], chart.neighbour_points())
+	assert_eq(chart.get("_stars"), want, "worked out for the new screen")
+
+
 func test_the_space_is_built_once_per_screen_rect() -> void:
 	var one: ImageTexture = ChapterSelect.space_texture(WIDE)
 	assert_same(ChapterSelect.space_texture(WIDE), one, "kept")

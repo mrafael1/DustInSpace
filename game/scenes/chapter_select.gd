@@ -481,6 +481,8 @@ func fit_screen(screen: Rect2i) -> void:
 	var local := Rect2i(screen.position + Vector2i(0, lift), screen.size)
 	if local != _screen or _space == null:
 		_space = space_texture(local)
+		# The background stars were worked out for the old screen: work them out again.
+		_stars_key = Vector4i(-1, -1, -1, -1)
 	_screen = local
 	if _on_title:
 		_camera_y = _screen.size.y
