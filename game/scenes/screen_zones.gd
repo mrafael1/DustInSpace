@@ -1,15 +1,19 @@
 class_name ScreenZones
 extends RefCounted
-## Screen zones on the 180x320 grid, from docs/art-direction.md. Layout, not balance.
+## Screen zones of the game's own 180x320 screen, from docs/art-direction.md. Layout, not balance.
+## They are the portrait frame: a window that shows more (taller, or a landscape one) widens and
+## raises the play sky past SKY (play_sky), in the same game pixels, so a position can be above 0
+## or, on a wide sky, left of 0 and right of 180.
 ## Land overlaps the bottom of the sky on purpose: the horizon sits behind the lowest stars.
 
 const SUN := Rect2i(0, 0, 180, 78)
 const SKY := Rect2i(0, 78, 180, 172)
 const LAND := Rect2i(0, 230, 180, 54)
 const HUD := Rect2i(0, 284, 180, 36)
-## The game's own screen. On a phone that isn't 9:16 the window shows more than this (Main sizes
-## the view to fill the window at a whole-number scale, fill_size): the game sits at the bottom,
-## centred across, and the Backdrop fills the rest (mostly sky above).
+## The game's own screen. A window that isn't 9:16 (a taller phone, a desktop window, a tablet on its
+## side) shows more than this (Main sizes the view to fill the window at a whole-number scale,
+## fill_size): the game sits at the bottom, centred across, and the play sky and the Backdrop fill the
+## rest (sky above, and on a landscape window sky to both sides).
 const SCREEN := Vector2i(180, 320)
 ## The Sun's centre on a 9:16 screen. On a taller one it rises by the extra height (sun_centre),
 ## to the top of the screen, and the play sky grows up into the space it leaves (play_sky).
@@ -134,6 +138,7 @@ static func game_offset(visible: Vector2) -> Vector2i:
 	return Vector2i(extra.x / 2, extra.y)
 
 
-## A pointer event in the game's own 180x320 coordinates, from one in the visible area's.
+## A pointer event in game coordinates (the game's 180x320 screen at 0,0; a wide sky reaches past it
+## at negative x and past 180), from one in the visible area's.
 static func to_game(event: InputEvent, offset: Vector2i) -> InputEvent:
 	return event.xformed_by(Transform2D(0.0, Vector2(-offset)))

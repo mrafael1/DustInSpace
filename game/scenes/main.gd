@@ -266,8 +266,8 @@ func switch_current() -> void:
 	restart()
 
 
-## Fills the window and places the game's 180x320 screen in it (a phone that isn't 9:16 shows
-## more; see ScreenZones): the camera moves the world, the UI layers follow it, and the Backdrop
+## Fills the window and places the game's 180x320 screen in it (a window that isn't 9:16 shows
+## more: rows above, and on a landscape window columns to both sides; see ScreenZones): the camera moves the world, the UI layers follow it, and the Backdrop
 ## fills the rest.
 func fit_screen() -> void:
 	# Fill the window at a whole-number scale (Godot's own "expand" leaves bars on phones).

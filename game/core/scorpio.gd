@@ -9,7 +9,7 @@ extends RefCounted
 ## The constants below are the full Scorpio's layout (StarMap.scorpio); the static helpers answer
 ## for it (the chapter chart draws it). A run asks its own instance (`map`) instead.
 
-## Landmarks: the 14 stars of Scorpius's usual figure (#61), on the 180x320 grid, inside the play
+## Landmarks: the 14 stars of Scorpius's usual figure (#61), laid out in HOME_SKY, inside the play
 ## sky (y 86-242 once the edge margin is taken off). Their real layout (RA/Dec, east to the left)
 ## is spread out to at least 24 px apart so each can be picked on its own, keeping the shape: the
 ## claw arc on the right (beta, Dschubba, pi), sigma and Antares, the heart, to its left; the body

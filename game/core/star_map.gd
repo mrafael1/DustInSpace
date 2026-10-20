@@ -4,7 +4,8 @@ extends RefCounted
 ## strings joining them, their sizes, which start lit, and how its finished drawing looks. The
 ## full Scorpio is one map (Scorpio's constants); each part stage of the chapter has its own
 ## smaller "false constellation" shaped like that part (the Stinger first). Layout, not balance.
-## Positions are on the 180x320 grid in Scorpio.HOME_SKY; a taller sky shifts them (Scorpio.shift).
+## Positions are in game px, laid out in Scorpio.HOME_SKY; any other sky (a taller one, or a wide one)
+## shifts them to stay centred (Scorpio.shift).
 
 ## The painted art that rises behind the stars when the map is complete
 ## (tools/art/build_scorpio_figure.py): the whole Scorpio for the full maps, or the stage's own

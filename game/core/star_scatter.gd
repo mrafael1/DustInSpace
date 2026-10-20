@@ -1,7 +1,8 @@
 class_name StarScatter
 extends RefCounted
-## Decides where a burst's stars settle. Pure layout on the 180x320 grid; never touches
-## pack contents. Every returned position is inside `sky` shrunk by EDGE_MARGIN.
+## Decides where a burst's stars settle. Pure layout in game px, within the run's `sky`
+## (portrait or wide); never touches pack contents. Every returned position is inside `sky` shrunk by
+## EDGE_MARGIN.
 ## These are layout constants, not balance, so they live here rather than in balance.json.
 
 ## Keeps a star's sprite inside the sky: the big star is 15x15, so 7 px each side of its centre, +1.

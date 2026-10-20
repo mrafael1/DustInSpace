@@ -58,7 +58,7 @@ var _pulling: bool = false
 ## Px of aim per pixel of pull on this run's sky (gain_for), set in setup.
 var _gain: int = AIM_GAIN
 ## The pull as the finger reports it. The aim uses it unrounded: finger positions are finer than
-## the 180x320 grid, and rounding first would snap the aim to whole gain steps.
+## the game's pixel grid, and rounding first would snap the aim to whole gain steps.
 var _pull: Vector2 = Vector2.ZERO
 var _flight: Flight = Flight.NONE
 var _flight_time: float = 0.0
@@ -115,7 +115,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_show_rest_pack()
 
 
-## Where this node sits on the 180x320 grid.
+## Where this node sits, in game px.
 func origin() -> Vector2i:
 	return Vector2i(global_position.round())
 

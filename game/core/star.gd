@@ -8,7 +8,8 @@ const SIZE_KEYS: Array[String] = ["small", "medium", "big"]
 
 var id: int = 0
 var size: Size = Size.SMALL
-## Integer position on the 180x320 grid.
+## Integer position in game px (the game's 180x320 screen at 0,0; on a wide sky x runs below 0 and
+## past 180, and on a taller one y below 0).
 var position: Vector2i = Vector2i.ZERO
 
 

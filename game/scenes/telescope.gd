@@ -88,7 +88,7 @@ const REFUSED_SHAKE: Array[int] = [1, -1, 1, -1, 0]
 const REFUSED_SHAKE_STEP: float = 0.04
 
 var _aiming: bool = false
-## The burst point being aimed at (clamped into the sky), on the 180x320 grid.
+## The burst point being aimed at (clamped into the run's sky), in game px.
 var _aim: Vector2i = Vector2i.ZERO
 var _has_aim: bool = false
 ## A touch that started on the telescope (a tap there aims or cancels), or in the sky while aiming.
@@ -279,7 +279,7 @@ func cancel_pull() -> void:
 	_pose()
 
 
-## Points at a spot on the 180x320 grid (clamped into the sky), as the finger or mouse moves.
+## Points at a spot in game px (clamped into the run's sky), as the finger or mouse moves.
 func aim_at(point: Vector2i) -> void:
 	_aim = StarScatter.clamp_to_sky(point, _run.sky_rect)
 	_has_aim = true
@@ -368,7 +368,7 @@ static func is_finger(event: InputEvent) -> bool:
 	return event.device != InputEvent.DEVICE_ID_EMULATION
 
 
-## Where a sky press at `point` (this node's coordinates) aims, on the 180x320 grid: right there for
+## Where a sky press at `point` (this node's coordinates) aims, in game px: right there for
 ## a mouse, TOUCH_LIFT px above it for a finger (then clamped into the sky by aim_at).
 func press_aim(point: Vector2i, finger: bool) -> Vector2i:
 	return origin() + point - Vector2i(0, TOUCH_LIFT if finger else 0)

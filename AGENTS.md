@@ -42,7 +42,7 @@ Anything outside this list needs the user's approval first.
 1. **Balance values live only in `game/config/balance.json`.** The game and `tools/balance/sim.py` both read it. Never hard-code a cost, chance, reward or target in a script. After changing it, run the simulator and report the win rates.
 2. **Keep game logic separate from presentation.** `game/core/` holds pure GDScript classes (`RefCounted`, no nodes, no scene tree) that can be tested headless. Scenes observe that logic through signals and never own rules.
 3. **Randomness is injectable.** Core classes take a `RandomNumberGenerator` so tests and replays can use a seed.
-4. **Pixel-perfect only.** The viewport is 180×320 with integer scaling, nearest filtering and snapping to pixels. Keep every position integer, never rotate or scale sprites by fractions, and use no smooth shaders or blur.
+4. **Pixel-perfect only.** The base viewport is 180×320 with integer scaling (a window that isn't 9:16 shows more game pixels at the same whole-number scale; see `docs/wide_sky_design.md`), nearest filtering and snapping to pixels. Keep every position integer, never rotate or scale sprites by fractions, and use no smooth shaders or blur.
 5. **Palette-locked art.** Every colour must come from `assets/palettes/stellar_sun.gpl`. Warm colours are reserved for interactive or valuable things.
 6. **Text is never baked into art.** Numbers and labels use the bitmap font through Label nodes on the UI layer.
 7. **Don't grow systems early.** Add no new currencies, progression, inventories or special cases unless the user asks for them.
@@ -51,7 +51,7 @@ Anything outside this list needs the user's approval first.
 ## Repo layout
 
 ```
-project.godot            viewport 180x320, portrait, integer scale, nearest filter
+project.godot            base viewport 180x320 (portrait), integer scale, nearest filter; desktop fullscreen
 game/
   config/balance.json    all tuning values (single source of truth)
   core/                  pure logic: balance.gd, run_state.gd, combos.gd, pack_opener.gd
