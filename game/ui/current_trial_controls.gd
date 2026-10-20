@@ -1,13 +1,22 @@
 class_name CurrentTrialControls
 extends CanvasLayer
 ## Debug comparison control, ahead of the launchers' input. Main owns the restart.
+## It sits by the run's frame (the portrait 180-column band holding the figure), a row of the screen's
+## top down, so on a wide sky it stays by the constellation, not out at the visible screen's left edge.
 
 signal current_switch_requested
 
 const ButtonScene := preload("res://game/ui/map_button.tscn")
+## The button's top-left from the frame's left edge and the visible screen's top; the caption below it.
+const BUTTON_AT := Vector2i(8, 72)
+const CAPTION_AT := Vector2i(8, 88)
+
 var _button: MapButton
 var _caption: Label
 var _pressed: bool = false
+## The run's frame's left edge (ScreenZones.SKY's before a run) and the visible screen's top.
+var _frame_x: int = ScreenZones.SKY.position.x
+var _screen_top: int = 0
 
 
 func _ready() -> void:
@@ -17,13 +26,15 @@ func _ready() -> void:
 	_caption = Label.new()
 	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_caption.label_settings = HudText.secondary(Palette.M5)
-	_caption.position = Vector2(8, 88)
 	add_child(_caption)
+	_place()
 	visible = false
 	set_process_input(OS.is_debug_build())
 
 
 func setup(run: RunState, _sequencer: EventSequencer) -> void:
+	_frame_x = run.frame_rect.position.x
+	_place()
 	var id: String = run.scorpio.map.id if run.scorpio != null else ""
 	visible = OS.is_debug_build() and (id.begins_with("current_") or id.begins_with("black_hole") or id.begins_with("cord") or id.begins_with("ram"))
 	_pressed = false
@@ -47,9 +58,10 @@ func setup(run: RunState, _sequencer: EventSequencer) -> void:
 		_caption.text = "DRAIN TAKES STARS" if run.current.drains else "LAUNCH MOVES STARS"
 
 
+## `screen`: the visible screen in game px. Only its top is used; the left comes from the frame.
 func fit_screen(screen: Rect2i) -> void:
-	_button.position = Vector2(screen.position + Vector2i(8, 72))
-	_caption.position = Vector2(screen.position + Vector2i(8, 88))
+	_screen_top = screen.position.y
+	_place()
 
 
 func _input(event: InputEvent) -> void:
@@ -74,3 +86,9 @@ func handle_pointer(event: InputEvent) -> bool:
 	if used and on_target and not touch.canceled:
 		current_switch_requested.emit()
 	return used
+
+
+func _place() -> void:
+	var anchor := Vector2i(_frame_x, _screen_top)
+	_button.position = Vector2(anchor + BUTTON_AT)
+	_caption.position = Vector2(anchor + CAPTION_AT)

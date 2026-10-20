@@ -237,6 +237,25 @@ func test_a_landscape_screen_gives_the_next_run_the_wide_sky() -> void:
 	assert_gt(outside, 0, "and reach out past the frame")
 
 
+## Commit 21: the debug tools still reach a wide screen. The balance errors stay on the game's 180x320,
+## which a 640x360 screen shows whole, and B forces a Big Bang that bursts in the wide sky.
+func test_the_debug_tools_reach_a_wide_screen() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	var layer: CanvasLayer = main.get_node("DebugLayer")
+	var label: Label = main.get_node("DebugLayer/BalanceErrors")
+	assert_eq(layer.offset, Vector2(230, 40))
+	assert_true(Rect2(Vector2.ZERO, Vector2(640, 360)).encloses(Rect2(label.position + layer.offset, label.size)),
+		"the balance errors sit on the visible screen")
+	var keys: DebugKeys = main.get_node("DebugKeys")
+	var bangs: Array[Vector2i] = []
+	main.run.big_bang_started.connect(func(at: Vector2i, _cleared: Array[Star], _dust: int) -> void: bangs.append(at))
+	assert_true(keys.force_big_bang())
+	assert_true(keys.launch_at_random())
+	assert_eq(bangs.size(), 1, "B: the next pack opens as a Big Bang")
+	assert_true(Fixtures.WIDE_SKY.has_point(bangs[0]), "in the wide sky")
+
+
 ## A mid-run resize keeps the run's sky (holding still while it doesn't fit, commit 18); the next run
 ## takes the new screen's.
 func test_a_resize_mid_run_keeps_the_wide_sky_until_a_restart() -> void:
