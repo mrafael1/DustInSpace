@@ -45,9 +45,10 @@ signal encounter_finished(threat: int)
 @export var current_layout: String = "tail"
 
 var run: RunState
-## Rows the screen shows above the game's 180x320 (fit_screen): the Sun rises by this much and
-## the next run's play sky grows by it.
-var _extra: int = 0
+## How far the screen reaches past the game's 180x320 (fit_screen, ScreenZones.sky_margin): x the
+## columns on each side the next run's play sky widens by (only on a landscape screen), y the rows
+## above it grows by and the Sun rises by.
+var _margin: Vector2i = Vector2i.ZERO
 
 @onready var _sequencer: EventSequencer = $EventSequencer
 @onready var _balance_errors: Label = $DebugLayer/BalanceErrors
@@ -158,7 +159,7 @@ func start_run(balance: Balance) -> bool:
 	_balance_errors.visible = false
 	_pause_pending = false
 	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
-	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
+	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_margin.y, _margin.x), map)
 	_backdrop.follow_sky(run.sky_rect)
 	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null or run.splash != null or run.wave != null or run.ram != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
@@ -257,13 +258,14 @@ func fit_screen() -> void:
 ## Places the game's screen in a visible area of `visible` game pixels (fit_screen's second half).
 func fit_visible(visible: Vector2) -> void:
 	var offset: Vector2i = ScreenZones.game_offset(visible)
+	_margin = ScreenZones.sky_margin(visible)
 	($BigBang/Shake as Camera2D).position = Vector2(-offset)
 	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front, $CurrentTrialControls] as Array[CanvasLayer]:
 		layer.offset = Vector2(offset)
 	_sound_toggle.screen_offset = offset
 	# The Backdrop frames the run's sky (its vignette, and no margin star over it); before the first
 	# run, the sky that run will take.
-	_backdrop.fit(offset, Vector2i(visible), run.sky_rect if run != null else ScreenZones.play_sky(offset.y))
+	_backdrop.fit(offset, Vector2i(visible), run.sky_rect if run != null else ScreenZones.play_sky(_margin.y, _margin.x))
 	# The UI anchors to the real screen's edges, not the game's 180x320 (the Sun's counter aside).
 	var screen := Rect2i(-offset, Vector2i(visible))
 	($CurrentTrialControls as CurrentTrialControls).fit_screen(screen)
@@ -273,11 +275,10 @@ func fit_visible(visible: Vector2) -> void:
 	_end_screen.fit_screen(screen)
 	_sun.fit_screen(screen)
 	# The Sun rises to the top of the screen; its light follows it. A run already in play keeps its
-	# sky: the next one (RESTART) takes the new size.
-	_extra = offset.y
-	_sun.position = Vector2(ScreenZones.sun_centre(_extra))
-	_hud.sun_at = ScreenZones.sun_centre(_extra)
-	_collect.light_target = ScreenZones.sun_centre(_extra)
+	# sky: the next one (RESTART) takes the new size (_margin).
+	_sun.position = Vector2(ScreenZones.sun_centre(_margin.y))
+	_hud.sun_at = ScreenZones.sun_centre(_margin.y)
+	_collect.light_target = ScreenZones.sun_centre(_margin.y)
 	# Dust lands on the icon wherever the HUD put it (a wide screen moves it out to the left).
 	_collect.dust_target = _hud.dust_icon_centre()
 

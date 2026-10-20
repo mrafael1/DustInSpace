@@ -202,6 +202,62 @@ func test_both_launchers_follow_a_launch() -> void:
 	assert_eq((main.get_node("Launcher") as Launcher).shown_pack(), kind, "the hidden slingshot keeps up")
 
 
+## Commit 17, the switch (docs/wide_sky_design.md §7): a landscape screen's next run takes the wide
+## play sky, and everything that reads the sky from the run gets it.
+func test_a_landscape_screen_gives_the_next_run_the_wide_sky() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_eq(main.run.sky_rect, ScreenZones.SKY, "the run in play keeps its sky")
+	var view := ViewStub.new()
+	main.add_child(view)
+	main.move_child(view, 0)
+	assert_true(main.restart())
+	assert_eq(main.run.sky_rect, Fixtures.WIDE_SKY, "640x360: 230 columns each side, 40 rows above")
+	assert_eq(main.run.frame_rect, Rect2i(0, 38, 180, 212), "the frame: the figure's 180 columns")
+	assert_eq(view.run, main.run, "every view gets the wide run")
+	assert_eq((main.get_node("Backdrop") as Backdrop).get("_sky"), Fixtures.WIDE_SKY, "the Backdrop frames it")
+	var slingshot: Launcher = main.get_node("Launcher")
+	assert_eq(slingshot.aim_gain(), Launcher.gain_for(slingshot.origin(), Fixtures.WIDE_SKY), "the slingshot reaches its corners")
+	assert_eq((main.get_node("Sun") as Node2D).position, Vector2(ScreenZones.sun_centre(40)), "the Sun rises by the rows only")
+	var keys: DebugKeys = main.get_node("DebugKeys")
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	_play_until_idle(sequencer)
+	var outside: int = 0
+	for launch: int in 3:
+		assert_true(keys.launch_at_random())
+		_play_until_idle(sequencer)
+	for star: Star in main.run.stars:
+		assert_true(StarScatter.inner_rect(Fixtures.WIDE_SKY).has_point(star.position), "stars stay in the wide sky")
+		if not main.run.frame_rect.has_point(star.position):
+			outside += 1
+	assert_gt(outside, 0, "and reach out past the frame")
+
+
+## A mid-run resize keeps the run's sky (commit 18 handles resizing properly); the next run takes the
+## new screen's.
+func test_a_resize_mid_run_keeps_the_wide_sky_until_a_restart() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	main.fit_visible(Vector2(195, 422))
+	assert_eq(main.run.sky_rect, Fixtures.WIDE_SKY, "a portrait resize keeps the wide run's sky")
+	assert_eq((main.get_node("Backdrop") as Backdrop).get("_sky"), Fixtures.WIDE_SKY, "and the Backdrop keeps framing it")
+	main.fit_visible(Vector2(853, 360))
+	assert_eq(main.run.sky_rect, Fixtures.WIDE_SKY)
+	assert_true(main.restart())
+	assert_eq(main.run.sky_rect, Fixtures.WIDE_SKY, "ultrawide: the 640 cap")
+	main.fit_visible(Vector2(195, 422))
+	assert_true(main.restart())
+	assert_eq(main.run.sky_rect, ScreenZones.play_sky(102), "back on a phone: today's tall sky")
+
+
+## A portrait screen builds exactly today's sky, its spare columns staying backdrop.
+func test_a_portrait_screen_keeps_todays_sky() -> void:
+	for case: Array in [[Vector2(195, 422), 102], [Vector2(256, 341), 21], [Vector2(240, 320), 0], [Vector2(180, 320), 0]]:
+		main.fit_visible(case[0])
+		assert_true(main.restart())
+		assert_eq(main.run.sky_rect, ScreenZones.play_sky(case[1]), "%s: rows only" % case[0])
+		assert_eq(main.run.frame_rect, main.run.sky_rect, "%s: the frame is the sky" % case[0])
+
+
 func _play_until_idle(sequencer: EventSequencer) -> void:
 	var elapsed: float = 0.0
 	sequencer.advance(0.0)
