@@ -27,13 +27,24 @@ static func play_sky(rows: int, side: int = 0) -> Rect2i:
 	return Rect2i(SKY.position.x - side, SKY.position.y - rows, SKY.size.x + 2 * side, SKY.size.y + rows)
 
 
+## Whether a visible area of `visible` px is wide enough to widen the play sky: only a landscape one,
+## wider than it is tall (a desktop window, a tablet held sideways). A portrait one, every phone, a
+## tablet held upright or a tall desktop window, keeps the game's own 180 columns whatever columns it
+## has to spare, so it looks and plays as it always has (the user, 2026-10-20). A square one counts
+## as portrait.
+static func widens_sky(visible: Vector2) -> bool:
+	return visible.x > visible.y
+
+
 ## How far the play sky reaches past the game's screen in a visible area of `visible` px: x is the
-## columns added on EACH side, y the rows added above. Both sides get the same columns (game_offset's
-## floor of half the extra width), so the sky stays centred on x 90 and an odd leftover column is
-## backdrop; the width caps at MAX_SKY_WIDTH. Rows have no cap: tall phones already grow upward.
+## columns added on EACH side, y the rows added above. Only a landscape area adds columns (widens_sky);
+## a portrait one adds rows only, its spare columns staying backdrop. Both sides get the same columns
+## (game_offset's floor of half the extra width), so the sky stays centred on x 90 and an odd leftover
+## column is backdrop; the width caps at MAX_SKY_WIDTH. Rows have no cap: tall phones already grow
+## upward.
 static func sky_margin(visible: Vector2) -> Vector2i:
 	var offset: Vector2i = game_offset(visible)
-	var side: int = mini(offset.x, (MAX_SKY_WIDTH - SKY.size.x) / 2)
+	var side: int = mini(offset.x, (MAX_SKY_WIDTH - SKY.size.x) / 2) if widens_sky(visible) else 0
 	return Vector2i(side, offset.y)
 
 

@@ -151,19 +151,19 @@ func test_the_view_fills_a_landscape_window_with_the_game_centred() -> void:
 		assert_eq(ScreenZones.game_offset(Vector2(ScreenZones.fill_size(window))), case[3], "%s game offset (an odd extra width leaves its last column on the right)" % window)
 
 
-## The play sky on those windows (docs/wide_sky_design.md §1): the same extra columns on both sides,
-## capped at MAX_SKY_WIDTH, and every extra row above.
+## The play sky on those windows (docs/wide_sky_design.md §1): on a landscape one, the same extra
+## columns on both sides, capped at MAX_SKY_WIDTH; on any, every extra row above.
 func test_the_play_sky_widens_to_both_sides_up_to_the_cap() -> void:
 	var cases: Array[Array] = [
 		# window, sky_margin, play sky
 		[Vector2i(1920, 1080), Vector2i(230, 40), Rect2i(-230, 38, 640, 212)],
 		[Vector2i(1280, 800), Vector2i(230, 80), Rect2i(-230, -2, 640, 252)],
-		[Vector2i(1536, 2048), Vector2i(38, 21), Rect2i(-38, 57, 256, 193)],
+		[Vector2i(1536, 2048), Vector2i(0, 21), Rect2i(0, 57, 180, 193)],
 		[Vector2i(2048, 1536), Vector2i(166, 64), Rect2i(-166, 14, 512, 236)],
 		[Vector2i(1366, 768), Vector2i(230, 64), Rect2i(-230, 14, 640, 236)],
 		[Vector2i(2560, 1080), Vector2i(230, 40), Rect2i(-230, 38, 640, 212)],
 		[Vector2i(1080, 1920), Vector2i(0, 0), ScreenZones.SKY],
-		[Vector2i(1170, 2532), Vector2i(7, 102), Rect2i(-7, -24, 194, 274)],
+		[Vector2i(1170, 2532), Vector2i(0, 102), Rect2i(0, -24, 180, 274)],
 	]
 	for case: Array in cases:
 		var window: Vector2i = case[0]
@@ -174,10 +174,52 @@ func test_the_play_sky_widens_to_both_sides_up_to_the_cap() -> void:
 		assert_lte(sky.size.x, ScreenZones.MAX_SKY_WIDTH, "%s within the cap" % window)
 		assert_eq(sky.position.x + sky.end.x, 180, "%s centred on x 90" % window)
 	# 1366x768 shows 683 columns: 503 extra, an odd number. The cap leaves 640 either way.
-	assert_eq(ScreenZones.sky_margin(Vector2(181, 320)), Vector2i(0, 0), "one odd extra column stays backdrop")
-	assert_eq(ScreenZones.sky_margin(Vector2(185, 320)), Vector2i(2, 0), "an odd extra width splits evenly, the leftover is backdrop")
+	assert_eq(ScreenZones.sky_margin(Vector2(401, 360)), Vector2i(110, 40), "an odd extra width splits evenly, the leftover is backdrop")
+	assert_eq(ScreenZones.sky_margin(Vector2(361, 360)), Vector2i(90, 40), "the narrowest landscape area, its odd column backdrop")
 	assert_eq(ScreenZones.play_sky(102), Rect2i(0, -24, 180, 274), "side 0 is today's tall sky")
 	assert_eq(ScreenZones.play_sky(0), ScreenZones.SKY)
+
+
+## Only a landscape window widens the sky (the user, 2026-10-20): a portrait one, every phone, a
+## tablet held upright, a tall desktop window, keeps the game's own 180 columns, however many it has to
+## spare, and only grows upward as today. A square one counts as portrait.
+func test_only_a_landscape_window_widens_the_sky() -> void:
+	var portrait: Array[Array] = [
+		# window, rows above
+		[Vector2i(1170, 2532), 102],
+		[Vector2i(1080, 2400), 80],
+		[Vector2i(1668, 2388), 21],
+		[Vector2i(1536, 2048), 21],
+		[Vector2i(1000, 1000), 13],
+		[Vector2i(1080, 1920), 0],
+	]
+	for case: Array in portrait:
+		var window: Vector2i = case[0]
+		var visible := Vector2(ScreenZones.fill_size(window))
+		assert_false(ScreenZones.widens_sky(visible), "%s (%s visible) is portrait" % [window, visible])
+		assert_eq(ScreenZones.sky_margin(visible), Vector2i(0, case[1]), "%s: no side columns, every extra row" % window)
+	for visible: Vector2 in [Vector2(195, 422), Vector2(238, 341), Vector2(256, 341), Vector2(240, 320), Vector2(320, 320), Vector2(333, 333)]:
+		assert_eq(ScreenZones.sky_margin(visible).x, 0, "%s: spare columns stay backdrop" % visible)
+	assert_eq(ScreenZones.game_offset(Vector2(195, 422)).x, 7, "the phone's 7 spare columns still centre the game")
+	var landscape: Array[Array] = [
+		# window, sky margin
+		[Vector2i(1920, 1080), Vector2i(230, 40)],
+		[Vector2i(1366, 768), Vector2i(230, 64)],
+		[Vector2i(2388, 1668), Vector2i(148, 13)],
+		[Vector2i(2048, 1536), Vector2i(166, 64)],
+		[Vector2i(2560, 1080), Vector2i(230, 40)],
+	]
+	for case: Array in landscape:
+		var window: Vector2i = case[0]
+		var visible := Vector2(ScreenZones.fill_size(window))
+		assert_true(ScreenZones.widens_sky(visible), "%s (%s visible) is landscape" % [window, visible])
+		var margin: Vector2i = ScreenZones.sky_margin(visible)
+		assert_eq(margin, case[1], "%s sky margin" % window)
+		assert_gt(margin.x, 0, "%s: side columns" % window)
+		assert_lte(ScreenZones.play_sky(margin.y, margin.x).size.x, ScreenZones.MAX_SKY_WIDTH, "%s within the 640 cap" % window)
+	assert_false(ScreenZones.widens_sky(Vector2(360, 360)), "square: portrait")
+	assert_eq(ScreenZones.sky_margin(Vector2(360, 360)), Vector2i(0, 40), "square: rows only")
+	assert_eq(ScreenZones.sky_margin(Vector2(361, 360)).x, 90, "one column wider: landscape")
 
 
 func test_the_game_sits_on_the_bottom_edge_centred_across() -> void:
@@ -220,7 +262,8 @@ func test_the_backdrop_carries_the_background_on() -> void:
 
 ## Commit 16 (docs/wide_sky_design.md §4): a portrait sky, the game's own 180 columns however tall,
 ## leaves the Backdrop exactly as it was. Digests of the margin image and its star positions recorded
-## from the Backdrop before the change (a8b76d57), with the sky the run takes on each window.
+## from the Backdrop before the change (a8b76d57), with the sky the run takes on each window: every
+## one is portrait, so its spare columns stay backdrop (ScreenZones.widens_sky) and the sky is side 0.
 func test_a_portrait_sky_leaves_the_backdrop_as_it_was() -> void:
 	var background: Image = (load(BACKGROUND) as Texture2D).get_image()
 	var recorded: Array[Array] = [
@@ -233,7 +276,9 @@ func test_a_portrait_sky_leaves_the_backdrop_as_it_was() -> void:
 		var visible: Vector2 = case[0]
 		var offset: Vector2i = ScreenZones.game_offset(visible)
 		var area := Rect2i(-offset, Vector2i(visible))
-		var sky: Rect2i = ScreenZones.play_sky(offset.y)
+		var margin: Vector2i = ScreenZones.sky_margin(visible)
+		assert_eq(margin, Vector2i(0, offset.y), "%s: a portrait window keeps the 180 columns" % visible)
+		var sky: Rect2i = ScreenZones.play_sky(margin.y, margin.x)
 		assert_eq(Backdrop.vignette_radii(sky), Backdrop.OUTER_RADII, "%s: the vignette as it was" % visible)
 		assert_false(Backdrop.star_free(sky).has_area(), "%s: no star kept off" % visible)
 		var stars: Array[Vector2i] = Backdrop.margin_stars(area, sky)

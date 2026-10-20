@@ -62,8 +62,11 @@ func test_every_corner_and_edge_of_a_wide_sky_can_be_aimed_at() -> void:
 
 
 func test_every_corner_and_edge_of_a_tall_phone_sky_can_be_aimed_at() -> void:
-	# A 1170x2532 phone: 102 rows above and 7 columns each side (ScreenZones.sky_margin).
-	_setup_on(ScreenZones.play_sky(102, 7))
+	# A 1170x2532 phone: 102 rows above, and its 7 spare columns each side stay backdrop (it is
+	# portrait: ScreenZones.sky_margin).
+	var margin: Vector2i = ScreenZones.sky_margin(Vector2(195, 422))
+	_setup_on(ScreenZones.play_sky(margin.y, margin.x))
+	assert_eq(run.sky_rect, ScreenZones.play_sky(102), "the phone's sky is today's tall one")
 	var top: Vector2i = inner.position
 	var old_reach: float = Launcher.MIN_REACH + (Launcher.MAX_PULL - Launcher.MIN_PULL) * Launcher.AIM_GAIN
 	assert_gt(Vector2(top - ORIGIN).length(), old_reach, "this corner was out of reach before")
