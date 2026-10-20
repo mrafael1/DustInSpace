@@ -141,6 +141,14 @@ const STAR_COLOURS: Array[Color] = [Palette.N7, Palette.N7, Palette.N8, Palette.
 ## One background star in SKY_TWINKLE_ODDS twinkles: it flashes M6 for SKY_TWINKLE_ON once every
 ## SKY_TWINKLE_PERIOD, at a phase of its own.
 const SKY_TWINKLE_ODDS: int = 3
+## On a wide screen (is_wide) the sky's steps bend down out past the sign's span (x 0 to SKY_SPAN),
+## by (px out)^2 / SKY_BEND rows, at most SKY_BEND_MAX: a dome, darker towards the sides, so no
+## straight seam runs the screen's width (the in-game Backdrop frames its wide sky the same way).
+## Over the sign's span, and on every portrait screen, the steps are flat as before.
+const SKY_BEND: int = 520
+const SKY_BEND_MAX: int = 110
+## The space images kept (space_texture), one per screen rect, at most this many.
+const SPACE_CACHE: int = 4
 const SKY_TWINKLE_PERIOD: float = 2.6
 const SKY_TWINKLE_ON: float = 0.2
 ## A shooting star every METEOR_WAIT seconds (x to y, at random): it starts in the top METEOR_TOP rows,
@@ -345,6 +353,8 @@ static var _sections_above: Dictionary[int, Array] = {}
 ## the chart the camera is (px; a screen's height on the title, 0 on the chart), and the layer's
 ## offset on the chart (fit_screen).
 var _title_view: TitleView
+## The space behind the chart per screen rect (space_texture).
+static var _spaces: Dictionary[Rect2i, ImageTexture] = {}
 var _on_title: bool = false
 var _descent_time: float = -1.0
 var _camera_y: float = 0.0
@@ -465,7 +475,7 @@ func fit_screen(screen: Rect2i) -> void:
 	_base_offset = Vector2(-screen.position.x, extra - lift)
 	var local := Rect2i(screen.position + Vector2i(0, lift), screen.size)
 	if local != _screen or _space == null:
-		_space = ImageTexture.create_from_image(space_image(local, _def(), false))
+		_space = space_texture(local)
 	_screen = local
 	if _on_title:
 		_camera_y = _screen.size.y
@@ -628,7 +638,8 @@ func meteor_pixels() -> Dictionary[Vector2i, Color]:
 
 
 ## The space behind the chart for a visible screen `screen` (game coordinates; the image's 0,0 is
-## screen.position). Opaque, cool palette colours only, the same pixels for the same place.
+## screen.position). Opaque, cool palette colours only, the same pixels for the same place. On a
+## wide screen the sky's steps bend down beyond the sign's span (step_bend).
 static func space_image(screen: Rect2i, def: ChapterDef = null, with_stars: bool = true) -> Image:
 	var image := Image.create_empty(screen.size.x, screen.size.y, false, Image.FORMAT_RGBA8)
 	var a := Vector2(MILKY_WAY[0])
@@ -636,10 +647,11 @@ static func space_image(screen: Rect2i, def: ChapterDef = null, with_stars: bool
 	for y: int in screen.size.y:
 		for x: int in screen.size.x:
 			var p := Vector2i(x, y) + screen.position
-			image.set_pixel(x, y, _space_colour(p, a, along))
+			image.set_pixel(x, y, _space_colour(p, a, along, step_bend(p.x) if wide else 0))
 	for star: Vector3i in (sky_stars(screen, def) if with_stars else ([] as Array[Vector3i])):
 		var h: int = star.z
 		var local: Vector2i = Vector2i(star.x, star.y) - screen.position
+	var wide: bool = is_wide(screen)
 		if is_glint(h):
 			for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 				var q: Vector2i = local + n
@@ -658,6 +670,31 @@ static func label_areas(screen: Rect2i = Rect2i(Vector2i.ZERO, ScreenZones.SCREE
 
 ## Whether a background star at `p` would sit in one of `areas` or too near one of `points`.
 static func _covered(p: Vector2i, areas: Array[Rect2i], points: Array[Vector2i]) -> bool:
+## The space behind the chart for `screen`, without its background stars (they're drawn live), as a
+## texture: built once per screen rect and kept (SPACE_CACHE of them), so a window going back and
+## forth between sizes (F11, a turned tablet) or a new chart doesn't build it again.
+static func space_texture(screen: Rect2i) -> ImageTexture:
+	if not _spaces.has(screen):
+		if _spaces.size() >= SPACE_CACHE:
+			_spaces.erase(_spaces.keys()[0])
+		_spaces[screen] = ImageTexture.create_from_image(space_image(screen, null, false))
+	return _spaces[screen]
+
+
+## Whether `screen` is a wide (landscape) one: only there does the chart show its neighbours as they
+## are on a wide screen (cool, not tappable) and bend the sky's steps. A portrait one, a phone with a
+## few spare columns included, keeps the chart exactly as on a 9:16 screen (ScreenZones.widens_sky).
+static func is_wide(screen: Rect2i) -> bool:
+	return ScreenZones.widens_sky(Vector2(screen.size))
+
+
+## How many rows lower the sky's steps sit at column `x` on a wide screen: none over the sign's span,
+## then (px out)^2 / SKY_BEND, at most SKY_BEND_MAX.
+static func step_bend(x: int) -> int:
+	var out: int = maxi(maxi(-x, x - (SKY_SPAN - 1)), 0)
+	return mini(out * out / SKY_BEND, SKY_BEND_MAX)
+
+
 	for area: Rect2i in areas:
 		if area.has_point(p):
 			return true
@@ -675,12 +712,12 @@ static func space_stars(screen: Rect2i, def: ChapterDef = null) -> Array[Vector2
 	return stars
 
 
-static func _space_colour(p: Vector2i, milky_start: Vector2, milky_along: Vector2) -> Color:
+static func _space_colour(p: Vector2i, milky_start: Vector2, milky_along: Vector2, bend: int = 0) -> Color:
 	var bayer: float = StarView.BAYER[posmod(p.y, 4) * 4 + posmod(p.x, 4)] / 16.0
-	# The sky's steps, each seam an ordered dither SEAM rows deep.
+	# The sky's steps, each seam an ordered dither SEAM rows deep, `bend` rows lower.
 	var step: int = 0
 	for i: int in SKY_STOPS.size():
-		var into: float = float(p.y - SKY_STOPS[i]) / SEAM
+		var into: float = float(p.y - SKY_STOPS[i] - bend) / SEAM
 		if into >= 1.0 or (into > 0.0 and bayer < into):
 			step = i + 1
 	var colour: Color = SKY_STEPS[step]
@@ -1608,7 +1645,7 @@ func _centre(label: Label, y: int) -> void:
 
 func _draw_chart() -> void:
 	if _space == null:
-		_space = ImageTexture.create_from_image(space_image(_screen, _def(), false))
+		_space = space_texture(_screen)
 	# The sky behind is drawn on the screen as it is: it holds still while the camera rises.
 	_chart.draw_set_transform(Vector2(0, -roundi(_camera_y)))
 	_chart.draw_texture(_space, Vector2(_screen.position))
