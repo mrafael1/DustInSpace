@@ -480,13 +480,73 @@ func test_leaving_the_stage_mid_hold_lets_the_tree_go() -> void:
 	assert_false(get_tree().paused, "the chart isn't left paused")
 
 
-## The cover's action: turn the screen back on a phone or tablet; on a desktop, widen when the sides are
-## cut, grow when only the height is short.
+## The cover's action follows the cause: turn the screen back only when a wide run's phone or tablet
+## is now upright (portrait-shaped); a window made smaller, on a desktop or a phone (split-screen,
+## freeform), widens when the sides are cut and grows when only the height is short.
 func test_the_cover_says_what_to_do() -> void:
-	assert_eq(SkyHoldCover.action_line(Vector2(300, 333), Fixtures.WIDE_SKY, true), SkyHoldCover.TURN_TEXT)
-	assert_eq(SkyHoldCover.action_line(Vector2(300, 333), Fixtures.WIDE_SKY, false), SkyHoldCover.WIDEN_TEXT)
+	assert_eq(SkyHoldCover.action_line(Vector2(300, 333), Fixtures.WIDE_SKY, true), SkyHoldCover.TURN_TEXT, "a wide run's tablet turned upright")
+	assert_eq(SkyHoldCover.action_line(Vector2(195, 422), Fixtures.WIDE_SKY, true), SkyHoldCover.TURN_TEXT, "a phone-shaped screen")
+	assert_eq(SkyHoldCover.action_line(Vector2(300, 333), Fixtures.WIDE_SKY, false), SkyHoldCover.WIDEN_TEXT, "a desktop window narrowed")
 	assert_eq(SkyHoldCover.action_line(Vector2(640, 359), Fixtures.WIDE_SKY, false), SkyHoldCover.GROW_TEXT)
 	assert_eq(SkyHoldCover.action_line(Vector2(639, 400), Fixtures.WIDE_SKY, false), SkyHoldCover.WIDEN_TEXT, "a column short, rows to spare")
+
+
+## On a phone or tablet, turning only helps a wide run whose screen became portrait-shaped.
+func test_the_cover_says_turn_only_when_turning_helps() -> void:
+	var phone: Rect2i = ScreenZones.play_sky(102)
+	assert_eq(SkyHoldCover.action_line(Vector2(195, 400), phone, true), SkyHoldCover.GROW_TEXT, "an upright phone losing rows (split-screen)")
+	assert_eq(SkyHoldCover.action_line(Vector2(390, 300), phone, true), SkyHoldCover.GROW_TEXT, "a portrait run in a landscape-shaped window")
+	assert_eq(SkyHoldCover.action_line(Vector2(500, 330), Fixtures.WIDE_SKY, true), SkyHoldCover.WIDEN_TEXT, "a wide run in a smaller landscape window")
+	assert_eq(SkyHoldCover.action_line(Vector2(640, 359), Fixtures.WIDE_SKY, true), SkyHoldCover.GROW_TEXT, "still landscape, a row short")
+
+
+## Over the player's open pause menu (its own PAUSED heading), the cover drops its heading and sits
+## below the menu, clear of it, so one PAUSED reads; with the menu closed it shows its own again.
+func test_one_paused_heading_over_the_pause_menu() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	var hud: Hud = main.get_node("HUD")
+	var cover: SkyHoldCover = main.get_node("SkyHoldCover")
+	hud.open_pause()
+	main.fit_visible(Vector2(300, 333))
+	assert_true(main.is_held_for_sky())
+	assert_true(cover.is_showing(), "the cover still says why")
+	assert_false(cover.shows_heading(), "the menu's PAUSED is the only one")
+	var menu: Rect2i = hud.pause_menu().plaque_rect()
+	var plaque: Rect2i = cover.plaque_rect()
+	assert_false(plaque.intersects(menu), "clear of the menu")
+	assert_eq(plaque.position.y, menu.end.y + SkyHoldCover.BELOW_GAP, "just below it")
+	assert_lte(absi(plaque.get_center().x - menu.get_center().x), 1, "centred under it")
+	assert_true(Rect2i(Vector2i(-60, -13), Vector2i(300, 333)).encloses(plaque), "on the visible screen")
+	assert_eq(cover.action_text(), SkyHoldCover.WIDEN_TEXT)
+	hud.close_pause()
+	assert_true(main.is_held_for_sky(), "still held")
+	assert_true(cover.shows_heading(), "the menu closed: the cover's own PAUSED")
+	assert_lte(absi(cover.plaque_rect().get_center().y - (-13 + 166)), 1, "back in the screen's middle")
+	hud.open_pause()
+	assert_false(cover.shows_heading(), "opened during the hold (a background pause): one heading")
+	main.fit_visible(Vector2(640, 360))
+	assert_false(cover.is_showing())
+
+
+## While held the pause and COMBOS buttons can't be tapped, so they don't show; they come back.
+func test_the_hold_hides_the_pause_and_combos_buttons() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	var hud: Hud = main.get_node("HUD")
+	var pause_at: Vector2i = hud.pause_target().get_center()
+	var table_at: Vector2i = hud.table_target().get_center()
+	assert_eq(hud.target_at(pause_at), ["", &"pause"])
+	main.fit_visible(Vector2(300, 333))
+	pause_at = hud.pause_target().get_center()
+	table_at = hud.table_target().get_center()
+	assert_false((hud.get_node("PauseButton") as Node2D).visible, "pause hidden")
+	assert_false((hud.get_node("TableButton") as Node2D).visible, "COMBOS hidden")
+	assert_eq(hud.target_at(pause_at), [])
+	assert_eq(hud.target_at(table_at), [])
+	main.fit_visible(Vector2(640, 360))
+	assert_true((hud.get_node("PauseButton") as Node2D).visible, "back")
+	assert_true((hud.get_node("TableButton") as Node2D).visible)
 
 
 func _play_until_idle(sequencer: EventSequencer) -> void:

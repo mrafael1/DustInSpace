@@ -118,6 +118,9 @@ func _ready() -> void:
 	_hud.restart_requested.connect(restart)
 	_hud.pause_opened.connect(_pause_world.bind(true))
 	_hud.pause_closed.connect(_pause_world.bind(false))
+	# Under a hold, the cover makes way for the pause menu's own PAUSED heading.
+	_hud.pause_opened.connect(_show_sky_cover)
+	_hud.pause_closed.connect(_show_sky_cover)
 	_end_screen.watch_payouts(_collect)
 	_end_screen.loss_beat_started.connect(_on_loss_beat)
 	_hud.planet_chosen.connect(func(_kind: String) -> void: _telescope.request_aim())
@@ -401,10 +404,24 @@ func _hold_for_sky() -> void:
 	if hold != _sky_held and is_inside_tree():
 		get_tree().paused = hold
 	_sky_held = hold
+	if _hud != null:
+		_hud.hold_for_sky(hold)
+	_show_sky_cover()
+
+
+## The cover, while held: the action line by the cause (SkyHoldCover.action_line); over the player's
+## open pause menu it drops its PAUSED heading and sits below the menu, so only one PAUSED reads.
+func _show_sky_cover() -> void:
 	var offset: Vector2i = ScreenZones.game_offset(_visible)
 	_sky_cover.offset = Vector2(offset)
-	var action: String = SkyHoldCover.action_line(_visible, run.sky_rect, OS.has_feature("mobile")) if hold else ""
-	_sky_cover.show_hold(hold, Rect2i(-offset, Vector2i(_visible.floor())), action)
+	if not _sky_held:
+		_sky_cover.show_hold(false, Rect2i(-offset, Vector2i(_visible.floor())))
+		return
+	var action: String = SkyHoldCover.action_line(_visible, run.sky_rect, OS.has_feature("mobile"))
+	var below := Rect2i()
+	if _hud != null and _hud.pause_menu().is_open():
+		below = _hud.pause_menu().plaque_rect()
+	_sky_cover.show_hold(true, Rect2i(-offset, Vector2i(_visible.floor())), action, below)
 
 
 func _drop_presses() -> void:

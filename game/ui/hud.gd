@@ -700,6 +700,13 @@ func is_map_offered() -> bool:
 	return _map_offered
 
 
+## While the game holds for its sky (Main), the pause and COMBOS buttons can't be tapped, so they
+## don't show; they come back when it lets go.
+func hold_for_sky(on: bool) -> void:
+	_pause_button.visible = not on
+	_table_button.visible = not on
+
+
 ## The pause button's tap target.
 func pause_target() -> Rect2i:
 	return _pause_button.target()
