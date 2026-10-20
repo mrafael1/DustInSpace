@@ -294,6 +294,9 @@ func test_a_wide_run_holds_still_until_its_sky_fits_again() -> void:
 	assert_eq(cover.action_text(), SkyHoldCover.WIDEN_TEXT, "cut at the sides: widen")
 	assert_true(Rect2i(Vector2i(-60, -13), Vector2i(300, 333)).encloses(cover.plaque_rect()), "the plaque is on the visible screen")
 	assert_eq(cover.offset, Vector2(60, 13), "drawn in game coordinates, like the other UI layers")
+	var plaque: Rect2i = cover.plaque_rect()
+	assert_lte(absi(plaque.get_center().x - (-60 + 150)), 1, "centred across the visible screen, not the game's")
+	assert_lte(absi(plaque.get_center().y - (-13 + 166)), 1, "and down it")
 	main.fit_visible(Vector2(640, 359))
 	assert_true(main.is_held_for_sky(), "a row short")
 	assert_eq(cover.action_text(), SkyHoldCover.GROW_TEXT, "only the height: grow")
@@ -426,6 +429,64 @@ func test_the_hold_drops_a_touch_in_progress() -> void:
 	assert_eq(sky.selected_ids(), [] as Array[int])
 	main.fit_visible(Vector2(640, 360))
 	assert_false(main.is_held_for_sky())
+
+
+## The hold also drops a pull on the slingshot and a press on the telescope: neither release can
+## arrive while the tree is paused.
+func test_the_hold_drops_a_pull_or_a_scope_press() -> void:
+	main.fit_visible(Vector2(640, 360))
+	main.switch_launcher(false)
+	assert_true(main.restart())
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	_play_until_idle(sequencer)
+	var slingshot: Launcher = main.launcher()
+	var touch := InputEventScreenTouch.new()
+	touch.pressed = true
+	touch.position = Vector2.ZERO
+	assert_true(slingshot.handle_pointer(touch), "a pull starts")
+	assert_true(slingshot.has_press())
+	main.fit_visible(Vector2(300, 333))
+	assert_false(slingshot.has_press(), "the hold drops the pull")
+	assert_false(slingshot.is_pulling())
+	main.fit_visible(Vector2(640, 360))
+	main.switch_launcher(true)
+	var telescope: Telescope = main.launcher()
+	touch.position = Vector2(Telescope.PIVOT)
+	assert_true(telescope.handle_pointer(touch), "a press on the scope")
+	assert_true(telescope.has_press())
+	main.fit_visible(Vector2(300, 333))
+	assert_true(main.is_held_for_sky())
+	assert_false(telescope.has_press(), "the hold drops it")
+
+
+## A run that's over never holds (its end screen follows the screen, RESTART fits it).
+func test_a_run_thats_over_never_holds() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	main.run.outcome = RunState.Outcome.LOST
+	main.fit_visible(Vector2(300, 333))
+	assert_false(main.is_held_for_sky())
+	assert_false(get_tree().paused)
+	assert_false((main.get_node("SkyHoldCover") as SkyHoldCover).is_showing())
+
+
+## A stage left while it holds (back to the chart) doesn't leave the app paused behind it.
+func test_leaving_the_stage_mid_hold_lets_the_tree_go() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	main.fit_visible(Vector2(300, 333))
+	assert_true(get_tree().paused)
+	remove_child(main)
+	assert_false(get_tree().paused, "the chart isn't left paused")
+
+
+## The cover's action: turn the screen back on a phone or tablet; on a desktop, widen when the sides are
+## cut, grow when only the height is short.
+func test_the_cover_says_what_to_do() -> void:
+	assert_eq(SkyHoldCover.action_line(Vector2(300, 333), Fixtures.WIDE_SKY, true), SkyHoldCover.TURN_TEXT)
+	assert_eq(SkyHoldCover.action_line(Vector2(300, 333), Fixtures.WIDE_SKY, false), SkyHoldCover.WIDEN_TEXT)
+	assert_eq(SkyHoldCover.action_line(Vector2(640, 359), Fixtures.WIDE_SKY, false), SkyHoldCover.GROW_TEXT)
+	assert_eq(SkyHoldCover.action_line(Vector2(639, 400), Fixtures.WIDE_SKY, false), SkyHoldCover.WIDEN_TEXT, "a column short, rows to spare")
 
 
 func _play_until_idle(sequencer: EventSequencer) -> void:
