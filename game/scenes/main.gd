@@ -318,6 +318,17 @@ static func hold_min_window(window: Window) -> void:
 		window.min_size = ScreenZones.min_window(OS.has_feature("pc"))
 
 
+## Tablets may turn (Q9): an iPad or an Android tablet (ScreenZones.is_tablet) takes the sensor's
+## orientation, so held sideways it plays the wide sky. Phones stay portrait-locked, as project.godot
+## sets every handheld. Only on the `mobile` feature. App calls it.
+static func let_tablets_turn() -> void:
+	if not OS.has_feature("mobile"):
+		return
+	var screen: int = DisplayServer.get_primary_screen()
+	if ScreenZones.is_tablet(OS.get_model_name(), DisplayServer.screen_get_size(screen), DisplayServer.screen_get_dpi(screen)):
+		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_SENSOR)
+
+
 ## Shows the telescope (true) or the slingshot and hands it the input; the other one hides and
 ## takes none. Both keep following the run's events, so either can take over at any time.
 func switch_launcher(telescope: bool) -> void:

@@ -315,6 +315,28 @@ func test_a_wide_run_holds_still_until_its_sky_fits_again() -> void:
 	assert_false(get_tree().paused)
 
 
+## Commit 19: the desktop opens fullscreen. Leaving it for the 1280x720 window keeps a 1080p
+## monitor's run playing; a smaller window (Godot's own restore, or a 1366x768 laptop's maximised
+## window) holds until the sky fits again, as any resize does, and the fullscreen key brings it back.
+func test_leaving_fullscreen_holds_only_when_the_window_cant_show_the_sky() -> void:
+	main.fit_visible(Vector2(ScreenZones.fill_size(Vector2i(1920, 1080))))
+	assert_true(main.restart())
+	assert_eq(main.run.sky_rect, Fixtures.WIDE_SKY)
+	main.fit_visible(Vector2(ScreenZones.fill_size(ScreenZones.WINDOWED_SIZE)))
+	assert_false(main.is_held_for_sky(), "the windowed size shows the whole sky")
+	main.fit_visible(Vector2(ScreenZones.fill_size(Vector2i(1264, 681))))
+	assert_true(main.is_held_for_sky(), "a window a little smaller does not")
+	main.fit_visible(Vector2(ScreenZones.fill_size(Vector2i(1920, 1080))))
+	assert_false(main.is_held_for_sky(), "back to fullscreen")
+	main.fit_visible(Vector2(ScreenZones.fill_size(Vector2i(1366, 768))))
+	assert_true(main.restart(), "a laptop's fullscreen run")
+	main.fit_visible(Vector2(ScreenZones.fill_size(Vector2i(1366, 705))))
+	assert_true(main.is_held_for_sky(), "its maximised window is 32 rows short")
+	assert_eq((main.get_node("SkyHoldCover") as SkyHoldCover).action_text(), SkyHoldCover.GROW_TEXT)
+	assert_true(main.restart(), "a restart (tests only) takes the window's sky")
+	assert_false(main.is_held_for_sky())
+
+
 ## The hold leaves the player's own pause alone: a pause menu open before stays open (and the world
 ## held) after the sky fits again, and nothing the player paused is let go.
 func test_the_sky_hold_leaves_the_players_pause_menu_as_it_was() -> void:

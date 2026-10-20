@@ -268,14 +268,53 @@ func test_every_screen_holds_the_sky_it_builds() -> void:
 				return
 
 
-## Q1: a desktop window can't go below 1280x720, which shows 640x360 at 2x, the whole widest sky.
-## Phones and tablets get no minimum.
+## Q1 (the user, 2026-10-20): a desktop window can't go below 960x540, which shows 960x540 at 1x,
+## more than the whole widest sky. Phones and tablets get no minimum.
 func test_the_desktop_minimum_window_shows_the_widest_sky() -> void:
-	assert_eq(ScreenZones.min_window(true), Vector2i(1280, 720))
+	assert_eq(ScreenZones.min_window(true), Vector2i(960, 540))
 	assert_eq(ScreenZones.min_window(false), Vector2i.ZERO, "not on a phone or a tablet")
 	var visible := Vector2(ScreenZones.fill_size(ScreenZones.MIN_WINDOW))
-	assert_eq(visible, Vector2(640, 360))
+	assert_eq(visible, Vector2(960, 540), "at 1x")
 	assert_true(ScreenZones.holds_sky(visible, Fixtures.WIDE_SKY), "the 1920x1080 run fits the smallest window")
+	assert_eq(ScreenZones.sky_margin(visible), Vector2i(230, 220), "the 640 cap, and every row as sky")
+	var laptop := Vector2(ScreenZones.fill_size(Vector2i(1366, 705)))
+	assert_true(ScreenZones.MIN_WINDOW.x <= 1366 and ScreenZones.MIN_WINDOW.y <= 705,
+			"a maximised window on a 1366x768 laptop is allowed")
+	assert_eq(laptop, Vector2(683, 352), "at 2x")
+
+
+## Leaving fullscreen gives a 1280x720 window: 640x360 at 2x, so a run built fullscreen on a 1080p,
+## 1440p or 4K monitor (640x360 each) still fits. The window Godot restores by itself from a
+## fullscreen start (1264x681 here, the 1280x720 outer rect less its borders) would not, hence
+## FullscreenKey sizes it.
+func test_the_windowed_size_holds_a_fullscreen_run() -> void:
+	var visible := Vector2(ScreenZones.fill_size(ScreenZones.WINDOWED_SIZE))
+	assert_eq(visible, Vector2(640, 360))
+	assert_true(ScreenZones.widens_sky(visible))
+	for monitor: Vector2i in [Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(3840, 2160)] as Array[Vector2i]:
+		var margin: Vector2i = ScreenZones.sky_margin(Vector2(ScreenZones.fill_size(monitor)))
+		assert_true(ScreenZones.holds_sky(visible, ScreenZones.play_sky(margin.y, margin.x)), "%s fullscreen" % monitor)
+	assert_false(ScreenZones.holds_sky(Vector2(ScreenZones.fill_size(Vector2i(1264, 681))), Fixtures.WIDE_SKY))
+	# Accepted (the user, 2026-10-20): a 1366x768 laptop's fullscreen run (683x384) holds in its
+	# maximised window (683x352) until it goes back to fullscreen or the next run.
+	var laptop: Vector2i = ScreenZones.sky_margin(Vector2(683, 384))
+	assert_eq(laptop, Vector2i(230, 64))
+	assert_false(ScreenZones.holds_sky(Vector2(683, 352), ScreenZones.play_sky(laptop.y, laptop.x)))
+
+
+## Q9: tablets may turn, phones stay portrait-locked. An iPad by its model; Android by the shorter
+## side in dp (sw600dp).
+func test_tablets_are_told_from_phones() -> void:
+	assert_true(ScreenZones.is_tablet("iPad13,4", Vector2i(2048, 2732), 264), "iPad Pro")
+	assert_true(ScreenZones.is_tablet("iPad14,1", Vector2i(1488, 2266), 326), "iPad mini")
+	assert_false(ScreenZones.is_tablet("iPhone15,3", Vector2i(1290, 2796), 460), "iPhone Pro Max")
+	assert_false(ScreenZones.is_tablet("iPhone15,3", Vector2i(1290, 2796), 72), "an iPhone whatever dpi it reports")
+	assert_false(ScreenZones.is_tablet("Pixel 8", Vector2i(1080, 2400), 420), "a phone: 411 dp")
+	assert_false(ScreenZones.is_tablet("Pixel 8", Vector2i(2400, 1080), 420), "held sideways too")
+	assert_true(ScreenZones.is_tablet("SM-X710", Vector2i(1600, 2560), 320), "a tablet: 800 dp")
+	assert_true(ScreenZones.is_tablet("SM-T290", Vector2i(800, 1280), 213), "just over 600 dp")
+	assert_false(ScreenZones.is_tablet("X", Vector2i(798, 1280), 213), "just under")
+	assert_false(ScreenZones.is_tablet("X", Vector2i(1600, 2560), 0), "an unknown dpi is a phone")
 
 
 func test_the_game_sits_on_the_bottom_edge_centred_across() -> void:

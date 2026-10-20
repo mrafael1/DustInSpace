@@ -48,14 +48,32 @@ static func sky_margin(visible: Vector2) -> Vector2i:
 	return Vector2i(side, offset.y)
 
 
-## The smallest desktop window, in device px (docs/wide_sky_design.md Q1): at 2x it shows 640x360, the
-## whole widest sky. Phones and tablets size their own window, so they get none.
-const MIN_WINDOW := Vector2i(1280, 720)
+## The smallest desktop window, in device px (docs/wide_sky_design.md Q1, the user 2026-10-20): small
+## enough that a maximised window on a 1366x768 laptop (about 1366x705) still opens. At 1x it shows
+## 960x540, more than the whole widest sky; a window under 640 px tall plays at 1x. Phones and tablets
+## size their own window, so they get none.
+const MIN_WINDOW := Vector2i(960, 540)
+## The desktop window when the player leaves fullscreen (the game opens fullscreen on a desktop,
+## project.godot's `.pc` overrides): 16:9 at 2x, 640x360, the whole widest sky.
+const WINDOWED_SIZE := Vector2i(1280, 720)
+## A handheld screen whose shorter side is at least this many dp is a tablet (Android's sw600dp).
+const TABLET_MIN_DP := 600
 
 
 ## The window's minimum size: MIN_WINDOW on a desktop (`desktop`), none (zero) elsewhere.
 static func min_window(desktop: bool) -> Vector2i:
 	return MIN_WINDOW if desktop else Vector2i.ZERO
+
+
+## Whether a handheld screen of `screen` px at `dpi` is a tablet, which may turn (Q9): an iPad
+## (`model` from OS.get_model_name, on iOS), or a screen whose shorter side is at least TABLET_MIN_DP
+## dp (px * 160 / dpi, as Android counts it). A phone, or an unknown dpi, is not.
+static func is_tablet(model: String, screen: Vector2i, dpi: int) -> bool:
+	if model.begins_with("iPad"):
+		return true
+	if model.begins_with("iPhone") or model.begins_with("iPod") or dpi <= 0:
+		return false
+	return mini(screen.x, screen.y) * 160 >= TABLET_MIN_DP * dpi
 
 
 ## What a run needs on screen: its play sky `sky` and the Sun's band above it (the Sun follows the

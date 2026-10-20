@@ -26,6 +26,8 @@ extends Node
 ## menu closes; in a stage, Main.go_back (the pause menu, the table, the end screen, else PAUSED);
 ## on the title or the chart with nothing open, nothing (the app never quits itself). The app going
 ## to the background (or losing focus) mid-stage opens PAUSED (Main.pause_for_background).
+## On a desktop the game opens fullscreen (project.godot); F11 or Alt+Enter goes to a window and back
+## (FullscreenKey). Tablets may turn (Main.let_tablets_turn); phones stay portrait.
 
 ## A stage was opened (tests and feedback).
 signal stage_opened(point: int)
@@ -97,6 +99,9 @@ func _ready() -> void:
 	_add_options()
 	_show_navigation()
 	Main.hold_min_window(get_window())
+	Main.let_tablets_turn()
+	if OS.has_feature("pc") and DisplayServer.get_name() != "headless":
+		add_child(FullscreenKey.new())
 	get_window().size_changed.connect(fit_screen)
 	fit_screen()
 	if opens_on_title:
