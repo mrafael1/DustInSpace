@@ -1,6 +1,7 @@
 extends GutTest
 ## The night background (assets/art/background.png, tools/art/build_background.py).
 
+const Fixtures := preload("res://tests/fixtures.gd")
 const MainScene := preload("res://game/scenes/main.tscn")
 const BACKGROUND := "res://assets/art/background.png"
 const PALETTE_PATH := "res://assets/palettes/stellar_sun.gpl"
@@ -215,3 +216,106 @@ func test_the_backdrop_carries_the_background_on() -> void:
 	var image: Image = (load(BACKGROUND) as Texture2D).get_image()
 	assert_eq(Backdrop.edge_colour(image, 0, 0).to_html(false), image.get_pixel(0, 0).to_html(false), "sky above")
 	assert_eq(Backdrop.edge_colour(image, 0, 319).to_html(false), "0a0c26", "M0 ground below")
+
+
+## Commit 16 (docs/wide_sky_design.md §4): a portrait sky, the game's own 180 columns however tall,
+## leaves the Backdrop exactly as it was. Digests of the margin image and its star positions recorded
+## from the Backdrop before the change (a8b76d57), with the sky the run takes on each window.
+func test_a_portrait_sky_leaves_the_backdrop_as_it_was() -> void:
+	var background: Image = (load(BACKGROUND) as Texture2D).get_image()
+	var recorded: Array[Array] = [
+		[Vector2(195, 422), "7f5e21232da92ecec038745bebbafa6e", "e5628473954434fbea3f07a16ab60585", 97],
+		[Vector2(256, 341), "1db6913f5b1d6e8578cb752b177ecdf1", "b919b586f5be66d080ec4f28d789a6f1", 107],
+		[Vector2(240, 320), "994f521f655676c06417c8c07c1ec382", "c43101c0afdf3f64eee57d5874e7543a", 65],
+		[Vector2(180, 420), "03e8ed343116b2b75b7b4272a474ea6d", "ae7da7ddbdafc91c7016268ef00cf85e", 77],
+	]
+	for case: Array in recorded:
+		var visible: Vector2 = case[0]
+		var offset: Vector2i = ScreenZones.game_offset(visible)
+		var area := Rect2i(-offset, Vector2i(visible))
+		var sky: Rect2i = ScreenZones.play_sky(offset.y)
+		assert_eq(Backdrop.vignette_radii(sky), Backdrop.OUTER_RADII, "%s: the vignette as it was" % visible)
+		assert_false(Backdrop.star_free(sky).has_area(), "%s: no star kept off" % visible)
+		var stars: Array[Vector2i] = Backdrop.margin_stars(area, sky)
+		assert_eq(stars.size(), case[3], "%s: as many margin stars" % visible)
+		assert_eq(str(stars).md5_text(), case[2], "%s: the same margin stars" % visible)
+		assert_eq(stars, Backdrop.margin_stars(area), "%s: the same as with no sky given" % visible)
+		var image: Image = Backdrop.margin_image(background, area, sky)
+		assert_eq(image.get_data().hex_encode().md5_text(), case[1], "%s: the same margin image" % visible)
+
+
+## On a wide play sky the vignette frames the whole sky: every pixel of the sky keeps its colour,
+## and the outer sky only darkens past it (out on an ultrawide window, past the 640 cap).
+func test_the_vignette_frames_a_wide_play_sky() -> void:
+	var sky: Rect2i = Fixtures.WIDE_SKY
+	var radii: Vector2 = Backdrop.vignette_radii(sky)
+	assert_gte(radii.x, sky.size.x / 2.0 + 30.0, "at least the plan's max(120, w / 2 + 30)")
+	assert_eq(radii.y, Backdrop.OUTER_RADII.y, "as tall as before")
+	for x: int in range(sky.position.x, sky.end.x):
+		for y: int in [sky.position.y, sky.end.y - 1]:
+			assert_eq(Backdrop.outer_sky(Palette.N3, x, y, radii), Palette.N3, "no darker at the sky's edge (%d, %d)" % [x, y])
+	for y: int in range(sky.position.y, sky.end.y):
+		for x: int in [sky.position.x, sky.end.x - 1]:
+			assert_eq(Backdrop.outer_sky(Palette.N3, x, y, radii), Palette.N3, "no darker at the sky's side (%d, %d)" % [x, y])
+	assert_eq(Backdrop.outer_sky(Palette.N3, -300, 140, radii), Palette.N2, "a step darker out past the sky")
+	assert_eq(Backdrop.outer_sky(Palette.N3, 480, 140, radii), Palette.N2, "on both sides")
+	assert_eq(Backdrop.outer_sky(Palette.N3, -40, 140), Palette.N2, "a portrait run's vignette is unchanged")
+	assert_lte(Backdrop.vignette_radii(ScreenZones.play_sky(80, 230)).x, 400.0, "a taller wide sky (1280x800) still a close frame")
+
+
+## No margin star (glint arms included) stands over a wide play sky, so none can be taken for a star
+## in play; they fill the margin outside it: above it, and out past it on an ultrawide window.
+func test_margin_stars_keep_off_a_wide_play_sky() -> void:
+	for visible: Vector2 in [Vector2(640, 360), Vector2(853, 360), Vector2(640, 400)]:
+		var offset: Vector2i = ScreenZones.game_offset(visible)
+		var margin: Vector2i = ScreenZones.sky_margin(visible)
+		var sky: Rect2i = ScreenZones.play_sky(margin.y, margin.x)
+		var area := Rect2i(-offset, Vector2i(visible))
+		var stars: Array[Vector2i] = Backdrop.margin_stars(area, sky)
+		assert_gt(stars.size(), 20, "%s: a starfield in the margin" % visible)
+		for p: Vector2i in stars:
+			for q: Vector2i in Backdrop.star_pixels(p):
+				assert_false(sky.has_point(q), "%s: star at %s off the play sky" % [visible, p])
+		assert_gt(Backdrop.margin_stars(area).size(), stars.size(), "%s: a portrait sky would have put stars there" % visible)
+	var wide := Vector2(853, 360)
+	var sky: Rect2i = ScreenZones.play_sky(40, 230)
+	var stars: Array[Vector2i] = Backdrop.margin_stars(Rect2i(-ScreenZones.game_offset(wide), Vector2i(wide)), sky)
+	var left: int = 0
+	var right: int = 0
+	for p: Vector2i in stars:
+		if p.x < sky.position.x and p.y >= sky.position.y:
+			left += 1
+		elif p.x >= sky.end.x and p.y >= sky.position.y:
+			right += 1
+	assert_gt(left, 3, "ultrawide: stars out past the sky's left side")
+	assert_gt(right, 3, "and past its right side")
+
+
+## A glint next to a wide sky whose arm would reach over it is left out whole, not cut; one a column
+## further out stays.
+func test_a_glint_beside_a_wide_sky_is_left_out_whole() -> void:
+	var glint := Vector2i(-1, -1)
+	for p: Vector2i in Backdrop.margin_stars(Rect2i(-600, -200, 400, 400)):
+		if Backdrop.star_pixels(p).size() > 1:
+			glint = p
+			break
+	assert_ne(glint, Vector2i(-1, -1), "a glint in the margin to test with")
+	var area := Rect2i(glint - Vector2i(3, 3), Vector2i(7, 7))
+	var touching := Rect2i(glint + Vector2i(1, -50), Vector2i(640, 212))
+	var clear := Rect2i(glint + Vector2i(2, -50), Vector2i(640, 212))
+	assert_false(touching.has_point(glint), "the glint's core is outside the sky")
+	assert_false(Backdrop.margin_stars(area, touching).has(glint), "its arm would reach over the sky: left out")
+	assert_true(Backdrop.margin_stars(area, clear).has(glint), "a column clear of the sky: kept")
+
+
+## Main hands the Backdrop the run's sky, and a new run's sky when it takes one.
+func test_main_hands_the_backdrop_the_runs_sky() -> void:
+	var main: Main = MainScene.instantiate()
+	main.seed_override = 7
+	add_child_autofree(main)
+	var backdrop: Backdrop = main.get_node("Backdrop")
+	assert_eq(backdrop.get("_sky"), main.run.sky_rect, "the run's sky")
+	main.fit_visible(Vector2(195, 422))
+	assert_eq(backdrop.get("_sky"), main.run.sky_rect, "a run in play keeps its sky")
+	backdrop.follow_sky(Fixtures.WIDE_SKY)
+	assert_eq(backdrop.get("_sky"), Fixtures.WIDE_SKY, "follows a wide sky")

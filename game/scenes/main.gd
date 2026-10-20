@@ -159,6 +159,7 @@ func start_run(balance: Balance) -> bool:
 	_pause_pending = false
 	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_extra), map)
+	_backdrop.follow_sky(run.sky_rect)
 	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null or run.splash != null or run.wave != null or run.ram != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
 	($Sky/ConstellationLayer as ConstellationView).repeat = replay
@@ -260,7 +261,9 @@ func fit_visible(visible: Vector2) -> void:
 	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front, $CurrentTrialControls] as Array[CanvasLayer]:
 		layer.offset = Vector2(offset)
 	_sound_toggle.screen_offset = offset
-	_backdrop.fit(offset, Vector2i(visible))
+	# The Backdrop frames the run's sky (its vignette, and no margin star over it); before the first
+	# run, the sky that run will take.
+	_backdrop.fit(offset, Vector2i(visible), run.sky_rect if run != null else ScreenZones.play_sky(offset.y))
 	# The UI anchors to the real screen's edges, not the game's 180x320 (the Sun's counter aside).
 	var screen := Rect2i(-offset, Vector2i(visible))
 	($CurrentTrialControls as CurrentTrialControls).fit_screen(screen)
