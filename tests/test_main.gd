@@ -249,6 +249,21 @@ func test_a_resize_mid_run_keeps_the_wide_sky_until_a_restart() -> void:
 	assert_eq(main.run.sky_rect, ScreenZones.play_sky(102), "back on a phone: today's tall sky")
 
 
+## With no run yet (here a balance error keeps the first one from starting), the Backdrop frames the
+## sky the first run will take: the wide one on a landscape screen, today's tall one on a phone.
+func test_before_a_run_the_backdrop_frames_the_screens_sky() -> void:
+	var broken: Main = MainScene.instantiate()
+	broken.balance_path = "res://tests/missing_balance.json"
+	add_child_autofree(broken)
+	assert_push_error("balance.json")
+	assert_null(broken.run)
+	var backdrop: Backdrop = broken.get_node("Backdrop")
+	broken.fit_visible(Vector2(640, 360))
+	assert_eq(backdrop.get("_sky"), Fixtures.WIDE_SKY, "640x360: the wide sky")
+	broken.fit_visible(Vector2(195, 422))
+	assert_eq(backdrop.get("_sky"), ScreenZones.play_sky(102), "a phone: no side columns")
+
+
 ## A portrait screen builds exactly today's sky, its spare columns staying backdrop.
 func test_a_portrait_screen_keeps_todays_sky() -> void:
 	for case: Array in [[Vector2(195, 422), 102], [Vector2(256, 341), 21], [Vector2(240, 320), 0], [Vector2(180, 320), 0]]:
