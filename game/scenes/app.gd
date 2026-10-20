@@ -26,7 +26,7 @@ extends Node
 ## menu closes; in a stage, Main.go_back (the pause menu, the table, the end screen, else PAUSED);
 ## on the title or the chart with nothing open, nothing (the app never quits itself). The app going
 ## to the background (or losing focus) mid-stage opens PAUSED (Main.pause_for_background).
-## On a desktop the game opens fullscreen (project.godot); F11 or Alt+Enter goes to a window and back
+## On a desktop the exported game opens fullscreen (project.godot; an editor run opens windowed); F11 or Alt+Enter goes to a window and back
 ## (FullscreenKey). Tablets may turn (Main.let_tablets_turn); phones stay portrait.
 
 ## A stage was opened (tests and feedback).

@@ -34,10 +34,22 @@ func test_a_desktop_opens_fullscreen_with_a_1280x720_window_to_leave_for() -> vo
 	assert_eq(ProjectSettings.get_setting(SIZE + "mode.pc"), Window.MODE_FULLSCREEN, "borderless fullscreen, not exclusive")
 	assert_eq(Vector2i(ProjectSettings.get_setting(SIZE + "window_width_override.pc"),
 			ProjectSettings.get_setting(SIZE + "window_height_override.pc")), ScreenZones.WINDOWED_SIZE)
-	if OS.has_feature("pc"):
+	if OS.has_feature("pc") and not OS.has_feature("editor"):
 		assert_eq(ProjectSettings.get_setting_with_override(SIZE + "mode"), Window.MODE_FULLSCREEN, "the override applies here")
+	if OS.has_feature("pc"):
 		assert_eq(ProjectSettings.get_setting_with_override(SIZE + "window_width_override"), ScreenZones.WINDOWED_SIZE.x)
 		assert_eq(ProjectSettings.get_setting_with_override(ORIENTATION), DisplayServer.SCREEN_PORTRAIT)
+
+
+func test_the_editor_runs_the_game_windowed() -> void:
+	# Godot won't embed a game that starts fullscreen in the editor's Game tab, and the user playtests
+	# from the editor. The `.editor` key comes before `.pc`, so it wins on an editor build (both apply);
+	# exported games are templates, without `editor`, and open fullscreen.
+	assert_eq(ProjectSettings.get_setting(SIZE + "mode.editor"), Window.MODE_WINDOWED)
+	var text: String = FileAccess.get_file_as_string("res://project.godot")
+	assert_lt(text.find("window/size/mode.editor="), text.find("window/size/mode.pc="), "the first matching override wins")
+	if OS.has_feature("editor"):
+		assert_eq(ProjectSettings.get_setting_with_override(SIZE + "mode"), Window.MODE_WINDOWED, "this editor build runs windowed")
 
 
 func test_f11_and_alt_enter_toggle_fullscreen() -> void:
