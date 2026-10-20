@@ -96,6 +96,7 @@ func _ready() -> void:
 		_sfx.play(&"launch", 1.2))
 	_add_options()
 	_show_navigation()
+	Main.hold_min_window(get_window())
 	get_window().size_changed.connect(fit_screen)
 	fit_screen()
 	if opens_on_title:

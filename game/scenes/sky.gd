@@ -255,6 +255,13 @@ func star_at(point: Vector2i) -> int:
 	return best_id
 
 
+## Drops a touch in progress on the sky (Main, when the game holds still for its sky), with the link
+## it was tracing, as a sequence starting does. With no touch down, the stars picked stay picked.
+func drop_press() -> void:
+	if _gesture.is_pressed():
+		_gesture.cancel()
+
+
 ## Ids of the stars selected for the link being traced, in the order they were picked.
 func selected_ids() -> Array[int]:
 	return _gesture.selected.duplicate()

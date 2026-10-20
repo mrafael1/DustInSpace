@@ -48,6 +48,32 @@ static func sky_margin(visible: Vector2) -> Vector2i:
 	return Vector2i(side, offset.y)
 
 
+## The smallest desktop window, in device px (docs/wide_sky_design.md Q1): at 2x it shows 640x360, the
+## whole widest sky. Phones and tablets size their own window, so they get none.
+const MIN_WINDOW := Vector2i(1280, 720)
+
+
+## The window's minimum size: MIN_WINDOW on a desktop (`desktop`), none (zero) elsewhere.
+static func min_window(desktop: bool) -> Vector2i:
+	return MIN_WINDOW if desktop else Vector2i.ZERO
+
+
+## What a run needs on screen: its play sky `sky` and the Sun's band above it (the Sun follows the
+## run's sky), down to the bottom of the game's screen (the land and the HUD), across the sky's width.
+static func sky_field(sky: Rect2i) -> Rect2i:
+	var top: int = sky.position.y - SUN.size.y
+	return Rect2i(sky.position.x, top, sky.size.x, SCREEN.y - top)
+
+
+## Whether a visible area of `visible` px still shows the whole of a run whose play sky is `sky`
+## (sky_field), with the game's screen placed as game_offset places it. A run built for this area
+## always fits it (play_sky from sky_margin); one built for a larger or wider area may not, and the
+## game holds still until it fits again (Main, Q1).
+static func holds_sky(visible: Vector2, sky: Rect2i) -> bool:
+	var screen := Rect2i(-game_offset(visible), Vector2i(visible.floor()))
+	return screen.encloses(sky_field(sky))
+
+
 ## The distance from `from` to the farthest corner pixel of `rect` (its last column and row are
 ## `end - 1`).
 static func farthest_corner(from: Vector2i, rect: Rect2i) -> float:

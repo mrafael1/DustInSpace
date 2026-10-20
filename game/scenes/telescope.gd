@@ -168,6 +168,11 @@ func is_aiming() -> bool:
 	return _aiming
 
 
+## A touch on it is in progress: the scope or the sky pressed (or a pull).
+func has_press() -> bool:
+	return super() or _scope_pressed or _sky_pressed
+
+
 ## A finger is out at the telescope: lifting it now lets the launch go.
 func is_letting_go() -> bool:
 	return _letting_go

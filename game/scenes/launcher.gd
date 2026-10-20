@@ -129,6 +129,11 @@ func is_pulling() -> bool:
 	return _pulling
 
 
+## A touch on it is in progress (a pull): cancel_pull drops it.
+func has_press() -> bool:
+	return _pulling
+
+
 ## Px of aim per pixel of pull on this run's sky.
 func aim_gain() -> int:
 	return _gain

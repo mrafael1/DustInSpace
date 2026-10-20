@@ -74,16 +74,28 @@ var _paused: Dictionary[Node, Node.ProcessMode] = {}
 var _pause_pending: bool = false
 ## True while the background opens the pause menu: no one is there to hear its cue.
 var _background_pause: bool = false
+## The visible area, in game px (fit_visible).
+var _visible: Vector2 = Vector2(ScreenZones.SCREEN)
+## The run's sky no longer fits the screen (a window made smaller or turned upright mid-run, a tablet
+## turned; docs/wide_sky_design.md Q1): the whole game holds still (the tree pauses) under the cover
+## until it fits again, then goes on exactly where it was. Apart from the player's own pause menu.
+var _sky_held: bool = false
+var _sky_cover := SkyHoldCover.new()
 
 
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0
+	# A stage left while it held for its sky must not leave the app paused behind it.
+	if _sky_held:
+		_sky_held = false
+		get_tree().paused = false
 
 
 func _ready() -> void:
 	# Played on its own (not inside App, which loads it), the stage reads the motion option itself.
 	if get_parent() == get_tree().root:
 		Motion.load_setting(_sfx.settings_path)
+		hold_min_window(get_window())
 	set_process(false)
 	# _input runs from the last child up: the idle hint watches every touch first (it takes none),
 	# then the speaker, then the sequencer's input lock.
@@ -145,6 +157,10 @@ func _ready() -> void:
 	_wire_playtest_log()
 	switch_launcher(use_telescope)
 	_wire_sound()
+	_sky_cover.name = "SkyHoldCover"
+	add_child(_sky_cover)
+	# Before the sequencer, the speaker and the idle hint, which must stay Main's last children.
+	move_child(_sky_cover, _sequencer.get_index())
 	get_window().size_changed.connect(fit_screen)
 	fit_screen()
 	start_run(Balance.load_file(balance_path))
@@ -161,6 +177,7 @@ func start_run(balance: Balance) -> bool:
 	var map: StarMap = StarMap.current_layout(current_layout, current_enabled) if current_trial and OS.is_debug_build() else StarMap.by_id(star_map)
 	run = RunState.new(balance, _new_rng(), ScreenZones.play_sky(_margin.y, _margin.x), map)
 	_backdrop.follow_sky(run.sky_rect)
+	_place_sun()
 	set_process(run.current != null or run.heat != null or run.harvest != null or run.gravity != null or run.splash != null or run.wave != null or run.ram != null)
 	($Sky/ConstellationLayer as ConstellationView).current_aiming = false
 	($Sky/ConstellationLayer as ConstellationView).repeat = replay
@@ -215,6 +232,8 @@ func start_run(balance: Balance) -> bool:
 	# before the HUD is bound, and keeps aiming through a restart) says it now.
 	if _telescope.is_aiming() if use_telescope else _launcher.is_pulling():
 		_hud.tell_current_rule()
+	# A new run takes the screen's sky, so it fits: a hold for the last one's ends.
+	_hold_for_sky()
 	run_started.emit(run)
 	return true
 
@@ -258,6 +277,7 @@ func fit_screen() -> void:
 ## Places the game's screen in a visible area of `visible` game pixels (fit_screen's second half).
 func fit_visible(visible: Vector2) -> void:
 	var offset: Vector2i = ScreenZones.game_offset(visible)
+	_visible = visible
 	_margin = ScreenZones.sky_margin(visible)
 	($BigBang/Shake as Camera2D).position = Vector2(-offset)
 	for layer: CanvasLayer in [$HUD, $Payouts, $EndScreen, $DebugLayer, $BigBang/Front, $CurrentTrialControls] as Array[CanvasLayer]:
@@ -274,13 +294,25 @@ func fit_visible(visible: Vector2) -> void:
 	_sound_toggle.target = _hud.sound_target()
 	_end_screen.fit_screen(screen)
 	_sun.fit_screen(screen)
-	# The Sun rises to the top of the screen; its light follows it. A run already in play keeps its
-	# sky: the next one (RESTART) takes the new size (_margin).
-	_sun.position = Vector2(ScreenZones.sun_centre(_margin.y))
-	_hud.sun_at = ScreenZones.sun_centre(_margin.y)
-	_collect.light_target = ScreenZones.sun_centre(_margin.y)
+	# A run already in play keeps its sky, and the Sun keeps its place above it: the next one (RESTART,
+	# a new stage) takes the new size (_margin).
+	_place_sun()
 	# Dust lands on the icon wherever the HUD put it (a wide screen moves it out to the left).
 	_collect.dust_target = _hud.dust_icon_centre()
+	_hold_for_sky()
+
+
+## Whether the game holds still because the run's sky doesn't fit the screen (_hold_for_sky).
+func is_held_for_sky() -> bool:
+	return _sky_held
+
+
+## A desktop window can't be made smaller than ScreenZones.MIN_WINDOW (Q1), which shows the whole
+## widest sky; phones and tablets size their own window. Not under the headless display (tests, bots),
+## whose window isn't real. App calls it, or Main when it's played on its own.
+static func hold_min_window(window: Window) -> void:
+	if DisplayServer.get_name() != "headless":
+		window.min_size = ScreenZones.min_window(OS.has_feature("pc"))
 
 
 ## Shows the telescope (true) or the slingshot and hands it the input; the other one hides and
@@ -312,7 +344,7 @@ func launcher() -> Launcher:
 ## Ignored while a sequence plays (like every button) and while the run's end is still on its way.
 ## Returns true if it did something.
 func go_back() -> bool:
-	if run == null:
+	if run == null or _sky_held:
 		return false
 	if _hud.pause_menu().is_open():
 		_hud.close_pause()
@@ -343,6 +375,42 @@ func pause_for_background() -> void:
 	_background_pause = true
 	_hud.open_pause()
 	_background_pause = false
+
+
+## The Sun stands above the run's sky: at the top of the screen the run was built for, where it stays
+## through a resize mid-run (it sits over the run's rows, not the screen's). Before the first run, at
+## the top of the screen's sky. Its light and the HUD's Sun counter follow it.
+func _place_sun() -> void:
+	var rows: int = ScreenZones.SKY.position.y - run.sky_rect.position.y if run != null else _margin.y
+	var centre: Vector2i = ScreenZones.sun_centre(rows)
+	_sun.position = Vector2(centre)
+	_hud.sun_at = centre
+	_collect.light_target = centre
+
+
+## Holds the game still under the cover while the run in play doesn't fit the visible area
+## (ScreenZones.holds_sky), and lets go once it does. The hold pauses the whole tree, so every
+## process, tween, sound and sequence stops where it is and goes on from there; the player's pause
+## menu or table, open or not, is left as it is (it holds the world its own way, _pause_world). A touch
+## in progress can't end while held, so it is dropped as when a sequence takes the input. A run
+## that's over doesn't hold: its end screen follows the screen, and RESTART fits it.
+func _hold_for_sky() -> void:
+	var hold: bool = run != null and not run.is_over() and not ScreenZones.holds_sky(_visible, run.sky_rect)
+	if hold and not _sky_held:
+		_drop_presses()
+	if hold != _sky_held and is_inside_tree():
+		get_tree().paused = hold
+	_sky_held = hold
+	var offset: Vector2i = ScreenZones.game_offset(_visible)
+	_sky_cover.offset = Vector2(offset)
+	var action: String = SkyHoldCover.action_line(_visible, run.sky_rect, OS.has_feature("mobile")) if hold else ""
+	_sky_cover.show_hold(hold, Rect2i(-offset, Vector2i(_visible.floor())), action)
+
+
+func _drop_presses() -> void:
+	if launcher().has_press():
+		launcher().cancel_pull()
+	_sky.drop_press()
 
 
 ## A fresh run on the current run's balance (the end screen's or the pause menu's RESTART).

@@ -23,6 +23,11 @@ func before_each() -> void:
 	add_child_autofree(main)
 
 
+func after_each() -> void:
+	# A test that ends while the game holds for its sky must not leave the tree paused.
+	get_tree().paused = false
+
+
 func test_starts_a_run_from_balance_json() -> void:
 	assert_not_null(main.run)
 	assert_eq(main.run.sky_rect, Rect2i(0, 78, 180, 172), "the sky zone from art-direction.md")
@@ -232,8 +237,8 @@ func test_a_landscape_screen_gives_the_next_run_the_wide_sky() -> void:
 	assert_gt(outside, 0, "and reach out past the frame")
 
 
-## A mid-run resize keeps the run's sky (commit 18 handles resizing properly); the next run takes the
-## new screen's.
+## A mid-run resize keeps the run's sky (holding still while it doesn't fit, commit 18); the next run
+## takes the new screen's.
 func test_a_resize_mid_run_keeps_the_wide_sky_until_a_restart() -> void:
 	main.fit_visible(Vector2(640, 360))
 	assert_true(main.restart())
@@ -271,6 +276,156 @@ func test_a_portrait_screen_keeps_todays_sky() -> void:
 		assert_true(main.restart())
 		assert_eq(main.run.sky_rect, ScreenZones.play_sky(case[1]), "%s: rows only" % case[0])
 		assert_eq(main.run.frame_rect, main.run.sky_rect, "%s: the frame is the sky" % case[0])
+
+
+## Commit 18 (Q1): while the screen can't show the wide run's whole sky the game holds still (the tree
+## pauses) under the cover, which says what to do; once it fits again it goes on with the same run.
+func test_a_wide_run_holds_still_until_its_sky_fits_again() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	var run: RunState = main.run
+	var cover: SkyHoldCover = main.get_node("SkyHoldCover")
+	assert_false(main.is_held_for_sky(), "its own screen")
+	assert_false(cover.is_showing())
+	main.fit_visible(Vector2(300, 333))
+	assert_true(main.is_held_for_sky(), "a 900x1000 window can't show it")
+	assert_true(get_tree().paused, "the whole game holds still")
+	assert_true(cover.is_showing(), "the cover says why")
+	assert_eq(cover.action_text(), SkyHoldCover.WIDEN_TEXT, "cut at the sides: widen")
+	assert_true(Rect2i(Vector2i(-60, -13), Vector2i(300, 333)).encloses(cover.plaque_rect()), "the plaque is on the visible screen")
+	assert_eq(cover.offset, Vector2(60, 13), "drawn in game coordinates, like the other UI layers")
+	main.fit_visible(Vector2(640, 359))
+	assert_true(main.is_held_for_sky(), "a row short")
+	assert_eq(cover.action_text(), SkyHoldCover.GROW_TEXT, "only the height: grow")
+	assert_false(main.go_back(), "back does nothing while it holds")
+	assert_false((main.get_node("HUD") as Hud).pause_menu().is_open())
+	main.fit_visible(Vector2(640, 360))
+	assert_false(main.is_held_for_sky(), "it fits again")
+	assert_false(get_tree().paused, "and goes on")
+	assert_false(cover.is_showing())
+	assert_eq(main.run, run, "the same run")
+	assert_eq(main.run.sky_rect, Fixtures.WIDE_SKY, "on the same sky")
+	main.fit_visible(Vector2(300, 333))
+	assert_true(main.restart(), "a restart while held (tests only: nothing can be tapped)")
+	assert_eq(main.run.sky_rect, ScreenZones.play_sky(13), "takes the screen's sky")
+	assert_false(main.is_held_for_sky(), "and lets go")
+	assert_false(get_tree().paused)
+
+
+## The hold leaves the player's own pause alone: a pause menu open before stays open (and the world
+## held) after the sky fits again, and nothing the player paused is let go.
+func test_the_sky_hold_leaves_the_players_pause_menu_as_it_was() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	var hud: Hud = main.get_node("HUD")
+	var sky: Node = main.get_node("Sky")
+	hud.open_pause()
+	assert_eq(sky.process_mode, Node.PROCESS_MODE_DISABLED, "the pause menu holds the world")
+	main.fit_visible(Vector2(300, 333))
+	assert_true(main.is_held_for_sky())
+	assert_true(hud.pause_menu().is_open())
+	main.fit_visible(Vector2(640, 360))
+	assert_false(main.is_held_for_sky())
+	assert_false(get_tree().paused)
+	assert_true(hud.pause_menu().is_open(), "the player's pause is still on")
+	assert_eq(sky.process_mode, Node.PROCESS_MODE_DISABLED, "and still holds the world")
+	hud.close_pause()
+	assert_eq(sky.process_mode, Node.PROCESS_MODE_INHERIT, "until the player resumes")
+	# The other way round: held first, then the app goes to the background.
+	main.fit_visible(Vector2(300, 333))
+	main.pause_for_background()
+	assert_true(hud.pause_menu().is_open(), "the background still opens PAUSED")
+	main.fit_visible(Vector2(640, 360))
+	assert_false(get_tree().paused)
+	assert_true(hud.pause_menu().is_open(), "which waits for the player on return")
+	hud.close_pause()
+	assert_eq(sky.process_mode, Node.PROCESS_MODE_INHERIT)
+
+
+## A portrait run never holds on a portrait screen with at least its rows, or on its own.
+func test_a_portrait_run_never_holds_on_a_portrait_screen() -> void:
+	for case: Array in [[Vector2(195, 422), [Vector2(196, 422), Vector2(195, 500), Vector2(256, 600)]],
+			[Vector2(180, 320), [Vector2(195, 422), Vector2(240, 320), Vector2(180, 400)]],
+			[Vector2(256, 341), [Vector2(256, 341), Vector2(300, 400)]]]:
+		main.fit_visible(case[0])
+		assert_true(main.restart())
+		assert_false(main.is_held_for_sky(), "%s: its own screen" % case[0])
+		for visible: Vector2 in case[1]:
+			main.fit_visible(visible)
+			assert_false(main.is_held_for_sky(), "%s run on %s" % [case[0], visible])
+			assert_false(get_tree().paused)
+
+
+## The Sun keeps its place over the run's sky through a resize mid-run (commit 17 moved it with the
+## screen's rows); the next run's Sun takes the new screen's.
+func test_the_sun_keeps_its_place_through_a_resize_mid_run() -> void:
+	var sun: Node2D = main.get_node("Sun")
+	var hud: Hud = main.get_node("HUD")
+	var collect: CollectParticles = main.get_node("CollectParticles")
+	main.fit_visible(Vector2(640, 400))
+	assert_true(main.restart())
+	var place: Vector2i = ScreenZones.sun_centre(80)
+	assert_eq(sun.position, Vector2(place), "1280x800: 80 rows up")
+	for visible: Vector2 in [Vector2(640, 500), Vector2(853, 450), Vector2(640, 360)]:
+		main.fit_visible(visible)
+		assert_eq(sun.position, Vector2(place), "%s: the Sun stays over the run's sky" % visible)
+		assert_eq(hud.sun_at, place, "%s: its counter too" % visible)
+		assert_eq(collect.light_target, place, "%s: and its light" % visible)
+	main.fit_visible(Vector2(640, 500))
+	assert_true(main.restart())
+	assert_eq(sun.position, Vector2(ScreenZones.sun_centre(180)), "the next run: the new screen's top")
+	assert_eq(hud.sun_at, ScreenZones.sun_centre(180))
+	main.fit_visible(Vector2(195, 422))
+	assert_true(main.restart())
+	main.fit_visible(Vector2(195, 500))
+	assert_eq(sun.position, Vector2(ScreenZones.sun_centre(102)), "a portrait run's Sun stays too")
+
+
+## A hold mid-sequence freezes it where it is; after it lets go the sequence plays out once.
+func test_a_sequence_held_mid_way_plays_out_once() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	_play_until_idle(sequencer)
+	var finished: Array[int] = [0]
+	sequencer.sequence_finished.connect(func() -> void: finished[0] += 1)
+	assert_true((main.get_node("DebugKeys") as DebugKeys).launch_at_random())
+	sequencer.advance(0.1)
+	assert_true(sequencer.is_busy(), "the launch is playing")
+	var stars: int = main.run.stars.size()
+	main.fit_visible(Vector2(300, 333))
+	assert_true(main.is_held_for_sky())
+	assert_false(sequencer.can_process(), "the sequencer holds still")
+	assert_true(sequencer.is_busy(), "mid-way")
+	main.fit_visible(Vector2(640, 360))
+	assert_true(sequencer.can_process())
+	_play_until_idle(sequencer)
+	assert_eq(finished[0], 1, "it finished once")
+	assert_eq(main.run.stars.size(), stars, "the run went on from where it was")
+
+
+## A touch down on the sky can't end while the game holds still, so the hold drops it (as a sequence
+## starting does); with no touch down, nothing is dropped.
+func test_the_hold_drops_a_touch_in_progress() -> void:
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	var sequencer: EventSequencer = main.get_node("EventSequencer")
+	_play_until_idle(sequencer)
+	assert_true((main.get_node("DebugKeys") as DebugKeys).launch_at_random())
+	_play_until_idle(sequencer)
+	var sky: SkyView = main.get_node("Sky")
+	var gesture: LinkGesture = sky.get("_gesture")
+	var star: Star = main.run.stars[0]
+	var touch := InputEventScreenTouch.new()
+	touch.pressed = true
+	touch.position = Vector2(star.position)
+	sky.handle_pointer(touch)
+	assert_true(gesture.is_pressed(), "a finger is down")
+	main.fit_visible(Vector2(300, 333))
+	assert_false(gesture.is_pressed(), "the hold lets it go")
+	assert_eq(sky.selected_ids(), [] as Array[int])
+	main.fit_visible(Vector2(640, 360))
+	assert_false(main.is_held_for_sky())
 
 
 func _play_until_idle(sequencer: EventSequencer) -> void:

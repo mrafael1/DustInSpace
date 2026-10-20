@@ -222,6 +222,62 @@ func test_only_a_landscape_window_widens_the_sky() -> void:
 	assert_eq(ScreenZones.sky_margin(Vector2(361, 360)).x, 90, "one column wider: landscape")
 
 
+## Commit 18 (docs/wide_sky_design.md Q1): a run fits a visible area that shows its whole sky and the
+## Sun's band above it; one pixel short either way doesn't, and more never hurts.
+func test_a_screen_holds_a_runs_sky_only_when_it_shows_all_of_it() -> void:
+	assert_eq(ScreenZones.sky_field(Fixtures.WIDE_SKY), Rect2i(-230, -40, 640, 360), "the wide sky, its Sun band and the land and HUD below")
+	assert_eq(ScreenZones.sky_field(ScreenZones.SKY), Rect2i(Vector2i.ZERO, ScreenZones.SCREEN), "the portrait sky's: the game's screen")
+	assert_true(ScreenZones.holds_sky(Vector2(640, 360), Fixtures.WIDE_SKY), "640x360: exactly")
+	assert_false(ScreenZones.holds_sky(Vector2(639, 360), Fixtures.WIDE_SKY), "a column short: cut at the side")
+	assert_false(ScreenZones.holds_sky(Vector2(638, 360), Fixtures.WIDE_SKY), "two columns short")
+	assert_false(ScreenZones.holds_sky(Vector2(640, 359), Fixtures.WIDE_SKY), "a row short: the Sun's top cut")
+	assert_true(ScreenZones.holds_sky(Vector2(641, 360), Fixtures.WIDE_SKY), "a column more")
+	assert_true(ScreenZones.holds_sky(Vector2(640, 361), Fixtures.WIDE_SKY), "a row more")
+	assert_true(ScreenZones.holds_sky(Vector2(853, 360), Fixtures.WIDE_SKY), "ultrawide")
+	assert_true(ScreenZones.holds_sky(Vector2(640.6, 360.4), Fixtures.WIDE_SKY), "fractions of a px don't count")
+	assert_false(ScreenZones.holds_sky(Vector2(ScreenZones.fill_size(Vector2i(900, 1000))), Fixtures.WIDE_SKY), "a 900x1000 window (300x333)")
+	assert_false(ScreenZones.holds_sky(Vector2(195, 422), Fixtures.WIDE_SKY), "a phone-shaped one")
+	var deck: Rect2i = ScreenZones.play_sky(80, 230)
+	assert_true(ScreenZones.holds_sky(Vector2(640, 400), deck), "1280x800's own sky")
+	assert_false(ScreenZones.holds_sky(Vector2(640, 360), deck), "the same sky at the minimum window: 40 rows short")
+	# Portrait: a portrait run on a portrait screen with at least its rows always fits.
+	var tall: Rect2i = ScreenZones.play_sky(102)
+	assert_true(ScreenZones.holds_sky(Vector2(195, 422), tall), "the phone's own sky")
+	assert_true(ScreenZones.holds_sky(Vector2(180, 422), tall), "no spare columns needed")
+	assert_true(ScreenZones.holds_sky(Vector2(256, 500), tall), "taller and wider")
+	assert_true(ScreenZones.holds_sky(Vector2(640, 422), tall), "landscape with as many rows")
+	assert_false(ScreenZones.holds_sky(Vector2(195, 421), tall), "a row short")
+	assert_true(ScreenZones.holds_sky(Vector2(180, 320), ScreenZones.SKY), "9:16")
+	assert_false(ScreenZones.holds_sky(Vector2(179, 320), ScreenZones.SKY), "narrower than the game")
+
+
+## A run built for a screen always fits it: the game never holds on the screen it opened on.
+func test_every_screen_holds_the_sky_it_builds() -> void:
+	var windows: Array[Vector2i] = [Vector2i(1920, 1080), Vector2i(1280, 720), Vector2i(1280, 800), Vector2i(1366, 768),
+		Vector2i(2560, 1080), Vector2i(2048, 1536), Vector2i(2388, 1668), Vector2i(1536, 2048), Vector2i(1170, 2532),
+		Vector2i(1080, 2400), Vector2i(1080, 1920), Vector2i(540, 960), Vector2i(900, 1000), Vector2i(1000, 1000), Vector2i(64, 64)]
+	for window: Vector2i in windows:
+		var visible := Vector2(ScreenZones.fill_size(window))
+		var margin: Vector2i = ScreenZones.sky_margin(visible)
+		assert_true(ScreenZones.holds_sky(visible, ScreenZones.play_sky(margin.y, margin.x)), "%s holds its own sky" % window)
+	for w: int in range(180, 700, 7):
+		for h: int in range(320, 520, 11):
+			var margin: Vector2i = ScreenZones.sky_margin(Vector2(w, h))
+			if not ScreenZones.holds_sky(Vector2(w, h), ScreenZones.play_sky(margin.y, margin.x)):
+				fail_test("%dx%d doesn't hold its own sky" % [w, h])
+				return
+
+
+## Q1: a desktop window can't go below 1280x720, which shows 640x360 at 2x, the whole widest sky.
+## Phones and tablets get no minimum.
+func test_the_desktop_minimum_window_shows_the_widest_sky() -> void:
+	assert_eq(ScreenZones.min_window(true), Vector2i(1280, 720))
+	assert_eq(ScreenZones.min_window(false), Vector2i.ZERO, "not on a phone or a tablet")
+	var visible := Vector2(ScreenZones.fill_size(ScreenZones.MIN_WINDOW))
+	assert_eq(visible, Vector2(640, 360))
+	assert_true(ScreenZones.holds_sky(visible, Fixtures.WIDE_SKY), "the 1920x1080 run fits the smallest window")
+
+
 func test_the_game_sits_on_the_bottom_edge_centred_across() -> void:
 	assert_eq(ScreenZones.game_offset(Vector2(180, 320)), Vector2i.ZERO, "9:16: nothing around it")
 	assert_eq(ScreenZones.game_offset(Vector2(180, 400)), Vector2i(0, 80), "a taller phone: all the extra is sky above")
@@ -367,5 +423,8 @@ func test_main_hands_the_backdrop_the_runs_sky() -> void:
 	assert_eq(backdrop.get("_sky"), main.run.sky_rect, "and the Backdrop follows it")
 	main.fit_visible(Vector2(180, 320))
 	assert_eq(backdrop.get("_sky"), ScreenZones.play_sky(102), "a resize mid-run keeps the run's sky")
+	assert_true(main.is_held_for_sky(), "(and holds still until it fits)")
+	main.fit_visible(Vector2(195, 422))
+	assert_false(main.is_held_for_sky())
 	backdrop.follow_sky(Fixtures.WIDE_SKY)
 	assert_eq(backdrop.get("_sky"), Fixtures.WIDE_SKY, "follows a wide sky")
