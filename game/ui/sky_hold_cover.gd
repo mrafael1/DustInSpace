@@ -50,11 +50,12 @@ func _init() -> void:
 
 ## What the player can do so that a run whose sky is `sky` fits a visible area of `visible` px, by the
 ## cause. A wide run (its sky has side columns) on a phone or tablet (`mobile`) whose screen is now
-## portrait-shaped (ScreenZones.widens_sky false) was turned upright: turn it back. Otherwise the
-## window was made smaller (a desktop, or a phone's split-screen or freeform window, where turning
-## wouldn't help): widen it if the sky is cut at its sides, else grow it (only the height is short).
+## upright (taller than wide) was turned: turn it back. A square screen can't have been turned from a
+## landscape one, and turning it changes nothing. Otherwise the window was made smaller (a desktop, or
+## a phone's split-screen or freeform window, where turning wouldn't help): widen it if the sky is cut
+## at its sides, else grow it (only the height is short).
 static func action_line(visible: Vector2, sky: Rect2i, mobile: bool) -> String:
-	if mobile and sky.position.x < 0 and not ScreenZones.widens_sky(visible):
+	if mobile and sky.position.x < 0 and visible.y > visible.x:
 		return TURN_TEXT
 	var field: Rect2i = ScreenZones.sky_field(sky)
 	var screen := Rect2i(-ScreenZones.game_offset(visible), Vector2i(visible.floor()))

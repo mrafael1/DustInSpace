@@ -498,6 +498,8 @@ func test_the_cover_says_turn_only_when_turning_helps() -> void:
 	assert_eq(SkyHoldCover.action_line(Vector2(390, 300), phone, true), SkyHoldCover.GROW_TEXT, "a portrait run in a landscape-shaped window")
 	assert_eq(SkyHoldCover.action_line(Vector2(500, 330), Fixtures.WIDE_SKY, true), SkyHoldCover.WIDEN_TEXT, "a wide run in a smaller landscape window")
 	assert_eq(SkyHoldCover.action_line(Vector2(640, 359), Fixtures.WIDE_SKY, true), SkyHoldCover.GROW_TEXT, "still landscape, a row short")
+	assert_eq(SkyHoldCover.action_line(Vector2(360, 360), Fixtures.WIDE_SKY, true), SkyHoldCover.WIDEN_TEXT, "a square window: turning changes nothing")
+	assert_eq(SkyHoldCover.action_line(Vector2(360, 361), Fixtures.WIDE_SKY, true), SkyHoldCover.TURN_TEXT, "a row taller than wide is upright")
 
 
 ## Over the player's open pause menu (its own PAUSED heading), the cover drops its heading and sits
@@ -546,6 +548,10 @@ func test_the_hold_hides_the_pause_and_combos_buttons() -> void:
 	assert_eq(hud.target_at(table_at), [])
 	main.fit_visible(Vector2(640, 360))
 	assert_true((hud.get_node("PauseButton") as Node2D).visible, "back")
+	assert_true((hud.get_node("TableButton") as Node2D).visible)
+	main.fit_visible(Vector2(300, 333))
+	assert_true(main.restart(), "a restart (or a new stage) lets go of the hold")
+	assert_true((hud.get_node("PauseButton") as Node2D).visible, "back after a restart")
 	assert_true((hud.get_node("TableButton") as Node2D).visible)
 
 
