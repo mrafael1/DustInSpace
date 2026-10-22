@@ -317,6 +317,8 @@ Not merged (measurement only): the `*_study-*`, `drains_bot-study-flags` and `pi
 
 ### Commit plan (on `feature/wide-sky`, PR #217; each one keeps the suite and the identity guard green)
 
+This is the plan as written before the build. The branch's history differs: nine commits, with the draining-flow fix added and the bot tables in the last one, then the review fixes. The phone box build notes list what was built.
+
 1. `docs: the phone box, one edge rule for wide skies` (this section and the §8 line).
 2. `feat: edge-stake stages take the 9:16 phone box as their frame on a wide sky`
    - `phone_box`, `plays_in_box`, `frame_rect` and `current.frame`.
@@ -347,9 +349,9 @@ Not merged (measurement only): the `*_study-*`, `drains_bot-study-flags` and `pi
    - Pisces should come out exact rather than within C's ±2, since its scatter is in the box too (as in AB0).
    - The ram, within ±1.5 today, should come out exact.
    - None of this is measured yet.
-5. **Flows clamp to the sky, not the box** (`current.preview(stars, sky_rect)`). No shipped drain map flows toward a box edge it doesn't drain at, so this changes nothing today. The trace test would catch one that does.
+5. **Flows clamp to the sky, not the box** (`current.preview(stars, sky_rect)`). **Resolved: it was real.** The bots caught it (Body -1.0, Legs -0.3, Jar -0.7 on every wide sky), not the trace test. Flows now clamp to `launch_rect()`, and `tests/test_phone_box_paths.gd` guards each flow path. See the phone box build notes.
 6. **`lets_go` at the box's bottom.** A finger lifted in the bottom strip cancels instead of firing at the edge. This is a feel question, iPad only.
-7. **Tutorial lines.** `hud.gd:944` and `:1044` anchor them at `sky_rect.position.y + TOP`, which can be in the top shaded strip on box stages. Check in a capture.
+7. **The encounter line over the box's top rows.** `hud.gd:944` and `:1044` (the tutorial lines) only run in the guided first run (`main.gd:202-204`), which is never a box stage, so they can't reach the strip. On box stages the encounter line follows `frame_rect` (`hud.gd:1159`), so it sits over the box's top rows. The captures showed "A WAVE WIPES THE TOP…" and "LINK IT NEXT OR ORION SHOOTS" by the telescope, not in the strip; the other encounter lines were not seen.
 8. **Tall phones.** Their gaps stay (hunt +9 to +22, Pisces +5 to +6, drains final about +8), per the user's decision.
 
 ## Build notes
@@ -674,8 +676,8 @@ Where the build differs from the plan above, or settles a detail it left open.
 **The phone box (§9, built 2026-10-22).**
 - **Commits** on `feature/wide-sky`: the §9 docs; `phone_box`, `plays_in_box` and the box frame; `launch_rect` and its call sites; the scatter ring's landing read; the aim, split preview, let-go row and decoys; the four-sided shade with hunt stages added; the bots' aim searches; then one fix the plan didn't list: **draining flows keep their stars to the box** (see below). The bot tables were run once, after the bots commit, so they live here and not in the launches commit.
 - **Core as planned.** `RunState.phone_box(sky)` is static and returns the sky on any sky 180 or fewer columns wide. `plays_in_box()` is the §9 predicate. `_init` sets `frame_rect = phone_box(sky)` and `current.frame` once the mechanics are built. The ram's start row (the sky's middle) and its column need nothing, because the box is centred on the same row. `launch_rect()` replaces `sky_rect` at every listed call site, including the reflection and wave intros' throws and scatter.
-- **Doubt 5 was real, so it is fixed.** The first currents bot pass gave every wide sky Body -1.0 (launch-owned-first), Legs -0.3 (link-first) and Jar -0.7 (launch-owned-first) against 9:16. The cause: the flow's preview clamped a crowded star's sidestep to the sky, so on a wide sky it could step into the shaded strip above or below the box and drain there, where a phone's sky edge keeps it in. `current_preview`, `_flow`, the current intro and `burst_drains_at` now clamp to `launch_rect()`. On a phone this is the sky, so nothing changes there. Test: `test_a_draining_flow_keeps_its_stars_to_the_box_as_to_a_phones_sky` (crowded top and bottom rows on Body, Legs, Jar and the final; the wide preview equals the phone's moved by the shift). It fails on the code before the fix.
-- **The wave's rush timing** (`SeamView.rush_seconds`) measures against the frame's columns over the sky's full height, not against the box. The wave has no edge stake, and on North Fish and the final (splash stages, so box stages) the box's shorter rows would otherwise have stretched an up or down rush past `SWEEP_TIME`. Timings are unchanged from before (`test_wide_timings.gd` passes unchanged).
+- **Doubt 5 was real, so it is fixed.** The first currents bot pass gave every wide sky Body -1.0 (launch-owned-first), Legs -0.3 (link-first) and Jar -0.7 (launch-owned-first) against 9:16. The cause: the flow's preview clamped a crowded star's sidestep to the sky, so on a wide sky it could step into the shaded strip above or below the box and drain there, where a phone's sky edge keeps it in. `current_preview`, `_shift_stars` (the launch's real flow step), the current intro and `burst_drains_at` now clamp to `launch_rect()`. On a phone this is the sky, so nothing changes there. Test: `test_a_draining_flow_keeps_its_stars_to_the_box_as_to_a_phones_sky` (crowded top and bottom rows on Body, Legs, Jar and the final; the wide preview equals the phone's moved by the shift). It fails when `current_preview` is put back; the other three paths had no test until the review fixes (`tests/test_phone_box_paths.gd`).
+- **The wave's rush timing** (superseded by the review fixes below: the wave now rushes the box) (`SeamView.rush_seconds`) measures against the frame's columns over the sky's full height, not against the box. The wave has no edge stake, and on North Fish and the final (splash stages, so box stages) the box's shorter rows would otherwise have stretched an up or down rush past `SWEEP_TIME`. Timings are unchanged from before (`test_wide_timings.gd` passes unchanged).
 - **The ring (drains A).** `burst_drains_at` takes no `burst` argument: a dot is clamped into `launch_rect()` before the flow test. On a phone this removes the red dots above and below the sky (they read as stranded before).
 - **Shade.** `CurrentView._shades_frame()` = ram or hunt, for stages with no current; a drain's shade comes with its flow and a splash's with SeamView, as before. Pisces C's `outside_frame` and `frame_side_pixels` are taken as written (the side strips span the sky's full height, the top and bottom strips the box's columns). Orion's corner and the encounter line follow `frame_rect`, so on Heart, Claws and the final they stand in the box (doubt 2).
 - **Tests.** Full suite **1566/1566** (92 scripts), and `test_portrait_identity.gd` unchanged and green after every commit.
@@ -708,5 +710,94 @@ Where the build differs from the plan above, or settles a detail it left open.
   - Every wide sky equals the 9:16 sky exactly, on every box stage and bot, as the construction says. This settles §9 doubt 4: the drains final's +8.6, Pisces's ±2 and the ram's ±1.5 are gone on wide skies. The tall-phone gaps remain (Scorpio final careful +23.6, Pisces final naive +7.0, Aquarius final launch-first +4.7), per the user's "keep it for now".
   - The reflect bot's runs are the real-game bot (`tools/reflect/playtest.gd`). The study's separate reflect harness was not re-run.
   - **Spot check at 640x360, stages outside the box:** the Mane (heat), Wheat (harvest), Bow and Head (gravity) and West Cord (cords) are identical to HEAD `6a02dab6` on every bot. Their own wide gaps are older than this change and remain (Wheat link-first -2.6, Bow launch-first +9.0 and archer-hoard +9.3, West Cord -3.3 to -4.0 against 9:16).
-- **Not done:** the Movie Maker captures (Heart, the Aquarius final, North Fish and the Head at 1920x1080, and the 540x960 frame). The shade's look on all four sides, the dotted top and bottom lines, the aim stopping at the box and the tutorial and encounter lines over the top strip (doubt 7) are therefore unreviewed and need an art check before merge.
-- **Doubts still open:** 1 (the box floats above the horizon), 2 (Orion moves between Tail/Body and Heart), 6 (lifting a finger in the bottom strip cancels), 7 (tutorial lines in the top strip) and 8 (tall phones).
+- **Not done:** the Movie Maker captures (Heart, the Aquarius final, North Fish and the Head at 1920x1080, and the 540x960 frame). The shade's look on all four sides, the dotted top and bottom lines, the aim stopping at the box and the encounter line over the box's top rows (doubt 7) are therefore unreviewed and need an art check before merge.
+- **Doubts still open:** 1 (the box floats above the horizon), 2 (Orion moves between Tail/Body and Heart), 6 (lifting a finger in the bottom strip cancels), 7 (the encounter line over the box's top rows) and 8 (tall phones).
+
+**The phone box: review fixes (2026-10-22).**
+- **Why.** A review of `6a02dab6..7e5ba3d4` (24 single-line mutants against the suite) and the first captures (`Claude outputs/release/wide-sky/edge-box/`) found these problems:
+  - flow paths with no test;
+  - flow art drawn into the top and bottom shade;
+  - a seam and a wave running past the box;
+  - a slingshot gain read from the whole wide sky;
+  - ring dots in the shade.
+- **Tests for the play paths** (`tests/test_phone_box_paths.gd`, new, 6). Each one runs the wide box run beside the 9:16 run and compares them, moved by the shift:
+  - a launch's flow on a crowded box, for every drain map and aims along the box's top and bottom rows (`_shift_stars`);
+  - the current intro's flow (`play_current_intro`);
+  - every ring dot over the sky grown by 10 px (`burst_drains_at`);
+  - `is_safe_launch` over the same grid, and `safe_launch_spot`, round four hunting circles with blue, red and an empty telescope;
+  - `open_launch_spot` on a crowded box;
+  - the Pisces intros' throws, bursts and splashes.
+- **What the new tests catch.** Each of these mutants now fails: `sky_rect` put back at `_shift_stars`, the current intro, `burst_drains_at`'s landing clamp, `is_safe_launch`'s clamp or its split, the burst's scatter, or `current_preview`.
+- **Four mutants still pass, and they are equivalent today:**
+  - `burst_drains_at`'s second clamp: no drain map's flow meets a box edge it doesn't drain at.
+  - The reflect and wave intros' throw clamps: the box is symmetric about the seam, so the reflection of a point in the box stays in it.
+  - `open_launch_spot`'s split: twins clamped to either rect fail its inner-area test the same way.
+- **The slingshot** (`launcher.gd`). `gain_for` reads `run.launch_rect()`. On a box stage a full pull now reaches the box's far corner, where before the pull was clamped at the box's edge. Test: `test_on_a_box_stage_the_pull_reaches_the_phone_boxs_corners_and_stops_at_its_edge` (four box stages): every corner and edge of the box can be aimed at, and full pulls stop inside it.
+- **The flow's art** (`CurrentView.shown_region`). On a box stage the water, drain edges, chevrons and drain flashes are drawn over the current's region, kept to the box.
+  - In core the region still spans the wide sky, so `test_the_body_and_legs_flows_run_from_their_drain_to_the_skys_right_edge` is unchanged.
+  - The Body's and the Legs' drain line at x 48 now stops at the box's rows.
+  - The Body still shows two lines on its left side: the box's edge and the drain 48 px in. A phone shows the drain line alone.
+  - The Jar's chevrons now space over the box's 172 rows, as on the phone.
+  - `SkyView._edge_point`, where a drained star's flash plays, reads the same region.
+- **The seam and the wave** (`SeamView.water_rect()` = `launch_rect()`). On splash stages the seam, the wave's cue, wall and crash, `carry_point` and `exit_point` keep to the box.
+  - The wave rushes the box in `SWEEP_TIME`, exactly as on the phone.
+  - This supersedes the earlier build note on the wave's timing. The wide stretch now applies only to a wave on the whole wide sky. No shipped stage has one, because every wave stage splashes. It is still tested on the final with its splash switched off.
+  - The Knot's dotted-edge test no longer skips the seam's columns.
+  - **Flagged (design):** this makes the wave part of the box's play area, not water across the whole sky. The review left that choice open.
+- **The ram's exit** (`ChargeView.exit_point`). It clamps to `launch_rect()`'s inner rect. A star the Fleece's down ram butts out now leaves a pixel past the box's edge, as past a phone's, and no longer flies on into the shade. This fixes review item 8 in code, and it is tested. No down-ram loss happened in the play captures, so its look is not checked in a capture.
+- **Scatter rings** (`Telescope.scatter_ring_pixels`). On a box stage of a wide sky, dots past the box are left out. On every 180-wide sky the box is the sky, so phones keep whole rings as before, dots above the sky included.
+- **Docs.** In §9, doubt 5 is marked resolved, doubt 7 now points at the encounter line, and the commit plan is labelled as the plan. In the build notes, the `_flow` slip is now `_shift_stars`.
+- **Tests.** Full suite **1580/1580** (93 scripts, 671,311 asserts). `test_portrait_identity.gd` is unchanged and green.
+  - New view tests in `tests/test_wide_sky_views.gd`:
+    - the flow is drawn in the box on five drain maps, and over its whole region on phones and on the Hand;
+    - the seam is in the box on four splash stages, and the Circlet keeps the sky;
+    - the wave carries, rushes and crashes in the box on North Fish and the final;
+    - the ram's exit;
+    - rings are clipped on four box stages and whole on Tail and on the phone.
+  - In `tests/test_wide_timings.gd`, the box wave keeps `SWEEP_TIME`, and the wide-stretch tests use the final with its splash off.
+- **Bots.** Every fix here is either presentation or a new test of the core, so the bots cannot move. They were re-run anyway on the edge stages from a worktree at `f0c1f8ed`: hunt, currents, reflect and ram, 95 jobs, 500 paired seeds, all five skies. Every result line is identical to the `7e5ba3d4` run. Win % with the mechanic on, at 9:16, then the difference on 640x360 / 640x400 / 512x384 and on the 195x422 tall phone:
+
+| Stage, bot policies | 9:16 | Wide skies (all three) | 195x422 |
+|---|---|---|---|
+| Heart, naive / careful | 81.8 / 96.2 | +0.0 | +8.0 / +2.4 |
+| Claws, naive / careful | 80.0 / 93.4 | +0.0 | +7.8 / +4.4 |
+| Scorpio final, naive / careful | 4.6 / 16.4 | +0.0 | +5.8 / +20.2 |
+| Aquarius Body, link / upstream / launch-owned-first | 99.6 / 100 / 99.0 | +0.0 | +0.0 / +0.0 / -0.6 |
+| Legs | 90.6 / 100 / 30.4 | +0.0 | -0.2 / +0.0 / -0.2 |
+| Stream | 98.2 / 100 / 98.6 | +0.0 | +0.0 / +0.0 / +0.2 |
+| Jar | 84.4 / 100 / 73.8 | +0.0 | -0.2 / +0.0 / +0.2 |
+| Aquarius final | 67.4 / 99.6 / 49.2 | +0.0 | +2.2 / -0.6 / +6.6 |
+| Knot, link / careful / naive / careless / launch-first | 100 / 100 / 90.6 / 99.6 / 100 | +0.0 | naive +0.2, careless +0.4 |
+| East Cord | 95.6 / 99.6 / 87.6 / 88.2 / 94.6 | +0.0 | naive +4.8, careless +1.8, link and launch-first +0.2 |
+| North Fish | 100 / 100 / 23.8 / 99.2 / 81.6 | +0.0 | naive +4.8 |
+| Pisces final | 96.2 / 98.6 / 24.8 / 84.0 / 3.0 | +0.0 | +1.6 / +0.0 / +5.2 / +2.8 / +0.0 |
+| Horns, link / careful / careless / launch-first | 99.4 / 100 / 95.4 / 83.8 | +0.0 | +0.0 |
+| Head | 49.6 / 100 / 27.8 / 30.8 | +0.0 | +0.0 |
+| Fleece | 99.8 / 100 / 95.8 / 99.8 | +0.0 | careless +1.4 |
+| Ram trial | 99.0 / 100 / 96.0 / 95.0 | +0.0 | +0.0 |
+
+  - In the whole set, the only nonzero wide row is East Cord's launch-first with the mechanic off: -0.2 on every sky, the tall phone included. It is unchanged from before.
+  - Every row outside ±3 is on the tall phone, which stays as it is by the user's decision. The full per-row tables, mechanic off and on, are in `Claude outputs/release/wide-sky/edge-box-fixes/bot-tables.md`.
+- **Captures** are in `Claude outputs/release/wide-sky/edge-box-fixes/`: seed 7, a 1920x1080 window showing 640x360. The scratch script `tools/capture/out/fix_cap.gd` is `edgebox_cap.gd` plus a play phase that saves a frame every 6 frames over up to 8 launches or links.
+  - Stages: Aquarius Body and Jar, the Knot, North Fish, the Pisces final, Heart and the Fleece. Sheet: `fixes-sheet.png`.
+  - Close-ups:
+    - `detail-aquarius_body-left.png`: the drain line stops at the box.
+    - `detail-aquarius_body-red.png`: the ring is cut at the box edge.
+    - `detail-jar-start.png`: the Jar at the start.
+    - `detail-knot-seam.png`: the seam fades inside the box, and the box's top line is unbroken.
+    - `detail-north_fish-wave*.png`: the wave rushes and crashes at the box's top.
+  - Every frame uses palette colours only.
+  - Phones (390x844 window, 195x422 visible): Body, North Fish and the Fleece, captured after the fixes and at `7e5ba3d4` (`phone-before-*`).
+    - North Fish is pixel-identical.
+    - Body differs by 13 to 68 px, where water streaks sit a pixel further along.
+    - The Fleece aim shot differs by 21 px in the telescope.
+    - These differences are animation timing.
+- **Still open:**
+  - Doubt 1: the box floats above the horizon, and the bottom shade covers the horizon's glow (see the captures).
+  - Doubt 2: Orion stands 20 px lower on Heart, Claws and the final.
+  - Doubt 6: lifting a finger in the bottom strip cancels the aim.
+  - Doubt 7: not every encounter line over the box's top rows has been seen.
+  - Doubt 8: tall phones keep their gaps.
+  - New: the wave now keeps to the box (flagged above).
+  - New: no capture shows the down ram's exit or a real slingshot pull.
+  - New: the telescope's red twin reticles still don't show when the aim is set from code.
