@@ -153,8 +153,31 @@ func test_a_portrait_wave_keeps_sweep_time_every_way() -> void:
 				assert_eq(view.sweep_wait(), SeamView.sweep_hold(), "%s great %s" % [map.id, great])
 
 
+## The final's waves with no splash: a wave stage that keeps the whole wide sky (none ships; every
+## wave stage splashes and plays in the phone box, docs/wide_sky_design.md §9), so the wall's
+## stretch on a wide sky is still checked.
+func _unboxed_final() -> StarMap:
+	var map: StarMap = StarMap.pisces_final()
+	map.splash = false
+	return map
+
+
+func test_a_wide_splash_stages_wave_keeps_sweep_time_in_the_box() -> void:
+	for map: StarMap in [StarMap.pisces_north_fish(), StarMap.pisces_final()]:
+		var run: RunState = _stage(map, Fixtures.WIDE_SKY)
+		assert_true(run.plays_in_box(), map.id)
+		var view: SeamView = _seam(run)
+		assert_eq(view.water_rect(), run.frame_rect, "%s: the water is the phone box" % map.id)
+		for way: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT] as Array[Vector2i]:
+			assert_eq(view.rush_seconds(way), SeamView.SWEEP_TIME, "%s %s: as on the phone" % [map.id, way])
+		for great: bool in [false, true]:
+			view.sweep(Vector2i.RIGHT, Vector2i.ZERO, [] as Array[Vector2i], great)
+			assert_eq(view.sweep_wait(), SeamView.sweep_hold(), "%s great %s" % [map.id, great])
+
+
 func test_a_wide_wave_across_the_columns_rushes_on_at_the_same_speed() -> void:
-	var run: RunState = _stage(StarMap.pisces_final(), Fixtures.WIDE_SKY)
+	var run: RunState = _stage(_unboxed_final(), Fixtures.WIDE_SKY)
+	assert_false(run.plays_in_box())
 	var view: SeamView = _seam(run)
 	var line: int = run.wave.middle.x
 	var span: float = float(line - run.sky_rect.position.x)
@@ -172,7 +195,7 @@ func test_a_wide_wave_across_the_columns_rushes_on_at_the_same_speed() -> void:
 
 
 func test_a_wide_great_wave_waits_for_its_longer_side() -> void:
-	var run: RunState = _stage(StarMap.pisces_final(), Fixtures.WIDE_SKY)
+	var run: RunState = _stage(_unboxed_final(), Fixtures.WIDE_SKY)
 	var view: SeamView = _seam(run)
 	view.sweep(Vector2i.RIGHT, Vector2i.ZERO, [] as Array[Vector2i], true)
 	var longer: float = maxf(view.rush_seconds(Vector2i.LEFT), view.rush_seconds(Vector2i.RIGHT))
@@ -181,7 +204,9 @@ func test_a_wide_great_wave_waits_for_its_longer_side() -> void:
 
 func test_a_wide_wave_up_or_down_keeps_sweep_time() -> void:
 	# The frame is the sky's full height, so a line across runs as far either way as on a phone.
-	var view: SeamView = _seam(_stage(StarMap.pisces_north_fish(), Fixtures.WIDE_SKY))
+	var map: StarMap = StarMap.pisces_north_fish()
+	map.splash = false
+	var view: SeamView = _seam(_stage(map, Fixtures.WIDE_SKY))
 	assert_eq(view.rush_seconds(Vector2i.UP), SeamView.SWEEP_TIME)
 	assert_eq(view.rush_seconds(Vector2i.DOWN), SeamView.SWEEP_TIME)
 
@@ -209,9 +234,12 @@ func _sky_view(run: RunState) -> Array:
 
 
 func test_the_sky_holds_a_wave_for_its_rush_on_the_sky_it_plays_on() -> void:
-	for sky: Rect2i in [Fixtures.SKY, Fixtures.WIDE_SKY] as Array[Rect2i]:
+	for setting: int in 3:
+		var sky: Rect2i = Fixtures.SKY if setting == 0 else Fixtures.WIDE_SKY
+		# Setting 2: the final with no splash, a wave on the whole wide sky; setting 1 plays in the box.
+		var map: StarMap = _unboxed_final() if setting == 2 else StarMap.pisces_final()
 		for great: bool in [false, true]:
-			var run: RunState = _stage(StarMap.pisces_final(), sky)
+			var run: RunState = _stage(map, sky)
 			var pair: Array = _sky_view(run)
 			var view: SkyView = pair[0]
 			var sequencer: EventSequencer = pair[1]
@@ -219,11 +247,11 @@ func test_the_sky_holds_a_wave_for_its_rush_on_the_sky_it_plays_on() -> void:
 			seam.setup(run) # Main sets the seam layer up (main.gd).
 			view.call("_wave", Vector2i.LEFT, [], Vector2i.RIGHT, great)
 			var held: float = sequencer.get("_hold_left")
-			assert_eq(held, seam.sweep_wait(), "%s great %s" % [sky, great])
-			if sky == Fixtures.SKY:
-				assert_eq(held, SeamView.sweep_hold(), "portrait: the old hold, exactly")
+			assert_eq(held, seam.sweep_wait(), "setting %d great %s" % [setting, great])
+			if setting < 2:
+				assert_eq(held, SeamView.sweep_hold(), "portrait, or the phone box: the old hold, exactly")
 			else:
-				assert_gt(held, SeamView.sweep_hold() + 0.5, "wide: the longer rush is waited for")
+				assert_gt(held, SeamView.sweep_hold() + 0.5, "the whole wide sky: the longer rush is waited for")
 
 
 func test_the_sky_holds_virgos_arrival_for_the_sweep_on_its_sky() -> void:

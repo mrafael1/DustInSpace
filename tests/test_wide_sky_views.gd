@@ -123,10 +123,9 @@ func test_a_wide_splash_stage_dots_the_frames_sides() -> void:
 	var seam: SeamView = _sky_view(run).get_node("SeamLayer")
 	seam.setup(run)
 	var dots: Dictionary[Vector2i, Color] = seam.pixels()
-	var skip: Array[int] = []
-	for x: int in range(86, 95):
-		skip.append(x)  # the Knot's seam, drawn over the top and bottom lines
-	_assert_box_dotted(dots, SeamView.FRAME_EDGE_COLOUR, "the splash", skip)
+	# The Knot's seam ends at the box, as at a phone's screen edge: the box's top and bottom lines
+	# run on unbroken.
+	_assert_box_dotted(dots, SeamView.FRAME_EDGE_COLOUR, "the splash")
 	assert_eq(CurrentView.outside_frame(run.frame_rect, run.sky_rect), BOX_SHADE)
 	assert_eq(SeamView.FRAME_EDGE_COLOUR, Palette.S3)
 
@@ -294,3 +293,40 @@ func test_on_a_phone_the_flow_is_drawn_over_its_whole_region() -> void:
 			assert_eq(CurrentView.shown_region(run), run.current.region, "%s on %s" % [map_id, sky])
 	var hand: RunState = _run("aquarius_hand")
 	assert_eq(CurrentView.shown_region(hand), hand.current.region, "no edge stake: the whole wide region")
+
+
+func test_the_seam_ends_at_the_box_on_a_splash_stage() -> void:
+	var box: Rect2i = RunState.phone_box(Fixtures.WIDE_SKY)
+	for map_id: String in ["pisces_knot", "pisces_east_cord", "pisces_north_fish", "pisces_final"]:
+		var run: RunState = _run(map_id)
+		var seam: SeamView = _sky_view(run).get_node("SeamLayer")
+		seam.setup(run)
+		assert_eq(seam.water_rect(), box, map_id)
+		for p: Vector2i in SeamView.seam_pixels(run.seam, run.seam_middle(), seam.water_rect()):
+			assert_true(box.grow(1).has_point(p), "%s: seam pixel %s in the box" % [map_id, p])
+	var circlet: RunState = _run("pisces_circlet")
+	var circlet_seam: SeamView = _sky_view(circlet).get_node("SeamLayer")
+	circlet_seam.setup(circlet)
+	assert_eq(circlet_seam.water_rect(), Fixtures.WIDE_SKY, "no splash: the seam crosses the wide sky, as before")
+
+
+func test_the_wave_rushes_and_carries_within_the_box() -> void:
+	var box: Rect2i = RunState.phone_box(Fixtures.WIDE_SKY)
+	var inner: Rect2i = StarScatter.inner_rect(box)
+	for map_id: String in ["pisces_north_fish", "pisces_final"]:
+		var run: RunState = _run(map_id)
+		var seam: SeamView = _sky_view(run).get_node("SeamLayer")
+		seam.setup(run)
+		seam.set_process(false)
+		var line: Vector2i = run.wave.middle
+		for way: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT] as Array[Vector2i]:
+			var to: Vector2i = seam.carry_point(way, line + way * 10)
+			assert_true(inner.has_point(to), "%s %s: carried to %s, the box's edge" % [map_id, way, to])
+			assert_eq(to.x if way.x != 0 else to.y, (inner.position.x if way.x < 0 else inner.end.x - 1) if way.x != 0 else (inner.position.y if way.y < 0 else inner.end.y - 1), "%s %s" % [map_id, way])
+		var way: Vector2i = run.wave.next_way()
+		seam.sweep(way, way, [] as Array[Vector2i], map_id == "pisces_final")
+		for step: int in 12:
+			seam.advance(0.1)
+			for p: Vector2i in seam.pixels():
+				assert_true(box.grow(1).has_point(p), "%s %.1f s: %s in the box" % [map_id, step * 0.1, p])
+		assert_eq(seam.exit_point(Vector2i(90, 400)).y, inner.end.y, "%s: a star pushed off leaves at the box's bottom" % map_id)
