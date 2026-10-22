@@ -7,11 +7,8 @@ extends Node2D
 ## At-risk marks, always (#149: the aim's trails went unseen, since the player can't link while
 ## aiming): while not aiming, each star the next launch drains wears a small ember chevron just past
 ## its downstream side, an ember arrow pointing where it goes, nudging a pixel that way every MARK_STEP.
-## The frame edge (a wide sky's drain stage, docs/wide_sky_design.md Q4): the sky outside the run's
-## frame, where every star drains at the next step, is shaded with a sparse SHADE_COLOUR dither, and
-## the frame's sides wear the drain's dotted ember line. A ram stage (no current) shows the same, as a
-## star its ram butts past the frame is lost (ChargeView sits over the stars, so the shade is drawn
-## here, under them).
+## On a wide sky a draining flow plays in the phone box (docs/wide_sky_design.md §9): its water and
+## drains keep to the box, and nothing is drawn outside it; the aim stopping at the box shows its edge.
 
 ## The water: streaks gliding downstream in whole pixels, one per STREAK_AREA px² of the field,
 ## each STREAK_LENGTH long at STREAK_SPEED px/s (both by a fixed hash, so the pattern is stable).
@@ -51,11 +48,6 @@ const CHEVRON_CLEAR: int = 10
 ## the order the flow will take them, ARRIVAL_STEP apart, then settles.
 const ARRIVAL_STEP: float = 0.22
 
-## The sky outside a draining flow's frame: one SHADE_COLOUR pixel in every SHADE_TILE square, on
-## alternate rows half a tile across (a sparse, even ember dither over the outer columns).
-const SHADE_TILE: int = 4
-const SHADE_COLOUR: Color = Palette.S1
-
 ## The at-risk arrow's head sits MARK_GAP px past the star's edge; it nudges on every MARK_STEP.
 const MARK_GAP: int = 9
 const MARK_STEP: float = 0.6
@@ -72,13 +64,10 @@ var _arrival: float = -1.0
 ## resolves; the view turns only once that launch has played out (its burst and drift), so the
 ## water never changes way under stars still moving the old way.
 var _shown_flow: Vector2i = Vector2i.ZERO
-## The shade's tile (shade_tile), made once.
-static var _tile: ImageTexture
 
 
 func _ready() -> void:
 	set_process(false)
-	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 
 
 func setup(run: RunState, sequencer: EventSequencer) -> void:
@@ -132,20 +121,9 @@ func advance(delta: float) -> void:
 
 
 func _draw() -> void:
-	if _run != null and _run.current != null and not _played_out():
-		for rect: Rect2i in frame_shade_rects(_run.current, _run.sky_rect):
-			draw_texture_rect(shade_tile(), Rect2(rect), true)
-	elif _run != null and _shades_frame() and not _played_out():
-		draw_frame_shade(self, _run.frame_rect, _run.sky_rect)
 	var dots: Dictionary[Vector2i, Color] = pixels()
 	for point: Vector2i in dots:
 		draw_rect(Rect2(Vector2(point), Vector2.ONE), dots[point], true)
-
-
-## A stage with no current that plays in the phone box (the ram's, the hunt's): its frame is shaded
-## here; a drain's comes with its flow, a splash's with the seam (SeamView).
-func _shades_frame() -> bool:
-	return _run.ram != null or _run.hunt != null
 
 
 ## The run is over and everything it queued has been seen: the last launch's burst and drift, and
@@ -160,9 +138,6 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _run == null or _played_out():
 		return result
 	if _run.current == null:
-		if _shades_frame():
-			for point: Vector2i in frame_side_pixels(_run.frame_rect, _run.sky_rect):
-				result[point] = Palette.S3
 		return result
 	var area: Rect2i = shown_region(_run)
 	result.merge(water_pixels(area, _shown_flow, _time))
@@ -175,8 +150,6 @@ func pixels() -> Dictionary[Vector2i, Color]:
 			for point: Vector2i in _drain_edge(area, way):
 				result[point] = Palette.S2
 		for point: Vector2i in _drain_edge(area, now):
-			result[point] = Palette.S3
-		for point: Vector2i in frame_edge_pixels(_run.current, _run.sky_rect):
 			result[point] = Palette.S3
 		if _run.current.turns.size() > 1:
 			var stars: Array[Vector2i] = []
@@ -220,80 +193,12 @@ func pixels() -> Dictionary[Vector2i, Color]:
 
 ## Where `run`'s flow is drawn (its water, drain edges and chevrons): its region, kept to the phone
 ## box on a stage that plays in it (docs/wide_sky_design.md §9), as the phone's screen edge keeps it.
-## The region itself spans the wide sky's rows and columns; beyond the box is shade, where every star
-## is lost. On a 180-wide sky the box is the sky, so this is the region.
+## The region itself spans the wide sky's rows and columns; past the box every star is lost. On a
+## 180-wide sky the box is the sky, so this is the region.
 static func shown_region(run: RunState) -> Rect2i:
 	if run.plays_in_box():
 		return run.current.region.intersection(run.frame_rect)
 	return run.current.region
-
-
-## The sky outside `flow`'s frame, where a draining flow loses every star (the phone box's four sides),
-## in `sky`; none without a drain or on a 9:16 sky, whose frame is the sky.
-static func frame_shade_rects(flow: StarCurrent, sky: Rect2i) -> Array[Rect2i]:
-	if not flow.drains or not flow.frame.has_area():
-		return [] as Array[Rect2i]
-	return outside_frame(flow.frame, sky)
-
-
-## The frame's edges where the shade meets it: the drain's dotted line, one pixel in two, just
-## outside the frame.
-static func frame_edge_pixels(flow: StarCurrent, sky: Rect2i) -> Array[Vector2i]:
-	if not flow.drains or not flow.frame.has_area():
-		return [] as Array[Vector2i]
-	return frame_side_pixels(flow.frame, sky)
-
-
-## The sky outside `frame` in `sky`: its outer columns either side over the sky's full height, and
-## the rows above and below a frame shorter than the sky (the phone box, docs/wide_sky_design.md §9);
-## none when the frame spans the sky (a 9:16 sky). Shared by every view that shades a wide sky's
-## frame edge (the drain, the splash, the ram, the hunt).
-static func outside_frame(frame: Rect2i, sky: Rect2i) -> Array[Rect2i]:
-	var rects: Array[Rect2i] = []
-	var left := Rect2i(sky.position.x, sky.position.y, frame.position.x - sky.position.x, sky.size.y)
-	var right := Rect2i(frame.end.x, sky.position.y, sky.end.x - frame.end.x, sky.size.y)
-	var top := Rect2i(frame.position.x, sky.position.y, frame.size.x, frame.position.y - sky.position.y)
-	var bottom := Rect2i(frame.position.x, frame.end.y, frame.size.x, sky.end.y - frame.end.y)
-	for rect: Rect2i in [left, right, top, bottom]:
-		if rect.has_area():
-			rects.append(rect)
-	return rects
-
-
-## `frame`'s edges where the shade outside it meets it: a dotted line, one pixel in two, just
-## outside the frame (its sides over its rows; its top and bottom when it is shorter than the sky).
-static func frame_side_pixels(frame: Rect2i, sky: Rect2i) -> Array[Vector2i]:
-	var points: Array[Vector2i] = []
-	if frame.position.x > sky.position.x:
-		for y: int in range(frame.position.y, frame.end.y, 2):
-			points.append(Vector2i(frame.position.x - 1, y))
-	if frame.end.x < sky.end.x:
-		for y: int in range(frame.position.y, frame.end.y, 2):
-			points.append(Vector2i(frame.end.x, y))
-	if frame.position.y > sky.position.y:
-		for x: int in range(frame.position.x, frame.end.x, 2):
-			points.append(Vector2i(x, frame.position.y - 1))
-	if frame.end.y < sky.end.y:
-		for x: int in range(frame.position.x, frame.end.x, 2):
-			points.append(Vector2i(x, frame.end.y))
-	return points
-
-
-## Draws the shade over the sky outside `frame` on `canvas` (none on a 9:16 sky).
-static func draw_frame_shade(canvas: CanvasItem, frame: Rect2i, sky: Rect2i) -> void:
-	for rect: Rect2i in outside_frame(frame, sky):
-		canvas.draw_texture_rect(shade_tile(), Rect2(rect), true)
-
-
-## The shade's tile: SHADE_COLOUR at (0, 0) and half a tile across on the middle row. The canvas
-## drawing it needs texture_repeat on.
-static func shade_tile() -> ImageTexture:
-	if _tile == null:
-		var image := Image.create(SHADE_TILE, SHADE_TILE, false, Image.FORMAT_RGBA8)
-		image.set_pixel(0, 0, SHADE_COLOUR)
-		image.set_pixel(SHADE_TILE / 2, SHADE_TILE / 2, SHADE_COLOUR)
-		_tile = ImageTexture.create_from_image(image)
-	return _tile
 
 
 ## A star of `size` at `at` that the next launch drains (flowing `way`), `time` seconds in: a short

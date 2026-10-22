@@ -29,8 +29,7 @@ extends Node2D
 ## A ram that charges harder (the Head) is heated: its horns ember (S4, S3) and its hoof prints and
 ## dust ember too (S4, S3, S2), so the harder push shows before it charges; its face stays pale.
 ## A wide sky: everything above is drawn against the run's frame (RunState.frame_rect), not the sky,
-## so the ram stands at the frame's edge and its dust runs to the frame's far side; CurrentView shades
-## the sky outside the frame.
+## so the ram stands at the frame's edge and its dust runs to the frame's far side.
 
 ## The ram's head, frontal: H horn light, h horn dark, F face, f face shade, E eye, n nostril.
 const HEAD: Array[String] = [

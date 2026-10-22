@@ -2829,7 +2829,7 @@ func plays_in_box() -> bool:
 
 ## Where a launch bursts, a red pack's twins split and the stars scatter: the sky, or on a stage that
 ## plays in the phone box the box, whose edge keeps them in as a phone's screen edge does (a throw
-## aimed into the shade bursts at its edge). The box is the sky on any 180-wide sky.
+## aimed past it bursts at its edge). The box is the sky on any 180-wide sky.
 func launch_rect() -> Rect2i:
 	return frame_rect if plays_in_box() else sky_rect
 

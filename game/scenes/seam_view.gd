@@ -34,13 +34,10 @@ extends Node2D
 ## LOSS_TIME. While aiming,
 ## the splash's reach rings where it will splash (the aim; a split planet's twins) (an M4 dot every REACH_GAP px), each star it would push shows where it goes
 ## (M5 brackets, as a current's), and each it would push out trails ember dots out the way it goes.
-## The frame edge (a wide sky's splash stage, docs/wide_sky_design.md Q4): a star pushed past the
-## run's frame is lost, so the sky outside it is shaded and its sides dotted as a drain stage's
-## (CurrentView.draw_frame_shade, frame_side_pixels, FRAME_EDGE_COLOUR).
+## A wide sky's splash stage plays in the phone box (docs/wide_sky_design.md §9): a star pushed past
+## it is lost, and nothing is drawn outside it.
 
 const LINE_COLOUR: Color = Palette.M4
-## The frame's sides on a wide sky's splash stage: the drain's dotted ember line (CurrentView's).
-const FRAME_EDGE_COLOUR: Color = Palette.S3
 const EDGE_COLOUR: Color = Palette.M3
 const GLINT_COLOUR: Color = Palette.M5
 const GLINT_LENGTH: int = 3
@@ -148,7 +145,6 @@ var _losses: Dictionary[Vector2i, float] = {}
 
 func _ready() -> void:
 	set_process(has_seam())
-	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 
 
 func setup(run: RunState) -> void:
@@ -361,8 +357,6 @@ func advance(delta: float) -> void:
 
 
 func _draw() -> void:
-	if has_seam() and _run.splash != null:
-		CurrentView.draw_frame_shade(self, _run.frame_rect, _run.sky_rect)
 	var dots: Dictionary[Vector2i, Color] = pixels()
 	for point: Vector2i in dots:
 		draw_rect(Rect2(Vector2(point), Vector2.ONE), dots[point], true)
@@ -372,9 +366,6 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	if not has_seam():
 		return result
-	if _run.splash != null:
-		for point: Vector2i in CurrentView.frame_side_pixels(_run.frame_rect, _run.sky_rect):
-			result[point] = FRAME_EDGE_COLOUR
 	var middle: Vector2i = _run.seam_middle()
 	var seam: Dictionary[Vector2i, Color] = seam_pixels(_run.seam, middle, water_rect(), _drift())
 	if _blocking_left > 0.0:

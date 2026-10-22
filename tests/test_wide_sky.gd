@@ -29,7 +29,7 @@ const FULL_SKY_MAPS: Array[String] = [
 
 
 func test_the_phone_box_is_the_9x16_sky_round_the_figure() -> void:
-	assert_eq(RunState.phone_box(Fixtures.WIDE_SKY), Rect2i(0, 58, 180, 172), "1080p: 20 rows shaded above and below")
+	assert_eq(RunState.phone_box(Fixtures.WIDE_SKY), Rect2i(0, 58, 180, 172), "1080p: 20 rows past it above and below")
 	assert_eq(RunState.phone_box(ScreenZones.play_sky(80, 230)), Rect2i(0, 38, 180, 172), "Steam Deck: 40 above and below")
 	assert_eq(RunState.phone_box(ScreenZones.play_sky(64, 166)), Rect2i(0, 46, 180, 172), "iPad landscape: 32")
 	for sky: Rect2i in [Fixtures.SKY, ScreenZones.play_sky(102), ScreenZones.play_sky(40)]:
@@ -60,8 +60,8 @@ func test_a_drain_loses_a_star_above_or_below_the_box() -> void:
 	var above: Star = run.add_star(Star.Size.SMALL, Vector2i(90, 45))
 	var below: Star = run.add_star(Star.Size.SMALL, Vector2i(90, 240))
 	var kept: Star = run.add_star(Star.Size.SMALL, Vector2i(90, 150))
-	assert_true(run.current.stranded(above.position), "in the shade above the box")
-	assert_true(run.current.stranded(below.position), "in the shade below the box")
+	assert_true(run.current.stranded(above.position), "past the box, above it")
+	assert_true(run.current.stranded(below.position), "past the box, below it")
 	assert_false(run.current.stranded(kept.position))
 	var drains: Array[int] = run.launch_drains()
 	assert_true(drains.has(above.id) and drains.has(below.id))
@@ -138,7 +138,7 @@ func test_box_stages_launch_in_the_box_and_others_in_the_sky() -> void:
 			assert_eq(_stage(StarMap.by_id(map_id), sky).launch_rect(), sky, "%s on a phone: the sky" % map_id)
 
 
-func test_throws_into_the_shade_burst_and_scatter_in_the_box() -> void:
+func test_throws_past_the_box_burst_and_scatter_in_it() -> void:
 	# Into the side sky, the top and bottom strips, the corners, and on the box's own edge.
 	var aims: Array[Vector2i] = [Vector2i(-200, 150), Vector2i(380, 150), Vector2i(90, 40), Vector2i(90, 249),
 		Vector2i(-230, 38), Vector2i(409, 249), Vector2i(0, 58), Vector2i(179, 229)]
@@ -496,7 +496,7 @@ func test_on_a_drain_stage_a_star_outside_the_frame_drains_at_the_next_step() ->
 	assert_not_null(run.find_star(kept.id))
 
 
-func test_a_ring_dot_in_the_shade_reads_where_its_star_lands() -> void:
+func test_a_ring_dot_past_the_box_reads_where_its_star_lands() -> void:
 	var run: RunState = _stage(StarMap.aquarius_body())
 	var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
 	for dot: Vector2i in [Vector2i(-100, 150), Vector2i(300, 150), Vector2i(120, 40), Vector2i(120, 245)]:
@@ -794,7 +794,7 @@ func test_on_the_portrait_sky_the_cord_ends_stay() -> void:
 
 func test_a_draining_flow_keeps_its_stars_to_the_box_as_to_a_phones_sky() -> void:
 	# Crowded stars by the top and bottom rows: the flow's sidesteps stay in the box, as in the
-	# phone's sky, rather than slipping into the shade and draining there.
+	# phone's sky, rather than slipping past it and draining there.
 	var shift: Vector2i = Scorpio.shift_in(Fixtures.WIDE_SKY)
 	for map_id: String in ["aquarius_body", "aquarius_legs", "aquarius_jar", "aquarius_final"]:
 		var wide: RunState = _stage(StarMap.by_id(map_id))

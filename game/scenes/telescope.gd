@@ -653,7 +653,7 @@ func _draw_burst_preview() -> void:
 ## harvest reaps (a red planet's first, on the harvest launch), the dots inside the band its flow
 ## drains this launch, and the dots close enough to a black hole to fall in on landing.
 ## On a wide sky's phone box (docs/wide_sky_design.md §9) the dots past the box are left out: no star
-## lands in the shade. A phone's sky is its box, so its rings stay whole.
+## lands past it. A phone's sky is its box, so its rings stay whole.
 func scatter_ring_pixels(points: Array[Vector2i]) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	var reaped: Array[bool] = _run.harvest_reaps_bursts(shown_pack()) if _run != null else [] as Array[bool]
