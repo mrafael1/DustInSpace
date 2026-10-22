@@ -652,14 +652,19 @@ func _draw_burst_preview() -> void:
 ## (S4) where the launch's own stars would be lost as they land (#149): every dot of a burst the
 ## harvest reaps (a red planet's first, on the harvest launch), the dots inside the band its flow
 ## drains this launch, and the dots close enough to a black hole to fall in on landing.
+## On a wide sky's phone box (docs/wide_sky_design.md §9) the dots past the box are left out: no star
+## lands in the shade. A phone's sky is its box, so its rings stay whole.
 func scatter_ring_pixels(points: Array[Vector2i]) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	var reaped: Array[bool] = _run.harvest_reaps_bursts(shown_pack()) if _run != null else [] as Array[bool]
+	var box: Rect2i = _run.launch_rect() if _run != null and _run.launch_rect() != _run.sky_rect else Rect2i()
 	for k: int in points.size():
 		var lost: bool = k < reaped.size() and reaped[k]
 		for i: int in RING_DOTS:
 			var angle: float = i * TAU / RING_DOTS
 			var p: Vector2i = points[k] + Vector2i((Vector2(cos(angle), sin(angle) * StarScatter.RING_SQUASH) * RING_RADIUS).round())
+			if box.has_area() and not box.has_point(p):
+				continue
 			dots[p] = Palette.S4 if lost or (_run != null and (_run.burst_drains_at(p) or _run.burst_swallowed_at(p))) else Palette.M5
 	return dots
 

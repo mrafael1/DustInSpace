@@ -339,3 +339,20 @@ func test_the_ram_sends_a_star_off_at_the_boxs_edge() -> void:
 	var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
 	assert_eq(view.exit_point(Vector2i(90, 400)), Vector2i(90, inner.end.y), "a pixel past the box's bottom, as past a phone's")
 	assert_eq(view.exit_point(Vector2i(400, 120)), Vector2i(inner.end.x, 120))
+
+
+func test_the_scatter_rings_keep_to_the_box() -> void:
+	for map_id: String in ["heart", "aquarius_body", "pisces_north_fish", "aries_head"]:
+		var run: RunState = _run(map_id)
+		var scope: Telescope = _scope(run)
+		var box: Rect2i = run.frame_rect
+		var dots: Dictionary[Vector2i, Color] = scope.scatter_ring_pixels([Vector2i(box.end.x - 3, 120), Vector2i(90, box.position.y + 2)] as Array[Vector2i])
+		assert_false(dots.is_empty(), map_id)
+		for p: Vector2i in dots:
+			assert_true(box.has_point(p), "%s: ring dot %s in the box" % [map_id, p])
+	var tail: RunState = _run("tail")
+	var near_edge: Array[Vector2i] = [Vector2i(178, 120)]
+	assert_true(_scope(tail).scatter_ring_pixels(near_edge).keys().any(func(p: Vector2i) -> bool: return p.x >= 180), "no edge stake: the ring is whole")
+	var home: RunState = _run("heart", Fixtures.SKY)
+	var top: Array[Vector2i] = [Vector2i(90, Fixtures.SKY.position.y + 1)]
+	assert_true(_scope(home).scatter_ring_pixels(top).keys().any(func(p: Vector2i) -> bool: return p.y < Fixtures.SKY.position.y), "a phone's ring is drawn whole, as before")
