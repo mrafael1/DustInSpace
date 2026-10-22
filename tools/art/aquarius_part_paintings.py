@@ -1,34 +1,20 @@
-"""Builds the painted Aquarius (chapter 2's reward) and its pieces, in assets/art/:
+"""Aquarius's part-stage paintings (chapter 2), in assets/art/:
 
-  aquarius_figure.png         the whole water carrier, the final's reward and the chart's
-  aquarius_piece_<part>.png   the same painting cut into the chapter's five parts (hand, body, legs,
-                              stream, jar), in the same full-screen home layout: the chapter chart
-                              assembles them as parts are won
-  aquarius_part_<part>.png    each part stage's own painting, the same body part fitted to that
-                              stage's own landmarks (game/core/star_map.gd, read from the source),
-                              shown when the stage is complete
+  aquarius_part_<part>.png    each part stage's own painting (hand, body, legs, stream, jar), the
+                              body part fitted to that stage's own landmarks (game/core/star_map.gd,
+                              read from the source), shown when the stage is complete
 
-The figure is drawn as smooth outlines at native size, like vector art: each part (the tunic, a
-limb, the head in profile, the amphora's profile) is an outline, given roundness from its own
-shape (its height grows with the distance to its edge), then lit and shaded exactly as the
-Scorpio is (tools/art/build_scorpio_figure.py: light from the top left, a stepped ramp with a Bayer
-checker only along each seam, dark creases where one part lies over another, a rose rim on lit
-edges, stardust specks, a thin aura). Spheres and capsules suit a segmented scorpion; a person
-drawn with them reads as a mannequin.
+These keep the older shaded-solid style: each part an outline at native size, given roundness from
+its own shape (its height grows with the distance to its edge), then lit and shaded as the Scorpio's
+part stages are (tools/art/build_scorpio_figure.py: light from the top left, a stepped ramp with a
+Bayer checker only along each seam, dark creases where one part lies over another, a rose rim on lit
+edges, stardust specks, a thin aura). The water is its own material on the cool M ramp (M3-M6, a D0
+rim, sparse glints). No colour outside the Stellar Sun palette; every pixel opaque or empty.
 
-The stars are points on the body, not its joints, so it keeps human proportions (about seven heads,
-kneeling): the shoulders on Sadalmelik and Sadalsuud, the head on a neck above them in profile
-facing the jar, the right arm out to the open hand on epsilon, the left arm holding up a Greek
-amphora (Sadachbia on the forearm, zeta on its belly, pi by its foot, eta at its mouth), the hand
-round its belly, tipped to pour, the tunic belted at theta with a short skirt, the near thigh
-forward to the knee on lambda and the shin down through tau to a foot flat on the same ground as
-the far knee at Skat, and the water pouring from the jar's mouth down the left through phi, psi
-and 98 to a splash. The torso is one smooth piece of cloth: overlapping drapes on it read as
-cracks.
-The water is its own material on the cool M ramp (M3-M6, a D0 rim, sparse glints).
-No colour outside the Stellar Sun palette; every pixel opaque or empty.
+The whole figure and its chart pieces are drawn clean-line by tools/art/build_aquarius_figure.py,
+which also runs this module.
 
-Run: python tools/art/build_aquarius_figure.py   (needs Pillow and numpy)
+Run: python tools/art/aquarius_part_paintings.py   (needs Pillow and numpy)
 """
 
 import importlib.util
@@ -60,18 +46,6 @@ RAMPS = {
     "body": (list(sc.RAMP), list(sc.RIM)),
     "water": (["M3", "M3", "M4", "M4", "M4", "M5", "M5", "M6"], ["M6", "D0"]),
 }
-
-# Aquarius's landmarks (StarMap.aquarius): 0 epsilon (hand), 1 Sadalsuud, 2 Sadalmelik (the
-# shoulders), 3 Sadachbia (the forearm), 4 zeta, 5 eta, 6 pi (the amphora), 7 theta (the waist),
-# 8 lambda (the near knee), 9 tau (the shin), 10 Skat (the far knee), 11 phi, 12 psi, 13 98 (the
-# water).
-L = [(150, 156), (124, 140), (98, 124), (74, 118), (50, 112), (26, 118), (52, 88), (90, 150),
-     (66, 160), (70, 186), (88, 206), (42, 170), (30, 192), (24, 218)]
-
-# Which part owns each landmark (ChapterDef.aquarius).
-STAR_PARTS = {0: "hand", 1: "hand", 2: "body", 7: "body", 8: "legs", 9: "legs", 10: "legs",
-              11: "stream", 12: "stream", 13: "stream", 3: "jar", 4: "jar", 5: "jar", 6: "jar"}
-
 
 # --- outlines ------------------------------------------------------------------------------
 
@@ -248,63 +222,6 @@ def head_in_profile(S, head, lift, eye=True):
         S.eyes.append(tuple(np.round(P(-5, 0)).astype(int)))
 
 
-def build_figure(S):
-    hand, sadalsuud, sadalmelik, sadachbia, zeta, eta, pi, theta, knee, tau, skat, phi, psi, s98 = map(v, L)
-    up = np.array([0.45, -0.89])
-    mid = (sadalmelik + sadalsuud) / 2
-    ground = 210.0
-
-    # The far leg, behind: the thigh from under the tunic down to the knee on the ground (Skat),
-    # the shin lying back along the ground, the toes curled under.
-    S.tag = "legs"
-    S.shape(limb([(100, 164), (95, 186), skat], [8.0, 7.0, 5.6]), depth=7, lift=-12)
-    S.shape(limb([skat, (106, 207), (120, 206)], [5.2, 4.4, 3.4]), depth=5, lift=-12.5)
-    S.shape([(118, 202), (126, 203), (129, ground), (118, ground)], depth=3, lift=-11.5)
-    # The near leg: the thigh forward to the knee (lambda), the shin down through tau to the ankle,
-    # the foot flat on the same ground as the far knee.
-    S.shape(limb([(96, 160), (80, 158), knee], [8.0, 7.0, 6.0]), depth=7, lift=-4)
-    S.shape(limb([knee, tau, (72, ground - 6)], [5.6, 4.6, 3.6]), depth=6, lift=-6)
-    S.shape([(76, ground - 9), (77, ground), (56, ground), (57, ground - 3), (66, ground - 6)], depth=3, lift=-5)
-
-    # The tunic: the torso from the shoulders to the waist (theta), a belt, a short skirt over the
-    # hips ending above the knees.
-    S.tag = "body"
-    torso = [sadalmelik + v((-4, 1)), sadalmelik + v((-7, 10)), (84, 146), (86, 156), (104, 160),
-             (114, 154), (120, 147), sadalsuud + v((3, 2)), sadalsuud + v((1, -5)), mid + up * 7 + v((5, 0)),
-             mid + up * 7 + v((-6, -1)), sadalmelik + v((1, -4))]
-    S.shape(torso, depth=18, lift=0)
-    skirt = [(84, 151), (106, 157), (110, 165), (104, 172), (92, 171), (82, 166), (78, 158)]
-    S.shape(skirt, depth=6, lift=3)
-    S.shape(limb([(84, 152), (108, 159)], [1.3, 1.3]), depth=1.0, lift=4)
-    neck_base = mid + up * 4
-    head = mid + up * 19.0
-    S.shape(limb([neck_base, lerp(neck_base, head, 0.8)], [4.2, 3.6]), depth=4, lift=1)
-    head_in_profile(S, head, lift=6)
-
-    # The right arm: a short sleeve, the bare arm out and down to the open hand on epsilon.
-    S.tag = "hand"
-    elbow = v((137, 150))
-    wrist = v((145, 154))
-    S.shape(limb([sadalsuud + v((-2, -3)), lerp(sadalsuud, elbow, 0.4)], [6.2, 5.6]), depth=5, lift=5)
-    S.shape(limb([sadalsuud, elbow, wrist], [4.8, 3.9, 3.0]), depth=5, lift=4)
-    open_hand(S, wrist, wrist - elbow + v((0, 1)), lift=4.5)
-
-    # The left arm from the shoulder up to the amphora (Sadachbia on the forearm), the hand round
-    # its belly; the amphora tipped about 45 degrees, its foot up by pi, its mouth down at eta.
-    S.tag = "jar"
-    S.shape(limb([sadalmelik + v((-7, 1)), (84, 122), sadachbia, (60, 108)], [5.2, 4.6, 4.0, 3.6]), depth=5, lift=20)
-    S.shape(limb([(61, 109), (55, 104)], [3.6, 3.4]), depth=3, lift=21)
-    for k in range(3):
-        S.shape(limb([(58 - k * 2, 111 - k), (54 - k * 2, 108 - k)], [1.2, 1.1]), depth=1.2, lift=21.5)
-    amphora(S, foot=(60, 82), rim=(24, 124))
-
-    # The water: from the mouth down the left through phi, psi and 98, drops breaking off, a splash.
-    S.tag = "stream"
-    path = water(S, [(25, 121), (22, 138), (32, 156), phi, psi, s98, s98 + v((4, 12))], 3.2, 7.5)
-    droplets(S, path)
-    splash(S, s98 + v((6, 12)))
-
-
 # --- the stages' own paintings -------------------------------------------------------------
 
 def stage_landmarks():
@@ -449,45 +366,9 @@ def eyes(S, img):
         img[y, x, :3] = RGB["N1"]
 
 
-def pieces(S, img):
-    """The whole cut by part, as the Scorpio's: each pixel with its part's solid, each aura pixel
-    with the body pixel beside it. Every star must lie on a part of its own part."""
-    for star, part in STAR_PARTS.items():
-        x, y = L[star]
-        owner = S.owner[y, x]
-        assert owner >= 0, f"landmark {star} sits on nothing"
-        assert S.tags[owner] == part, f"landmark {star} ({part}) sits on the {S.tags[owner]}"
-    tags = np.full((H, W), "", dtype=object)
-    inside = S.z >= 0.0
-    for y, x in zip(*np.nonzero(inside)):
-        tags[y, x] = S.tags[S.owner[y, x]]
-    for y, x in zip(*np.nonzero(img[..., 3] > 0)):
-        if tags[y, x]:
-            continue
-        for dy, dx in ((0, 1), (1, 0), (0, -1), (-1, 0)):
-            ny, nx = (y + dy) % H, (x + dx) % W
-            if tags[ny, nx] and inside[ny, nx]:
-                tags[y, x] = tags[ny, nx]
-                break
-    assert all(tags[y, x] for y, x in zip(*np.nonzero(img[..., 3] > 0))), "every pixel has a part"
-    out = {}
-    for part in PARTS:
-        piece = img.copy()
-        piece[tags != part] = 0
-        out[part] = piece
-    return out
-
-
-def main():
+def build_parts():
+    """Writes each part stage's own painting, aquarius_part_<part>.png."""
     ART.mkdir(parents=True, exist_ok=True)
-    S = Shapes()
-    build_figure(S)
-    img = shade(S)
-    stardust(img)
-    eyes(S, img)
-    sc.save(img, ART / "aquarius_figure.png")
-    for part, piece in pieces(S, img).items():
-        sc.save(piece, ART / f"aquarius_piece_{part}.png")
     for part, landmarks in stage_landmarks().items():
         stage = Shapes()
         STAGE_BUILDERS[part](stage, landmarks)
@@ -500,4 +381,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    build_parts()
