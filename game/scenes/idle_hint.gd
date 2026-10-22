@@ -41,7 +41,7 @@ var sky: SkyView
 var is_held: Callable = func() -> bool: return false
 ## Main sets it: true while the telescope aims (a hint then acts out a launch, never a link).
 var is_aiming: Callable = func() -> bool: return false
-## Main sets it: the aimed burst point the launch hint taps, on the 180x320 grid.
+## Main sets it: the aimed burst point the launch hint taps, in game px.
 var aim_spot: Callable = func() -> Vector2i: return Vector2i.ZERO
 ## Main sets it: true while the aim shows a preview of what the launch changes (the longer wait).
 var shows_aim_preview: Callable = func() -> bool: return false

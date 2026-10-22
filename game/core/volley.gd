@@ -64,14 +64,14 @@ func intro_sizes(count: int) -> Array[int]:
 	return sizes
 
 
-## The intro stars' centres: two spots in `inner` (the sky's, whose top-left is Orion's corner) clear
-## of his figure, from the volley's stream.
-func intro_spots(inner: Rect2i, sky: Rect2i) -> Array[Vector2i]:
-	var corner := Rect2i(sky.position + ORION_CORNER.position, ORION_CORNER.size).grow(INTRO_CLEAR)
+## The intro stars' centres: two spots in `inner` clear of his figure (ORION_CORNER from `corner`,
+## the run's frame's top-left: the sky's on a 9:16 sky), from the volley's stream.
+func intro_spots(inner: Rect2i, corner: Vector2i) -> Array[Vector2i]:
+	var figure := Rect2i(corner + ORION_CORNER.position, ORION_CORNER.size).grow(INTRO_CLEAR)
 	var spots: Array[Vector2i] = []
 	while spots.size() < 2:
 		var spot := Vector2i(_rng.randi_range(inner.position.x, inner.end.x - 1), _rng.randi_range(inner.position.y, inner.end.y - 1))
-		if not corner.has_point(spot):
+		if not figure.has_point(spot):
 			spots.append(spot)
 	return spots
 

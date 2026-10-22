@@ -5,15 +5,16 @@ extends RefCounted
 ## ones too) is destroyed, for nothing. Landmarks are never hit. Then he marks a new circle. The
 ## first launch only marks (there's no circle to strike yet). Links, purchases, aiming and cancelled
 ## gestures don't move him. Each circle is placed round a loose star picked at random (so it always
-## threatens one), from its own RNG stream, clear of his corner of the sky, and as far off the
-## constellation stars still to light as that allows (#149).
+## threatens one), wholly inside the run's frame (the sky, on a 9:16 sky), from its own RNG stream,
+## clear of his corner of the sky, and as far off the constellation stars still to light as that
+## allows (#149).
 ## The stage opens with an intro that plays the whole cycle once: stars in a circle, a demo launch
 ## bursting into it, and the strike that takes them all (it pays nothing and uses no pack).
 ## Pure state; RunState applies it inside launch() so a launch stays one atomic step.
 
 ## XOR'd into the run seed so the circles have their own stream and never shift packs or layout.
 const SEED_SALT: int = 0x4A7E
-## With no loose star to circle, it tries this many spots anywhere in the sky (the first that covers
+## With no loose star to circle, it tries this many spots anywhere in the frame (the first that covers
 ## none of the constellation stars still to light, else the one covering fewest).
 const ANYWHERE_TRIES: int = 64
 
@@ -59,27 +60,30 @@ func strike(loose: Array[Star]) -> Array[Star]:
 	return hit
 
 
-## Marks a new circle, wholly inside `sky` (whose top-left is Orion's corner) and clear of his
-## figure, so it always threatens something: round a loose star of `loose` picked at random, which
-## is inside it (the centre is anywhere within the radius of it). Of those centres, it takes one
-## covering the fewest of `avoid` (the constellation stars still to light), at random among them
-## (#149: on the compact maps a circle round any star near the figure lay over it, where the player
-## launches to light it; it still threatens its star, only from the side away from the figure).
-## Anywhere in the sky when no loose star can be covered (an empty sky, or only stars in its far
-## corners), again covering as few of `avoid` as a few tries find. Returns the centre.
-func mark(sky: Rect2i, loose: Array[Star] = [], avoid: Array[Vector2i] = []) -> Vector2i:
-	var corner := Rect2i(sky.position + Volley.ORION_CORNER.position, Volley.ORION_CORNER.size).grow(radius)
-	var room: Rect2i = sky.grow(-radius) if sky.grow(-radius).has_area() else StarScatter.inner_rect(sky)
+## Marks a new circle, wholly inside `frame` (the run's frame: the sky itself on a 9:16 sky; on a
+## wide sky the 180 columns by the constellation, so the circle threatens there as on a phone rather
+## than spreading over the outer columns) and clear of his figure (Volley.ORION_CORNER from the
+## frame's top-left), so it always threatens something: round a loose star of `loose` picked at
+## random, which is inside it (the centre is anywhere within the radius of it). Of those centres, it
+## takes one covering the fewest of `avoid` (the constellation stars still to light), at random among
+## them (#149: on the compact maps a circle round any star near the figure lay over it, where the
+## player launches to light it; it still threatens its star, only from the side away from the
+## figure). A loose star outside the frame is passed over (no circle in the frame can cover it).
+## Anywhere in the frame when no loose star can be covered (an empty sky, or only stars in its far
+## corners or outside it), again covering as few of `avoid` as a few tries find. Returns the centre.
+func mark(frame: Rect2i, loose: Array[Star] = [], avoid: Array[Vector2i] = []) -> Vector2i:
+	var figure := Rect2i(frame.position + Volley.ORION_CORNER.position, Volley.ORION_CORNER.size).grow(radius)
+	var room: Rect2i = frame.grow(-radius) if frame.grow(-radius).has_area() else StarScatter.inner_rect(frame)
 	_marked = true
 	var prey: Array[Star] = loose.duplicate()
 	while not prey.is_empty():
 		var star: Star = prey.pop_at(_rng.randi_range(0, prey.size() - 1))
-		if _mark_round(star.position, room, corner, avoid):
+		if _mark_round(star.position, room, figure, avoid):
 			return centre
 	var fewest: int = -1
 	for attempt: int in ANYWHERE_TRIES:
 		var spot := Vector2i(_rng.randi_range(room.position.x, room.end.x - 1), _rng.randi_range(room.position.y, room.end.y - 1))
-		if corner.has_point(spot):
+		if figure.has_point(spot):
 			if fewest < 0:
 				centre = spot
 			continue
@@ -93,8 +97,8 @@ func mark(sky: Rect2i, loose: Array[Star] = [], avoid: Array[Vector2i] = []) -> 
 
 
 ## Picks a centre at random among those within the radius of `at`, inside `room`, off `corner` and
-## covering the fewest of `avoid`. False if there's none (a star in a far corner of the sky, or
-## hugging Orion's figure).
+## covering the fewest of `avoid`. False if there's none (a star in a far corner of the frame, outside
+## it, or hugging Orion's figure).
 func _mark_round(at: Vector2i, room: Rect2i, corner: Rect2i, avoid: Array[Vector2i]) -> bool:
 	var reach := Rect2i(at - Vector2i(radius, radius), Vector2i(radius, radius) * 2 + Vector2i.ONE).intersection(room)
 	# Only what's within two radii of `at` can be under a circle round it.

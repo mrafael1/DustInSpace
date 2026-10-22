@@ -1,16 +1,20 @@
 class_name Backdrop
 extends Node2D
-## Fills the window around the game's 180x320 screen when it shows more (a phone that isn't 9:16):
-## the game sits on the bottom edge, so this is mostly sky above it. The sky's top colour carries
+## Fills the window around the game's 180x320 screen when it shows more (a phone that isn't 9:16, or
+## a wide window): the game sits on the bottom edge, so this is mostly sky above it. On a wide window
+## the play sky reaches out over the side margins (ScreenZones.play_sky), and this draws the sky
+## behind it too. The sky's top colour carries
 ## on for a band, then steps (a checker seam) into darker space.
 ## Out to the sides the landscape carries on: each sky row keeps the background's own dither (its
 ## most common colour in each column of 4, so no stripes), a sky step darker out beyond a curved
-## vignette (through a checker seam) to keep the eye on the play area; below it, irregular mountains (M3,
+## vignette (through a checker seam) to keep the eye on the play area, sized to frame the play sky
+## (vignette_radii); below it, irregular mountains (M3,
 ## lit M4 on their left faces) and hills (M2) that start at the background's edge heights, with
 ## scattered trees (M1). The forest floor under the HUD repeats across (the background draws it
 ## to tile every 180 px). Sparse, dim cool stars sit in the margin sky on a fixed hash of their
-## position, so they never move. Drawn under everything; Main tells it where the game sits. Owns
-## no rules.
+## position, so they never move. Over a wide play sky (star_free) only the 1 px ones stand, as
+## faint as the background's own painted stars; a glint there could be taken for a star in play.
+## Drawn under everything; Main tells it where the game sits. Owns no rules.
 
 const BACKGROUND := preload("res://assets/art/background.png")
 ## Above the game: this many rows of the sky's top colour, then a checker seam into N0.
@@ -52,9 +56,10 @@ const TREE_CLEAR: int = 3
 const TREE_HEIGHT := Vector2i(7, 15)
 const TREE_SHAPE: Array[int] = [0, 0, 1, 0, 1, 2, 1, 2, 3, 2, 3, 3]
 
-## The game's screen sits at `_offset` in a visible area of `_visible` px.
+## The game's screen sits at `_offset` in a visible area of `_visible` px; the run's play sky is `_sky`.
 var _offset: Vector2i = Vector2i.ZERO
 var _visible: Vector2i = ScreenZones.SCREEN
+var _sky: Rect2i = ScreenZones.SKY
 var _image: Image
 var _margin: ImageTexture
 
@@ -69,18 +74,49 @@ func _draw() -> void:
 		draw_texture(_margin, Vector2(-_offset))
 
 
-## The game sits at `offset` in a visible area of `visible` px.
-func fit(offset: Vector2i, visible: Vector2i) -> void:
+## The game sits at `offset` in a visible area of `visible` px, and the run plays on `sky`.
+func fit(offset: Vector2i, visible: Vector2i, sky: Rect2i = ScreenZones.SKY) -> void:
 	_offset = offset
 	_visible = visible
+	_sky = sky
 	_rebuild()
 	queue_redraw()
 
 
-## Everything around the game's screen in `area` (game coordinates), transparent over the screen.
-static func margin_image(background: Image, area: Rect2i) -> Image:
+## The run plays on `sky` (a new run may take a new size): redrawn only if it changed.
+func follow_sky(sky: Rect2i) -> void:
+	if sky == _sky:
+		return
+	fit(_offset, _visible, sky)
+
+
+## The vignette's radii for a run on `sky`: OUTER_RADII on a portrait sky (no side columns), so a
+## phone is as it was; on a wider one the ellipse widens until the sky's corner pixels sit inside
+## it, so the darker outer sky frames the whole play sky and never crosses it.
+static func vignette_radii(sky: Rect2i) -> Vector2:
+	if sky.size.x <= ScreenZones.SCREEN.x:
+		return OUTER_RADII
+	var lo: Vector2 = Vector2(sky.position) - OUTER_CENTRE
+	var hi: Vector2 = Vector2(sky.end - Vector2i.ONE) - OUTER_CENTRE
+	var dx: float = maxf(absf(lo.x), absf(hi.x))
+	var dy: float = minf(maxf(absf(lo.y), absf(hi.y)), OUTER_RADII.y - 1.0)
+	var across: float = dx / sqrt(1.0 - (dy / OUTER_RADII.y) * (dy / OUTER_RADII.y))
+	return Vector2(maxf(OUTER_RADII.x, ceilf(across)), OUTER_RADII.y)
+
+
+## Where no glint may stand for a run on `sky`: a wide play sky (its side columns hold stars in play,
+## so no glint may be taken for one, arms included; 1 px stars stay, like the background's painted
+## ones). Empty on a portrait sky, where the stars stay as they were.
+static func star_free(sky: Rect2i) -> Rect2i:
+	return sky if sky.size.x > ScreenZones.SCREEN.x else Rect2i()
+
+
+## Everything around the game's screen in `area` (game coordinates), transparent over the screen,
+## for a run on `play_sky`.
+static func margin_image(background: Image, area: Rect2i, play_sky: Rect2i = ScreenZones.SKY) -> Image:
 	var image := Image.create_empty(area.size.x, area.size.y, false, Image.FORMAT_RGBA8)
 	var screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
+	var radii: Vector2 = vignette_radii(play_sky)
 	var sky: Array[PackedColorArray] = sky_pattern(background)
 	var sky_top: Color = edge_colour(background, 0, 0)
 	for x: int in range(area.position.x, area.end.x):
@@ -96,13 +132,13 @@ static func margin_image(background: Image, area: Rect2i) -> Image:
 			elif y >= GROUND_TOP:
 				colour = ground_colour(background, x, y)
 			elif y < 0:
-				colour = outer_sky(space_colour(x, y, sky_top), x, y)
+				colour = outer_sky(space_colour(x, y, sky_top), x, y, radii)
 			elif land[y].a > 0.0:
 				colour = land[y]
 			else:
-				colour = outer_sky(sky[mini(y, SKY_LAST)][posmod(x, 4)], x, y)
+				colour = outer_sky(sky[mini(y, SKY_LAST)][posmod(x, 4)], x, y, radii)
 			image.set_pixel(x - area.position.x, y - area.position.y, colour)
-	for p: Vector2i in margin_stars(area):
+	for p: Vector2i in margin_stars(area, play_sky):
 		var star: Dictionary[Vector2i, Color] = star_pixels(p)
 		for q: Vector2i in star:
 			if area.has_point(q) and not screen.has_point(q):
@@ -153,9 +189,9 @@ static func sky_pattern(background: Image) -> Array[PackedColorArray]:
 	return rows
 
 
-## `colour` of the sky at (x, y), a step darker out beyond the vignette (OUTER_RADII, OUTER_SEAM).
-static func outer_sky(colour: Color, x: int, y: int) -> Color:
-	var out: float = ((Vector2(x, y) - OUTER_CENTRE) / OUTER_RADII).length() * OUTER_RADII.x - OUTER_RADII.x
+## `colour` of the sky at (x, y), a step darker out beyond the vignette (`radii`, OUTER_SEAM).
+static func outer_sky(colour: Color, x: int, y: int, radii: Vector2 = OUTER_RADII) -> Color:
+	var out: float = ((Vector2(x, y) - OUTER_CENTRE) / radii).length() * radii.x - radii.x
 	if out <= 0.0:
 		return colour
 	if out <= OUTER_SEAM and StarView.BAYER[posmod(y, 4) * 4 + posmod(x, 4)] >= floori(out) * 16 / (OUTER_SEAM + 1):
@@ -212,14 +248,18 @@ static func tree_height(x: int) -> int:
 
 
 ## Where the background stars go in the margin sky inside `area` (game coordinates): a fixed
-## hash per pixel, outside the game's screen, and above the land at the sides.
-static func margin_stars(area: Rect2i) -> Array[Vector2i]:
+## hash per pixel, outside the game's screen, above the land at the sides, and with no glint pixel
+## over a wide play sky `sky` (star_free).
+static func margin_stars(area: Rect2i, sky: Rect2i = ScreenZones.SKY) -> Array[Vector2i]:
 	var stars: Array[Vector2i] = []
 	var screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
+	var free: Rect2i = star_free(sky)
 	for y: int in range(area.position.y, mini(area.end.y, SKY_BOTTOM)):
 		for x: int in range(area.position.x, area.end.x):
 			var p := Vector2i(x, y)
 			if screen.has_point(p) or _hash(p) % STAR_ODDS != 0:
+				continue
+			if free.has_area() and free.grow(1).has_point(p) and _is_glint(p) and _touches(star_pixels(p), free):
 				continue
 			stars.append(p)
 	return stars
@@ -242,7 +282,20 @@ func _rebuild() -> void:
 	if _image == null or _visible == ScreenZones.SCREEN:
 		_margin = null
 		return
-	_margin = ImageTexture.create_from_image(margin_image(_image, Rect2i(-_offset, _visible)))
+	_margin = ImageTexture.create_from_image(margin_image(_image, Rect2i(-_offset, _visible), _sky))
+
+
+## Whether the margin star at `p` is a glint (star_pixels), not a single pixel.
+static func _is_glint(p: Vector2i) -> bool:
+	return (_hash(p) / STAR_ODDS) % GLINT_ODDS == 0
+
+
+## Whether any of a star's `pixels` lands in `rect`.
+static func _touches(pixels: Dictionary[Vector2i, Color], rect: Rect2i) -> bool:
+	for q: Vector2i in pixels:
+		if rect.has_point(q):
+			return true
+	return false
 
 
 ## A height for column `x`: the background's own (the first row from `from` in `colours`) inside

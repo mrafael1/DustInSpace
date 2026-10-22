@@ -2,8 +2,9 @@ class_name StarSplash
 extends RefCounted
 ## Pisces's splash (chapter 6): a thrown planet sinking into the mirror splashes where it went in (a
 ## split planet's twins, each where it is), pushing the loose stars round that point outward; a star
-## pushed out of the sky, or onto or across the mirror's water line, is lost, for nothing. No randomness, nodes or rewards. Its moves are StarCurrent.Moves (a lost one `drained`,
-## `to` where it would have gone, past the sky's edge).
+## pushed out of the area it's given (RunState passes its frame: the sky on a 9:16 sky), or onto or
+## across the mirror's water line, is lost, for nothing. No randomness, nodes or rewards. Its moves
+## are StarCurrent.Moves (a lost one `drained`, `to` where it would have gone, past that edge).
 
 var radius: int
 var push: int
@@ -28,7 +29,7 @@ func reaches(at: Vector2i, point: Vector2i) -> bool:
 
 ## Pure: where each star the splash at `at` moves ends up (stars it doesn't move are left out). Each
 ## star it reaches is pushed `push` px straight away from `at` (one right on it: straight up); one
-## pushed past the sky's edge is lost (its destination past that edge), and so is one pushed onto or
+## pushed out of `sky` (the loss edge: RunState's frame) is lost (its destination past that edge), and so is one pushed onto or
 ## across the water line (its destination where it meets the line), whatever is in its way. The farthest go first, so
 ## the stars behind follow into the room; a star blocked by another, or by a landmark, goes as far
 ## along its way as it has room for, else stays.
@@ -89,7 +90,8 @@ func _hit(from: Vector2i, to: Vector2i) -> Vector2i:
 	return seam_hit.call(from, to)
 
 
-## Whether a star pushed to `point` has left the sky (where stars live: StarScatter.inner_rect).
+## Whether a star pushed to `point` has left `sky` (where stars live: StarScatter.inner_rect of it;
+## RunState passes its frame).
 static func leaves(point: Vector2i, sky: Rect2i) -> bool:
 	return not StarScatter.inner_rect(sky).has_point(point)
 

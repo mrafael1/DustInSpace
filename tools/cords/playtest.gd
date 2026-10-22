@@ -16,6 +16,7 @@ extends SceneTree
 ## map's; --fish=none removes it. Quote it in a shell ("--fish=0,128;98,176;179,132"). Only used with
 ## cords on. The results file then carries the polyline in its name.
 
+const PlaytestSky := preload("res://tools/playtest_sky.gd")
 const POLICIES: Array[String] = ["link-first", "careless", "launch-first", "planner", "planner-hoard"]
 ## The planner's weights: a link's dust and light, plus these.
 const LANDMARK_WEIGHT: int = 100
@@ -27,6 +28,8 @@ const AIM_GRID: int = 4
 ## Where link-first aims, from the landmark (as tools/gravity/playtest.gd).
 const AIM_OFFSET := Vector2i(-12, -18)
 
+## The play sky (--sky=WxH, tools/playtest_sky.gd; the 9:16 sky without it).
+var _sky: Rect2i = Scorpio.HOME_SKY
 var _balance: Balance
 var _runs: int = 300
 var _map: String = "cord_trial"
@@ -39,6 +42,8 @@ var _fish: Array[Vector2i] = []
 
 
 func _initialize() -> void:
+	_sky = PlaytestSky.from_args()
+	print(PlaytestSky.label(_sky))
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
 			_runs = maxi(1, argument.trim_prefix("--runs=").to_int())
@@ -97,7 +102,7 @@ func _simulate() -> void:
 	var fish_suffix: String = ""
 	if _fish_set:
 		fish_suffix = "-fish_" + (_fish_text(_fish).replace(";", "_").replace(",", "-") if not _fish.is_empty() else "none")
-	var file: FileAccess = FileAccess.open("res://tools/cords/out/results-%s%s%s.json" % [_map, "-kept" if _keep_cords else "", fish_suffix], FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(("res://tools/cords/out/results-%s%s%s.json" % [_map, "-kept" if _keep_cords else "", fish_suffix]).trim_suffix(".json") + PlaytestSky.suffix(_sky) + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
 	quit()
 
@@ -158,7 +163,7 @@ func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> v
 	_policy = policy
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
+	var run := RunState.new(_balance, rng, _sky, _layout(enabled))
 	var packs: int = 0
 	var hoards: bool = policy in ["launch-first", "planner-hoard"]
 	var plans: bool = policy.begins_with("planner")
@@ -246,7 +251,7 @@ func _choose_link(run: RunState, plans: bool) -> Array[int]:
 ## The first unlit landmark, aimed just up-left of; the planner keeps the aim's line to it clear of
 ## cords (nearest such spot on a grid round it), so the burst lands on its side.
 func _aim(run: RunState, plans: bool) -> Vector2i:
-	var landmark := Vector2i(90, 160)
+	var landmark: Vector2i = Vector2i(90, 160) + run.scorpio.shift
 	for index: int in run.scorpio.map.count():
 		if not run.scorpio.is_lit(index):
 			landmark = run.scorpio.landmark_position(index)
@@ -254,13 +259,15 @@ func _aim(run: RunState, plans: bool) -> Vector2i:
 	var preferred: Vector2i = landmark + AIM_OFFSET
 	if not plans or run.cords == null or _clear_aim(run, preferred, landmark):
 		return preferred
-	var best := Vector2i(-1, -1)
+	var best: Vector2i = preferred
+	var found: bool = false
 	for y: int in range(-AIM_SEARCH, AIM_SEARCH + 1, AIM_GRID):
 		for x: int in range(-AIM_SEARCH, AIM_SEARCH + 1, AIM_GRID):
 			var spot: Vector2i = StarScatter.clamp_to_sky(landmark + Vector2i(x, y), run.sky_rect)
-			if _clear_aim(run, spot, landmark) and (best.x < 0 or (spot - preferred).length_squared() < (best - preferred).length_squared()):
+			if _clear_aim(run, spot, landmark) and (not found or (spot - preferred).length_squared() < (best - preferred).length_squared()):
 				best = spot
-	return best if best.x >= 0 else preferred
+				found = true
+	return best
 
 
 func _clear_aim(run: RunState, spot: Vector2i, landmark: Vector2i) -> bool:

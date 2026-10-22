@@ -7,6 +7,8 @@ extends Node2D
 ## At-risk marks, always (#149: the aim's trails went unseen, since the player can't link while
 ## aiming): while not aiming, each star the next launch drains wears a small ember chevron just past
 ## its downstream side, an ember arrow pointing where it goes, nudging a pixel that way every MARK_STEP.
+## On a wide sky a draining flow plays in the phone box (docs/wide_sky_design.md §9): its water and
+## drains keep to the box, and nothing is drawn outside it; the aim stopping at the box shows its edge.
 
 ## The water: streaks gliding downstream in whole pixels, one per STREAK_AREA px² of the field,
 ## each STREAK_LENGTH long at STREAK_SPEED px/s (both by a fixed hash, so the pattern is stable).
@@ -133,9 +135,11 @@ func _played_out() -> bool:
 
 func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
-	if _run == null or _run.current == null or _played_out():
+	if _run == null or _played_out():
 		return result
-	var area: Rect2i = _run.current.region
+	if _run.current == null:
+		return result
+	var area: Rect2i = shown_region(_run)
 	result.merge(water_pixels(area, _shown_flow, _time))
 	if _run.current.drains:
 		# Every side the flow can drain to: the next launch's in ember, any other dimmer.
@@ -159,12 +163,15 @@ func pixels() -> Dictionary[Vector2i, Color]:
 						result[point] = Palette.S4 if _arrival < ARRIVAL_STEP * (k + 1) else Palette.S3
 		for at: Vector2i in _flashes:
 			var went: Vector2i = _flash_ways.get(at, Vector2i.ZERO)
-			result.merge(extinction_pixels(at, went if went != Vector2i.ZERO else _shown_flow, _flashes[at], area), true)
+			# A star stranded outside the frame went where it stood: its flash keeps to the sky there.
+			var near: Rect2i = area if area.grow(2).has_point(at) else _run.sky_rect
+			result.merge(extinction_pixels(at, went if went != Vector2i.ZERO else _shown_flow, _flashes[at], near), true)
 	if not aiming and (_sequencer == null or not _sequencer.is_busy()):
 		var way := Vector2i(signi(_run.current.displacement.x), signi(_run.current.displacement.y))
 		for id: int in _run.launch_drains():
 			var star: Star = _run.find_star(id)
-			result.merge(drain_mark_pixels(star.position, star.size, way, _time), true)
+			var going: Vector2i = _run.current.outward(star.position) if _run.current.stranded(star.position) else way
+			result.merge(drain_mark_pixels(star.position, star.size, going, _time), true)
 	if aiming and not _sequencer.is_busy():
 		var destinations: Dictionary[int, Vector2i] = _run.current_preview()
 		for star: Star in _run.stars:
@@ -182,6 +189,16 @@ func pixels() -> Dictionary[Vector2i, Color]:
 				for dy: int in [-1, 0, 1]:
 					result[to + Vector2i(side * radius, dy)] = Palette.M5
 	return result
+
+
+## Where `run`'s flow is drawn (its water, drain edges and chevrons): its region, kept to the phone
+## box on a stage that plays in it (docs/wide_sky_design.md §9), as the phone's screen edge keeps it.
+## The region itself spans the wide sky's rows and columns; past the box every star is lost. On a
+## 180-wide sky the box is the sky, so this is the region.
+static func shown_region(run: RunState) -> Rect2i:
+	if run.plays_in_box():
+		return run.current.region.intersection(run.frame_rect)
+	return run.current.region
 
 
 ## A star of `size` at `at` that the next launch drains (flowing `way`), `time` seconds in: a short

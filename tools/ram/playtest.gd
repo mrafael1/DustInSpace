@@ -8,9 +8,13 @@ extends SceneTree
 ## in it; careless links the first valid link found; launch-first launches every owned pack before
 ## linking (hoards).
 
+const PlaytestSky := preload("res://tools/playtest_sky.gd")
 const POLICIES: Array[String] = ["link-first", "careful", "careless", "launch-first"]
 ## The target, from the first unlit landmark (just up-left of it, as tools/reflect aims).
 const TARGET_OFFSET := Vector2i(-12, -18)
+
+## The play sky (--sky=WxH, tools/playtest_sky.gd; the 9:16 sky without it).
+var _sky: Rect2i = Scorpio.HOME_SKY
 var _balance: Balance
 var _runs: int = 200
 var _map: String = "aries_horns"
@@ -20,6 +24,8 @@ var _lost: int = 0
 
 
 func _initialize() -> void:
+	_sky = PlaytestSky.from_args()
+	print(PlaytestSky.label(_sky))
 	_balance = Balance.load_file()
 	for argument: String in OS.get_cmdline_user_args():
 		if argument.begins_with("--runs="):
@@ -58,7 +64,7 @@ func _simulate() -> void:
 			rows.append(row)
 			print("%-13s on=%-5s won %5.1f%%  lost %3d  capped %d  packs/win %5.2f  launches/run %5.2f  butted out/run %5.2f" % [policy, enabled, row.win_rate, row.losses, row.capped, row.packs_per_win, row.launches_per_run, row.lost_per_run])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tools/ram/out"))
-	var file: FileAccess = FileAccess.open("res://tools/ram/out/results-%s.json" % _map, FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(("res://tools/ram/out/results-%s.json" % _map).trim_suffix(".json") + PlaytestSky.suffix(_sky) + ".json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(rows, "  ") + "\n")
 	quit()
 
@@ -72,7 +78,7 @@ func _layout(enabled: bool) -> StarMap:
 func _play(seed_value: int, enabled: bool, policy: String, row: Dictionary) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var run := RunState.new(_balance, rng, Scorpio.HOME_SKY, _layout(enabled))
+	var run := RunState.new(_balance, rng, _sky, _layout(enabled))
 	_lost = 0
 	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], _way: Vector2i) -> void:
 		for move: StarCurrent.Move in moves:
@@ -127,7 +133,7 @@ func _out_of_lane(run: RunState, aim: Vector2i) -> Vector2i:
 		return aim
 	var before: Vector2i = aim + across * (top - StarScatter.RING_MAX - 2 - at)
 	var after: Vector2i = aim + across * (bottom + StarScatter.RING_MAX + 2 - at)
-	var inner: Rect2i = StarScatter.inner_rect(run.sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(run.launch_rect())
 	if not inner.grow(-4).has_point(after):
 		return before
 	if not inner.grow(-4).has_point(before):
@@ -140,7 +146,7 @@ func _target(run: RunState) -> Vector2i:
 	for index: int in run.scorpio.map.count():
 		if not run.scorpio.is_lit(index):
 			return run.scorpio.landmark_position(index) + TARGET_OFFSET
-	return Vector2i(90, 160)
+	return Vector2i(90, 160) + run.scorpio.shift
 
 
 func _first_link(links: Array[Array]) -> Array[int]:

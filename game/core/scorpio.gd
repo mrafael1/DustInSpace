@@ -9,7 +9,7 @@ extends RefCounted
 ## The constants below are the full Scorpio's layout (StarMap.scorpio); the static helpers answer
 ## for it (the chapter chart draws it). A run asks its own instance (`map`) instead.
 
-## Landmarks: the 14 stars of Scorpius's usual figure (#61), on the 180x320 grid, inside the play
+## Landmarks: the 14 stars of Scorpius's usual figure (#61), laid out in HOME_SKY, inside the play
 ## sky (y 86-242 once the edge margin is taken off). Their real layout (RA/Dec, east to the left)
 ## is spread out to at least 24 px apart so each can be picked on its own, keeping the shape: the
 ## claw arc on the right (beta, Dschubba, pi), sigma and Antares, the heart, to its left; the body
@@ -45,12 +45,15 @@ const STARTING_LIT: Array[int] = [0, 1, 2]
 ## At most this many landmarks in one combo: two would light a whole string with one sky star
 ## (tools/balance/sim.py: the constellation done in about 2 packs).
 const LANDMARKS_PER_COMBO: int = 1
-## The play sky LANDMARKS are laid out in (a 9:16 screen). A taller sky (a taller phone) moves the
-## whole map by `shift` so it stays centred in it; spacing, sizes and reach don't change.
+## The play sky LANDMARKS are laid out in (a 9:16 screen). Any other sky (a taller phone, a wide
+## window) moves the whole map by `shift` so it stays centred in it; spacing, sizes and reach don't
+## change.
 const HOME_SKY := Rect2i(0, 78, 180, 172)
 
 var lit: Array[bool] = []
-## How far the map sits from its home layout in this run's sky (whole pixels, vertical only).
+## How far the map sits from its home layout in this run's sky (whole pixels, shift_in). The play
+## sky is symmetric about x 90 (ScreenZones.sky_margin), so x is 0 in the game; it is kept 2D so a
+## sky centred elsewhere still centres the map.
 var shift: Vector2i = Vector2i.ZERO
 ## The layout in play.
 var map: StarMap
@@ -62,7 +65,12 @@ func _init(sky: Rect2i = HOME_SKY, p_map: StarMap = null) -> void:
 	map = p_map if p_map != null else StarMap.scorpio()
 	for i: int in map.count():
 		lit.append(map.starting_lit.has(i))
-	shift = Vector2i(0, (sky.get_center().y - HOME_SKY.get_center().y))
+	shift = shift_in(sky)
+
+
+## How far a map laid out in HOME_SKY moves to sit centred in `sky`.
+static func shift_in(sky: Rect2i) -> Vector2i:
+	return sky.get_center() - HOME_SKY.get_center()
 
 
 ## Landmark `index`'s position in this run's sky.

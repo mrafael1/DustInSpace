@@ -1,5 +1,6 @@
 extends GutTest
 
+const Fixtures := preload("res://tests/fixtures.gd")
 const MainScene := preload("res://game/scenes/main.tscn")
 const AppScene := preload("res://game/scenes/app.tscn")
 const STORE := "user://test_current_trial_progress.json"
@@ -132,6 +133,50 @@ func test_trial_controls_stay_above_the_map_on_tall_screens() -> void:
 	var controls: CurrentTrialControls = main.get_node("CurrentTrialControls")
 	controls.fit_screen(Rect2i(0, -70, 180, 390))
 	assert_eq((controls.get_child(0) as MapButton).position, Vector2(8, 2))
+
+
+## Commit 21 (docs/wide_sky_design.md §7): on a wide sky the controls sit by the frame, a row of the
+## screen's top down, not out at the visible screen's left edge; and they still work there.
+func test_trial_controls_sit_by_the_frame_on_a_wide_sky() -> void:
+	var main: Main = _main()
+	var controls: CurrentTrialControls = main.get_node("CurrentTrialControls")
+	var button: MapButton = controls.get_child(0)
+	var caption: Label = controls.get_child(1)
+	main.fit_visible(Vector2(640, 360))
+	assert_true(main.restart())
+	assert_eq(main.run.frame_rect, Rect2i(0, 38, 180, 212))
+	assert_true(controls.visible)
+	assert_eq(button.position, Vector2(8, 32), "the frame's left, 72 rows below the screen's top (-40)")
+	assert_eq(caption.position, Vector2(8, 48))
+	var screen := Rect2i(-230, -40, 640, 360)
+	var target: Rect2i = button.target()
+	assert_true(screen.encloses(target), "on the visible screen")
+	assert_true(target.position.x >= main.run.frame_rect.position.x - 4 and target.end.x <= main.run.frame_rect.end.x, "by the frame, not the outer columns")
+	var press := InputEventScreenTouch.new()
+	press.position = Vector2(target.get_center())
+	press.pressed = true
+	assert_true(controls.handle_pointer(press))
+	var release := InputEventScreenTouch.new()
+	release.position = press.position
+	assert_true(controls.handle_pointer(release))
+	assert_null(main.run.current, "the switch restarts the trial with the flow off")
+	assert_eq(main.run.sky_rect, Fixtures.WIDE_SKY, "on the same wide sky")
+	assert_eq(button.position, Vector2(8, 32))
+	# A mid-run resize keeps the run's frame; the controls follow the screen's top.
+	main.fit_visible(Vector2(853, 360))
+	assert_eq(button.position, Vector2(8, 32), "ultrawide: the same frame and top")
+	main.fit_visible(Vector2(640, 400))
+	assert_eq(button.position, Vector2(8, -8), "a taller screen: 72 rows below its top")
+
+
+func test_trial_controls_sit_in_the_frame_on_a_phone() -> void:
+	var main: Main = _main()
+	var button: MapButton = main.get_node("CurrentTrialControls").get_child(0)
+	assert_eq(button.position, Vector2(8, 72), "a 9:16 screen: where they always were")
+	main.fit_visible(Vector2(195, 422))
+	assert_true(main.restart())
+	assert_eq(main.run.frame_rect, main.run.sky_rect)
+	assert_eq(button.position, Vector2(8, -30), "a wider phone: by the frame, not the screen's spare column")
 
 
 func test_drifts_keep_pixel_positions_and_finish_at_core_destination() -> void:

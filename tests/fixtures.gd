@@ -3,6 +3,9 @@ extends RefCounted
 
 ## Play sky from docs/art-direction.md: y 78-250.
 const SKY := Rect2i(0, 78, 180, 172)
+## A 1920x1080 window's play sky (docs/wide_sky_design.md): the game's 180 columns centred in 640,
+## 40 rows more above (ScreenZones.play_sky(40, 230)).
+const WIDE_SKY := Rect2i(-230, 38, 640, 212)
 
 
 ## A copy of the shipped balance values as a dictionary, so tests can tweak one field.
@@ -42,8 +45,8 @@ static func rng(seed_value: int = 1) -> RandomNumberGenerator:
 	return r
 
 
-static func run(overrides: Dictionary = {}, seed_value: int = 1) -> RunState:
-	return RunState.new(balance(overrides), rng(seed_value), SKY)
+static func run(overrides: Dictionary = {}, seed_value: int = 1, sky: Rect2i = SKY) -> RunState:
+	return RunState.new(balance(overrides), rng(seed_value), sky)
 
 
 static func ids(stars: Array[Star]) -> Array[int]:

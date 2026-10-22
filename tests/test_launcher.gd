@@ -12,6 +12,7 @@ var inner: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
 
 
 func before_each() -> void:
+	inner = StarScatter.inner_rect(Fixtures.SKY)
 	run = Fixtures.run({"start_packs": {"blue": 12, "red": 0}, "sun_target": 100000})
 	sequencer = EventSequencer.new()
 	add_child_autofree(sequencer)
@@ -47,6 +48,85 @@ func test_launching_at_corners_and_edges_keeps_every_star_in_the_sky() -> void:
 			assert_true(inner.has_point(star.position), "%s inside the sky" % star.position)
 		run.load_pack("blue")
 		_play_until_idle()
+
+
+func test_the_9_16_sky_keeps_the_portrait_gain() -> void:
+	assert_eq(launcher.aim_gain(), Launcher.AIM_GAIN, "on the 9:16 sky a full pull already reaches every corner")
+	assert_eq(Launcher.AIM_GAIN, 9)
+
+
+func test_every_corner_and_edge_of_a_wide_sky_can_be_aimed_at() -> void:
+	_setup_on(Fixtures.WIDE_SKY)
+	assert_gt(launcher.aim_gain(), Launcher.AIM_GAIN, "the wide sky's corners are past a full pull at AIM_GAIN")
+	_assert_every_corner_and_edge_aimable()
+
+
+func test_every_corner_and_edge_of_a_tall_phone_sky_can_be_aimed_at() -> void:
+	# A 1170x2532 phone: 102 rows above, and its 7 spare columns each side stay backdrop (it is
+	# portrait: ScreenZones.sky_margin).
+	var margin: Vector2i = ScreenZones.sky_margin(Vector2(195, 422))
+	_setup_on(ScreenZones.play_sky(margin.y, margin.x))
+	assert_eq(run.sky_rect, ScreenZones.play_sky(102), "the phone's sky is today's tall one")
+	var top: Vector2i = inner.position
+	var old_reach: float = Launcher.MIN_REACH + (Launcher.MAX_PULL - Launcher.MIN_PULL) * Launcher.AIM_GAIN
+	assert_gt(Vector2(top - ORIGIN).length(), old_reach, "this corner was out of reach before")
+	assert_gt(launcher.aim_gain(), Launcher.AIM_GAIN)
+	_assert_every_corner_and_edge_aimable()
+
+
+func test_a_wide_sky_launch_bursts_where_the_preview_shows() -> void:
+	_setup_on(Fixtures.WIDE_SKY)
+	watch_signals(run)
+	for target: Vector2i in [inner.position, inner.end - Vector2i.ONE, Vector2i(inner.position.x, inner.end.y - 1)] as Array[Vector2i]:
+		var pull: Vector2 = _pull_toward(target)
+		_press(Vector2i.ZERO)
+		_drag(pull)
+		assert_eq(launcher.burst_preview(), target)
+		assert_true(_release())
+		assert_eq(get_signal_parameters(run, "pack_launched"), ["blue", target], "the launch uses the preview's gain")
+		run.load_pack("blue")
+		_play_until_idle()
+
+
+func test_on_a_box_stage_the_pull_reaches_the_phone_boxs_corners_and_stops_at_its_edge() -> void:
+	# docs/wide_sky_design.md §9: a stage with an edge stake launches in the phone box, so the gain
+	# reaches the box's corners, not the wide sky's, and a long pull stops at the box's edge.
+	for map_id: String in ["heart", "aquarius_final", "pisces_knot", "aries_head"]:
+		run = RunState.new(Balance.load_file(), Fixtures.rng(1), Fixtures.WIDE_SKY, StarMap.by_id(map_id))
+		run.owned_packs["blue"] = 3
+		assert_true(run.load_pack("blue"))
+		sequencer.bind(run)
+		launcher.setup(run, sequencer)
+		inner = StarScatter.inner_rect(run.frame_rect)
+		assert_eq(launcher.aim_gain(), Launcher.gain_for(ORIGIN, run.frame_rect), map_id)
+		assert_lt(launcher.aim_gain(), Launcher.gain_for(ORIGIN, Fixtures.WIDE_SKY), "%s: the box is nearer than the wide sky's corners" % map_id)
+		_assert_every_corner_and_edge_aimable()
+		for way: Vector2 in [Vector2(1, 1), Vector2(-1, 1), Vector2(0, 1)]:
+			_press(Vector2i.ZERO)
+			_drag(way.normalized() * Launcher.MAX_PULL)
+			assert_true(inner.has_point(launcher.burst_preview()), "%s: a full pull %s stops in the box at %s" % [map_id, way, launcher.burst_preview()])
+			launcher.cancel_pull()
+
+
+func test_a_new_run_on_another_sky_recomputes_the_gain() -> void:
+	_setup_on(Fixtures.WIDE_SKY)
+	assert_eq(launcher.aim_gain(), Launcher.gain_for(ORIGIN, Fixtures.WIDE_SKY))
+	_setup_on(Fixtures.SKY)
+	assert_eq(launcher.aim_gain(), Launcher.AIM_GAIN, "back on the 9:16 sky the gain drops to AIM_GAIN")
+
+
+func test_the_gain_is_the_least_that_reaches_the_farthest_corner() -> void:
+	for sky: Rect2i in [Fixtures.SKY, Fixtures.WIDE_SKY, ScreenZones.play_sky(102), ScreenZones.play_sky(30, 7)] as Array[Rect2i]:
+		var gain: int = Launcher.gain_for(ORIGIN, sky)
+		var lo: Vector2i = StarScatter.inner_rect(sky).position
+		var hi: Vector2i = StarScatter.inner_rect(sky).end - Vector2i.ONE
+		var far: float = 0.0
+		for corner: Vector2i in [lo, Vector2i(hi.x, lo.y), Vector2i(lo.x, hi.y), hi] as Array[Vector2i]:
+			far = maxf(far, Vector2(corner - ORIGIN).length())
+		var span: int = Launcher.MAX_PULL - Launcher.MIN_PULL
+		assert_gte(Launcher.MIN_REACH + span * gain, far, "%s: a full pull reaches the farthest corner" % sky)
+		if gain > Launcher.AIM_GAIN:
+			assert_lt(Launcher.MIN_REACH + span * (gain - 1), far, "%s: no smaller gain would" % sky)
 
 
 func test_the_weakest_launch_still_reaches_the_sky() -> void:
@@ -139,6 +219,34 @@ func test_the_pack_flies_trembles_then_bursts() -> void:
 	assert_eq(launcher.shown_pack(), "", "the fork stays empty until the player loads a pack")
 
 
+func test_a_portrait_flight_to_the_far_corner_takes_flight_time() -> void:
+	var corner: Vector2i = inner.position
+	_pull_and_release(_pull_toward(corner))
+	sequencer.advance(0.0)
+	assert_eq(launcher.flight_lasts(), Launcher.FLIGHT_TIME)
+
+
+func test_a_wide_flight_past_the_frame_takes_longer_and_lands_on_its_burst() -> void:
+	_setup_on(Fixtures.WIDE_SKY)
+	var corner: Vector2i = inner.position
+	_pull_and_release(_pull_toward(corner))
+	sequencer.advance(0.0)
+	var lasts: float = Launcher.flight_time(ORIGIN, corner, run.frame_rect)
+	assert_eq(launcher.flight_lasts(), lasts)
+	assert_gt(lasts, Launcher.FLIGHT_TIME * 1.5)
+	var flying: PackView = launcher.get_node("FlyingPack")
+	watch_signals(launcher)
+	var elapsed: float = 0.0
+	while elapsed < lasts + Launcher.TREMBLE_TIME - 0.02:
+		_step()
+		elapsed += STEP
+		assert_true(sequencer.is_busy(), "the burst waits for the longer flight and the tremble")
+		if elapsed < lasts - 0.02:
+			assert_signal_not_emitted(launcher, "tremble_started", "still flying at %.2f s" % elapsed)
+	assert_signal_emitted(launcher, "tremble_started")
+	assert_lte(float((Vector2i(flying.position) + ORIGIN - corner).length_squared()), 2.0, "trembling on the burst point")
+
+
 func test_a_restart_mid_flight_or_tremble_clears_the_flying_pack() -> void:
 	for into: float in [Launcher.FLIGHT_TIME * 0.5, Launcher.FLIGHT_TIME + Launcher.TREMBLE_TIME * 0.75]:
 		_pull_and_release(Vector2(0, 12))
@@ -206,6 +314,25 @@ func test_the_grown_frame_is_one_pixel_bigger() -> void:
 	assert_ne(PackView.pixels("blue", false, true), PackView.pixels("blue"), "bright lifts the ramp")
 
 
+## Puts the launcher on a fresh run on `sky`.
+func _setup_on(sky: Rect2i) -> void:
+	run = Fixtures.run({"start_packs": {"blue": 12, "red": 0}, "sun_target": 100000}, 1, sky)
+	sequencer.bind(run)
+	launcher.setup(run, sequencer)
+	inner = StarScatter.inner_rect(sky)
+
+
+## Every inner corner and edge midpoint is within a full pull, and the preview lands on it.
+func _assert_every_corner_and_edge_aimable() -> void:
+	for target: Vector2i in _corners_and_edges():
+		var pull: Vector2 = _pull_toward(target)
+		assert_lte(pull.length(), float(Launcher.MAX_PULL), "%s is within a full pull" % target)
+		_press(Vector2i.ZERO)
+		_drag(pull)
+		assert_eq(launcher.burst_preview(), target)
+		launcher.cancel_pull()
+
+
 ## Inner sky corners and edge midpoints.
 func _corners_and_edges() -> Array[Vector2i]:
 	var lo: Vector2i = inner.position
@@ -218,7 +345,7 @@ func _corners_and_edges() -> Array[Vector2i]:
 ## The pull that aims straight at `target` (aim_target inverted).
 func _pull_toward(target: Vector2i) -> Vector2:
 	var away := Vector2(ORIGIN - target)
-	var length: float = Launcher.MIN_PULL + (away.length() - Launcher.MIN_REACH) / Launcher.AIM_GAIN
+	var length: float = Launcher.MIN_PULL + (away.length() - Launcher.MIN_REACH) / launcher.aim_gain()
 	return away.normalized() * length
 
 

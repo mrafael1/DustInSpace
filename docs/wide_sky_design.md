@@ -1,0 +1,812 @@
+# Wide sky: implementation design (branch `feature/wide-sky`)
+
+**Status (2026-10-19):** designed from a read-only audit of the code (8 areas plus a sweep); being built on `feature/wide-sky`. Plan: [release_plan.md](release_plan.md) track 1 (on `chore/release-plan`, PR #216).
+
+Goal: on landscape windows the play sky widens to both sides and grows upward. Each constellation keeps its portrait layout, centred. Every mechanic works across the full width with the same stakes. Portrait phones stay byte-identical in behaviour.
+
+One idea runs through every section. Each run has a **frame**: the portrait 180-column band that holds the constellation, stretched to the sky's height. On portrait the frame equals the sky, so any rule written against the frame does exactly what it does today. On a wide sky, rules that get their stakes from an edge or an area use the frame instead of the sky.
+
+---
+
+## 1. Screen model (`game/scenes/screen_zones.gd`)
+
+Keep `SKY`, `SUN`, `LAND`, `HUD` and `SCREEN` unchanged. They stay the portrait frame. `fill_scale` and `fill_size` already choose the largest whole-number scale that still shows 180x320, and they stay as they are:
+
+| Window | Scale | Visible game px | `game_offset` |
+|---|---|---|---|
+| 1920x1080 | 3 | 640x360 | (230, 40) |
+| 1280x800 (Steam Deck) | 2 | 640x400 | (230, 80) |
+| 1536x2048 (iPad, portrait) | 6 | 256x341 | (38, 21) |
+| 2048x1536 (iPad, landscape) | 4 | 512x384 | (166, 64) |
+
+New API:
+
+```gdscript
+const MAX_SKY_WIDTH := 640   # widest play sky: 16:9 at its biggest integer scale
+
+static func sky_margin(visible: Vector2i) -> Vector2i:
+    # x = extra columns on EACH side, y = extra rows above
+    var offset := game_offset(visible)          # floor(extra.x / 2), extra.y
+    var side := mini(offset.x, (MAX_SKY_WIDTH - SKY.size.x) / 2)   # cap at 230
+    return Vector2i(side, offset.y)
+
+static func play_sky(rows: int, side: int = 0) -> Rect2i:
+    return Rect2i(SKY.position.x - side, SKY.position.y - rows,
+                  SKY.size.x + 2 * side, SKY.size.y + rows)
+```
+
+- **Symmetric by construction.** Both sides get the same `side` value, which is `floor(extra.x / 2)`. When the extra width is odd, the leftover column stays backdrop. So `sky.get_center().x` is always 90, the window centre.
+- **The 640 cap.** At 16:9, every integer scale gives 640 columns (1080p at 3x, 1440p at 4x, 4K at 6x), so 640 is the target. Wider windows such as 1366x768 (683 px) or 21:9 (853 px) keep a 640-wide sky; the Backdrop fills the rest. There is no cap on rows, because tall phones already grow upward without one.
+- **`play_sky(rows)` with the default `side = 0` returns exactly today's rect.** The existing calls in `test_scorpio.gd:491,507` and `test_scorpio_view.gd:597` stay valid unchanged.
+- **Main** (`game/scenes/main.gd`): `_extra: int` becomes `_margin: Vector2i`, set in `fit_visible` (line 274) from `ScreenZones.sky_margin(visible)`. `start_run` (line 211) calls `ScreenZones.play_sky(_margin.y, _margin.x)`. `sun_centre(_margin.y)` is unchanged.
+- **Mid-run resize** (desktop only). The run keeps its sky, as today. Add `DisplayServer.window_set_min_size(1280, 720)` on desktop, which guarantees at least 640x360 visible (960x540 since commit 19, the user's decision in §8 Q1). If the visible area still can't hold the run's sky, Main opens the pause panel until it can. This is open question Q1.
+- **Window setup** (`project.godot`). Phones keep the 540x960 window and portrait-only orientation. Desktop gets a 1280x720 window through a `.pc` feature-tag override. Tablets get sensor orientation in the iPad/tablet export preset only. (As built in commit 19: desktop opens fullscreen, the 1280x720 window is what leaving it gives, and tablets turn at runtime; see the Build notes.)
+
+## 2. Sky rect, figure centring, frame
+
+- **`game/core/scorpio.gd:65`** becomes `shift = sky.get_center() - HOME_SKY.get_center()`. With a symmetric sky, `shift.x` is always 0. The 2D form is there for correctness. Update the comments at lines 48-53.
+- **New `RunState.frame_rect`**, set in `_init`: `Rect2i(HOME_SKY.position.x + shift.x, sky_rect.position.y, HOME_SKY.size.x, sky_rect.size.y)`. On portrait it equals `sky_rect`; tested.
+- **New helpers** `RunState.figure_middle()` = `HOME_SKY.get_center() + scorpio.shift` and `seam_middle()`, an alias. They replace every copy of that expression:
+  - `run_state.gd` lines 469, 1624, 1713, 1853 and 1895, and `seam_view.gd:337`
+  - the `sky_rect.get_center()` uses at `run_state.gd` lines 403 (ram column) and 2065 (`_ram_intro_burst`)
+- **Negative-x "nothing found" bug.** These searches test `best.x < 0` against a `Vector2i(-1, -1)` marker, so a real spot at negative x would be thrown away. Each needs an explicit `found` bool:
+  - `safe_launch_spot` (934-943)
+  - `open_launch_spot` (964-982)
+  - `ram_intro_layout` (2045-2052)
+  - `_open_middle` (2306-2329)
+- **`hole_intro_spots` (2445)** bounds its search by `2 * ScreenZones.SCREEN.x`. Change the bound to the sky's diagonal. This also removes a scenes constant from core.
+
+## 3. Per-mechanic rules (⚠ = changes gameplay; each needs bot numbers in its commit)
+
+| Mechanic | Rule on a wide sky | Code |
+|---|---|---|
+| Scatter, launch clamp, split points, link press | Follow `sky_rect`. No change. | `star_scatter.gd`, `run_state.launch`, `sky.gd:572` |
+| Orion mark, volley pick, heat, breath, scythe, binding | Position-free, so they already act on the whole width. No change. | `orion.gd`, `volley.gd`, `star_heat.gd`, `star_harvest.gd` |
+| Orion's corner | ⚠ Anchored to the frame's top-left, not the sky's, so he stands by the constellation. `Volley.intro_spots` takes an explicit `corner: Vector2i` (= `frame_rect.position`); `Hunt.mark` takes the frame itself and uses its top-left (since commit 7b). | `hunt.gd:74`, `volley.gd:69`, `run_state.gd:881,2241,2743` |
+| Hunt circle | ⚠ Radius 38 is unchanged. The circle stays wholly inside the frame (`Hunt.mark(frame_rect, ...)`), so on a wide sky it lands by the constellation as on a phone; a loose star outside the frame is never circled (the user, 2026-10-19, Q3). | `hunt.gd`, `run_state.gd:881` |
+| Seam, reflect, wave | Use `seam_middle()`. The halves extend across the whole width, and a wave still wipes exactly half the sky. A symmetric sky means the mirror of any aim lands on the sky. | see §2 |
+| Current regions | ⚠ `_stage_area` (1574) also stretches sideways: a region with `end.x >= HOME_SKY.end.x` runs to `sky_rect.end.x`, and one with `position.x <= HOME_SKY.position.x` runs to `sky_rect.position.x`. On a 180-wide sky this does nothing. This fixes the Hand, Body and Legs. | `run_state.gd:1574`, comment at `star_map.gd:420` |
+| Still strips on drain stages | ⚠ **Frame-edge rule:** on stages with a drain (Body, Legs, Stream, Jar, final box), a star outside `frame_rect` counts as drained at the next flow step. Portrait has no area outside the frame, so it is identical there. The preview ring already marks these stars red through `burst_drains_at`. | `StarCurrent.leaves(p, frame)` |
+| Splash | ⚠ The loss edge is `frame_rect` instead of `sky_rect`: a star pushed out of the frame is lost. `splash_intro_spot` also measures from the frame's left edge. | `run_state.gd:1720,1782,1913`, `star_splash.gd:113,171` |
+| Ram (Aries, hidden) | ⚠ `ram.charge(stars, frame_rect, ...)`: the ram starts at the frame's edge and butts stars out past the frame. ChargeView draws against the same rect. Can ship after the others while Aries is hidden. | `run_state.gd:1981,2087,2115,2000`, `charge_view.gd` |
+| Black hole | ⚠ `StarGravity.step_at` uses `d_eff = min(d, reach)`, where `reach` is the farthest point of the home inner frame from that hole, worked out once per hole. On portrait `d` never exceeds `reach`, so nothing changes; outer stars fall at the frame-edge rate. The Legs twins stay at home + shift. | `star_gravity.gd:226`, `run_state.gd:387` |
+| Fish cord (debug trial) | Ends that lie on a `HOME_SKY` edge extend along their arm to the sky edge. | `run_state.gd:2133` |
+| Intros (volley, hunt, heat, breath, harvest, ram, splash, gauge, current) | Demo spots are limited to `inner_rect(frame_rect)`, so each demo plays by the figure. `_open_middle` scans the frame only. Intros pay nothing, so this changes no stakes. | `run_state.gd:2177,2295,2589,2672` |
+| Guide spots | `open_launch_spot` and `safe_launch_spot` scan the frame only. This keeps the tutorial hand by the figure, matches portrait, and avoids a scan 3.5x larger. | `run_state.gd:918,950` |
+
+`balance.json` is not touched. None of these rules adds a tuning value.
+
+## 4. UI, HUD, chart and title
+
+- **Already fine** (centred on x 90 or already using the visible rect): HUD corners, message line, tutorial line and TAP, end screen, menus, paytable, payout popups, Sun glow, collect targets, title, boss banner. The HUD row stays a centred cluster (`HUD_REACH 12`) and the telescope stays at (80, 300). This is Q5.
+- **Orion views:**
+  - `OrionView.setup` (`orion_view.gd:187`) takes `frame_rect.position`.
+  - The arrow row `OVERHEAD_X` (482, 505) is measured from the frame.
+  - `hud.gd:339` (volley counter) and `hud.gd:1151-1165` (encounter line and arrow footprint) use `run.frame_rect.position.x`.
+- **Backdrop** (`backdrop.gd`):
+  - `fit(visible, sky)` takes the run's sky.
+  - The vignette's `OUTER_RADII.x` grows to `max(120, sky.size.x / 2 + 30)`, which is unchanged on portrait.
+  - `margin_stars` and the 3 px glints skip the play sky's rect, so no decoration can be mistaken for a star. (Later, look A, 2026-10-22: only the glints skip it; plain 1 px stars stand over the wide play sky, as faint as the background's painted stars. See "Look A" in the build notes.)
+- **Drain-stage frame edge.** On drain stages, CurrentView shades the sky outside the frame with the existing extinction pixels, so the frame-edge rule reads at a glance. Art check per the `art-direction.md` rules. (Built in commit 9, then removed: under look A, the user's pick on 2026-10-22, nothing is drawn outside the phone box; see §9.)
+- **Animation timings** (each scales only above today's distance, so portrait is identical):
+  - `HeatView.BREATH_TIME = max(0.55, far / BREATH_SPEED)`
+  - `HarvestView` sweep at a fixed 300 px/s, i.e. `SWEEP_TIME * max(1, w / 180)`
+  - telescope `FLIGHT_TIME` scaled by distance above today's maximum
+  - `SeamView` sweep scaled by span
+- **Debug controls.** `current_trial_controls.gd:51` anchors to `frame_rect.position + (8, 72) - (0, rows)`, inside the frame and clear of the outer columns.
+- **Chart** (`chapter_select.gd`; every change gated on `_screen.size.x > SKY_SPAN`):
+  - Open neighbours draw cool, with no AVAILABLE flare or ring (Q6).
+  - Neighbour headings shrink to the faint name.
+  - `sky_stars` keeps off neighbour charts.
+  - The comet and reveal lift-off end at `min(_screen.end.x + 12, next crown)` (905, 1943).
+  - Reveal sparkles are confined to the sign span.
+  - The voyage swap matches the faint/charted state, and the comment at 1434 is fixed.
+  - `space_image` is cached per size.
+  - `SKY_SPAN`, `RING` and the seeds stay unchanged.
+  - Making `chart_horizon.png` seamless is an `art/` branch, outside this one.
+
+## 5. Input and aim
+
+- `to_game`, world input and every clamp already handle negative x. Only the comments that say "180x320 grid" change: `screen_zones.gd:48`, `launcher.gd:56,110`, `telescope.gd:91,277,366`, `star_scatter.gd:3`, `link_gesture.gd:4`.
+- **⚠ Slingshot reach** (`launcher.gd:22-27`). Compute in `setup(run)`: `_gain = max(AIM_GAIN, ceili((far - MIN_REACH) / float(MAX_PULL - MIN_PULL)))`, where `far` is the distance from the launcher to the farthest inner sky corner. On a 9:16 sky this stays 9, so portrait is identical. On 640x360 the corner is about 384 px away.
+  - This also fixes today's unreachable corners on tall phones (above about 30 rows), which is a change on those phones (Q2).
+  - The telescope (the default launcher) has no reach limit, so it needs no change.
+
+## 6. Tests and bots
+
+- **Portrait identity guard (commit 1, recorded on today's `main`).** `tests/test_portrait_identity.gd` plays every map with a fixed bot policy for seeds 1-20 on `Fixtures.SKY` and on `play_sky(102)`, and asserts a digest of positions, dust, light and outcome. Every later commit must pass it unchanged.
+- **Fixtures.** `Fixtures.WIDE_SKY := Rect2i(-230, 38, 640, 212)`, and `Fixtures.run(overrides, seed, sky := SKY)`. The 16 local `SKY` copies stay.
+- **New tests:**
+  - `test_background`: the four windows in §1, the 640 cap (1366x768 → sky 640), and an odd extra width staying symmetric.
+  - `test_scorpio`: wide `shift == (0, -20)`; `frame_rect == sky_rect` on portrait.
+  - `test_main`: `fit_visible(640x360)` then restart gives the wide sky; the run in play keeps its own sky.
+  - The four found-flag searches with a sky whose best spot is at x < 0.
+  - `test_launcher`: wide corners reachable, portrait gain still 9.
+  - `test_star_scatter` and `test_sky`: edges derived from the rect.
+  - `test_tutorial:309`: fill the range from `sky_rect`.
+  - Per mechanic on `WIDE_SKY`: outer-strip drains, splash loss at the frame, ram loss at the frame, `d_eff` cap, seam halves, fish-cord ends, Orion corner, intros inside the frame, `_stage_area` side stretch.
+  - UI: HUD counter and encounter line follow the frame; payout bounds; vignette radius.
+- **Bots.** A shared `tools/playtest_sky.gd` provides `parse_sky("--sky=640x360") -> Rect2i` through `ScreenZones.play_sky`. Wire it into `tools/{hunt,currents,heat,harvest,gravity,cords,reflect,ram}/playtest.gd` and `tools/rage/combo_share.gd`.
+  - Fallback aims become `run.figure_middle()`. This fixes `hunt:112` and the `(90, 160)` fallbacks.
+  - The sky size goes into the results file name.
+  - Paired seeds, so each commit reports portrait vs wide side by side:
+
+| Chapter | Bot | Maps |
+|---|---|---|
+| 1 Orion | hunt | tail, body, heart, claws, final |
+| 2 Aquarius | currents | hand, body, legs, stream, jar, final |
+| 3 Leo | heat | all stages |
+| 4 Virgo | harvest | all stages |
+| 5 Sagittarius | gravity | trial, arrow, bow, body, legs, head, final |
+| 6 Pisces | reflect + cords | all stages, cord trial |
+| 7 Aries | ram | horns |
+
+  Acceptance: the wide win rate stays within ±3 points of portrait per stage, otherwise raise it as a question.
+- **`sim.py`.** Add `--sky=WxH`. `INNER_SKY_AREA` is computed from it, default 180x320 so the portrait output is unchanged.
+
+## 7. Commit order (every commit: GUT suite + identity guard pass; game runs)
+
+**All 21 commits are built** (2026-10-20); see the Build notes.
+
+1. `test:` portrait identity digest test, plus landscape `fill_size`/`game_offset` cases (no code change).
+2. `fix:` explicit found flags in the four searches; `hole_intro_spots` bounded by the sky diagonal.
+3. `feat:` `ScreenZones.sky_margin`, `MAX_SKY_WIDTH`, `play_sky(rows, side = 0)` (not wired yet).
+4. `feat:` 2D `Scorpio.shift`, `RunState.frame_rect`, `figure_middle`/`seam_middle`, and the replaced call sites.
+5. `chore:` bots and `sim.py` take `--sky`; shifted fallback aims; `Fixtures.WIDE_SKY` and `run(..., sky)`.
+6. `feat:` `_stage_area` side stretch. Currents bot table.
+7. `feat:` Orion anchored to the frame (core corner parameter, OrionView, HUD counter, encounter line, arrow row). Hunt bot table.
+8. `feat:` intros and guide spots limited to the frame.
+9. `feat:` frame-edge drain rule, plus the drain-edge shading. Currents bot table.
+10. `feat:` splash loss at the frame edge. Reflect bot table.
+11. `feat:` gravity `d_eff` cap. Gravity bot table.
+12. `feat:` ram charges against the frame. Ram bot table.
+13. `feat:` fish-cord ends snap to the sky edge.
+14. `feat:` slingshot gain follows the sky.
+15. `feat:` breath, sweep, flight and seam timings scale with distance.
+16. `feat:` Backdrop vignette and margin stars follow the play sky.
+17. `feat:` **the switch.** Main stores `_margin` and builds `play_sky(rows, side)`. Portrait gets `side = 0`, so it is identical.
+18. `feat:` resize handling: desktop minimum window size, pause until the sky fits.
+19. `chore:` `project.godot` desktop and tablet overrides.
+20. `feat:` chart wide-window fixes (neighbours, comet, sky stars, sparkles, cache).
+21. `fix:` debug current-trial controls anchored to the frame; `docs:` the "180x320 grid" comments.
+
+Note: the shading of steps 9, 10 and 12 and the dotted frame edge were later removed, and step 16's margin stars changed (look A, the user's pick, 2026-10-22; see §9 and "Look A" in the build notes).
+
+## 8. Decisions (the user, 2026-10-19)
+
+- **Q4 frame edge:** on drain, splash and ram stages, a star carried past the frame's sides is lost, as at a phone's sky edge; the sky outside the frame is shaded on those stages. (Superseded by the phone box, §9, and then look A, 2026-10-22: nothing is drawn outside the box; the aim stopping at its edge is the only cue.)
+- **Q5 HUD:** the dust counter, planet slots and telescope stay a centred 180 px cluster; the corners go to the screen corners as today.
+- **Q2 slingshot:** its reach follows the sky everywhere, tall phones included (they gain today's unreachable corners).
+- **Commit 16 follow-up (2026-10-20): portrait windows stay portrait.** Only a landscape visible area (wider than tall) widens the sky; phones, upright iPads and tall desktop windows keep the 180 columns and only grow upward, as today (`ScreenZones.widens_sky`). A square one counts as portrait.
+- **Commit 17 (2026-10-20): the switch is on.** Main builds `play_sky(rows, side)` from `sky_margin`, so landscape windows play on the wide sky; portrait windows are unchanged.
+- **Q3 hunt circle:** "hunt should keep its circle inside the frame to prevent the stage from being too easy": the hunting circle stays wholly inside the frame (commit 7b). It was a default (measure first, ask past a 10% fall in strike coverage); commit 7's bot numbers went past it.
+- **Q1 window (the user, 2026-10-20, asked me to pick; replaces the 1280x720 minimum below):** a desktop opens **fullscreen** by default (a 1366x768 laptop fullscreen shows 683x384 and gets the capped 640 sky); the **minimum window is 960x540**, so a maximised window on a 1366x768 laptop (about 1366x705) opens; leaving fullscreen (F11 or Alt+Enter) gives a **1280x720** window (my pick: 16:9 at 2x, 640x360, the whole widest sky, and it fits a 1080p screen with its title bar; maximised where it doesn't fit). Switching from fullscreen to a smaller window mid-run may hold until the sky fits or the next stage; accepted.
+- Defaults taken (flagged in the PRs): **Q1** desktop minimum window 1280x720 (superseded above), the run keeps its sky and the game pauses until it fits; **Q6** the chart's neighbours drawn dimmed, not tappable; **Q7** the play sky caps at 640, the chart and title show more on ultrawide; **Q8** no decorative stars over the play sky (narrowed by look A, 2026-10-22: no glints over it, but plain 1 px stars stand there); **Q9** the iPad's landscape sky follows the same rules.
+- **The phone box (the user, 2026-10-22, on the three wide-sky studies):** "take it" (drains A, hunt A, Pisces C); "one rule for every stage with a frame: yes"; tall phones "keep it for now" (they play exactly as today). Designed as one rule in §9.
+- **The box's look: A (the user, 2026-10-22, "as for boxes let's go for A").** The box's play is unchanged, but nothing is drawn outside it on any stage: no shade, no dotted edge. The only cue is the aim marker stopping at the box's edge. A drain's own water and lines are still drawn, kept inside the box. With it, Backdrop keeps only glints off the wide play sky; plain 1 px stars stand over it, as faint as the background's painted stars, since the side sky looked bare next to the painted centre.
+
+## 9. The phone box: one edge rule
+
+**Status (2026-10-22):** built (see "The phone box" in the build notes below). It comes from the three wide-sky studies in `Claude outputs/release/wide-sky/studies/` (`drains.md`, `hunt.md` and `pisces.md`, each with a Verification section). The user took the three recommended fixes and asked for one rule in their place. This section is that rule. On the stages below it supersedes §3's Splash, Still strips and Ram rows, and the full-height frame of Q3 and Q4.
+
+### The rule
+
+On a **wide sky** (more than 180 columns), every stage whose mechanic **takes or excludes stars at an edge** plays in the **phone box**. The box is `Scorpio.HOME_SKY` (180x172) moved by `Scorpio.shift_in(sky)`: the 9:16 sky round the constellation, with the phone's rows as well as its columns. It is hunt option A's `hunt_frame`, applied to every stage listed below.
+
+- **Throws stay in the box.** The aim, the burst point, a red pack's twin split points and the scatter all keep to the box, as a phone's screen edge keeps them. A throw aimed past the box bursts at the box's edge. The aim marker stops there too, so it shows where the burst will land.
+- **Stars past the box.** On drain, splash and ram stages they are lost. On hunt stages they are never prey. No throw lands there, so only a mechanic can move a star there: a flow, a splash push or a ram butt.
+- **Nothing drawn outside the box (look A).** The sky outside the box looks like the rest of the sky: no shade and no edge line, on any stage. The only cue is the aim marker stopping at the box's edge. A drain's own water, drain lines and chevrons are still drawn, kept inside the box. (The first build shaded the sky outside the box with the sparse S1 tile and ran a dotted S3 line just outside each edge; the user picked look A on 2026-10-22 and both were removed.)
+- **Stages with no edge stake** keep the full wide sky and the full-height frame of §2, exactly as built.
+- **Phones.** On any 180-wide sky (every phone, tall ones included) the box *is* the sky. Phones play byte-identically, and `test_portrait_identity.gd` passes unchanged.
+
+Where the box sits:
+
+| Window | Sky rows | Box rows | Rows outside the box, above / below | Columns outside the box, each side |
+|---|---|---|---|---|
+| 640x360 (1080p) | 38-249 | 58-229 | 20 / 20 | 230 |
+| 640x400 (Steam Deck) | -2-249 | 38-209 | 40 / 40 | 230 |
+| 512x384 (iPad landscape) | 14-249 | 46-217 | 32 / 32 | 166 |
+
+### Which stages (from the code: what loses or excludes stars at `frame_rect`)
+
+| Mechanic | Edge stake | Stages (`StarMap`) | On when |
+|---|---|---|---|
+| Hunt (Orion's circle) | the circle stays in the frame; stars outside it are never prey | `heart`, `claws`, `final` | `map.hunt and balance.hunt_radius > 0` |
+| Drain (draining current) | a star outside the frame, or carried past it, is lost | `aquarius_body`, `aquarius_legs`, `aquarius_stream`, `aquarius_jar`, `aquarius_final`; the debug flow trials while they drain | `current != null and current.drains` |
+| Splash (Pisces seam) | a star pushed past the edge is lost | `pisces_knot`, `pisces_east_cord`, `pisces_north_fish`, `pisces_final` | `splash != null` |
+| Ram (Aries) | a star butted past the far edge is lost; one behind the ram stays | `aries_horns`, `aries_head`, `aries_fleece`; debug `ram_trial` | `ram != null` |
+
+**Not in the box.** None of these loses or excludes a star at the frame:
+- `tail` and `body`: the volley and the marks don't depend on position.
+- `aquarius_hand`: its current doesn't drain.
+- Leo's heat and breath, and Virgo's harvest, scythe and binding: they don't depend on position.
+- Sagittarius's gravity: the `d_eff` cap limits a reach and takes no star at an edge. Its own gaps (Bow +10.5, final archer -10, commit 11) stay a separate question.
+- `pisces_circlet`, `pisces_west_cord` and `cord_trial`: no splash.
+- Pisces's wave: it wipes half the sky, which is not an edge.
+
+One core predicate decides it: `RunState.plays_in_box() -> bool` = `hunt != null or (current != null and current.drains) or splash != null or ram != null`.
+
+### How the three patches map onto it
+
+**`hunt_A-nine-sixteen-hunt-frame`**
+- **Take:**
+  - `hunt_frame(sky)` and `launch_rect()`.
+  - The call sites: `launch`'s clamp and split, `burst_centre`, `open_launch_spot`, `is_safe_launch` and `_burst`'s scatter.
+  - Its 3 tests.
+- **Generalise:**
+  - `hunt_frame` becomes `static func phone_box(sky)`, with the same body.
+  - `launch_rect()` becomes `frame_rect if plays_in_box() else sky_rect`.
+  - `_init` sets `frame_rect = phone_box(sky)` for every box stage, once the mechanics are built, then sets `current.frame = frame_rect` again.
+  - The tests cover every box stage.
+- **Drop:** nothing.
+
+**`drains_optionA-scatter-in-frame`**
+- **Take:**
+  - `burst_drains_at` reads each ring dot where its star lands. This also fixes the portrait red dots above and below the sky (drains Finding 1).
+  - Its tests on bursts by the frame's side and on red twins.
+- **Generalise:** the landing clamp is `launch_rect()`, so the extra `burst` parameter goes.
+- **Drop:**
+  - `scatter_rect(burst)` and its "burst inside the frame" condition: under the box, a burst is always inside it.
+  - `test_a_burst_thrown_past_the_frame_still_scatters_there`: such a throw now bursts at the box's edge, as in the study's option B.
+
+**`pisces_C-splash-edge-and-red-split-in-frame`**
+- **Take:**
+  - `CurrentView.outside_frame` gets the top and bottom strips, and `frame_side_pixels` dots all four edges.
+  - Its view tests. (Both later removed with the shade under look A, 2026-10-22.)
+  - Its splash tests: a push past the box's rows loses a star; the loss edge is the sky on any 180-column sky; Circlet's red still splits across the frame; portrait splits are unchanged.
+- **Generalise:** the splash already loses at `frame_rect` (commit 10), so it gets the box's rows with no change of its own.
+- **Drop:**
+  - The `splash_edge` var: it is `frame_rect` now.
+  - `split_points_at`: `launch_rect()` covers it.
+  - SeamView's switch to `splash_edge`.
+
+Not merged (measurement only): the `*_study-*`, `drains_bot-study-flags` and `pisces_verify-tools` patches, hunt options B, C and D, and Pisces options A0, A10 and D.
+
+### Core (`game/core/run_state.gd`; `balance.json` untouched)
+
+- **`static func phone_box(sky: Rect2i) -> Rect2i`:** `Rect2i(HOME_SKY.position + shift_in(sky), HOME_SKY.size)` when `sky.size.x > HOME_SKY.size.x`, otherwise today's frame, which is the sky.
+- **`plays_in_box()` and `launch_rect()`**, as above.
+- **`launch_rect()` replaces `sky_rect`** in these places (line numbers at `6a02dab6`):
+  - `launch`: the thrown clamp (808) and `split_points` (839).
+  - `burst_centre` (1645, 1648). The box is symmetric about `seam_middle`, so a reflection stays inside it.
+  - `open_launch_spot`'s split (996) and `is_safe_launch` (1031, 1033).
+  - `_burst`'s `StarScatter.place` (1300).
+  - `splash_points` (1792, 1793).
+  - The reflection and wave intros' burst and scatter (1677, 1901, 1911), so their demos play in the box.
+- **`burst_drains_at(point)`** tests `landing = clamp_to_sky(point, launch_rect())`.
+- **These follow `frame_rect` unchanged:**
+  - the hunt circle and Orion's corner, OrionView's arrow row, and the HUD encounter line;
+  - the splash loss and its intro;
+  - the ram's charge, its intro and ChargeView;
+  - the drain's stranded and leaves tests;
+  - the guide spots, and the intros commit 8 limited to the frame.
+
+### Presentation
+
+1. **Aim.**
+   - `launcher.gd:144` (`burst_preview`) and `telescope.gd:284` (`aim_at`) and `:513` (`_sky_centre`) clamp to `run.launch_rect()`.
+   - `launcher.gd:234`, the red split preview, splits in `launch_rect()`.
+   - `telescope.gd:380` (`lets_go`) tests the box's bottom row, so a finger lifted in the bottom strip cancels the aim, as below a phone's sky.
+   - `sky.gd:837` places the flight decoys in `launch_rect()`.
+2. **Shade** (as planned and first built; removed under look A, 2026-10-22, so nothing is drawn outside the box now).
+   - `outside_frame` and `frame_side_pixels` cover four sides (from Pisces C).
+   - CurrentView's ram branch becomes ram or hunt, so hunt stages get the shade. The drain branch gets four rects through `frame_shade_rects`.
+   - Splash stages stay with SeamView.
+   - It needs an art check in a capture.
+3. **Scatter ring.** It reads true through `burst_drains_at`. The ring's radius under-reads the scatter (18 against 30, drains Finding 2); that is older than this rule and stays as it is.
+
+### Tests
+
+- **Core (`tests/test_wide_sky.gd`):**
+  - `phone_box` on `WIDE_SKY`, 640x400 and 512x384, and the sky itself on `SKY`, `play_sky(102)` and `play_sky(40)`.
+  - `frame_rect == phone_box` on every box map in the table. Every other map keeps its full-height frame, and on a 180-wide sky `frame == sky` for all.
+  - Throws into the side sky and into the top and bottom strips burst in the box's inner rect, every star born lands in the box, and a red's twins split in it. 10 seeds per box mechanic.
+  - **A wide run is the 9:16 run moved by the shift.** Hunt A's `_hunt_trace`, widened to every positional signal (circles, bursts, moves, losses, charges), on Heart, the final, `aquarius_body`, `aquarius_final`, `pisces_north_fish`, `pisces_final` and `aries_head`, 5 seeds each.
+  - Stars past the box: a drain strands one; a splash push past the box's rows loses one; the ram loses one past its far edge and leaves one behind it; the hunt never circles one.
+  - The ring reads each dot where its star lands, on the wide and the portrait sky (drains A's tests 4 and 5).
+  - Stages outside the box are unchanged: Tail's and Circlet's `launch_rect()` is the sky, and Circlet's red still splits across the frame.
+- **Views (`tests/test_wide_sky_views.gd`):**
+  - Nothing drawn outside the box on drain, splash, ram and hunt stages, or anywhere on Tail, the Circlet or the 9:16 sky (look A; the plan first had four shade rects and four dotted edges here).
+  - `burst_preview`, `burst_points`, `aim_at`, `lets_go` and the decoys keep to the box.
+- **Existing wide tests that assume a full-height frame on these stages** move to the box. Examples: the splash dots at y 38-249, the ram charging down from the sky's top, and `test_a_burst_outside_the_frame_shows_as_draining`.
+- **Guards:** the full GUT suite, and `test_portrait_identity.gd` unchanged.
+- **Bots** (paired seeds, at least the studies' counts):
+  - Bots and skies: hunt, currents (plain and `+aware`), reflect (the harness and the real bot) and ram, each at 180x320, 640x360, 640x400, 512x384 and 195x422.
+  - Expected: every wide sky equals the 9:16 sky within noise (by construction, exactly), and 195x422 equals HEAD.
+  - Spot check: heat, harvest, gravity and cords at 640x360 equal HEAD.
+- **Captures** (Movie Maker, a 1920x1080 window):
+  - Heart, Aquarius final, North Fish and Aries Head: an aim stopping at the box, and the red preview by the box's side (the plan also listed the shade and the dotted edges, since removed under look A).
+  - One 540x960 frame, unchanged.
+
+### Commit plan (on `feature/wide-sky`, PR #217; each one keeps the suite and the identity guard green)
+
+This is the plan as written before the build. The branch's history differs: nine commits, with the draining-flow fix added and the bot tables in the last one, then the review fixes. The phone box build notes list what was built.
+
+1. `docs: the phone box, one edge rule for wide skies` (this section and the §8 line).
+2. `feat: edge-stake stages take the 9:16 phone box as their frame on a wide sky`
+   - `phone_box`, `plays_in_box`, `frame_rect` and `current.frame`.
+   - Tests: the box, the frame per map, stars past the box.
+   - Existing wide tests moved to the box.
+3. `feat: launches burst, split and scatter in the phone box`
+   - `launch_rect` and its call sites, plus the reflection and wave intros.
+   - Tests: throws past the box, twins, the trace equality, stages outside the box unchanged.
+   - Bot tables for hunt, currents, reflect and ram in the build notes.
+4. `fix: the scatter ring reads each dot where its star lands`
+   - `burst_drains_at`. This also fixes the portrait red dots outside the sky.
+5. `feat: aim marker, split preview, let-go row and decoys keep to the phone box`
+   - Launcher, Telescope and Sky, with view tests.
+6. `feat: the shade and dotted edge go round all four sides of the phone box, hunt stages too`
+   - CurrentView's statics and its gate, with view tests.
+   - Later removed: under look A (the user's pick, 2026-10-22) nothing is drawn outside the box.
+7. `chore: bots search their aims within launch_rect`
+   - The hunt bot's aim search (the source of the +0.4), the reflect bot's hard-coded `y >= 230`, and the ram bot's `inner_rect(sky_rect)`.
+   - No game change.
+8. `docs: phone box build notes, bot tables and captures`
+
+### Doubts
+
+1. **Where the box sits.** It is centred on the figure. That is the only measured placement and the only exact phone equivalence. It floats 20 rows above the horizon on 1080p and 40 on a Steam Deck. Resting it on the horizon would need measuring again (hunt Q4, unanswered).
+2. **Orion moves between stages.** Tail and Body have no edge stake, so they keep the full sky, and Orion stands 20 px higher there than on Heart, Claws and the final (hunt Q2, unanswered). Boxing them would cost no balance, but the rule would become "any Orion stage".
+3. **Drains go past option A to option B.** The aim is clamped, so a human can no longer lose a whole planet past the box. It makes no bot difference.
+4. **The numbers will differ from the studies.**
+   - The box removes the extra rows on every box stage, so the drains final's +8.6 height effect should vanish (option A kept it).
+   - Pisces should come out exact rather than within C's ±2, since its scatter is in the box too (as in AB0).
+   - The ram, within ±1.5 today, should come out exact.
+   - None of this is measured yet.
+5. **Flows clamp to the sky, not the box** (`current.preview(stars, sky_rect)`). **Resolved: it was real.** The bots caught it (Body -1.0, Legs -0.3, Jar -0.7 on every wide sky), not the trace test. Flows now clamp to `launch_rect()`, and `tests/test_phone_box_paths.gd` guards each flow path. See the phone box build notes.
+6. **`lets_go` at the box's bottom.** A finger lifted in the bottom strip cancels instead of firing at the edge. This is a feel question, iPad only.
+7. **The encounter line over the box's top rows.** `hud.gd:944` and `:1044` (the tutorial lines) only run in the guided first run (`main.gd:202-204`), which is never a box stage, so they can't reach the strip. On box stages the encounter line follows `frame_rect` (`hud.gd:1159`), so it sits over the box's top rows. The captures showed "A WAVE WIPES THE TOP…" and "LINK IT NEXT OR ORION SHOOTS" by the telescope, not in the strip; the other encounter lines were not seen.
+8. **Tall phones.** Their gaps stay (hunt +9 to +22, Pisces +5 to +6, drains final about +8), per the user's decision.
+
+## Build notes
+
+Where the build differs from the plan above, or settles a detail it left open.
+
+**Commit 1 (identity guard).**
+- `tests/test_portrait_identity.gd` plays the 47 maps `StarMap.by_id` knows (the chapters' whole figures, every stage, `ram_trial`) plus the four debug trials it doesn't build (`current_trial`, `aquarius_flow`, `black_hole_trial`, `cord_trial`). Seeds 1-20, on `Fixtures.SKY` and `play_sky(102)`.
+- The bot: Main's intros in Main's order, then the guide spots (`safe_launch_spot`, `open_launch_spot`, plus `ram_intro_layout` and `hole_intro_spots` where they apply) at the start and after the first launch, then the best link (landmarks first, then dust plus light) or a launch just up-left of the first unlit landmark (reflected), up to 300 actions. On hunt maps it also asks `safe_launch_spot` before every launch.
+- The digest is wider than the plan's "positions, dust, light and outcome": every signal the run emits, with its arguments (stars by id, size and position; other objects by their script variables), and the end state. It is one md5 per map and sky. On a mismatch the test prints the new table.
+- It plays the shipped `balance.json` (`Balance.load_file`), because that is what switches each stage's mechanics on. A deliberate balance change therefore needs the table recorded again. The wide-sky branch doesn't touch the balance.
+- It was recorded on `feature/wide-sky` at `34b317b1` (main plus this doc), which has the same code as `main`. It adds about 50 s to the suite.
+- `game_offset` takes the visible size as a `Vector2`, so the landscape cases in `test_background.gd` pass `fill_size(window)` through `Vector2(...)`. The table in §1 holds. 1366x768 gives 683x384 and an offset of (251, 64); the 640 cap there is commit 3's.
+
+**Commit 2 (found flags, hole bound).**
+- The tests (`tests/test_sky_searches.gd`) mostly use the 9:16 sky moved 200 px left, so every spot is at a negative x, rather than `WIDE_SKY`. This is because the figure doesn't move sideways until commit 4. Without a figure, `open_launch_spot` and `safe_launch_spot` must return exactly the 9:16 sky's spot moved 200 px. `_open_middle` (tested directly, though private) must land on the middle. `ram_intro_layout` must find its three stars. Each test failed on the old code.
+- `WIDE_SKY` is a local constant in that test for now. It moves to `Fixtures` in commit 5.
+- The hole bound is `ceili(Vector2(sky_rect.size).length())`, which is 249 on the 9:16 sky (was 360). For a hole inside the sky, a spot further out than the diagonal is off the sky either way, so the result doesn't change. The identity guard confirms this. A test builds a hole whose third demo star must stand over 400 px out and finds it on `WIDE_SKY`.
+- Not fixed (unrelated, noted for later): `gauge_intro_spots` still reads `GravityView.RING_GAP`, a scene constant, from core.
+
+**Commit 3 (sky margin).**
+- `sky_margin` takes the visible size as a `Vector2`, like `game_offset` (Main passes the viewport's visible rect size), not a `Vector2i`.
+- 1366x768 (683x384 visible) gives a margin of (230, 64): the 640 cap. A 1170x2532 phone gave (7, 102) here, so tall phones with a few spare columns would have got them as sky once Main was switched (commit 17). Superseded: only a landscape window adds side columns (the decision after commit 16), so that phone now gives (0, 102).
+
+**Commit 4 (2D shift, frame, figure middle).**
+- `Scorpio.shift_in(sky)` is the static form of the shift; `RunState` uses it to set `frame_rect` before the Scorpio exists, so a run without a constellation has a frame too (the sky, on portrait). `figure_middle()` is `HOME_SKY.get_center() + shift_in(sky_rect)`, the same value as `+ scorpio.shift`, and works without a constellation.
+- The ram's intro burst uses `figure_middle()` for both axes (the y one was `sky_rect.get_center().y`, always equal). `_ram_start_row`'s fallback `sky_rect.get_center().y` is left as it is (equal too).
+- The 2D shift moves the figure with a sky moved sideways, so commit 2's `_open_middle` test ("the figure is far off") no longer holds: it now asserts the left sky's open middle is the home one moved 200 px left.
+
+**Commit 5 (bots, sim, fixtures).**
+- `tools/playtest_sky.gd` (preloaded, no `class_name`): `parse_sky`, `from_args`, `suffix`, `label`. `--sky=WxH` is the visible area in game px (640x360 for 1080p). Each bot prints the sky as its first line.
+- The results file name gets `-sky<W>x<H>` (the play sky's size) only off the 9:16 sky, so portrait file names stay as they were. `combo_share.json` likewise.
+- Fallback aims: the hunt bot's `HOME_SKY.get_center()` became `run.figure_middle()`; the `(90, 160)` fallbacks became `(90, 160) + run.scorpio.shift` rather than `figure_middle()` (90, 164), so portrait bot numbers stay exactly as before (checked: hunt heart and ram horns match `ws-step2-base` line for line). The hunt and cords bots' grid searches got found flags too.
+- `sim.py --sky=WxH` takes the visible size and builds the play sky as `sky_margin`/`play_sky` do; the default 180x320 gives the old `INNER_SKY_AREA` (portrait output checked identical with a fixed seed). With `--sky=640x360` the sim's hunting circle takes 3.7% of loose stars (17.7% on portrait), because it assumes stars spread evenly over the sky; the spatial hunt bot is the real measure (Q3).
+- `Fixtures.WIDE_SKY` and `Fixtures.run(overrides, seed, sky)`; `test_sky_searches.gd` uses them. `tests/test_playtest_sky.gd` covers the parser.
+- Not fixed (pre-existing, also on `ws-step2-base`): the currents bot's probe errors with "Out of bounds get index" on `current_preview()` (`tools/currents/playtest.gd:182` and `:118`) on the hand map, portrait and wide alike.
+
+**Commit 6 (`_stage_area` side stretch).**
+- A region whose `end.x >= HOME_SKY.end.x` runs to `sky_rect.end.x`, and one whose `position.x <= HOME_SKY.position.x` from `sky_rect.position.x`, after the height stretch. On `WIDE_SKY` the Hand's flow is `(72, 38)` to x 410; the Body's and Legs' run from their drain at x 48 to x 410. The Stream, Jar and final box sit inside the home columns and don't stretch.
+- Currents bot: the Hand, Body and Legs wide numbers barely move (the bot aims by the landmarks, so its stars rarely reach the stretched columns). The final's wide `+3.0`/`+8.5` was already there before this commit.
+
+**Commit 7 (Orion anchored to the frame).**
+- `Hunt.mark(sky, corner, loose, avoid)` and `Volley.intro_spots(inner, corner)`: the corner is the second, required parameter (the tests' calls pass `Fixtures.SKY.position`). `OrionView.setup` takes the frame rect itself (its top and bottom are the sky's), so the arrow row, its fall and the figure follow it without more changes. `Hud.encounter_block` works within `frame_rect`.
+- **Q3, raised.** The hunt bot shows the hunting circle spreading over the wider sky: on the Heart, Claws and final, circles over the figure fall from 28-48% (portrait) to 6-17% (wide), stars struck a run by 26-72%, and wide win rates rise by 10-22 points (e.g. Heart naive 84.7 → 95.0, final careful 13.7 → 35.7). This commit itself moves the wide numbers by at most a few points; the gap comes from the circle being placed "as far off the constellation as the sky allows". Over the 10% line, so a question: should `Hunt.mark` keep its circles within the frame (or the frame grown by a radius)?
+
+**Commit 7b (hunting circle in the frame).**
+- The user, 2026-10-19, on Q3: "hunt should keep its circle inside the frame to prevent the stage from being too easy".
+- Reading taken: the **whole circle** stays inside the frame (its centre in `frame_rect.grow(-radius)`), not just its centre. That is what `Hunt.mark` already did against the sky, so on the 9:16 sky (frame = sky) it is identical; a centre-only reading would have let portrait circles hang over the sky's edge. A loose star outside the frame is passed over as prey (no circle in the frame can cover it); with no reachable prey the circle goes anywhere in the frame, as before.
+- `Hunt.mark(frame, loose, avoid)`: the separate `corner` parameter is gone, Orion's corner is the frame's top-left. Both call sites (the launch's mark and the hunt intro, which already passed the frame since commit 8) pass `frame_rect`. OrionView's arrow row and figure, the encounter line and `safe_launch_spot` already worked from the frame or the circle's centre, so nothing else changed.
+- Tests (`tests/test_wide_sky.gd`): a star in the wide sky's corner is not circled; Orion's corner kept clear; on `WIDE_SKY` 200 seeds of random loose stars over the whole width all give a circle wholly inside the frame; 20 wide Heart runs launching into the outer columns mark every circle inside the frame; on the 9:16 sky the frame is the sky and the mark matches. Full suite 1465/1465, identity guard unchanged.
+- Hunt bot, 300 paired seeds per stage, wide = `--sky=640x360` (play sky 640x212). Portrait numbers are unchanged from commit 7. Win % / circles over the figure % / stars struck a run:
+
+| Stage | Policy | Portrait | Wide, commit 7 | Wide, 7b |
+|---|---|---|---|---|
+| Tail | naive | 100.0 / 0 / 0 | 100.0 / 0 / 0 | 100.0 / 0 / 0 |
+| Tail | careful | 100.0 / 0 / 0 | 100.0 / 0 / 0 | 100.0 / 0 / 0 |
+| Body | naive | 73.0 / 0 / 0 | 73.0 / 0 / 0 | 73.0 / 0 / 0 |
+| Body | careful | 73.0 / 0 / 0 | 73.0 / 0 / 0 | 73.0 / 0 / 0 |
+| Heart | naive | 84.7 / 28.2 / 6.40 | 95.0 / 8.2 / 4.75 | 88.3 / 18.8 / 5.44 |
+| Heart | careful | 97.0 / 30.7 / 2.20 | 99.3 / 7.3 / 0.96 | 98.0 / 17.4 / 1.48 |
+| Claws | naive | 79.7 / 30.1 / 6.34 | 93.7 / 6.0 / 4.91 | 85.0 / 20.4 / 5.80 |
+| Claws | careful | 93.0 / 35.8 / 3.10 | 99.3 / 7.2 / 1.03 | 97.7 / 24.6 / 1.81 |
+| Final | naive | 4.7 / 42.2 / 8.17 | 12.7 / 12.5 / 5.85 | 8.7 / 22.2 / 6.75 |
+| Final | careful | 13.7 / 48.0 / 5.30 | 35.7 / 17.1 / 1.49 | 32.3 / 28.3 / 2.38 |
+
+- The gap closes by roughly 55-65% on the Heart (both policies) and the Claws naive, but only by a quarter on the Claws careful (+6.3 to +4.7); wide is still easier than portrait by +1.0 to +5.3 points there, +4 on the final naive and **+18.6 on the final careful** (over §6's ±3). The rest of the gap: stars launched into the outer columns are now never struck (the careful bot aims clear of the circle and often lands them there), and the circle still sits "as far off the constellation as the frame allows". Not addressed here; options if it should close further: on hunt stages, also shrink the launch clamp or the scatter to the frame, or let the circle's prey include stars outside the frame with the circle clamped to the frame grown by a radius.
+- `sim.py` is unchanged: it models stars spread evenly over the sky, so its circle share (circle area over the sky's inner area) doesn't see where the circle is placed.
+
+**Commit 8 (intros and guide spots in the frame).**
+- Limited to the frame: the volley, hunt (its circle too: `hunt.mark(frame_rect, ...)`), heat, breath, harvest, gauge, current and plain reflection intros, `_open_middle`, `open_launch_spot` and `safe_launch_spot`. `open_launch_spot` still computes a red's split points on the sky, as the launch does, and keeps those inside the frame.
+- Left for later: the splash and ram intros (their demo is built on the edge rule commits 10 and 12 move to the frame), the wave intro (it wipes half the sky) and the hole intro (round the hole).
+- No bot plays the intros or asks for a guide spot, so the bot numbers can't move (hunt bot checked: identical).
+
+**Commit 9 (frame-edge drain rule, shading).**
+- `StarCurrent.frame` (set from `frame_rect` for every current; the current intro's copy takes it too). On a draining flow: `stranded(at)` is "outside the frame"; `leaves(from, to)` is true for a stranded star, or for a step that leaves the region or the frame. A stranded star's destination is `off_frame`: one flow step further out from the frame (`outward`), so it is a move like any drained one; SkyView drains its view there rather than at the region's edge, and the at-risk arrow points outward.
+- The shading: CurrentView draws the sky outside the frame with a 4x4 tile holding two S1 pixels (one pixel in eight, drawn as a repeating texture, not per-pixel), and the drain's dotted S3 line one column outside each frame side. Palette-locked; not yet looked at in a capture (art check still to do). (Later removed under look A, 2026-10-22: nothing is drawn outside the box.)
+- The currents bot's aim is clamped to the inner frame, as the launch clamps an aim to a 9:16 sky (portrait numbers unchanged).
+- **Raised: the drain stages are harder on the wide sky.** Currents bot (200 seeds), wide minus portrait win %: Body launch-owned-first -10.0; Legs link-first -3.5, launch-owned-first -7.0; Jar within 1; Stream within 1.5; final -14.5 (upstream aim) to -30.5. The cause: bursts near the frame's sides scatter past them and drain, where a 9:16 sky's edge clamps the scatter in (a human sees the red preview; the bot doesn't). Measured alternative (not built): on drain stages, a burst inside the frame scatters within the frame (`StarScatter.place(..., frame_rect, ...)`). It brings the Legs back to within 0.5 and the final to -6 to -14, the Body launch-owned-first stays at -10. Question: keep the design's rule, add the scatter clamp, or more?
+
+**Commit 10 (splash loss at the frame edge).**
+- `frame_rect` replaces `sky_rect` everywhere the splash decides a loss: `_splash` and its moves, `splash_preview`/`launch_splashes` (`_splash_chain`), and the splash intro. `StarSplash`'s code is unchanged (only its comments change): its `sky` parameter is now the loss edge, and RunState passes the frame. The splash intro, which commit 8 left for this commit, now throws its demo planet `SPLASH_INTRO_IN` (22) px in from the frame's edge (`splash_intro_spot` scans `inner_rect(frame_rect)`). Its demo burst is clamped to the frame and scatters inside it. The wave intro still works on the whole sky, since it wipes half of it.
+- A lost star still drifts to where it was pushed and cuts out there. `SeamView.exit_point` clamps only at the sky's edge, so in a wide sky's outer columns the star cuts out at its destination. Only the function's comment changed.
+- The shade: on a seam stage with a splash (the Circlet has none), SeamView draws the same sparse S1 tile outside the frame and the drain's dotted S3 line along the frame's sides. The helpers moved out of CurrentView's drain code into shared statics (`outside_frame`, `frame_side_pixels`, `draw_frame_shade`, `shade_tile`), and the drain's `frame_shade_rects`/`frame_edge_pixels` now call them. As with commit 9, nobody has checked this in a capture yet. (These helpers, the shade and the dotted line were later removed under look A, 2026-10-22.)
+- Tests (`tests/test_wide_sky.gd`, `tests/test_wide_sky_views.gd`, 7 new):
+  - A push past the frame's side loses the star even though the sky goes on, and a star the push leaves in the frame moves on.
+  - A splash in the outer columns loses every star it pushes.
+  - The aim's preview marks the same losses.
+  - On the 9:16 sky the loss is at the sky's edge, as before.
+  - The intro throws from the frame's edge, keeps its demo stars by the figure and loses exactly one.
+  - The frame's sides are dotted on a wide splash stage. There is no shade and no dotted line without a splash or on the 9:16 sky. (Later replaced under look A, 2026-10-22.)
+  - The identity guard is unchanged.
+- Reflect bot, 200 paired seeds, splash on. Wide = `--sky=640x360`, before = `ws-step4-base` (`162941aa`). Win % is portrait / wide before / wide after (after minus portrait). Lost a run counts the stars the splash and the wave took, portrait / wide before / wide after:
+
+| Stage | Policy | Win % | Lost a run |
+|---|---|---|---|
+| Knot | link-first | 100.0 / 100.0 / 100.0 (+0.0) | 1.13 / 0.81 / 0.82 |
+| Knot | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.00 / 0.00 / 0.00 |
+| Knot | naive | 91.0 / 96.5 / 91.0 (+0.0) | 2.76 / 0.97 / 2.60 |
+| Knot | careless | 100.0 / 100.0 / 100.0 (+0.0) | 1.60 / 1.05 / 1.13 |
+| Knot | launch-first | 100.0 / 100.0 / 100.0 (+0.0) | 1.39 / 1.29 / 1.29 |
+| East Cord | link-first | 96.5 / 96.5 / 96.5 (+0.0) | 2.07 / 1.87 / 1.93 |
+| East Cord | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.02 / 0.01 / 0.01 |
+| East Cord | naive | 91.5 / 95.0 / 94.5 (+3.0) | 2.76 / 1.67 / 2.15 |
+| East Cord | careless | 91.5 / 92.0 / 91.0 (-0.5) | 2.89 / 2.40 / 2.52 |
+| East Cord | launch-first | 94.0 / 93.5 / 93.5 (-0.5) | 1.86 / 1.66 / 1.72 |
+| North Fish | link-first | 100.0 / 100.0 / 100.0 (+0.0) | 1.92 / 1.94 / 1.94 |
+| North Fish | careful | 100.0 / 100.0 / 100.0 (+0.0) | 1.87 / 1.90 / 1.90 |
+| North Fish | naive | 24.0 / 30.0 / 28.5 (**+4.5**) | 8.00 / 7.72 / 7.73 |
+| North Fish | careless | 99.5 / 99.5 / 99.5 (+0.0) | 2.42 / 2.28 / 2.31 |
+| North Fish | launch-first | 82.5 / 82.5 / 82.5 (+0.0) | 6.45 / 6.45 / 6.45 |
+| Final | link-first | 93.0 / 94.5 / 94.5 (+1.5) | 6.34 / 6.13 / 6.19 |
+| Final | careful | 98.0 / 97.0 / 97.0 (-1.0) | 5.39 / 5.70 / 5.66 |
+| Final | naive | 26.5 / 36.5 / 31.0 (**+4.5**) | 13.03 / 13.08 / 13.42 |
+| Final | careless | 80.5 / 83.5 / 82.5 (+2.0) | 8.69 / 8.53 / 8.75 |
+| Final | launch-first | 3.0 / 3.0 / 3.0 (+0.0) | 9.32 / 9.33 / 9.34 |
+
+- Packs a win stay within 0.5 of portrait's on every row. The frame edge brings the wide splash losses back to portrait's level (Knot naive: 0.97 rises to 2.60, against 2.76 on portrait). Every policy that plays the seam is within ±3.
+- **Raised: "naive" stays +4.5 on the North Fish and the final.** The naive policy throws without regard to the seam, and both of these are wave stages. The commit blames the wave for the rest of the gap, not the splash: the wave still wipes half of the whole wide sky (§3). That split was not measured. Not addressed here.
+
+**Commit 11 (gravity `d_eff` cap).**
+- `StarGravity.frame` is set from `frame_rect` when the run builds its hole. `copy()` keeps it, so an intro's copy has it too. `step_at` divides the pull by `min(d, reach(hole))`, where `reach` is the distance from the hole to the farthest of the four corners of `inner_rect(frame)` (end corners at `end - 1`). With no frame set, there is no cap.
+- Differs from the plan: `reach` is worked out on every call from where the hole is now, not once per hole from the home frame. This keeps it right for the Legs' twins as they drift. On any 9:16 sky the frame is the sky and every star stands within the reach, so nothing changes there.
+- `pulls_to_swallow` (used for the hole intro's layout) counts with the same reach, measured from the main hole's centre. The hole intro's spots are still found around the hole, as commit 8 left them.
+- Tests (`tests/test_wide_sky.gd`, 5 new):
+  - A star out past the frame falls at the frame edge's rate, not at the slow uncapped rate.
+  - Inside the frame the pull is unchanged.
+  - On the portrait sky no star is past the reach.
+  - The reach follows the drifting twins.
+  - `pulls_to_swallow` counts with the reach.
+  - The identity guard is unchanged.
+- Gravity bot, 200 paired seeds, hole on, wide = `--sky=640x360`. The wide numbers before (`ws-step4-base`) and after this commit are identical, so the table has one wide column. Win % is portrait / wide (wide minus portrait). Swallowed a run is portrait / wide:
+
+| Stage | Policy | Win % | Swallowed a run |
+|---|---|---|---|
+| Hole trial | link-first | 41.0 / 41.0 (+0.0) | 9.23 / 9.23 |
+| Hole trial | launch-first | 7.0 / 6.5 (-0.5) | 9.54 / 9.52 |
+| Hole trial | archer | 99.5 / 100.0 (+0.5) | 2.97 / 2.88 |
+| Hole trial | archer-hoard | 86.0 / 86.0 (+0.0) | 6.43 / 6.37 |
+| Arrow | link-first | 97.0 / 97.0 (+0.0) | 4.50 / 4.51 |
+| Arrow | launch-first | 53.5 / 53.5 (+0.0) | 8.23 / 8.23 |
+| Arrow | archer | 100.0 / 100.0 (+0.0) | 3.03 / 2.90 |
+| Arrow | archer-hoard | 92.5 / 93.5 (+1.0) | 6.59 / 6.46 |
+| Bow | link-first | 89.5 / 92.0 (+2.5) | 7.64 / 7.28 |
+| Bow | launch-first | 45.5 / 52.0 (**+6.5**) | 9.94 / 9.70 |
+| Bow | archer | 100.0 / 100.0 (+0.0) | 2.59 / 1.98 |
+| Bow | archer-hoard | 85.0 / 95.5 (**+10.5**) | 7.35 / 6.34 |
+| Body | link-first | 51.0 / 50.5 (-0.5) | 10.83 / 10.87 |
+| Body | launch-first | 13.0 / 14.0 (+1.0) | 10.69 / 10.81 |
+| Body | archer | 100.0 / 99.5 (-0.5) | 3.66 / 3.74 |
+| Body | archer-hoard | 88.5 / 89.5 (+1.0) | 7.52 / 7.36 |
+| Legs | link-first | 54.0 / 55.5 (+1.5) | 7.05 / 6.95 |
+| Legs | launch-first | 0.0 / 0.0 (+0.0) | 4.09 / 4.10 |
+| Legs | archer | 97.0 / 97.0 (+0.0) | 2.09 / 1.94 |
+| Legs | archer-hoard | 0.0 / 0.0 (+0.0) | 4.72 / 4.72 |
+| Head | link-first | 33.5 / 33.5 (+0.0) | 8.78 / 8.79 |
+| Head | launch-first | 2.5 / 2.5 (+0.0) | 9.51 / 9.51 |
+| Head | archer | 98.0 / 98.0 (+0.0) | 1.24 / 1.29 |
+| Head | archer-hoard | 78.0 / 77.5 (-0.5) | 3.34 / 3.33 |
+| Final | link-first | 26.5 / 26.0 (-0.5) | 8.83 / 8.84 |
+| Final | launch-first | 0.0 / 0.0 (+0.0) | 8.76 / 8.76 |
+| Final | archer | 86.5 / 76.5 (**-10.0**) | 3.68 / 3.69 |
+| Final | archer-hoard | 0.0 / 0.0 (+0.0) | 6.06 / 6.05 |
+
+- Packs a win stay within 0.15 of portrait's. The cap changes no bot number, because the bot aims by the landmarks and its stars never stand past the frame's reach.
+- **Raised: three gaps over ±3 that existed before this commit**, so the cap didn't cause them:
+  - The Bow is easier on the wide sky: archer-hoard +10.5 and launch-first +6.5, with fewer stars swallowed (7.35 drops to 6.34, and 9.94 to 9.70).
+  - The final is harder for the archer: -10.0, with the same number of stars swallowed.
+  - Nobody has looked into the cause on this branch. Question: should these be investigated before the switch (commit 17), or accepted?
+
+**Commit 12 (ram charges against the frame).**
+- `frame_rect` replaces `sky_rect` in every `ram.charge` call (`_charge_ram`, `charge_preview`, the ram intro). It also replaces it in the intro's layout, burst and scatter (`ram_intro_layout`, `_ram_intro_burst`, `_ram_intro_round`), which commit 8 left for this commit. The ram stands at the frame's edge, and a star it carries past the frame's far side is lost even though the sky goes on.
+- Settled here: a star **behind** the ram (outside the frame on the ram's own side) is out of its way and stays (`StarCharge.behind(point, frame)`). A star ahead of the ram in its lane, out in the far outer columns, is carried on and lost. A ram charging down starts at the frame's top, which is the sky's top, so nothing can stand behind it.
+- ChargeView draws the head, pips, prints and dust against `frame_rect`. Its pixels are still cut to the sky. A lost star cuts out where it was butted, because `exit_point` clamps only at the sky's edge, like SeamView's. CurrentView now also draws the frame shade and the dotted S3 sides on a ram stage, which has no current. It draws them under the stars, since ChargeView sits above the stars. Nobody has checked this in a capture yet. (Later removed under look A, 2026-10-22.)
+- Tests (`tests/test_wide_sky.gd`, `tests/test_wide_sky_views.gd`, 7 new):
+  - The ram butts a star out past the frame's far side.
+  - A star the ram keeps in the frame is butted on.
+  - Charging down or from the right, the ram leaves alone whatever stands behind it.
+  - On the 9:16 sky the ram loses stars at the sky's edge, as before.
+  - The ram intro plays inside the frame.
+  - The ram and its lane are drawn within the frame.
+  - A wide ram stage shades the sky outside the frame and dots the frame's sides. (Later replaced under look A, 2026-10-22.)
+  - The identity guard is unchanged.
+- Ram bot, 200 paired seeds, ram on. Wide = `--sky=640x360`, before = `ws-step4-base`. Win % is portrait / wide before / wide after (after minus portrait). Lost a run is portrait / wide before / wide after:
+
+| Stage | Policy | Win % | Lost a run |
+|---|---|---|---|
+| Horns | link-first | 100.0 / 100.0 / 100.0 (+0.0) | 2.52 / 0.00 / 2.52 |
+| Horns | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.26 / 0.00 / 0.26 |
+| Horns | careless | 95.0 / 100.0 / 95.0 (+0.0) | 3.77 / 0.04 / 3.76 |
+| Horns | launch-first | 86.0 / 100.0 / 86.0 (+0.0) | 6.42 / 0.01 / 6.42 |
+| Head | link-first | 48.0 / 100.0 / 48.0 (+0.0) | 8.37 / 0.20 / 8.37 |
+| Head | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.53 / 0.00 / 0.48 |
+| Head | careless | 30.5 / 96.5 / 30.5 (+0.0) | 10.07 / 0.71 / 10.07 |
+| Head | launch-first | 34.0 / 93.0 / 34.0 (+0.0) | 8.68 / 0.66 / 8.68 |
+| Fleece | link-first | 99.5 / 100.0 / 99.5 (+0.0) | 1.62 / 0.01 / 1.35 |
+| Fleece | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.36 / 0.01 / 0.34 |
+| Fleece | careless | 93.5 / 100.0 / 95.0 (+1.5) | 3.40 / 0.18 / 3.09 |
+| Fleece | launch-first | 100.0 / 100.0 / 99.5 (-0.5) | 1.11 / 0.10 / 1.08 |
+| Ram trial | link-first | 98.5 / 100.0 / 98.5 (+0.0) | 2.21 / 0.00 / 2.22 |
+| Ram trial | careful | 100.0 / 100.0 / 100.0 (+0.0) | 0.02 / 0.00 / 0.02 |
+| Ram trial | careless | 96.0 / 100.0 / 96.0 (+0.0) | 3.92 / 0.03 / 3.91 |
+| Ram trial | launch-first | 95.0 / 100.0 / 95.0 (+0.0) | 5.17 / 0.01 / 5.17 |
+
+- Before this commit, the wide ram ran 640 px to the sky's far edge and almost never lost a star, which made the Head up to 66 points easier. Now every wide number is within ±1.5 of portrait's. Packs a win match too, except on the Head careful row (3.92 portrait, 4.32 wide), where both skies win 100%.
+
+**Commit 13 (fish-cord ends snap to the sky edge).**
+- `_fish_cord` shifts the map's cord as before. Then each **end** whose home point lies on `HOME_SKY`'s left or right edge runs on along its arm (the segment leading into that end) to the same side of the sky (`_cord_end_to_side`, rounded to whole pixels). If the arm meets the sky's top or bottom first, the end stops there. Inner points don't move.
+- Narrower than the plan's "ends on a `HOME_SKY` edge": only the left and right edges count. An end on the home top or bottom stays where the shift puts it, as it already does on a tall phone. On a 9:16 sky the side is already where the end is, so nothing changes.
+- Example: on `WIDE_SKY` the cord trial's right end runs on from (179, 194) to (409, 246), so the cord still splits the outer columns. Its end on the home top stays at (166, 58), 20 px below the wide sky's top (y 38). Stars can therefore pass around that end through the strip above it, as on a tall phone today. Left as it is, since the plan covers only the sides.
+- Tests (`tests/test_wide_sky.gd`, 3 new):
+  - A side end runs on to the wide sky's side, and the cord crosses a step in the outer columns.
+  - An arm that reaches the top first stops there, on the arm's line.
+  - On the 9:16 sky and on `play_sky(102)`, the ends stay where they were.
+  - The identity guard is unchanged (it plays `cord_trial`).
+- No bot table: the cord trial is debug-only, and only `cord_trial` has a fish cord (`StarMap`), so no shipped stage moves.
+
+**Commit 14 (slingshot gain follows the sky).**
+- `Launcher.gain_for(launcher, sky)` is the spec's formula: `max(AIM_GAIN, ceili((far - MIN_REACH) / float(MAX_PULL - MIN_PULL)))`, `far` the distance from the launcher to the farthest of the four inner sky corners (`StarScatter.inner_rect`, end corner at `end - 1`, the same corners the clamp lands on). `setup(run)` stores it in `_gain` (`aim_gain()` reads it); `burst_preview` and the launch pass it to `aim_target(launcher, pull, gain = AIM_GAIN)`. AIM_GAIN, MIN_REACH and the pulls stay scene constants (aim feel, not balance).
+- The formula checked against the mapping: a full pull reaches `MIN_REACH + (MAX_PULL - MIN_PULL) * gain`, so the ceiling makes that at least `far`, and a pull shorter than full reaches every nearer point along the same direction; anything past the sky is clamped by the core as before. No adjustment needed.
+- Gains with the launcher at (90, 270): the 9:16 sky 9 (corner 201.4 px, a full pull 206); `WIDE_SKY` 18 (corner 384.1 px); a 1170x2532 phone (`play_sky(102, 7)`) 14 (299.5 px). The doc's "above about 30 rows" is loose: a top corner passes 206 px from about 6 extra rows (20 rows gives 10, 30 rows 11), so most tall phones get a slightly faster aim (Q2).
+- The telescope overrides `burst_preview` and aims at the touch, so it is unchanged. No bot or the identity guard uses the slingshot (they call `RunState.launch` with a target), so there is no bot table and the guard can't move.
+- Tests (`tests/test_launcher.gd`): the 9:16 sky keeps gain 9; every inner corner and edge midpoint of `WIDE_SKY` and of the tall phone's sky is within a full pull and the preview lands on it exactly (the tall phone's top corner was out of reach at gain 9); `gain_for` is the least gain reaching the farthest corner on four skies. Full suite 1469/1469.
+
+**Commit 15 (breath, sweep, flight and seam timings scale with distance).**
+- One rule for all four, settled here: each timing keeps its constant over the distance it covers on the run's **frame** (the portrait 180 columns at the sky's height), and past that it grows in proportion, so it keeps today's speed. Two helpers in `ScreenZones` carry it: `farthest_corner(from, rect)` (to the rect's corner pixels, `end - 1`) and `stretch(far, home) = max(1, far / home)`. On a portrait sky `sky_rect == frame_rect`, so every stretch is exactly 1. That holds on tall phones too (`play_sky(rows)`, side 0), not only on the 9:16 sky.
+- How each one differs from the §4 wording:
+  - **Breath:** `HeatView.breath_time(at, sky, frame) = BREATH_TIME * stretch(farthest_corner(at, sky), farthest_corner(at, frame))`. The plan's `max(0.55, far / BREATH_SPEED)` would have changed portrait: a breath from a portrait corner is 367 px from the far corner, but today's ring stops at 198 px. The ring still rolls at `BREATH_SPEED`. Each breath keeps its own duration (`_breath_lasts`). `breath_pixels` takes `lasts`, which defaults to `BREATH_TIME`. The stars' change delays were already distance / `BREATH_SPEED`, so they are unchanged.
+  - **Sweep:** `HarvestView.sweep_time(sky) = SWEEP_TIME * stretch(sky.size.x, 180)`, which is the plan's 300 px/s. It is used by `sweep()`, `cut_delay`, the blade's progress, Sky's arrival hold (`sky.gd` `harvested`) and the HUD's arrival-card wait (`hud.gd` setup).
+  - **Flight** (slingshot and telescope, through the shared `Launcher._start_flight`, for real and hunt-intro demo launches alike): `Launcher.flight_time(from, burst, frame) = FLIGHT_TIME * stretch(|burst - from|, farthest_corner(from, frame))`. `from` is the fork, or the telescope's mouth. "Today's maximum" is the frame's farthest corner from where the flight starts. Every portrait burst lies in the frame, so it is never farther than that corner. The sequencer hold, the arc and the tremble switch all read `_flight_lasts` (`flight_lasts()`).
+  - **Seam:** `SeamView.rush_seconds(way) = SWEEP_TIME * stretch(span to the sky's edge, span to the frame's edge)`, worked out per side. Only left and right waves (the final's vertical line) stretch. Up and down waves keep `SWEEP_TIME`, because the frame is the sky's full height. `sweep_delay`, the drawn rush (`sweep_pixels(..., rush)`), the end of the view's sweep and Sky's hold and carry tweens use it. The great wave waits for its longer side (`sweep_wait()`). The static `sweep_hold()` stays the portrait value. `sweep_pixels` now draws nothing once its own side's crash is over, which only matters for a great wave with unequal sides. On portrait the view stops before that age.
+- Not stretched (outside the plan's four): Orion's arrow `FLIGHT_TIME` (`orion_view.gd`), the wave's `WINDUP_TIME` and `CRASH_TIME`, and the splash's `RIPPLE_TIME`. The splash reach is a balance distance, so it is the same on every sky.
+- All presentation, none in core, so the identity guard can't see it. `tests/test_wide_timings.gd` (14 new) pins portrait to the old constants: every 10th pixel of the 9:16 sky and `play_sky(102)` as a breath origin and as a flight burst from four launch points, every wave way on the North Fish and the final, and the great wave's wait. It also checks that wide timings stretch by the ratio and that the views run for that long. `tests/test_launcher.gd` (2 new): a portrait corner flight lasts `FLIGHT_TIME`, and a `WIDE_SKY` corner flight lasts `flight_time`, holds the sequencer and lands trembling on the burst. Full suite 1487/1487. No bot table, since bots don't use the scenes. Added after review (`tests/test_wide_timings.gd`, 3 more): what waits on these timings in the scenes, which the first tests didn't reach: Sky's wave hold (`sweep_wait`, both ways and great), Sky's Virgo arrival hold and the HUD's arrival-card wait, each the old value exactly on the 9:16 sky and the stretched one on `WIDE_SKY`. Full suite 1490/1490. Nobody has watched it in a capture yet. Measured on `WIDE_SKY`: with the launcher at (90, 270), a flight to either top inner corner takes 0.66 s (0.43 s on a phone). The sweep takes 2.13 s, and a side-wave rush on the final takes 1.49 s or 1.51 s (0.42 s on a phone). A breath from the frame's centre lasts 1.33 s, and one from (-220, 150) lasts 0.85 s (0.55 s on a phone).
+
+**Commit 16 (Backdrop vignette and margin stars follow the play sky).**
+- `Backdrop.fit(offset, visible, sky = ScreenZones.SKY)` takes the run's sky, and `follow_sky(sky)` redraws only when it changes. Main passes `run.sky_rect` in `fit_visible` (before the first run, `play_sky(offset.y)`, the sky that run takes) and calls `follow_sky` as each run starts, so a run in play keeps its frame and a restart after a resize takes the new one. Until commit 17 that sky is always `side = 0`, so the game shows no change yet.
+- **Vignette:** `vignette_radii(sky)`. On a portrait sky (no side columns) it is `OUTER_RADII`. On a wider one, the x radius grows until the sky's corner pixels sit inside the ellipse: `dx / sqrt(1 - (dy / 300)^2)`, rounded up, at least 120. This differs from the plan's `max(120, w / 2 + 30)`, which gives 350 on `WIDE_SKY` and leaves its top corners (out about 5 px) in the checker seam, so they read a little darker. The derived radius is 357. The y radius and the centre (90, 170) stay as they were. At mid-height the darker sky starts about 37 px past the sky's sides, which only shows on windows wider than the 640 cap (Q7). At 640x360 it shows only in the top corners above the sky. Edge case found in review: when the sky's top sits 300 or more rows above the centre (a wide window more than about 520 visible rows tall, e.g. 640x600), no ellipse 300 tall can hold its corners, `dy` is clamped to 299 and the x radius jumps to about 3900, so there is no side darkening at all and the top darkens straight across, as on a very tall phone. No NaN; left as is, since Q1's minimum window is landscape.
+- **Margin stars:** `star_free(sky)` is the play sky when it has side columns. No margin star with any pixel in it is placed, so a glint whose arm would reach over the sky is left out whole rather than cut (Q8). Stars stay in the margin above the sky and, on ultrawide windows, out past its sides. (Later narrowed under look A, 2026-10-22: `star_free` keeps only glints off the play sky; plain 1 px stars stand over it.)
+- **Settled here: portrait keeps today's stars over the sky above the screen.** On a portrait sky `star_free` is empty, so a tall phone (more than 78 extra rows) still has margin stars over the part of its play sky above the game's screen, as today. Q8 read strictly would take those away too, but that would change portrait, which this commit keeps byte-identical. A wide sky taller than 78 extra rows (1280x800 gives 80) has no stars anywhere over its sky. **Open (review):** this holds only for a sky exactly 180 wide. Once Main builds `play_sky(rows, side)` (commit 17), a phone with spare columns takes the wide branch, because `sky_margin` gives it side columns (line "A 1170x2532 phone gives (7, 102)" above). Measured with `sky_margin`: 195x422 gets `play_sky(102, 7)`, vignette x radius 128 (not 120), and 61 margin stars instead of 97 (none over its sky); 256x341 gets radius 139 and 54 stars instead of 107; 240x320 gets 127 and 27 instead of 65. The digest tests below pin the side-0 sky those windows take today, so they will not catch this. Whether phones should keep their stars and vignette (gate on the window being landscape, or on `side` above a few columns) or follow Q8 is a question for the user before commit 17. Answered below (decision: portrait windows stay portrait).
+- Tests (`tests/test_background.gd`, 5 new):
+  - Portrait identity: margin-image and star-position digests recorded from the Backdrop at `a8b76d57`, for 195x422, 256x341, 240x320 and 180x420, each with the side-0 sky the run takes until commit 17. Review re-derived them from the old `backdrop.gd` run side by side (also 181x321, 320x640, 203x487, 237x512): identical. All match, and the vignette radii are `OUTER_RADII`.
+  - Every border pixel of `WIDE_SKY` keeps its colour under the vignette, and the sky goes a step darker out past it on both sides.
+  - At 640x360, 853x360 and 640x400, no margin-star pixel lands on the play sky. Fewer stars are placed than a portrait sky would get, and on the ultrawide window stars stand past both of the sky's sides.
+  - A glint one column from the sky's edge is left out, and two columns away it is kept.
+  - Main hands the Backdrop the run's sky: after a resize to 195x422 a restarted run's sky (`play_sky(102)`) reaches it, and a resize mid-run keeps the run's sky (added in review; the first version passed with the `follow_sky` call removed).
+  - Full suite 1495/1495. The identity guard is unchanged.
+- Captures in `Claude outputs/release/wide-sky/` (`c16-*`, with `c16-sheet.png`): portrait 180x320 and a tall phone (195x422) before and after, plus 640x360 and ultrawide 853x360 (a 2560x1080 window), with the Backdrop told `play_sky(40, 230)`. Main can't build that sky until commit 17, so in these captures the run's own stars stay in the 180 columns. The phone frames differ only in star twinkle and telescope timing. The Backdrop margin images, saved on their own (`c16-tall-backdrop-*`, `c16-ipad-backdrop-*`), are byte-identical.
+
+**Decision: portrait windows stay portrait (the user, 2026-10-20, on commit 16's open question).** Option 1: phones with a few spare columns keep looking and playing exactly as today; only a sky with a real side margin counts as wide.
+- The rule, in one place: `ScreenZones.widens_sky(visible)` is `visible.x > visible.y`, and `sky_margin` gives side columns only when it holds. A portrait visible area (every phone, an iPad held upright, a tall desktop window) gets `side = 0`, today's sky; its spare columns stay backdrop as before. Landscape iPads and desktops get the wide sky (Q9).
+- **A square area counts as portrait** (strict `>`): 360x360 gives (0, 40), 361x360 gives (90, 40). Flagged as the simplest reading; a square window is rare and Q1's desktop minimum (1280x720) is landscape.
+- It reads the visible area (game px from `fill_size`), not the raw window. They have the same shape except in a window too small for the 180x320 screen, where `fill_size` raises the height to 320 (a 300x200 window shows 300x320, so portrait). Q1's minimum window keeps desktop well clear of that.
+- What portrait keeps: every extra row (`play_sky(rows)` as today) and Q2's slingshot gain, which is computed from the sky, so a tall phone still reaches its corners.
+- Windows: 1170x2532 (195x422) → (0, 102); 1080x2400 (180x400) → (0, 80); iPad portrait 1668x2388 (238x341) and 1536x2048 (256x341) → (0, 21). 1920x1080 → (230, 40); 1366x768 → (230, 64); iPad landscape 2388x1668 (477x333) → (148, 13); 2048x1536 → (166, 64); 2560x1080 → (230, 40).
+- With this, commit 16's Backdrop measurements for phones (radius 128, 61 stars at 195x422, and so on) no longer happen: those windows take side 0, so `star_free` is empty and the vignette is `OUTER_RADII`, as the digest test pins. That test now builds its sky from `sky_margin` (and checks it is side 0) instead of assuming `play_sky(offset.y)`.
+- Tests (`tests/test_background.gd`): `test_only_a_landscape_window_widens_the_sky` (the windows above, six portrait visible sizes, the square case); the §1 table test updated (iPad portrait and the 1170x2532 phone now side 0; the odd-width cases moved to landscape sizes, 401x360 and 361x360). `test_launcher.gd`'s tall-phone reach test now takes the phone's sky from `sky_margin` (`play_sky(102)`), and its corners are still out of reach at `AIM_GAIN` and reachable with the gain. Full suite 1496/1496 (90 scripts).
+
+**Commit 17 (the switch).**
+- `Main._extra: int` is now `_margin: Vector2i`, set in `fit_visible` from `ScreenZones.sky_margin(visible)`. `start_run` builds `play_sky(_margin.y, _margin.x)`; before the first run the Backdrop is handed the same sky. The Sun, the HUD's `sun_at` and the light target use `_margin.y`, which equals `game_offset(visible).y` as `_extra` did. A portrait window gets `side = 0` (decision above), so its run, Backdrop and Sun are what they were.
+- Everything that reads the sky reads it from the run Main builds: every view's `setup(run, sequencer)` (launcher gain, telescope clamp, Sky, CurrentView, SeamView, ChargeView, HeatView, HarvestView, GravityView, OrionView, HUD counter and encounter line, payout bounds, debug launch), `Backdrop.follow_sky`, and the intros and guide spots (the frame, commit 8). App builds a fresh Main per stage, whose `_ready` fits the screen before `start_run`, so every stage opened from the chart, and every restart, takes the current screen's sky. Not checked here: the debug current-trial controls (commit 21) and the chart (commit 20).
+- **Mid-run resize** keeps the run's sky (and the Backdrop keeps framing it); only the next run, a RESTART or a new stage, takes the new one. The Sun still moves with the rows at once, as before this commit. Commit 18 does resizing properly.
+- Tests (`tests/test_main.gd`, 3 new): a 640x360 screen's next run is `WIDE_SKY` with the 180-column frame, every view, the Backdrop and the slingshot's gain get it, the Sun rises by the rows only, and three debug launches put stars inside the wide sky and out past the frame; a mid-run resize (to a phone, to ultrawide) keeps the wide run's sky until a restart, ultrawide restarts at the 640 cap and a phone restart is `play_sky(102)`; four portrait screens restart on `play_sky(rows)` with `frame_rect == sky_rect`.
+- Captures in `Claude outputs/release/wide-sky/` (`c17-*`, sheet `c17-sheet.png`), real game in a 1920x1080 window (640x360 visible): the Stinger's start, a launch to (-160, 80) mid-flight and its burst in the side sky; the Heart (hunt), Orion at the frame's top-left and the circle in the frame; Aquarius Body (drain), the sky outside the frame shaded and a throw to (-150, 120) drained at the frame edge; Pisces North Fish (wave), the seam across the whole width and the wave cue. A 390x844 window (the 1170x2532 phone's 195x422 visible) before and after: the same sky `(0, -24, 180, 274)`, the same stars and margin stars; the frames differ only in the Sun's glow, landmark tick blink and telescope pose (wall-time waits), as in commit 16 (`c17-phone-diff-*`). In the 640x360 start frames the telescope's reticle follows the real mouse over the window.
+- Full suite 1499/1499 (90 scripts). The identity guard (`tests/test_portrait_identity.gd`) passes unchanged.
+- Review: the Backdrop's sky before the first run (`fit_visible` with no run) had no test; a mutant handing it `play_sky(rows)` passed all 1499. Added `test_before_a_run_the_backdrop_frames_the_screens_sky` (a Main whose balance fails to load: 640x360 frames `WIDE_SKY`, 195x422 `play_sky(102)`); it fails on that mutant. Full suite 1500/1500 (90 scripts), identity guard unchanged. Phones can't get side columns from rotation (`project.godot` locks portrait) or a notch (nothing reads the safe area; the visible rect is the whole window). An Android phone in a landscape-shaped split-screen or freeform window would count as landscape and get the wide sky: left as is, since such a window has a real side margin.
+
+**Commit 18 (resize handling: desktop minimum window, pause until the sky fits).**
+- **Minimum window.** `ScreenZones.MIN_WINDOW` is 1280x720 and `min_window(desktop)` gives it on a desktop, zero elsewhere. `Main.hold_min_window(window)` sets `Window.min_size` from it on the `pc` feature (Windows, macOS, Linux); App calls it in `_ready`, and so does Main when it's played on its own. It skips the headless display (tests and bots), where the window isn't real and growing it would refit every Main under test. Checked in a real window: asked for 900x1000, the window stays 1280x1000. **Until commit 19** sets the desktop window to 1280x720, the project's 540x960 window opens at 1280x960 on desktop (426x320 visible, a 426-wide sky with no extra rows). (Commit 19: fullscreen, then 1280x720; the minimum is now 960x540.)
+- **What has to fit (settled here).** `ScreenZones.holds_sky(visible, sky)`: the visible area, placed as `game_offset` places it, encloses `sky_field(sky)`, which is the play sky plus the Sun's band above it (78 rows) down to the bottom of the game's screen (land and HUD), across the sky's width. The Sun's band is included because the Sun now stays above the run's sky (below), so a window a few rows short would otherwise cut the Sun. In effect it fits when `game_offset(visible)` is at least `(side, rows)`. A run built for a screen always fits it (tested over a grid of sizes and the §1 windows), so a phone, which never resizes, never holds. A portrait run fits any screen with at least its rows. 1280x720 shows 640x360, which holds `WIDE_SKY`; a 1280x800 run (`play_sky(80, 230)`) does not fit 1280x720 and holds there.
+- **The hold.** In `fit_visible` (and at the end of `start_run`), Main holds when a run is in play, not over, and `holds_sky` is false. Holding pauses the whole SceneTree (`get_tree().paused`), not `_pause_world`. That stops every process, node-bound tween, sound, the sequencer mid-sequence, the HUD's own timers and all input. Letting go unpauses it, so everything goes on from the frame where it stopped and nothing replays (tested: a launch held mid-sequence finishes once). The game makes no `create_timer` or tree tweens, so nothing runs on through the pause.
+  - **The player's pause is left alone.** The pause menu and the table hold the world through `_pause_world` (process modes) and the HUD's `_hold`, which the tree pause doesn't touch. A pause menu open before the hold is still open after it (the world still held), and a background pause during the hold (`pause_for_background`) still opens PAUSED, shown on return. `go_back` (Escape, the back button) does nothing while held.
+  - **A touch in progress is dropped** when the hold starts (`Launcher.has_press`/`cancel_pull`, `SkyView.drop_press`), as when a sequence takes the input: its release can't arrive while the tree is paused. With no touch down, picked stars stay picked. On a desktop the window manager owns the mouse during a resize, so this is for a tablet turned mid-touch.
+  - **A run that's over doesn't hold.** Its end screen follows the screen, and RESTART builds a run that fits. A restart, or a new stage, lets go of a hold, because the new run takes the screen's sky (`start_run` re-checks).
+  - Main's `_exit_tree` unpauses the tree if the stage is freed mid-hold, so the chart is never left paused.
+- **The cover** (`game/ui/sky_hold_cover.gd`, a CanvasLayer at layer 40, above the end screen and below the debug layers, offset like the other UI layers). It is a plaque centred on the visible screen, drawn in code with an N0 fill and an N6 border with clipped corners like the end screen's, and three bitmap-font Labels: PAUSED (5x7, C1, as on every menu heading), THE SKY NO LONGER FITS (3x5, N8), and the action (3x5, M6). The action (`action_line`, static) follows the cause: TURN THE SCREEN BACK TO PLAY ON only on the `mobile` feature when the run's sky is wide (has side columns) and the screen is now upright (taller than wide; a square one can't have been turned and turning it changes nothing), a tablet turned upright (only reachable once commit 19 lets tablets rotate); otherwise, on any platform, WIDEN THE WINDOW TO PLAY ON when the sky is cut at the sides and GROW THE WINDOW TO PLAY ON when only the height is short. So an upright phone that loses rows (Android split-screen or freeform) reads GROW, since turning it wouldn't help. The font has no apostrophe, hence "NO LONGER FITS". The plaque is 140x41; the longest line is 124 px. (Commit 19 follow-up: on the `pc` feature a third line, OR PRESS F11 FOR FULL SCREEN, below.)
+  - **One PAUSED over the pause menu.** With the player's pause menu open under the hold (opened before it, or by a background pause during it), the cover's plaque would sit over the menu's middle with a second PAUSED heading. Instead the cover drops its heading and shows only its two lines on a 140x29 plaque centred just below the menu's plaque (4 px gap), so the menu reads whole with its own PAUSED and the reason and action sit under it. Main refreshes the cover on `pause_opened`/`pause_closed`; if the menu closes while still held, the cover's own PAUSED plaque comes back in the screen's middle. Picked over hiding the cover under the menu, which would leave the menu's buttons inert with no reason shown.
+  - **The pause and COMBOS buttons hide while held** (`Hud.hold_for_sky`): nothing can be tapped under the tree pause, so they would look tappable and do nothing. Hidden rather than dimmed, since a dim needs a second palette-only drawing of each plaque; they come back when the hold lets go. The speaker button (top-left) is left as is.
+- **The Sun follows the run's sky (settled here; commit 17 moved it with the screen's rows).** `_place_sun` puts the Sun, the HUD's `sun_at` and the light target at `sun_centre(rows)` with the run's rows (`SKY.position.y - run.sky_rect.position.y`), in `start_run` and on every refit. Before the first run it takes the screen's rows (`_margin.y`), as before. So a window made taller mid-run leaves the Sun over the run's sky, with backdrop above it, and the next run (RESTART, a new stage) puts it at the new screen's top. On a portrait screen that hasn't changed, the rows are the same as before, so nothing moves.
+- Tests: `tests/test_background.gd` (3 new) covers `sky_field`; fit and no fit at the exact boundary (640x360 fits `WIDE_SKY`; 639x360 and 640x359 don't; a column or row more does; fractions of a px don't count; 300x333 and 195x422 don't fit; the 1280x800 sky at 640x360); portrait runs on portrait and landscape screens; every screen holding its own sky (the §1 windows and a 180-700 x 320-520 grid); and the minimum window showing 640x360. The commit 16 test that resizes mid-run now also checks that it holds and lets go. `tests/test_main.gd` (6 new, plus an `after_each` that unpauses the tree): a wide run holds at 300x333 (WIDEN) and at 640x359 (GROW), Back is ignored, the run and sky are kept on return, and a restart lets go; the player's pause menu composes both ways; a portrait run never holds on a portrait screen; the Sun, `sun_at` and the light target keep their place through resizes and move on restart; a held sequence finishes once; a touch in progress is dropped. Mutants (the Sun on the screen's rows, no press drop) fail 2 of them. The cover is added just before the EventSequencer, so the Backdrop and Background keep indices 0 and 1 and the sequencer, the speaker and the idle hint stay Main's last children. Full suite 1509/1509 (90 scripts); the identity guard passes unchanged. Follow-up (the cause and the pause menu): `test_the_cover_says_what_to_do` now checks a phone-shaped screen too, and three new tests: `test_the_cover_says_turn_only_when_turning_helps` (a portrait phone losing rows, a portrait run in a landscape window, a wide run in a smaller landscape window, a square window, all on `mobile`: GROW, GROW, WIDEN, GROW, WIDEN), `test_one_paused_heading_over_the_pause_menu` (menu open before the hold: no cover heading, the plaque below the menu and clear of it; menu closed while held: the heading back in the middle; opened during the hold: dropped again), `test_the_hold_hides_the_pause_and_combos_buttons` (back on letting go and after a restart while held). Full suite 1516/1516 (90 scripts); the identity guard passes unchanged. Review: a square window on `mobile` said TURN (`widens_sky` is false at x == y) though turning changes nothing; TURN now needs a screen taller than wide. Not handled: a phone's wide run built in a landscape-shaped split-screen window that is then dragged portrait-shaped says TURN, though the divider caused it; shape alone can't tell a turn from a resize, and phones are portrait-locked, so this is for commit 19 to settle with tablet rotation.
+- Captures in `Claude outputs/release/wide-sky/` (`c18-*`, sheet `c18-sheet.png`): the Stinger in a 1920x1080 window after a throw to (-150, 90); the window at 1280x720 (still fits, no cover); at 900x1000 (the capture clears the minimum first, since the game refuses that size) showing the cover over the frozen game; back at 1920x1080, resumed on the same run and sky. Also a 390x844 phone-shaped window (Main wrapped so it sets no minimum, as on a phone) on `play_sky(102)`, then 420x900 mid-run: no hold, and the Sun keeps its place with backdrop above it. A size set from a script doesn't come back through the window manager, so `size_changed` doesn't fire; the capture script calls `fit_screen` itself, which is what a real resize triggers. Follow-up captures (`c18fix-*`, sheet `c18fix-sheet.png`): the Stinger held at 900x1000 without the pause menu (the cover's PAUSED plaque, the pause and COMBOS buttons gone) and with it open (the menu's PAUSED only, the two lines under it), then back at 1920x1080 (the buttons back; the menu still open in the second).
+
+**Commit 19 (project.godot desktop and tablet overrides; the user's Q1 decision of 2026-10-20).**
+- **`project.godot`.** The base keys stay as they were, so phones (and every handheld at launch) keep the 540x960 window and portrait lock exactly: `window/size/mode=0`, 540x960, `handheld/orientation=1`. Three `.pc` overrides (Windows, macOS, Linux): `window/size/mode.pc=3` (borderless fullscreen, not exclusive, so alt-tab and overlays behave), `window_width_override.pc=1280`, `window_height_override.pc=720`. Godot has no feature tag that tells a tablet from a phone, so no orientation override: tablets turn at runtime (below).
+- **Minimum window.** `ScreenZones.MIN_WINDOW` is 960x540 (was 1280x720). It shows 960x540 game px at 1x, which holds `WIDE_SKY` with room to spare (sky 640 wide, 220 extra rows). A 1366x768 laptop's maximised window (about 1366x705) is allowed and plays at 2x (683x352). **Flagged:** any window under 640 px tall now plays at 1x (`fill_scale`), so between 960x540 and about 1280x639 the pixels are small and the sky is tall; nothing else changes.
+- **Leaving fullscreen: `ScreenZones.WINDOWED_SIZE` = 1280x720** (my pick: 640x360 at 2x, the same sky as a 1080p, 1440p or 4K fullscreen, so a fullscreen run on those keeps playing). Checked on this machine: a fullscreen start that Godot restores to a window on its own comes back at **1264x681** (the 1280x720 outer rect less its borders), which shows 632x340 and would hold a 1080p run. So the toggle sets the client size to 1280x720 itself and centres it; if that size with its title bar doesn't fit the screen's usable area (a 1366x768 laptop with a taskbar), it maximises instead.
+- **Fullscreen key (new, `game/ui/fullscreen_key.gd`).** There was no fullscreen toggle. F11, or Alt+Enter (either Enter), switches fullscreen to the window above and back. App adds it on the `pc` feature only, never under the headless display. Its process mode is ALWAYS, so it works during the sky hold: a window too small for the run (the cover's GROW/WIDEN) can go back to fullscreen. No options line (rule 7; release plan track 1.6 still lists "an OPTIONS line"). Not handled: macOS's own green-button fullscreen restores whatever size macOS keeps (the hold covers it if it is too small); F11 is often taken by macOS (Show Desktop) unless the player turns that off, so Alt(Option)+Enter is the reliable key there.
+- **The hold covers fullscreen to window.** A 1080p fullscreen run at 1280x720: fits, no hold. At 1264x681 (Godot's own restore): holds. A 1366x768 laptop's fullscreen run (`play_sky(64, 230)`) in its maximised window (683x352): holds, GROW (accepted by the user). The player gets out by F11/Alt+Enter back to fullscreen. **Flagged:** a maximised window can't grow, so GROW THE WINDOW is not something that player can do there; the key is the way out, and the cover doesn't mention it (no new text added). (Commit 19 follow-up: it does now, on desktop.)
+- **Tablets turn (Q9), `Main.let_tablets_turn`.** On the `mobile` feature, App asks `ScreenZones.is_tablet(OS.get_model_name(), screen px, screen dpi)`: an iPad by its model (`iPad...`); an `iPhone`/`iPod` never; otherwise the shorter side in dp (`px * 160 / dpi`) at least `TABLET_MIN_DP` = 600 (Android's sw600dp); a dpi of 0 counts as a phone. A tablet gets `DisplayServer.screen_set_orientation(SCREEN_SENSOR)`; phones keep portrait. Untested on a device (no device here); tested as a pure rule.
+- **What must be set outside the repo (release track 4.1).** `export_presets.cfg` is gitignored, so none of this is in the repo yet:
+  - **iOS (iPad).** Godot 4.7's iOS export has no per-idiom orientation option: its Info.plist template fills both `UISupportedInterfaceOrientations` and `UISupportedInterfaceOrientations~ipad` from `display/window/handheld/orientation` (portrait). iOS only lets the app turn to orientations the plist lists, so the runtime call above does nothing on an iPad until **`UISupportedInterfaceOrientations~ipad` lists all four** (Portrait, PortraitUpsideDown, LandscapeLeft, LandscapeRight). Set it in Xcode after each export (target, General, Deployment Info, iPad) or with a post-export plist patch; adding the key again through the preset's `application/additional_plist_content` would duplicate it, so don't. Keep `UIRequiresFullScreen` true (the template's), so iPad multitasking doesn't force all orientations or resize the app; the iPhone list stays portrait only.
+  - **Android.** One AAB for phones and tablets; the manifest keeps portrait from the project setting and the runtime call turns tablets. Android 16 (target SDK 36) ignores orientation and resizability limits on screens of 600 dp and up, **except for apps whose manifest category is game**: the preset's `package/app_category` is Game (2, Godot's default, as the local preset has it), so the lock holds and the runtime call is what turns tablets. Keep it Game; changing it would let every large screen turn and resize, phones' portrait aside. Phones keep the lock. In the preset: `screen/support_large` and `support_xlarge` on (they are), immersive mode on (it is), the package name (`com.example.DustInSpace` today), version code and name, the target SDK Play requires, and signing.
+  - **Steam (Windows, macOS, Linux).** Nothing per preset for the window: the `.pc` overrides apply to every desktop export. Steam Deck: fullscreen at 1280x800 gives 640x400 (as §1). The Steam launch options need no `--fullscreen`.
+- Tests (full suite 1525/1525, 91 scripts; the identity guard passes unchanged): `tests/test_desktop_window.gd` (new, 6): the base settings and no handheld overrides (phones exactly as today); the `.pc` keys read back raw, and through `get_setting_with_override` where the test runs on `pc`; F11 and Alt+Enter (and not Enter alone, a release, a repeat); the toggle's modes; the key's ALWAYS process mode; App adds no key headless. `tests/test_background.gd`: the minimum test updated to 960x540 (shows 960x540, holds `WIDE_SKY`, the laptop's maximised window allowed at 683x352), plus `test_the_windowed_size_holds_a_fullscreen_run` (1080p, 1440p, 4K runs fit 1280x720; 1264x681 doesn't; the laptop's run holds in its maximised window) and `test_tablets_are_told_from_phones`. `tests/test_main.gd`: `test_leaving_fullscreen_holds_only_when_the_window_cant_show_the_sky`.
+- **Review (editor runs stay windowed).** The `pc` feature also applies to the editor build, so the first cut opened the editor's Run (F5) fullscreen, and Godot 4.7 refuses to embed a game that starts fullscreen in the Game tab ("Game embedding not available when the game starts in fullscreen", its own message suggests an `editor` override). `window/size/mode.editor=0` now comes before `mode.pc=3`; when several overrides match, Godot takes the first one in the file, so every editor-build run (F5, embedded or floating, `-s` capture scripts, the headless tests) opens windowed at 1280x720 (the `.pc` size still applies), and exported games, which are templates without the `editor` feature, open fullscreen. F11 still toggles in an editor run. Capture scripts that want the fullscreen start set `Window.MODE_FULLSCREEN` themselves. Tested in `test_the_editor_runs_the_game_windowed`. Checked: `MODE_FULLSCREEN` (3) is borderless (the display mode isn't changed, so integer scaling and alt-tab behave): on this 1920x1080 monitor it gives a 1920x1080 window at (0,0), not one a pixel short, so a 1080p fullscreen run shows 640x360 and doesn't hold.
+- Captures in `Claude outputs/release/wide-sky/` (`c19-*`, sheet `c19-sheet.png`): the App launched with no size set on a 1920x1080 monitor (fullscreen, 640x360 visible): the title and the Stinger; after F11 a 1280x720 window centred (outer 1296x759 at 320,180), the same Stinger run and sky `(-230, 38, 640, 212)`, not held, and the chart; F11 again, fullscreen. The maximise fallback was not seen on a real 1366x768 screen.
+
+**Commit 19 follow-up (the sky-hold cover names the fullscreen key on desktop; approved by the user).**
+- **Why.** A 1366x768 laptop's fullscreen run switched to its maximised window (683x352) holds with GROW THE WINDOW TO PLAY ON, which a maximised window can't do; F11 (commit 19's `FullscreenKey`, which works through the hold) is the way out and the cover didn't say so.
+- **The line.** `SkyHoldCover.KEY_TEXT` = OR PRESS F11 FOR FULL SCREEN (3x5, M6 like the action line, 111 px; the font has A-Z, digits, space, `+ - /` and the times sign, no apostrophe), centred under the action. `SkyHoldCover.key_line(desktop)` gives it on the `pc` feature and nothing elsewhere; `Main._show_sky_cover` passes `key_line(OS.has_feature("pc"))` to `show_hold`'s new `key` argument. With the line the plaque is a row taller (140x49, or 140x37 under the pause menu) and stays centred on the screen or just below the menu's plaque; without it (phones, tablets) it is 140x41 / 140x29 exactly as before. Only F11 is named, to keep the line short; Alt+Enter also works (on macOS, where F11 is often Show Desktop, Alt(Option)+Enter is the reliable key, so the line can mislead there: flagged).
+- Tests (`tests/test_main.gd`, 2 new): `test_the_cover_names_the_fullscreen_key_on_desktop_only` (`key_line` true/false; a cover without the key keeps the 140x41 plaque, with it 8 px taller and still centred with every line inside; Main's cover shows it by the `pc` feature) and `test_the_cover_with_the_key_fits_the_smallest_held_screens` (a wide run and a phone run held at 180x320 and 195x330, the menu closed and open: the plaque on the visible screen, centred, clear of the menu, every line inside). Full suite 1528/1528 (91 scripts); the identity guard passes unchanged.
+- Captures in `Claude outputs/release/wide-sky/` (`c20-*`, 2x, sheet `c20-sheet.png`): the Stinger (a 1080p run) held at 1366x705 (683x352 visible, GROW plus the key line) and at 900x1000 (WIDEN), each without and with the pause menu; held at 540x960 (180x320 visible, the smallest) under the pause menu, fitting below it; back at 1920x1080, no cover.
+
+**Commit 20 (chart wide-window fixes: neighbours, comet, sky stars, sparkles, cache; and the title/chart sky seam).**
+- **The gate is `ChapterSelect.is_wide(screen)` = `ScreenZones.widens_sky`**, not the plan's `_screen.size.x > SKY_SPAN`: a 195x422 phone's screen is 195 wide, so the plan's test would have changed it; with the commit 16 decision (portrait windows stay portrait) it keeps the 9:16 chart exactly. Pixel-compared before/after at 180x320 (540x960) and 195x422 (390x844): the title, Scorpio's chart, Leo's chart (Virgo open beside it) and Virgo's, plus 106 frames of a voyage and an opening with its reveal at 180x320: identical.
+- **The seam (c17 review captures).** The chart's space is a stepped sky (art direction: flat bands, a Bayer checker only along each seam), N0, N1 at y 104, N2 at y 214; at 640 wide that first step ran the whole width as one straight dithered line (about y 125 on screen), and the milky way, strong on N0 and faint on N1, read as cut at it. Portrait has the same steps and stays as it is. On a wide screen the steps now **bend down past the sign's span** (`step_bend(x)`: none over x 0-179, then (px out)^2 / `SKY_BEND` 520 rows, at most `SKY_BEND_MAX` 110): a dome, darker towards the sides, like the Backdrop's curved vignette round the play sky, so no straight seam crosses the screen and the band crosses a curve instead. Same palette and checker, no new colours. **Flagged (art pick):** a dome rather than, say, a deeper seam; the side charts sit in the darker sky, which suits Q6.
+- **Neighbours (Q6).** On a wide screen the open charts beside the one shown draw cool (`_draw_cool_chart`): their paintings as they are, every string an N6 guide, every star and the crown in their locked look, still (no flare, ring, twinkle or warm colour). Their heading (C1 title, CHAPTER n) gives way to the faint name under the figure, as a locked chapter's. **Flagged:** won stars of a neighbour also go cool (the plan said only "no AVAILABLE flare or ring"); gold on a chart you can't tap read as tappable. A painting that has come to life keeps its colours.
+- **Not tappable.** `chart_span(screen)`: on a wide screen a tap picks a stage only inside the sign's own span (x 0-179); elsewhere (a neighbour's star, the side sky) it picks nothing. Portrait screens keep the whole screen, a phone's spare columns included. Arrows and swipes are unchanged.
+- **Background stars** keep `STAR_CLEAR` off the neighbours' stars and crowns too (`neighbour_points`, a new `off_points` argument of `sky_stars`); recomputed when that set changes. None on portrait.
+- **The voyage swap.** On a wide screen both charts can be on screen when the chart swaps halfway, so for the whole voyage the chart shown is drawn as its neighbours are: cool (with a faint name; its heading hides), or faint while a reveal waits (as it was drawn before the swap). As the star lands it's the warm chart again with its heading, or the reveal starts; during the reveal the stars still to pop stay faint. The comment at the swap now says so.
+- **Comet and reveal lift-off** end at `opening_end()`: off the screen's right edge by the arrow as before, but on a wide screen where the next chapter's crown is on screen (Leo to Virgo, Pisces to Aries), on that crown; the reveal's star lifts off where the comet ended. Scorpio's next (Aquarius, three signs on) is off a 640 screen, so its comet still leaves by the edge.
+- **Reveal sparkles** (`sparkle_at`) stay across the sign's span on a wide screen.
+- **Cache.** `space_texture(screen)` builds the space once per screen rect (it depends on the place, not only the size) and keeps `SPACE_CACHE` 4, the oldest making way; F11 back and forth, or a new chart, doesn't rebuild a 640x360 image.
+- Tests (`tests/test_chart_wide.gd`, new, 13): wide or not (640x360, 683x384, 853x360, 512x384 wide; 180x320, 195x422, square not); the bend (flat over the span, symmetric, monotonic, capped); the wide space equal to the portrait one over the span and darker at the edge, cool palette only; a phone's space flat; the cache (kept, keyed by rect, bounded, used by the chart); the tappable span; Virgo's stars and crown untappable beside Leo while Leo's still select; neighbour headings faint on wide, kept on 9:16; background stars clear of the neighbours; a wide voyage naming the chart faintly on both sides of the swap and the heading back on landing; the comet ending on Virgo's crown (off the edge on 9:16, a phone, and Scorpio on wide); the reveal lifting off there; the sparkles in the span. Full suite 1541/1541 (92 scripts); the identity guard passes unchanged.
+- Captures in `Claude outputs/release/wide-sky/` (`c20chart-*`, sheet `c20chart-sheet.png`; the `c20-*` files there are commit 19's follow-up): before/after at 1280x720, 1366x768, 2560x1080 and 1024x768 (an iPad on its side shows the same 512x384), the title and the charts, a voyage Virgo to Leo and back, and Leo's opening of Virgo with its reveal; the phone frames after (identical to before).
+
+**Commit 21 (debug current-trial controls anchored to the frame; the "180x320 grid" comments).**
+- **The controls** (`game/ui/current_trial_controls.gd`) take their left from the run's `frame_rect` (set in `setup`) and their height from the visible screen's top (`fit_screen`): the button at (frame x + 8, screen top + 72), the caption 16 rows below. That is the plan's `frame_rect.position + (8, 72) - (0, rows)` read as meant: on 9:16 it is the old (8, 72), and on a tall phone the old screen-top anchor. At 640x360 the plaque moves from (-222, 32), out in the side sky, to (8, 32), just inside the frame's left edge above the figure; a mid-run resize keeps the run's frame and follows the screen's top. Still debug-only (`OS.is_debug_build()`, as before). **Changed on portrait (debug only):** a phone wider than 9:16 (195x422) had it at x 1 (the screen's spare column); it is now at x 8 in the frame.
+- **The other debug tools need nothing.** The balance errors label sits on the game's own 180x320 (DebugLayer, offset like the other UI layers), which every screen shows whole, so at 640x360 it is in the frame over the Sun. DebugKeys (L, B, T, C) are keys with no position; L already picks its target in the run's `sky_rect`, so B's Big Bang bursts anywhere in the wide sky. There is no in-game balance editor in the repo (the milestone's "debug overlay to edit balance values" is the BalanceErrors label and the keys).
+- **Docs and comments.** "On the 180x320 grid" is now "in game px" where it described positions, which on a wide sky run left of 0 and past 180: `star.gd`, `star_map.gd`, `star_scatter.gd`, `scorpio.gd` (landmarks), `link_gesture.gd`, `launcher.gd`, `telescope.gd`, `idle_hint.gd`; `ScreenZones` (its zones are the portrait frame, `SCREEN`, `to_game`) and `Main.fit_screen` now name landscape windows. Left as they are, since still true: "the game's 180x320" where it means the game's own screen (HUD, end screen, Sun, Backdrop, chart, sound toggle), art drawn at 180x320, and `HOME_SKY`'s comments (already "a taller phone, a wide window"). `AGENTS.md`: the repo layout line (base viewport, desktop fullscreen) and hard rule 4, minimally (the base viewport is 180x320 with integer scaling; a window that isn't 9:16 shows more game pixels at the same whole-number scale). `docs/art-direction.md`: a "Wide (landscape) screens" line next to "Taller screens" (the frame, the sky up to 640, the HUD cluster, the frame shade, portrait windows unchanged; the frame shade line was later rewritten for look A). `.claude/skills/godot-feature`: positions are game px, never assume a 180-wide sky. The pixel-art skill's "180x320 grid" (drawing at native size) still holds. `docs/design.md` was not swept (it describes rules, not the grid; for example its ram text says "the sky's left edge", which commit 12 made the frame's): flagged.
+- Tests (full suite 1545/1545, 92 scripts; the identity guard passes unchanged): `tests/test_current_trial.gd` (2 new): the controls by the frame at 640x360, on the visible screen, a tap switching the trial on the same wide sky, and through resizes to 853x360 and 640x400; on 9:16 and on a 195x422 phone in the frame. `tests/test_main.gd` (1 new): at 640x360 the balance errors label lies on the visible screen and B then L gives a Big Bang inside `WIDE_SKY`. The first fails on the old code (the plaque at x -222).
+- Captures in `Claude outputs/release/wide-sky/` (`c21-*`, 2x, sheet `c21-sheet.png`), the debug trials in a 1920x1080 window (640x360 visible): the tail trial and the ram trial before (the plaque at the screen's left) and after (by the frame); after, the Aquarius, black hole and cord trials; B then L, a Big Bang thrown out into the side sky; and a missing balance file's errors.
+
+**The phone box (§9, built 2026-10-22).**
+- **Commits** on `feature/wide-sky`: the §9 docs; `phone_box`, `plays_in_box` and the box frame; `launch_rect` and its call sites; the scatter ring's landing read; the aim, split preview, let-go row and decoys; the four-sided shade with hunt stages added; the bots' aim searches; then one fix the plan didn't list: **draining flows keep their stars to the box** (see below). The bot tables were run once, after the bots commit, so they live here and not in the launches commit.
+- **Core as planned.** `RunState.phone_box(sky)` is static and returns the sky on any sky 180 or fewer columns wide. `plays_in_box()` is the §9 predicate. `_init` sets `frame_rect = phone_box(sky)` and `current.frame` once the mechanics are built. The ram's start row (the sky's middle) and its column need nothing, because the box is centred on the same row. `launch_rect()` replaces `sky_rect` at every listed call site, including the reflection and wave intros' throws and scatter.
+- **Doubt 5 was real, so it is fixed.** The first currents bot pass gave every wide sky Body -1.0 (launch-owned-first), Legs -0.3 (link-first) and Jar -0.7 (launch-owned-first) against 9:16. The cause: the flow's preview clamped a crowded star's sidestep to the sky, so on a wide sky it could step into the strip above or below the box and drain there, where a phone's sky edge keeps it in. `current_preview`, `_shift_stars` (the launch's real flow step), the current intro and `burst_drains_at` now clamp to `launch_rect()`. On a phone this is the sky, so nothing changes there. Test: `test_a_draining_flow_keeps_its_stars_to_the_box_as_to_a_phones_sky` (crowded top and bottom rows on Body, Legs, Jar and the final; the wide preview equals the phone's moved by the shift). It fails when `current_preview` is put back; the other three paths had no test until the review fixes (`tests/test_phone_box_paths.gd`).
+- **The wave's rush timing** (superseded by the review fixes below: the wave now rushes the box) (`SeamView.rush_seconds`) measures against the frame's columns over the sky's full height, not against the box. The wave has no edge stake, and on North Fish and the final (splash stages, so box stages) the box's shorter rows would otherwise have stretched an up or down rush past `SWEEP_TIME`. Timings are unchanged from before (`test_wide_timings.gd` passes unchanged).
+- **The ring (drains A).** `burst_drains_at` takes no `burst` argument: a dot is clamped into `launch_rect()` before the flow test. On a phone this removes the red dots above and below the sky (they read as stranded before).
+- **Shade.** `CurrentView._shades_frame()` = ram or hunt, for stages with no current; a drain's shade comes with its flow and a splash's with SeamView, as before. Pisces C's `outside_frame` and `frame_side_pixels` are taken as written (the side strips span the sky's full height, the top and bottom strips the box's columns). Orion's corner and the encounter line follow `frame_rect`, so on Heart, Claws and the final they stand in the box (doubt 2). (The shade was later removed under look A, 2026-10-22.)
+- **Tests.** Full suite **1566/1566** (92 scripts), and `test_portrait_identity.gd` unchanged and green after every commit.
+  - `tests/test_wide_sky.gd`: the box on 640x360, 640x400 and 512x384, and the sky itself on the 9:16 sky, `play_sky(102)` and `play_sky(40)`. `frame_rect == phone_box` and `plays_in_box` on all 16 box maps; 20 full-sky maps keep the full-height frame; on 180-wide skies the frame is the sky for all.
+  - Stars past the box: the Jar strands a star above and one below the box; a flow carries one down past the box's bottom row; the Knot's splash loses one pushed above y 58; the Fleece's down ram loses one past the box's bottom and leaves one above the box (behind it); the hunt's circle never takes a star above or below the box (20 seeds).
+  - `launch_rect` per stage. Throws into the side sky, the strips, the corners and onto the box's own edge, with reds, burst and scatter in the box on Heart, the Aquarius final, the Knot and the Head (10 seeds each). A red at each of the box's four corners splits in it exactly as on the phone, moved by the shift. The Circlet's red still splits across the frame.
+  - **The trace test** (`test_a_wide_box_run_plays_as_the_9x16_run_moved_by_the_shift`): circles, splits, bursts, flows, splashes and charges, with each move's start and loss and its end unless lost, are equal to the 9:16 run moved by the shift on Heart, the final, the Aquarius Body and final, North Fish, the Pisces final and the Head, 5 seeds each, with aims inside and outside the 9:16 edge.
+  - The ring: a dot past the box reads at the box's edge; on the phone a dot above or below the sky reads as it lands.
+  - `tests/test_wide_sky_views.gd`: the aim stops at the box (four box stages; Tail's aim keeps the whole sky); the red split preview is in the box and equals the core's split; a finger lifted below the box lets go (Tail: no); flight decoys land in the box; four shade rects and the dotted line on all four edges on drain, splash (the seam drawn over the line's middle), ram and hunt stages; none on Tail, Body, the Mane, the Circlet, or on the 9:16 or tall sky. The three existing shade tests moved from the sky's rows to the box's. (These shade and dotted-line tests were later replaced under look A; see "Look A" below.)
+- **Bots** (300 paired seeds; win % with the mechanic on; wide minus 9:16 in brackets; 195x422 is a tall phone, which the user kept as it is):
+
+| Stage, bot | 9:16 | 640x360 | 640x400 | 512x384 | 195x422 |
+|---|---|---|---|---|---|
+| Heart, naive / careful | 84.7 / 97.0 | +0.0 / +0.0 | +0.0 / +0.0 | +0.0 / +0.0 | +6.6 / +2.0 |
+| Claws, naive / careful | 79.7 / 93.0 | +0.0 / +0.0 | +0.0 / +0.0 | +0.0 / +0.0 | +5.6 / +5.0 |
+| Scorpio final, naive / careful | 4.7 / 13.7 | +0.0 / +0.0 | +0.0 / +0.0 | +0.0 / +0.0 | +6.0 / +23.6 |
+| Aquarius Body, link / upstream / launch-first | 99.7 / 100 / 99.3 | all +0.0 | all +0.0 | all +0.0 | +0.0 / +0.0 / -1.0 |
+| Legs | 89.3 / 100 / 30.0 | all +0.0 | all +0.0 | all +0.0 | -0.3 / +0.0 / +0.0 |
+| Stream | 99.0 / 100 / 98.7 | all +0.0 | all +0.0 | all +0.0 | all +0.0 |
+| Jar | 86.0 / 100 / 73.0 | all +0.0 | all +0.0 | all +0.0 | -0.3 / +0.0 / -0.3 |
+| Aquarius final | 71.7 / 99.3 / 51.0 | all +0.0 | all +0.0 | all +0.0 | +0.3 / -0.7 / +4.7 |
+| Knot, link / careful / naive / careless / launch-first | 100 / 100 / 91.7 / 99.7 / 100 | all +0.0 | all +0.0 | all +0.0 | careless +0.3 |
+| East Cord | 96.7 / 99.7 / 89.3 / 90.3 / 95.3 | all +0.0 | all +0.0 | all +0.0 | naive +4.0, careless +0.7 |
+| North Fish | 100 / 100 / 25.0 / 98.7 / 81.7 | all +0.0 | all +0.0 | all +0.0 | naive +4.3 |
+| Pisces final | 94.0 / 98.0 / 23.7 / 83.0 / 3.0 | all +0.0 | all +0.0 | all +0.0 | +2.7 / -0.3 / +7.0 / +2.7 / +0.0 |
+| Horns, link / careful / careless / launch-first | 99.3 / 100 / 95.7 / 86.7 | all +0.0 | all +0.0 | all +0.0 | all +0.0 |
+| Head | 49.3 / 100 / 27.3 / 32.3 | all +0.0 | all +0.0 | all +0.0 | all +0.0 |
+| Fleece | 99.7 / 100 / 95.3 / 99.7 | all +0.0 | all +0.0 | all +0.0 | careless +2.0 |
+
+  - Every wide sky equals the 9:16 sky exactly, on every box stage and bot, as the construction says. This settles §9 doubt 4: the drains final's +8.6, Pisces's ±2 and the ram's ±1.5 are gone on wide skies. The tall-phone gaps remain (Scorpio final careful +23.6, Pisces final naive +7.0, Aquarius final launch-first +4.7), per the user's "keep it for now".
+  - The reflect bot's runs are the real-game bot (`tools/reflect/playtest.gd`). The study's separate reflect harness was not re-run.
+  - **Spot check at 640x360, stages outside the box:** the Mane (heat), Wheat (harvest), Bow and Head (gravity) and West Cord (cords) are identical to HEAD `6a02dab6` on every bot. Their own wide gaps are older than this change and remain (Wheat link-first -2.6, Bow launch-first +9.0 and archer-hoard +9.3, West Cord -3.3 to -4.0 against 9:16).
+- **Not done:** the Movie Maker captures (Heart, the Aquarius final, North Fish and the Head at 1920x1080, and the 540x960 frame). The shade's look on all four sides, the dotted top and bottom lines, the aim stopping at the box and the encounter line over the box's top rows (doubt 7) are therefore unreviewed and need an art check before merge. (The review fixes below took captures; the shade and the dotted lines were then removed under look A.)
+- **Doubts still open:** 1 (the box floats above the horizon), 2 (Orion moves between Tail/Body and Heart), 6 (lifting a finger in the bottom strip cancels), 7 (the encounter line over the box's top rows) and 8 (tall phones).
+
+**The phone box: review fixes (2026-10-22).**
+- **Why.** A review of `6a02dab6..7e5ba3d4` (24 single-line mutants against the suite) and the first captures (`Claude outputs/release/wide-sky/edge-box/`) found these problems:
+  - flow paths with no test;
+  - flow art drawn into the top and bottom shade;
+  - a seam and a wave running past the box;
+  - a slingshot gain read from the whole wide sky;
+  - ring dots in the shade.
+- **Tests for the play paths** (`tests/test_phone_box_paths.gd`, new, 6). Each one runs the wide box run beside the 9:16 run and compares them, moved by the shift:
+  - a launch's flow on a crowded box, for every drain map and aims along the box's top and bottom rows (`_shift_stars`);
+  - the current intro's flow (`play_current_intro`);
+  - every ring dot over the sky grown by 10 px (`burst_drains_at`);
+  - `is_safe_launch` over the same grid, and `safe_launch_spot`, round four hunting circles with blue, red and an empty telescope;
+  - `open_launch_spot` on a crowded box;
+  - the Pisces intros' throws, bursts and splashes.
+- **What the new tests catch.** Each of these mutants now fails: `sky_rect` put back at `_shift_stars`, the current intro, `burst_drains_at`'s landing clamp, `is_safe_launch`'s clamp or its split, the burst's scatter, or `current_preview`.
+- **Four mutants still pass, and they are equivalent today:**
+  - `burst_drains_at`'s second clamp: no drain map's flow meets a box edge it doesn't drain at.
+  - The reflect and wave intros' throw clamps: the box is symmetric about the seam, so the reflection of a point in the box stays in it.
+  - `open_launch_spot`'s split: twins clamped to either rect fail its inner-area test the same way.
+- **The slingshot** (`launcher.gd`). `gain_for` reads `run.launch_rect()`. On a box stage a full pull now reaches the box's far corner, where before the pull was clamped at the box's edge. Test: `test_on_a_box_stage_the_pull_reaches_the_phone_boxs_corners_and_stops_at_its_edge` (four box stages): every corner and edge of the box can be aimed at, and full pulls stop inside it.
+- **The flow's art** (`CurrentView.shown_region`). On a box stage the water, drain edges, chevrons and drain flashes are drawn over the current's region, kept to the box.
+  - In core the region still spans the wide sky, so `test_the_body_and_legs_flows_run_from_their_drain_to_the_skys_right_edge` is unchanged.
+  - The Body's and the Legs' drain line at x 48 now stops at the box's rows.
+  - The Body still shows two lines on its left side: the box's edge and the drain 48 px in. A phone shows the drain line alone. (Under look A the box's edge line is gone, so the Body shows the drain line alone, as on a phone.)
+  - The Jar's chevrons now space over the box's 172 rows, as on the phone.
+  - `SkyView._edge_point`, where a drained star's flash plays, reads the same region.
+- **The seam and the wave** (`SeamView.water_rect()` = `launch_rect()`). On splash stages the seam, the wave's cue, wall and crash, `carry_point` and `exit_point` keep to the box.
+  - The wave rushes the box in `SWEEP_TIME`, exactly as on the phone.
+  - This supersedes the earlier build note on the wave's timing. The wide stretch now applies only to a wave on the whole wide sky. No shipped stage has one, because every wave stage splashes. It is still tested on the final with its splash switched off.
+  - The Knot's dotted-edge test no longer skips the seam's columns. (That test was later replaced under look A.)
+  - **Flagged (design):** this makes the wave part of the box's play area, not water across the whole sky. The review left that choice open.
+- **The ram's exit** (`ChargeView.exit_point`). It clamps to `launch_rect()`'s inner rect. A star the Fleece's down ram butts out now leaves a pixel past the box's edge, as past a phone's, and no longer flies on past it. This fixes review item 8 in code, and it is tested. No down-ram loss happened in the play captures, so its look is not checked in a capture.
+- **Scatter rings** (`Telescope.scatter_ring_pixels`). On a box stage of a wide sky, dots past the box are left out. On every 180-wide sky the box is the sky, so phones keep whole rings as before, dots above the sky included.
+- **Docs.** In §9, doubt 5 is marked resolved, doubt 7 now points at the encounter line, and the commit plan is labelled as the plan. In the build notes, the `_flow` slip is now `_shift_stars`.
+- **Tests.** Full suite **1580/1580** (93 scripts, 671,311 asserts). `test_portrait_identity.gd` is unchanged and green.
+  - New view tests in `tests/test_wide_sky_views.gd`:
+    - the flow is drawn in the box on five drain maps, and over its whole region on phones and on the Hand;
+    - the seam is in the box on four splash stages, and the Circlet keeps the sky;
+    - the wave carries, rushes and crashes in the box on North Fish and the final;
+    - the ram's exit;
+    - rings are clipped on four box stages and whole on Tail and on the phone.
+  - In `tests/test_wide_timings.gd`, the box wave keeps `SWEEP_TIME`, and the wide-stretch tests use the final with its splash off.
+- **Bots.** Every fix here is either presentation or a new test of the core, so the bots cannot move. They were re-run anyway on the edge stages from a worktree at `f0c1f8ed`: hunt, currents, reflect and ram, 95 jobs, 500 paired seeds, all five skies. Every result line is identical to the `7e5ba3d4` run. Win % with the mechanic on, at 9:16, then the difference on 640x360 / 640x400 / 512x384 and on the 195x422 tall phone:
+
+| Stage, bot policies | 9:16 | Wide skies (all three) | 195x422 |
+|---|---|---|---|
+| Heart, naive / careful | 81.8 / 96.2 | +0.0 | +8.0 / +2.4 |
+| Claws, naive / careful | 80.0 / 93.4 | +0.0 | +7.8 / +4.4 |
+| Scorpio final, naive / careful | 4.6 / 16.4 | +0.0 | +5.8 / +20.2 |
+| Aquarius Body, link / upstream / launch-owned-first | 99.6 / 100 / 99.0 | +0.0 | +0.0 / +0.0 / -0.6 |
+| Legs | 90.6 / 100 / 30.4 | +0.0 | -0.2 / +0.0 / -0.2 |
+| Stream | 98.2 / 100 / 98.6 | +0.0 | +0.0 / +0.0 / +0.2 |
+| Jar | 84.4 / 100 / 73.8 | +0.0 | -0.2 / +0.0 / +0.2 |
+| Aquarius final | 67.4 / 99.6 / 49.2 | +0.0 | +2.2 / -0.6 / +6.6 |
+| Knot, link / careful / naive / careless / launch-first | 100 / 100 / 90.6 / 99.6 / 100 | +0.0 | naive +0.2, careless +0.4 |
+| East Cord | 95.6 / 99.6 / 87.6 / 88.2 / 94.6 | +0.0 | naive +4.8, careless +1.8, link and launch-first +0.2 |
+| North Fish | 100 / 100 / 23.8 / 99.2 / 81.6 | +0.0 | naive +4.8 |
+| Pisces final | 96.2 / 98.6 / 24.8 / 84.0 / 3.0 | +0.0 | +1.6 / +0.0 / +5.2 / +2.8 / +0.0 |
+| Horns, link / careful / careless / launch-first | 99.4 / 100 / 95.4 / 83.8 | +0.0 | +0.0 |
+| Head | 49.6 / 100 / 27.8 / 30.8 | +0.0 | +0.0 |
+| Fleece | 99.8 / 100 / 95.8 / 99.8 | +0.0 | careless +1.4 |
+| Ram trial | 99.0 / 100 / 96.0 / 95.0 | +0.0 | +0.0 |
+
+  - In the whole set, the only nonzero wide row is East Cord's launch-first with the mechanic off: -0.2 on every sky, the tall phone included. It is unchanged from before.
+  - Every row outside ±3 is on the tall phone, which stays as it is by the user's decision. The full per-row tables, mechanic off and on, are in `Claude outputs/release/wide-sky/edge-box-fixes/bot-tables.md`.
+- **Captures** are in `Claude outputs/release/wide-sky/edge-box-fixes/`: seed 7, a 1920x1080 window showing 640x360. The scratch script `tools/capture/out/fix_cap.gd` is `edgebox_cap.gd` plus a play phase that saves a frame every 6 frames over up to 8 launches or links.
+  - Stages: Aquarius Body and Jar, the Knot, North Fish, the Pisces final, Heart and the Fleece. Sheet: `fixes-sheet.png`.
+  - Close-ups:
+    - `detail-aquarius_body-left.png`: the drain line stops at the box.
+    - `detail-aquarius_body-red.png`: the ring is cut at the box edge.
+    - `detail-jar-start.png`: the Jar at the start.
+    - `detail-knot-seam.png`: the seam fades inside the box, and the box's top line is unbroken.
+    - `detail-north_fish-wave*.png`: the wave rushes and crashes at the box's top.
+  - Every frame uses palette colours only.
+  - Phones (390x844 window, 195x422 visible): Body, North Fish and the Fleece, captured after the fixes and at `7e5ba3d4` (`phone-before-*`).
+    - North Fish is pixel-identical.
+    - Body differs by 13 to 68 px, where water streaks sit a pixel further along.
+    - The Fleece aim shot differs by 21 px in the telescope.
+    - These differences are animation timing.
+- **Still open:**
+  - Doubt 1: the box floats above the horizon, and the bottom shade covers the horizon's glow (see the captures). Under look A nothing is drawn below the box, so the glow shows; the box's placement is still open.
+  - Doubt 2: Orion stands 20 px lower on Heart, Claws and the final.
+  - Doubt 6: lifting a finger in the bottom strip cancels the aim.
+  - Doubt 7: not every encounter line over the box's top rows has been seen.
+  - Doubt 8: tall phones keep their gaps.
+  - New: the wave now keeps to the box (flagged above).
+  - New: no capture shows the down ram's exit or a real slingshot pull.
+  - New: the telescope's red twin reticles still don't show when the aim is set from code.
+
+**Look A: nothing drawn outside the box (the user's pick, 2026-10-22).**
+- **What changed.** The box's play is unchanged; only its look. On no stage is anything drawn outside the box: CurrentView, SeamView and ChargeView no longer draw the S1 shade or the dotted S3 edge (`outside_frame`, `frame_side_pixels`, `draw_frame_shade`, `shade_tile`, `frame_shade_rects` and `frame_edge_pixels` are gone). The only cue is the aim marker stopping at the box's edge, which was already built. A drain's water, drain lines and chevrons are still drawn, kept inside the box (`shown_region`).
+- **Margin stars** (`backdrop.gd`). `star_free(sky)` now keeps only glints (3 px cross stars) off a wide play sky, arms included. Plain 1 px stars stand over it, as faint as the background's own painted stars, since the side sky looked bare next to the painted centre. Portrait skies are unchanged (`star_free` is empty there).
+- **Tests.** `tests/test_wide_sky_views.gd`: the shade and dotted-edge tests are replaced by tests that nothing is drawn outside the box on drain, splash, ram and hunt stages. `tests/test_background.gd`: `test_only_single_pixel_stars_stand_over_a_wide_play_sky` replaces `test_margin_stars_keep_off_a_wide_play_sky`. Core test names say "past the box" for "into the shade". Full suite 1575/1575.

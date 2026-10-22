@@ -1,7 +1,7 @@
 class_name LinkGesture
 extends RefCounted
 ## Turns one pointer's press, drag and release into a star selection and link requests.
-## Pure input handling on the 180x320 grid: no nodes, and no combo rules. Whether a link is
+## Pure input handling in game px (any play sky, portrait or wide): no nodes, and no combo rules. Whether a link is
 ## valid is up to RunState.link(); this only decides which stars the player meant.
 ##
 ## - Press a star to select it (up to 3). Drag from a star to add every star the pointer crosses,

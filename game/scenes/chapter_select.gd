@@ -55,7 +55,10 @@ extends CanvasLayer
 ## open one as its chart is (its stars, strings, paintings and crown, with its heading), a locked one
 ## (or the one a reveal is about to open) faint like the constellations between, named under it; the
 ## constellations between show whenever they're on screen. The stage label, PLAY and the numbers
-## hide for a whole voyage and come back as the star lands. The ground (assets/art/chart_horizon.png,
+## hide for a whole voyage and come back as the star lands. On a landscape screen (is_wide), where
+## the charts beside the one shown are in view at rest, those are drawn cool and named faintly, and
+## take no taps (docs/wide_sky_design.md Q6); the one shown is drawn the same for a voyage; the
+## sky's steps bend down past the sign's span (step_bend). The ground (assets/art/chart_horizon.png,
 ## playtest: the empty blue bottom looked odd) runs along the chart's bottom edge, tiled across the
 ## screen; it stays put while the sky turns, and rises with the chart on the way down from the title.
 ## Works in game coordinates (App sets the layer's offset like Main's UI layers).
@@ -138,6 +141,14 @@ const STAR_ODDS: int = 110
 const GLINT_ODDS: int = 12
 const STAR_CLEAR: int = 10
 const STAR_COLOURS: Array[Color] = [Palette.N7, Palette.N7, Palette.N8, Palette.M5]
+## On a wide screen (is_wide) the sky's steps bend down out past the sign's span (x 0 to SKY_SPAN),
+## by (px out)^2 / SKY_BEND rows, at most SKY_BEND_MAX: a dome, darker towards the sides, so no
+## straight seam runs the screen's width (the in-game Backdrop frames its wide sky the same way).
+## Over the sign's span, and on every portrait screen, the steps are flat as before.
+const SKY_BEND: int = 520
+const SKY_BEND_MAX: int = 110
+## The space images kept (space_texture), one per screen rect, at most this many.
+const SPACE_CACHE: int = 4
 ## One background star in SKY_TWINKLE_ODDS twinkles: it flashes M6 for SKY_TWINKLE_ON once every
 ## SKY_TWINKLE_PERIOD, at a phase of its own.
 const SKY_TWINKLE_ODDS: int = 3
@@ -330,6 +341,8 @@ var _lead_trail: Array[Vector2i] = []
 ## or the chart moves; the key they were worked out for.
 var _stars: Array[Vector3i] = []
 var _stars_key := Vector4i(-1, -1, -1, -1)
+## The neighbours' stars the background stars were kept off (neighbour_points).
+var _stars_beside: Array[Vector2i] = []
 ## The passing constellations' names.
 var _passing_names: Dictionary[String, Label] = {}
 ## Every chapter (set_chapters), whether each is open (a Callable on a Chapter), and the labels each
@@ -340,6 +353,8 @@ var _is_open: Callable = func(_c: Chapter) -> bool: return true
 var _chapter_headings: Dictionary[String, Array] = {}
 var _chapter_names: Dictionary[String, Label] = {}
 static var _sections: Dictionary[int, Array] = {}
+## The space behind the chart per screen rect (space_texture).
+static var _spaces: Dictionary[Rect2i, ImageTexture] = {}
 static var _sections_above: Dictionary[int, Array] = {}
 ## The title: shown (waiting for a tap), and the way down: seconds in (-1: none). How far above
 ## the chart the camera is (px; a screen's height on the title, 0 on the chart), and the layer's
@@ -465,7 +480,9 @@ func fit_screen(screen: Rect2i) -> void:
 	_base_offset = Vector2(-screen.position.x, extra - lift)
 	var local := Rect2i(screen.position + Vector2i(0, lift), screen.size)
 	if local != _screen or _space == null:
-		_space = ImageTexture.create_from_image(space_image(local, _def(), false))
+		_space = space_texture(local)
+		# The background stars were worked out for the old screen: work them out again.
+		_stars_key = Vector4i(-1, -1, -1, -1)
 	_screen = local
 	if _on_title:
 		_camera_y = _screen.size.y
@@ -541,8 +558,9 @@ static func sky_section_above(section: int) -> Array:
 ## The background stars on `screen` (screen x, y, hash) with the sky's stars at `stars_x` (their
 ## world x of the screen's left) and `stars_y` px lower, and the chart drawn `chart_x` px across and
 ## `chart_y` down: clear of the chart's stars, stage points and numbers, its heading and its stage
-## label, and of the `off` areas (screen coordinates).
-static func sky_stars(screen: Rect2i, def: ChapterDef = null, stars_x: int = 0, chart_x: int = 0, stars_y: int = 0, chart_y: int = 0, off: Array[Rect2i] = []) -> Array[Vector3i]:
+## label, and of the `off` areas and too near the `off_points` (screen coordinates: the stars and
+## crowns of the charts beside it on a wide screen, neighbour_points).
+static func sky_stars(screen: Rect2i, def: ChapterDef = null, stars_x: int = 0, chart_x: int = 0, stars_y: int = 0, chart_y: int = 0, off: Array[Rect2i] = [], off_points: Array[Vector2i] = []) -> Array[Vector3i]:
 	def = _or_scorpio(def)
 	var shift := Vector2i(chart_x, chart_y)
 	var title := Rect2i(40, TITLE_Y - heading_rise(screen) - 3, 100, SUBTITLE_Y - TITLE_Y + 13)
@@ -555,6 +573,7 @@ static func sky_stars(screen: Rect2i, def: ChapterDef = null, stars_x: int = 0, 
 	var points: Array[Vector2i] = []
 	for star: Vector2i in def.figure.landmarks + [def.final_at]:
 		points.append(star + shift)
+	points.append_array(off_points)
 	var found: Array[Vector3i] = []
 	var left: int = stars_x + screen.position.x
 	for section: int in range(floori(float(left) / SKY_SPAN), floori(float(left + screen.size.x) / SKY_SPAN) + 1):
@@ -628,15 +647,17 @@ func meteor_pixels() -> Dictionary[Vector2i, Color]:
 
 
 ## The space behind the chart for a visible screen `screen` (game coordinates; the image's 0,0 is
-## screen.position). Opaque, cool palette colours only, the same pixels for the same place.
+## screen.position). Opaque, cool palette colours only, the same pixels for the same place. On a
+## wide screen the sky's steps bend down beyond the sign's span (step_bend).
 static func space_image(screen: Rect2i, def: ChapterDef = null, with_stars: bool = true) -> Image:
 	var image := Image.create_empty(screen.size.x, screen.size.y, false, Image.FORMAT_RGBA8)
 	var a := Vector2(MILKY_WAY[0])
 	var along: Vector2 = (Vector2(MILKY_WAY[1]) - a).normalized()
+	var wide: bool = is_wide(screen)
 	for y: int in screen.size.y:
 		for x: int in screen.size.x:
 			var p := Vector2i(x, y) + screen.position
-			image.set_pixel(x, y, _space_colour(p, a, along))
+			image.set_pixel(x, y, _space_colour(p, a, along, step_bend(p.x) if wide else 0))
 	for star: Vector3i in (sky_stars(screen, def) if with_stars else ([] as Array[Vector3i])):
 		var h: int = star.z
 		var local: Vector2i = Vector2i(star.x, star.y) - screen.position
@@ -649,6 +670,31 @@ static func space_image(screen: Rect2i, def: ChapterDef = null, with_stars: bool
 		else:
 			image.set_pixel(local.x, local.y, STAR_COLOURS[(h / GLINT_ODDS) % STAR_COLOURS.size()])
 	return image
+
+
+## The space behind the chart for `screen`, without its background stars (they're drawn live), as a
+## texture: built once per screen rect and kept (SPACE_CACHE of them), so a window going back and
+## forth between sizes (F11, a turned tablet) or a new chart doesn't build it again.
+static func space_texture(screen: Rect2i) -> ImageTexture:
+	if not _spaces.has(screen):
+		if _spaces.size() >= SPACE_CACHE:
+			_spaces.erase(_spaces.keys()[0])
+		_spaces[screen] = ImageTexture.create_from_image(space_image(screen, null, false))
+	return _spaces[screen]
+
+
+## Whether `screen` is a wide (landscape) one: only there does the chart show its neighbours as they
+## are on a wide screen (cool, not tappable) and bend the sky's steps. A portrait one, a phone with a
+## few spare columns included, keeps the chart exactly as on a 9:16 screen (ScreenZones.widens_sky).
+static func is_wide(screen: Rect2i) -> bool:
+	return ScreenZones.widens_sky(Vector2(screen.size))
+
+
+## How many rows lower the sky's steps sit at column `x` on a wide screen: none over the sign's span,
+## then (px out)^2 / SKY_BEND, at most SKY_BEND_MAX.
+static func step_bend(x: int) -> int:
+	var out: int = maxi(maxi(-x, x - (SKY_SPAN - 1)), 0)
+	return mini(out * out / SKY_BEND, SKY_BEND_MAX)
 
 
 ## Where the stage label draws (the name with its rules, PLAY): background stars keep off these.
@@ -675,12 +721,12 @@ static func space_stars(screen: Rect2i, def: ChapterDef = null) -> Array[Vector2
 	return stars
 
 
-static func _space_colour(p: Vector2i, milky_start: Vector2, milky_along: Vector2) -> Color:
+static func _space_colour(p: Vector2i, milky_start: Vector2, milky_along: Vector2, bend: int = 0) -> Color:
 	var bayer: float = StarView.BAYER[posmod(p.y, 4) * 4 + posmod(p.x, 4)] / 16.0
-	# The sky's steps, each seam an ordered dither SEAM rows deep.
+	# The sky's steps, each seam an ordered dither SEAM rows deep, `bend` rows lower.
 	var step: int = 0
 	for i: int in SKY_STOPS.size():
-		var into: float = float(p.y - SKY_STOPS[i]) / SEAM
+		var into: float = float(p.y - SKY_STOPS[i] - bend) / SEAM
 		if into >= 1.0 or (into > 0.0 and bayer < into):
 			step = i + 1
 	var colour: Color = SKY_STEPS[step]
@@ -849,6 +895,10 @@ func _on_screen(x: int) -> bool:
 	return x + SKY_SPAN > _screen.position.x and x < _screen.end.x
 
 
+func _wide() -> bool:
+	return is_wide(_screen)
+
+
 ## The labels at the other chapters' places and the passing constellations' names follow the camera.
 func _place_passing() -> void:
 	for sign: String in PASSING:
@@ -864,6 +914,11 @@ func _place_passing() -> void:
 		var heading: Array = _chapter_headings[each.id]
 		var charted: bool = other and _on_screen(x) and _shows_as_chart(each)
 		var faint: bool = other and _on_screen(x) and not _shows_as_chart(each)
+		# On a wide screen the charts beside the one shown are cool and named faintly (Q6), as is
+		# the one shown on a voyage (its heading comes back as the star lands).
+		if _wide() and (charted or (not other and is_voyaging())):
+			charted = false
+			faint = true
 		for k: int in 2:
 			var label: Label = heading[k]
 			label.visible = charted
@@ -900,9 +955,9 @@ func voyage_to(chapter: Chapter, reveal: bool = false) -> void:
 	_voyage_length = voyage_time(absi(roundi(_voyage_to - _voyage_from)) / SKY_SPAN)
 	_voyage_swapped = false
 	_voyage_time = 0.0
-	# The opening's comet left off the screen's right edge by the arrow; otherwise the star lifts off
-	# the stage that was selected.
-	var lift: Vector2i = Vector2i(_screen.end.x + 12, nav_centre(1).y) if reveal else stage_position(_selected, _def())
+	# The opening's comet left where it ended (opening_end); otherwise the star lifts off the stage
+	# that was selected.
+	var lift: Vector2i = opening_end() if reveal else stage_position(_selected, _def())
 	_lead_from = lift + Vector2i(roundi(_camera), 0)
 	var land: Vector2i = stage_position(Chapter.FINAL if reveal else chapter.current(), chapter.def)
 	_lead_to = land + Vector2i(sky_x(chapter.def.id), 0)
@@ -1270,6 +1325,15 @@ static func stage_position(stage: int, def: ChapterDef = null) -> Vector2i:
 	return def.figure.landmarks[def.stages[stage]["stars"][0]]
 
 
+## Where a tap can pick a stage of the chart shown on `screen` (chart coordinates): the whole screen,
+## but on a wide screen only the sign's own span, so a tap by a chart beside it (cool, Q6) or out in
+## the side sky picks nothing.
+static func chart_span(screen: Rect2i) -> Rect2i:
+	if not is_wide(screen):
+		return screen
+	return Rect2i(0, screen.position.y, SKY_SPAN, screen.size.y)
+
+
 ## The stage a tap at `at` picks: the part owning the nearest star in reach, or the final on its
 ## crown point, or -1.
 static func stage_at(at: Vector2i, def: ChapterDef = null) -> int:
@@ -1340,7 +1404,7 @@ func handle_pointer(event: InputEvent) -> bool:
 			return true
 	if touch.pressed:
 		_pressed_play = can_play() and play_rect(_screen).has_point(at)
-		_pressed_point = -1 if _pressed_play else stage_at(at, _def())
+		_pressed_point = -1 if _pressed_play or not chart_span(_screen).has_point(at) else stage_at(at, _def())
 		_chart.queue_redraw()
 		return _pressed_play or _pressed_point >= 0
 	var used: bool = _pressed_play or _pressed_point >= 0
@@ -1431,7 +1495,9 @@ func _advance_chapters(delta: float) -> bool:
 		_voyage_time += delta
 		moved = true
 		_camera = lerpf(_voyage_from, _voyage_to, voyage_progress())
-		# The new chart takes over halfway, while neither is on screen (they're signs apart).
+		# The new chart takes over halfway. On a 9:16 screen neither is on screen then (they're signs
+		# apart); a wide one can show both, so there both are drawn alike for the whole voyage (cool,
+		# or faint for a reveal: _draw_chart, _place_passing) and the swap doesn't show.
 		if not _voyage_swapped and voyage_progress() >= 0.5:
 			_voyage_swapped = true
 			setup(_voyage_chapter)
@@ -1594,6 +1660,9 @@ func _refresh() -> void:
 func _place_heading() -> void:
 	if _title == null:
 		return
+	# On a wide screen the chart shown is named faintly for a voyage, like the charts beside it.
+	_title.visible = not (_wide() and is_voyaging())
+	_subtitle.visible = _title.visible
 	var rise: int = heading_rise(_screen)
 	_centre(_title, TITLE_Y - rise)
 	_centre(_subtitle, SUBTITLE_Y - rise)
@@ -1608,7 +1677,7 @@ func _centre(label: Label, y: int) -> void:
 
 func _draw_chart() -> void:
 	if _space == null:
-		_space = ImageTexture.create_from_image(space_image(_screen, _def(), false))
+		_space = space_texture(_screen)
 	# The sky behind is drawn on the screen as it is: it holds still while the camera rises.
 	_chart.draw_set_transform(Vector2(0, -roundi(_camera_y)))
 	_chart.draw_texture(_space, Vector2(_screen.position))
@@ -1630,8 +1699,26 @@ func _draw_chart() -> void:
 	_draw_lead_comet()
 	_draw_open_neighbours()
 	_draw_horizon()
+	if _wide() and is_voyaging():
+		# On a wide screen the chart shown is on screen as a voyage swaps charts halfway, so for the
+		# whole voyage it's drawn as the charts beside it are: cool, or faint while its reveal waits.
+		if _reveal_pending:
+			_draw_faint(_def().figure.landmarks, _def().figure.segments, _bright_stars(_def()), Vector2i(chart_x(), 0))
+		else:
+			_draw_cool_chart(_chapter, chart_x())
+		_chart.draw_set_transform(Vector2.ZERO)
+		_draw_navigation()
+		_draw_opening()
+		return
 	# The chart is drawn at its place on the sky against the camera's.
 	_chart.draw_set_transform(Vector2(chart_x(), 0))
+	if _wide() and is_revealing():
+		# The stars still to pop in stay faint, as the chart was on the way here.
+		var popped: Array[int] = []
+		for landmark: int in _def().figure.landmarks.size():
+			if revealed(landmark):
+				popped.append(landmark)
+		_draw_faint(_def().figure.landmarks, _def().figure.segments, _bright_stars(_def()), Vector2i.ZERO, popped)
 	_draw_figure()
 	var legs: Array[Leg] = string_legs()
 	for leg: Leg in [Leg.GUIDE, Leg.NEXT, Leg.LIT]:
@@ -1675,13 +1762,15 @@ func _draw_chart() -> void:
 func _draw_sky_stars() -> void:
 	var stars_x: int = roundi(_camera * STAR_PARALLAX)
 	var key := Vector4i(stars_x, chart_x(), ZODIAC.find(_def().id), camera_y())
-	if key != _stars_key:
+	var beside: Array[Vector2i] = neighbour_points()
+	if key != _stars_key or beside != _stars_beside:
 		_stars_key = key
+		_stars_beside = beside
 		var off: Array[Rect2i] = []
 		if camera_y() > 0:
 			var title: Rect2i = _title_view.title_rect().grow(3)
 			off.append(Rect2i(title.position + Vector2i(0, camera_y() - _screen.size.y), title.size))
-		_stars = sky_stars(_screen, _def(), stars_x, chart_x(), roundi(_camera_y * STAR_PARALLAX), camera_y(), off)
+		_stars = sky_stars(_screen, _def(), stars_x, chart_x(), roundi(_camera_y * STAR_PARALLAX), camera_y(), off, beside)
 	var speed: float = voyage_speed() * STAR_PARALLAX
 	var streak: int = clampi(roundi((absf(speed) - STREAK_SPEED) / 60.0), 0, STREAK_MAX)
 	var behind: int = -signi(roundi(speed))
@@ -1701,6 +1790,24 @@ func _draw_sky_stars() -> void:
 			_dot(p, STAR_COLOURS[(star.z / GLINT_ODDS) % STAR_COLOURS.size()])
 
 
+## On a wide screen, where the open charts beside the one shown are drawn (cool), their stars and
+## crowns on screen now (screen coordinates): the background stars keep off them as off the chart's
+## own. None on a portrait screen.
+func neighbour_points() -> Array[Vector2i]:
+	var points: Array[Vector2i] = []
+	if not _wide():
+		return points
+	for each: Chapter in _chapters:
+		if _chapter != null and each.id == _chapter.id:
+			continue
+		var x: int = _place_x(each.id)
+		if not _on_screen(x) or not _shows_as_chart(each):
+			continue
+		for star: Vector2i in each.def.figure.landmarks + [each.def.final_at]:
+			points.append(star + Vector2i(x, 0))
+	return points
+
+
 ## The constellations between the chapters, passing on a voyage: faint stars, dotted strings.
 func _draw_passing() -> void:
 	for sign: String in PASSING:
@@ -1710,10 +1817,7 @@ func _draw_passing() -> void:
 	# A locked chapter (or the one a reveal is about to open) looks the same, its big stars bright;
 	# so does every chapter's figure on the other laps of the ring.
 	for each: Chapter in _chapters:
-		var bright: Array[int] = []
-		for i: int in each.def.figure.count():
-			if each.def.figure.sizes[i] == Star.Size.BIG:
-				bright.append(i)
+		var bright: Array[int] = _bright_stars(each.def)
 		var echo := Vector2i(_echo_x(each.id), 0)
 		if _on_screen(echo.x):
 			_draw_faint(each.def.figure.landmarks, each.def.figure.segments, bright, echo)
@@ -1725,15 +1829,28 @@ func _draw_passing() -> void:
 		_draw_faint(each.def.figure.landmarks, each.def.figure.segments, bright, shift)
 
 
+## A chapter's big stars (by landmark), the ones its faint figure shows bright.
+static func _bright_stars(def: ChapterDef) -> Array[int]:
+	var bright: Array[int] = []
+	for i: int in def.figure.count():
+		if def.figure.sizes[i] == Star.Size.BIG:
+			bright.append(i)
+	return bright
+
+
 ## A constellation drawn plainly, as on a star map: its `stars` (an N8 cross with an M5 heart, the
 ## `bright` ones an M6 glint with M5 arms), its `lines` (solid N5, stopping short of each star),
-## `shift` px across.
-func _draw_faint(stars: Array, lines: Array, bright: Array, shift: Vector2i) -> void:
+## `shift` px across; leaving out the stars in `skip` and the lines between two of them.
+func _draw_faint(stars: Array, lines: Array, bright: Array, shift: Vector2i, skip: Array[int] = []) -> void:
 	for line: Vector2i in lines:
+		if skip.has(line.x) and skip.has(line.y):
+			continue
 		var pixels: Array[Vector2i] = LinkLayer.line_pixels(stars[line.x] + shift, stars[line.y] + shift)
 		for k: int in range(3, pixels.size() - 3):
 			_dot(pixels[k], Palette.N5)
 	for i: int in stars.size():
+		if skip.has(i):
+			continue
 		var at: Vector2i = stars[i] + shift
 		var shines: bool = bright.has(i)
 		for n: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
@@ -1745,7 +1862,9 @@ func _draw_faint(stars: Array, lines: Array, bright: Array, shift: Vector2i) -> 
 
 ## The open chapters beside the one shown, as their charts are, at their places on the sky: their
 ## paintings, strings, stars and crown (no labels, rings for the selection or animations of their
-## own). Drawn through the shown chart's own drawing, with `_chapter` swapped for each.
+## own). Drawn through the shown chart's own drawing, with `_chapter` swapped for each. On a wide
+## screen, where they show beside it at rest, they're drawn cool (_draw_cool_chart): nothing warm,
+## no flare or ring, since only the chart shown takes taps (Q6).
 func _draw_open_neighbours() -> void:
 	var shown: Chapter = _chapter
 	var held: Array = [_figure_stage, _figure_time, _unlock_time, _unlock_next]
@@ -1758,6 +1877,9 @@ func _draw_open_neighbours() -> void:
 			continue
 		var x: int = _place_x(each.id)
 		if not _on_screen(x) or not _shows_as_chart(each):
+			continue
+		if _wide():
+			_draw_cool_chart(each, x)
 			continue
 		_chapter = each
 		_chart.draw_set_transform(Vector2(x, 0))
@@ -1776,6 +1898,40 @@ func _draw_open_neighbours() -> void:
 	_unlock_time = held[2]
 	_unlock_next = held[3]
 	_chart.draw_set_transform(Vector2.ZERO)
+
+
+## Chapter `each`'s chart drawn cool, `x` px across: its paintings as they are, every string a guide
+## (N6), every star and the crown in their locked look, still. How a wide screen shows the open
+## chapters beside the one shown, and the one shown on a voyage (the swap halfway doesn't show).
+func _draw_cool_chart(each: Chapter, x: int) -> void:
+	var shown: Chapter = _chapter
+	_chapter = each
+	_chart.draw_set_transform(Vector2(x, 0))
+	_draw_figure()
+	for segment: int in _def().figure.segment_count():
+		_draw_string(segment, Leg.GUIDE)
+	for landmark: int in _def().figure.landmarks.size():
+		_draw_cool_star(landmark)
+	for k: int in range(1, 4):
+		for d: Vector2i in [Vector2i(0, -k), Vector2i(0, k), Vector2i(-k, 0), Vector2i(k, 0)]:
+			_dot(_def().final_at + d, Palette.N8 if k == 1 else Palette.N6)
+	_dot(_def().final_at, Palette.M6)
+	_chapter = shown
+
+
+## A chart star in its locked look whatever its part's state; a part's main star as a locked main
+## star at rest.
+func _draw_cool_star(landmark: int) -> void:
+	var at: Vector2i = _def().figure.landmarks[landmark]
+	if landmark == _chapter.stars(_chapter.stage_of(landmark))[0]:
+		var dots: Dictionary[Vector2i, Color] = main_star_pixels(Chapter.PointState.LOCKED, 0)
+		for d: Vector2i in dots:
+			_dot(at + d, dots[d])
+		return
+	_fill(at, 1, Palette.N0)
+	for d: Vector2i in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		_dot(at + d, Palette.N8)
+	_dot(at, Palette.M6)
 
 
 ## The ground along the chart's bottom edge, tiled across the screen (it doesn't turn with the sky).
@@ -1936,12 +2092,33 @@ static func shard_pixels(t: float) -> Array[Vector2i]:
 	return pixels
 
 
-## The opening comet's way: from the crown to the arrow, then on off the screen's right edge.
+## The opening comet's way: from the crown to the arrow, then on to where it ends (opening_end).
 func opening_path() -> Array[Vector2i]:
 	var arrow: Vector2i = nav_centre(1)
 	var path: Array[Vector2i] = LinkLayer.line_pixels(stage_position(Chapter.FINAL, _def()), arrow)
-	path.append_array(LinkLayer.line_pixels(arrow, Vector2i(_screen.end.x + 12, arrow.y)).slice(1))
+	path.append_array(LinkLayer.line_pixels(arrow, opening_end()).slice(1))
 	return path
+
+
+## Where the opening's comet ends and the selection star lifts off for the reveal's voyage (screen
+## coordinates): off the screen's right edge by the arrow; on a wide screen where the next chapter's
+## crown is on screen, on that crown, so neither flies on past the chapter it's opening.
+func opening_end() -> Vector2i:
+	var off := Vector2i(_screen.end.x + 12, nav_centre(1).y)
+	var next: Chapter = _next_chapter()
+	if not _wide() or next == null:
+		return off
+	var crown: Vector2i = next.def.final_at + Vector2i(_place_x(next.id), 0)
+	return crown if crown.x < off.x else off
+
+
+## The chapter after the one shown (the one its final opens), or null.
+func _next_chapter() -> Chapter:
+	var at: int = -1
+	for i: int in _chapters.size():
+		if _chapter != null and _chapters[i].id == _chapter.id:
+			at = i
+	return _chapters[at + 1] if at >= 0 and at + 1 < _chapters.size() else null
 
 
 ## The reveal's pops: each star just in throws a C0 cross and a ring that cools as it grows.
@@ -1966,8 +2143,7 @@ func _draw_sparkles() -> void:
 	if _reveal_time < 0.0:
 		return
 	for i: int in REVEAL_SPARKLES:
-		var h: int = CurrentView._hash(i * 7 + 13)
-		var at := Vector2i(_screen.position.x + 6 + h % (_screen.size.x - 12), _screen.position.y + 50 + (h / 97) % (_screen.size.y - 120))
+		var at: Vector2i = sparkle_at(i)
 		var age: float = _reveal_time - (REVEAL_SPARKLE - 0.35) * i / REVEAL_SPARKLES
 		if age < 0.0 or age >= 0.35:
 			continue
@@ -1977,6 +2153,14 @@ func _draw_sparkles() -> void:
 			_dot(at, Palette.C0)
 		else:
 			_dot(at, Palette.C1 if age < 0.24 else Palette.N8)
+
+
+## Where the reveal's sparkle `i` twinkles: across the screen; on a wide one across the sign's span,
+## round the chapter they open.
+func sparkle_at(i: int) -> Vector2i:
+	var h: int = CurrentView._hash(i * 7 + 13)
+	var across := Vector2i(_screen.position.x, _screen.size.x) if not _wide() else Vector2i(chart_x(), SKY_SPAN)
+	return Vector2i(across.x + 6 + h % (across.y - 12), _screen.position.y + 50 + (h / 97) % (_screen.size.y - 120))
 
 
 ## The thin rules either side of the stage name, each tipped with a small star: warm for a stage

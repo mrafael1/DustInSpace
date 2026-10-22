@@ -179,7 +179,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_waiting.clear()
 	_arrival_sweep = false
 	_constellation.setup(run)
-	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.sky_rect, _orion_keeps_clear_of(run))
+	_orion.setup(run.orion != null or run.volley != null or run.hunt != null, run.frame_rect, _orion_keeps_clear_of(run))
 	if run.volley != null:
 		_orion.show_volley_charge(run.volley.links_left(), run.volley.interval)
 	if run.scorpio != null and run.scorpio.map.boss:
@@ -253,6 +253,13 @@ func star_at(point: Vector2i) -> int:
 				best_dist_sq = dist_sq
 				best_id = Scorpio.landmark_id(i)
 	return best_id
+
+
+## Drops a touch in progress on the sky (Main, when the game holds still for its sky), with the link
+## it was tracing, as a sequence starting does. With no touch down, the stars picked stay picked.
+func drop_press() -> void:
+	if _gesture.is_pressed():
+		_gesture.cancel()
 
 
 ## Ids of the stars selected for the link being traced, in the order they were picked.
@@ -496,7 +503,7 @@ func _play_harvest_event(event: EventSequencer.RunEvent) -> bool:
 			if _arrival_sweep:
 				# Virgo's final's arrival: play waits for the title card after the sweep to go too.
 				_arrival_sweep = false
-				_sequencer.hold(HarvestView.SWEEP_TIME + Hud.ARRIVAL_TIME)
+				_sequencer.hold(HarvestView.sweep_time(_run.sky_rect) + Hud.ARRIVAL_TIME)
 		&"landmarks_unbound":
 			_put_out(event.args[0])
 		&"harvest_intro_ended":
@@ -827,7 +834,7 @@ func _decoys(burst: Vector2i) -> Array[Star]:
 		return [] as Array[Star]
 	var count: int = pack.stars * pack.bursts
 	var weights: Array[int] = pack.weights
-	var places: Array[Vector2i] = StarScatter.place(count, burst, _run.sky_rect, [] as Array[Vector2i], _decoy_rng)
+	var places: Array[Vector2i] = StarScatter.place(count, burst, _run.launch_rect(), [] as Array[Vector2i], _decoy_rng)
 	var decoys: Array[Star] = []
 	for i: int in count:
 		decoys.append(Star.new(-1 - i, PackOpener.draw_size(weights, _decoy_rng) as Star.Size, places[i]))
@@ -870,7 +877,8 @@ func _shoot(star: Star) -> void:
 ## Orion's hunting area (#71): his arrow flies to the ring's centre, and the stars inside burst as
 ## it lands; the next events (the new ring) wait for it.
 ## The current: every moved star drifts; a drained one drifts to the field's edge and cuts out
-## there as the drain flashes, for nothing.
+## there as the drain flashes, for nothing (one stranded outside a wide sky's frame: a step further
+## out, where it stands).
 func _shift(moves: Array[StarCurrent.Move]) -> void:
 	for move: StarCurrent.Move in moves:
 		var view: StarView = _views.get(move.star_id)
@@ -883,7 +891,7 @@ func _shift(moves: Array[StarCurrent.Move]) -> void:
 		view.drained.connect(func(v: StarView) -> void:
 			_current.flash_drain(Vector2i(v.position), Vector2i(signi(move.to.x - move.from.x), signi(move.to.y - move.from.y)))
 			star_drained.emit(Vector2i(v.position)))
-		view.drain_to(_edge_point(move.to))
+		view.drain_to(move.to if _run.current.stranded(move.from) else _edge_point(move.to))
 	_sequencer.hold(StarView.DRIFT_TIME)
 
 
@@ -914,7 +922,7 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 	for star: Star in lost:
 		caught.append(star.position)
 	_seam.sweep(way, next_way, caught, great)
-	_sequencer.hold(SeamView.sweep_hold())
+	_sequencer.hold(_seam.sweep_wait())
 	for star: Star in lost:
 		var view: StarView = _views.get(star.id)
 		if view == null:
@@ -926,7 +934,8 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 		var its_way: Vector2i = _seam.way_for(way, from) if great else way
 		var to: Vector2i = _seam.carry_point(its_way, from)
 		var reached: float = _seam.sweep_delay(its_way, from)
-		var share: float = (reached - SeamView.WINDUP_TIME) / SeamView.SWEEP_TIME
+		var rush: float = _seam.rush_seconds(its_way)
+		var share: float = (reached - SeamView.WINDUP_TIME) / rush
 		var tween: Tween = create_tween()
 		tween.tween_interval(reached)
 		tween.tween_callback(func() -> void:
@@ -937,7 +946,7 @@ func _wave(way: Vector2i, lost: Array, next_way: Vector2i, great: bool) -> void:
 			var at: float = (SeamView.rush_reach(share) if share < 1.0 else 1.0)
 			var t: float = 1.0 if at >= 1.0 else clampf((reach - at) / (1.0 - at), 0.0, 1.0)
 			view.position = Vector2(Vector2(from).lerp(Vector2(to), t).round())
-			_halo_layer.queue_redraw(), 0.0, 1.0, maxf(0.01, SeamView.sweep_hold() - reached))
+			_halo_layer.queue_redraw(), 0.0, 1.0, maxf(0.01, SeamView.WINDUP_TIME + rush - reached))
 		tween.tween_callback(func() -> void:
 			_seam.flash_loss(Vector2i(view.position))
 			star_drained.emit(Vector2i(view.position))
@@ -1042,9 +1051,10 @@ func _resize(changes: Array[StarHeat.Change], origin: Vector2i = NO_ORIGIN) -> f
 	return hold
 
 
-## Where a drained star's path meets the field's edge: the first pixel outside it.
+## Where a drained star's path meets the field's edge: the first pixel outside it (the field as
+## drawn: kept to the phone box on a stage that plays in it).
 func _edge_point(exit: Vector2i) -> Vector2i:
-	var area: Rect2i = _run.current.region
+	var area: Rect2i = CurrentView.shown_region(_run)
 	return Vector2i(clampi(exit.x, area.position.x - 1, area.end.x), clampi(exit.y, area.position.y - 1, area.end.y))
 
 

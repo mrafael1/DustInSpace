@@ -20,8 +20,10 @@ signal tremble_started
 enum Flight { NONE, FLYING, TREMBLING }
 
 ## Aim feel, not balance. The weakest launch (MIN_PULL) reaches MIN_REACH px, just into the
-## sky above the launcher; each further pixel of pull adds AIM_GAIN px. A full pull reaches
-## 206 px, past the farthest sky corner (about 201 px away), so every corner and edge is aimable.
+## sky above the launcher; each further pixel of pull adds the run's gain: AIM_GAIN px, or more
+## on a sky whose farthest inner corner a full pull at AIM_GAIN would fall short of (gain_for).
+## On the 9:16 sky a full pull reaches 206 px, past the farthest corner (about 201 px away), so
+## the gain stays AIM_GAIN; a taller or wider sky raises it so every corner and edge is aimable.
 const MAX_PULL: int = 24
 const AIM_GAIN: int = 9
 const MIN_REACH: int = 26
@@ -31,7 +33,8 @@ const MIN_PULL: int = 4
 const HIT_RADIUS: int = SkyView.HIT_RADIUS
 ## Pull frames: the fork's gems light up in PULL_FRAMES steps as the pull grows.
 const PULL_FRAMES: int = 4
-## Timings from the game-feel skill.
+## Timings from the game-feel skill. FLIGHT_TIME is the flight to the frame's farthest corner or
+## nearer; a farther flight on a wide sky keeps that speed and takes longer (flight_time).
 const FLIGHT_TIME: float = 0.43
 const TREMBLE_TIME: float = 0.28
 const ARC_HEIGHT: int = 20
@@ -52,11 +55,16 @@ var _sequencer: EventSequencer
 var _loaded_kind: String = ""
 var _owned: Dictionary[String, int] = {}
 var _pulling: bool = false
+## Px of aim per pixel of pull on the sky this run launches in (gain_for its launch_rect: the phone
+## box on a box stage), set in setup.
+var _gain: int = AIM_GAIN
 ## The pull as the finger reports it. The aim uses it unrounded: finger positions are finer than
-## the 180x320 grid, and rounding first would snap the aim to AIM_GAIN px steps.
+## the game's pixel grid, and rounding first would snap the aim to whole gain steps.
 var _pull: Vector2 = Vector2.ZERO
 var _flight: Flight = Flight.NONE
 var _flight_time: float = 0.0
+## How long this flight takes (flight_time).
+var _flight_lasts: float = FLIGHT_TIME
 var _flight_to: Vector2i = Vector2i.ZERO
 var _burst_time: float = -1.0
 var _burst_at: Vector2i = Vector2i.ZERO
@@ -89,6 +97,7 @@ func _draw() -> void:
 
 func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_run = run
+	_gain = gain_for(origin(), run.launch_rect())
 	if _sequencer != sequencer:
 		if _sequencer != null:
 			_sequencer.event_played.disconnect(_on_event_played)
@@ -107,7 +116,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_show_rest_pack()
 
 
-## Where this node sits on the 180x320 grid.
+## Where this node sits, in game px.
 func origin() -> Vector2i:
 	return Vector2i(global_position.round())
 
@@ -121,9 +130,19 @@ func is_pulling() -> bool:
 	return _pulling
 
 
+## A touch on it is in progress (a pull): cancel_pull drops it.
+func has_press() -> bool:
+	return _pulling
+
+
+## Px of aim per pixel of pull on this run's sky.
+func aim_gain() -> int:
+	return _gain
+
+
 ## Where the pack would burst if released now (the same clamp the core applies).
 func burst_preview() -> Vector2i:
-	return StarScatter.clamp_to_sky(aim_target(origin(), _pull), _run.sky_rect)
+	return StarScatter.clamp_to_sky(aim_target(origin(), _pull, _gain), _run.launch_rect())
 
 
 ## Feeds one touch or drag (in this node's coordinates). Returns true if it was used.
@@ -163,9 +182,9 @@ func advance(delta: float) -> void:
 		_flying_pack.position = Vector2(flight_offset())
 		_flying_pack.grown = _flight == Flight.TREMBLING and _flight_time >= TREMBLE_TIME * 0.5
 		_flying_pack.bright = _flight == Flight.TREMBLING and _flight_time >= TREMBLE_TIME * 0.25
-		if _flight == Flight.FLYING and _flight_time >= FLIGHT_TIME:
+		if _flight == Flight.FLYING and _flight_time >= _flight_lasts:
 			_flight = Flight.TREMBLING
-			_flight_time -= FLIGHT_TIME
+			_flight_time -= _flight_lasts
 			tremble_started.emit()
 	if _split_time >= 0.0:
 		_split_time += delta
@@ -183,7 +202,7 @@ func advance(delta: float) -> void:
 func flight_offset() -> Vector2i:
 	if _flight == Flight.TREMBLING:
 		return _flight_to + Motion.shake(TREMBLE_SHAKE[int(_flight_time / TREMBLE_STEP) % TREMBLE_SHAKE.size()])
-	var k: float = clampf(_flight_time / FLIGHT_TIME, 0.0, 1.0)
+	var k: float = clampf(_flight_time / _flight_lasts, 0.0, 1.0)
 	var eased: float = 1.0 - (1.0 - k) * (1.0 - k)
 	var point: Vector2 = Vector2(_flight_from()).lerp(Vector2(_flight_to), eased)
 	return Vector2i(point.round()) + Vector2i(0, -roundi(sin(k * PI) * ARC_HEIGHT))
@@ -213,7 +232,7 @@ func burst_points() -> Array[Vector2i]:
 	var pack: Balance.PackDef = _run.balance.packs.get(shown_pack()) if _run != null else null
 	if pack == null or pack.bursts <= 1:
 		return [aim]
-	return StarScatter.split_points(aim, pack.burst_spread, pack.bursts, _run.sky_rect)
+	return StarScatter.split_points(aim, pack.burst_spread, pack.bursts, _run.launch_rect())
 
 
 ## Pull frame 0 (at rest) to PULL_FRAMES - 1 (full pull).
@@ -233,14 +252,26 @@ static func clamp_pull(finger: Vector2) -> Vector2:
 	return finger.limit_length(MAX_PULL)
 
 
-## The aim: opposite the pull, MIN_REACH px at the shortest launch and AIM_GAIN px more per
+## The aim: opposite the pull, MIN_REACH px at the shortest launch and `gain` px more per
 ## pixel pulled, on the grid. Not clamped into the sky; the core does that.
-static func aim_target(launcher: Vector2i, pull: Vector2) -> Vector2i:
+static func aim_target(launcher: Vector2i, pull: Vector2, gain: int = AIM_GAIN) -> Vector2i:
 	var length: float = pull.length()
 	if length < 0.001:
 		return launcher
-	var reach: float = MIN_REACH + (length - MIN_PULL) * AIM_GAIN
+	var reach: float = MIN_REACH + (length - MIN_PULL) * gain
 	return launcher - Vector2i((pull / length * reach).round())
+
+
+## The gain for a launcher at `launcher` on `sky`: the least whole gain (at least AIM_GAIN) whose
+## full pull, MIN_REACH + (MAX_PULL - MIN_PULL) * gain px, reaches the farthest inner sky corner.
+static func gain_for(launcher: Vector2i, sky: Rect2i) -> int:
+	var inner: Rect2i = StarScatter.inner_rect(sky)
+	var lo: Vector2i = inner.position
+	var hi: Vector2i = inner.end - Vector2i.ONE
+	var far: float = 0.0
+	for corner: Vector2i in [lo, Vector2i(hi.x, lo.y), Vector2i(lo.x, hi.y), hi]:
+		far = maxf(far, Vector2(corner - launcher).length())
+	return maxi(AIM_GAIN, ceili((far - MIN_REACH) / float(MAX_PULL - MIN_PULL)))
 
 
 func _start_pull(point: Vector2i) -> bool:
@@ -262,7 +293,7 @@ func _end_pull(release: bool) -> bool:
 	var pull: Vector2 = _pull
 	cancel_pull()
 	if release and pull.length() >= MIN_PULL:
-		_run.launch(aim_target(origin(), pull))
+		_run.launch(aim_target(origin(), pull, _gain))
 	else:
 		pull_cancelled.emit()
 	return true
@@ -300,10 +331,7 @@ func _launch_view(kind: String, burst: Vector2i) -> void:
 	_flying_pack.bright = false
 	_flying_pack.position = Vector2(_flight_from())
 	_flying_pack.visible = true
-	_flight = Flight.FLYING
-	_flight_time = 0.0
-	_flight_to = burst - origin()
-	_sequencer.hold(FLIGHT_TIME + TREMBLE_TIME)
+	_start_flight(burst)
 
 
 ## The hunting intro's demo launch (#71): a pack of `kind` flies to `burst` and trembles like a real
@@ -314,10 +342,31 @@ func _demo_launch_view(kind: String, burst: Vector2i) -> void:
 	_flying_pack.bright = false
 	_flying_pack.position = Vector2(_flight_from())
 	_flying_pack.visible = true
+	_start_flight(burst)
+
+
+## The flying pack sets off for `burst` (in the run's coordinates); the sequence waits for its
+## flight and tremble.
+func _start_flight(burst: Vector2i) -> void:
 	_flight = Flight.FLYING
 	_flight_time = 0.0
 	_flight_to = burst - origin()
-	_sequencer.hold(FLIGHT_TIME + TREMBLE_TIME)
+	var from: Vector2i = origin() + _flight_from()
+	_flight_lasts = flight_time(from, burst, _run.frame_rect) if _run != null else FLIGHT_TIME
+	_sequencer.hold(_flight_lasts + TREMBLE_TIME)
+
+
+## How long a flight from `from` to `burst` takes: FLIGHT_TIME, stretched by how much farther
+## `burst` is than the frame's farthest corner from `from` (docs/wide_sky_design.md §4). Every burst
+## on a portrait sky is in its frame, so it keeps FLIGHT_TIME; a flight past the frame on a wide
+## sky keeps the portrait's top speed.
+static func flight_time(from: Vector2i, burst: Vector2i, frame: Rect2i) -> float:
+	return FLIGHT_TIME * ScreenZones.stretch(Vector2(burst - from).length(), ScreenZones.farthest_corner(from, frame))
+
+
+## How long the flight in the air takes (flight_time), or FLIGHT_TIME when none has flown.
+func flight_lasts() -> float:
+	return _flight_lasts
 
 
 ## Where the flight starts, in this node's coordinates: the fork, where the pack rests.

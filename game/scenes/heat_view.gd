@@ -52,7 +52,8 @@ const FADE_FLAKES: int = 6
 const FADE_FALL := Vector2(12.0, 22.0)
 ## The lion's breath (Leo's final): a heatwave rolls out from the link at BREATH_SPEED px/s for
 ## BREATH_TIME, a dotted ember ring (C2 at its front, S4 a pixel behind, S3 behind that), and the
-## stars change as it reaches them. The embers rise BREATH_SURGE times faster meanwhile.
+## stars change as it reaches them. The embers rise BREATH_SURGE times faster meanwhile. On a sky
+## wider than the frame the ring rolls on for longer at the same speed (breath_time).
 const BREATH_SPEED: float = 360.0
 const BREATH_TIME: float = 0.55
 const BREATH_SURGE: float = 3.0
@@ -80,6 +81,8 @@ var _burns: Dictionary[Vector2i, float] = {}
 var _fades: Dictionary[Vector2i, float] = {}
 ## Heatwaves rolling out: from where, and the seconds since.
 var _breaths: Dictionary[Vector2i, float] = {}
+## How long each heatwave rolls (breath_time), by where it rolls out from.
+var _breath_lasts: Dictionary[Vector2i, float] = {}
 ## The heat (+1) or cold (-1) the motes show. Day and night turn in the core the moment a launch
 ## resolves; the view turns only once that launch has played out (its burst and resizes).
 var _shown_change: int = 0
@@ -96,6 +99,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_burns.clear()
 	_fades.clear()
 	_breaths.clear()
+	_breath_lasts.clear()
 	tracing = []
 	_shown_change = run.heat.change if run.heat != null else 0
 	set_process(run.heat != null)
@@ -112,11 +116,13 @@ func _process(delta: float) -> void:
 func advance(delta: float) -> void:
 	_time += delta * (BREATH_SURGE if not _breaths.is_empty() else 1.0)
 	for flashes: Dictionary[Vector2i, float] in [_burns, _fades, _breaths]:
-		var lasts: float = BREATH_TIME if flashes == _breaths else BURN_TIME
 		for at: Vector2i in flashes.keys():
 			flashes[at] += delta
+			var lasts: float = _breath_lasts.get(at, BREATH_TIME) if flashes == _breaths else BURN_TIME
 			if flashes[at] >= lasts:
 				flashes.erase(at)
+				if flashes == _breaths:
+					_breath_lasts.erase(at)
 	if _run != null and _run.heat != null and (_sequencer == null or not _sequencer.is_busy()):
 		_shown_change = _run.heat.change
 
@@ -137,7 +143,15 @@ func flash_burn(at: Vector2i) -> void:
 ## The lion breathed from a link at `at`: a heatwave rolls out from it.
 func flash_breath(at: Vector2i) -> void:
 	_breaths[at] = 0.0
+	_breath_lasts[at] = breath_time(at, _run.sky_rect, _run.frame_rect) if _run != null else BREATH_TIME
 	queue_redraw()
+
+
+## How long the heatwave from `at` rolls on `sky`: BREATH_TIME, stretched by how much farther the
+## sky's farthest corner is from `at` than the frame's (docs/wide_sky_design.md §4). A portrait sky
+## is its frame, so it keeps BREATH_TIME; a wide one keeps BREATH_SPEED and rolls on further.
+static func breath_time(at: Vector2i, sky: Rect2i, frame: Rect2i) -> float:
+	return BREATH_TIME * ScreenZones.stretch(ScreenZones.farthest_corner(at, sky), ScreenZones.farthest_corner(at, frame))
 
 
 func is_breathing() -> bool:
@@ -149,10 +163,11 @@ static func breath_delay(from: Vector2i, to: Vector2i) -> float:
 	return Vector2(from).distance_to(Vector2(to)) / BREATH_SPEED
 
 
-## The heatwave from `at`, `t` seconds out: a dotted ring three pixels deep, inside `area`.
-static func breath_pixels(at: Vector2i, t: float, area: Rect2i) -> Dictionary[Vector2i, Color]:
+## The heatwave from `at`, `t` seconds out: a dotted ring three pixels deep, inside `area`, gone
+## after `lasts` (breath_time).
+static func breath_pixels(at: Vector2i, t: float, area: Rect2i, lasts: float = BREATH_TIME) -> Dictionary[Vector2i, Color]:
 	var pixels: Dictionary[Vector2i, Color] = {}
-	if t < 0.0 or t >= BREATH_TIME:
+	if t < 0.0 or t >= lasts:
 		return pixels
 	var front: int = roundi(t * BREATH_SPEED)
 	for k: int in BREATH_RING.size():
@@ -194,7 +209,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	for at: Vector2i in _fades:
 		result.merge(fade_pixels(at, _fades[at]), true)
 	for at: Vector2i in _breaths:
-		result.merge(breath_pixels(at, _breaths[at], _run.sky_rect), true)
+		result.merge(breath_pixels(at, _breaths[at], _run.sky_rect, _breath_lasts.get(at, BREATH_TIME)), true)
 	var idle: bool = _sequencer == null or not _sequencer.is_busy()
 	if not tracing.is_empty() and idle:
 		result.merge(preview_pixels(_run, tracing), true)

@@ -336,7 +336,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 	clear_message()
 	_volley.visible = run.volley != null
 	if run.volley != null:
-		_volley.position = Vector2(run.sky_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
+		_volley.position = Vector2(run.frame_rect.position + OrionView.FIGURE_AT + VOLLEY_COUNTER_OFFSET)
 		_volley.reset(run.volley.links_left(), run.volley.interval)
 	_banner.position = Vector2(run.sky_rect.get_center())
 	_banner.hide_card()
@@ -344,7 +344,7 @@ func setup(run: RunState, sequencer: EventSequencer) -> void:
 		if run.harvest != null:
 			# Virgo's: harvest gold over the wheat's ripe gold, once the maiden is bound and the scythe
 			# has swept (#149).
-			var wait: float = ConstellationView.binding_time(run.scorpio.map) + HarvestView.SWEEP_TIME
+			var wait: float = ConstellationView.binding_time(run.scorpio.map) + HarvestView.sweep_time(run.sky_rect)
 			_banner.play_arrival(run.scorpio.map.title, run.scorpio.map.arrival_epithet, ARRIVAL_TIME, Palette.C1, Palette.C3, wait)
 		elif run.scorpio.map.heat_on_links:
 			# Leo's: summer gold over ember, once the lion has caught fire and roars.
@@ -698,6 +698,13 @@ func offer_map(on: bool) -> void:
 
 func is_map_offered() -> bool:
 	return _map_offered
+
+
+## While the game holds for its sky (Main), the pause and COMBOS buttons can't be tapped, so they
+## don't show; they come back when it lets go.
+func hold_for_sky(on: bool) -> void:
+	_pause_button.visible = not on
+	_table_button.visible = not on
 
 
 ## The pause button's tap target.
@@ -1147,9 +1154,9 @@ func _show_encounter(threat: int, step: int) -> void:
 ## on a volley stage (#149: on the Body it hid three of the five arrows and ran into the lit spine
 ## top), the nearest spot below that keeps ENCOUNTER_CLEAR px clear of both (and of the screen's
 ## edge): at each height it's tried centred, then slid a pixel at a time either way. Where no spot is
-## clear, the usual one.
+## clear, the usual one. All of it within the run's frame (the sky on a 9:16 sky), by Orion.
 func encounter_block(line: String) -> Rect2i:
-	var sky: Rect2i = _run.sky_rect
+	var sky: Rect2i = _run.frame_rect
 	var left: int = sky.position.x + ENCOUNTER_LINE_LEFT
 	var size: Vector2i = _guide.text_size(line)
 	var usual := Rect2i(Vector2i(left + (sky.end.x - left - size.x) / 2, sky.position.y + TutorialView.TOP), size)

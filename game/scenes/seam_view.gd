@@ -34,6 +34,8 @@ extends Node2D
 ## LOSS_TIME. While aiming,
 ## the splash's reach rings where it will splash (the aim; a split planet's twins) (an M4 dot every REACH_GAP px), each star it would push shows where it goes
 ## (M5 brackets, as a current's), and each it would push out trails ember dots out the way it goes.
+## A wide sky's splash stage plays in the phone box (docs/wide_sky_design.md §9): a star pushed past
+## it is lost, and nothing is drawn outside it.
 
 const LINE_COLOUR: Color = Palette.M4
 const EDGE_COLOUR: Color = Palette.M3
@@ -50,7 +52,8 @@ const SPLASH_RADII: Array[int] = [7, 5, 3]
 const SPLASH_COLOURS: Array[Color] = [Palette.N8, Palette.N7, Palette.N6]
 const RIPPLE_TIME: float = 0.3
 ## The wave: it rears up for WINDUP_TIME, crosses its side of the sky in SWEEP_TIME and crashes on
-## the edge for CRASH_TIME (only the first two are waited for).
+## the edge for CRASH_TIME (only the first two are waited for). SWEEP_TIME is the rush across the
+## frame; a side of a wide sky that runs further takes longer at the same speed (rush_seconds).
 const WINDUP_TIME: float = 0.18
 const SWEEP_TIME: float = 0.42
 const CRASH_TIME: float = 0.4
@@ -132,6 +135,8 @@ var _next_cue: Vector2i = Vector2i.ZERO
 ## The cued wave is the great one (both sides); the wave playing is.
 var _cue_great: bool = false
 var _sweep_great: bool = false
+## The wave playing's rush (rush_seconds), the longer side's for the great wave.
+var _sweep_rush: float = SWEEP_TIME
 ## Where the stars the wave playing takes stand, as it sets off.
 var _caught: Array[Vector2i] = []
 ## Stars lost to a splash cutting out: where each left the sky, and the seconds since.
@@ -168,6 +173,13 @@ func has_seam() -> bool:
 	return _run != null and _run.scorpio != null and _run.scorpio.map.seam != StarMap.Seam.NONE
 
 
+## Where the water runs: its seam, the wave's wall and the stars it carries keep to it. The sky, or on
+## a stage that plays in the phone box (a splash stage, docs/wide_sky_design.md §9) the box, whose
+## edge they meet as a phone's screen edge. The sky on any 180-wide sky.
+func water_rect() -> Rect2i:
+	return _run.launch_rect()
+
+
 ## A planet thrown at `thrown` went into the mirror (it bursts at `burst`, across the seam).
 func splash(thrown: Vector2i, _burst: Vector2i) -> void:
 	_splash_at = thrown
@@ -197,6 +209,7 @@ func sweep(way: Vector2i, next_way: Vector2i, caught: Array[Vector2i] = [], grea
 	_sweep_way = way
 	_sweep_great = great
 	_sweep_age = 0.0
+	_sweep_rush = sweep_wait() - WINDUP_TIME
 	_cue_way = Vector2i.ZERO
 	_next_cue = next_way
 	_caught = caught
@@ -208,9 +221,26 @@ func is_sweeping() -> bool:
 	return _sweep_age >= 0.0
 
 
-## How long the wave is waited for: its wind-up and its rush.
+## How long the wave is waited for on the portrait frame: its wind-up and its rush.
 static func sweep_hold() -> float:
 	return WINDUP_TIME + SWEEP_TIME
+
+
+## How long the wave playing is waited for on this run's sky: its wind-up and its rush, the longer
+## side's for the great wave. sweep_hold() on a portrait sky.
+func sweep_wait() -> float:
+	var rush: float = rush_seconds(_sweep_way)
+	if _sweep_great:
+		rush = maxf(rush, rush_seconds(-_sweep_way))
+	return WINDUP_TIME + rush
+
+
+## How long the wall rushing `way` takes from the line to the water's edge (water_rect): SWEEP_TIME,
+## stretched by how much further that edge is than the frame's (docs/wide_sky_design.md §4). A
+## portrait sky is its frame, and a splash stage's water is the phone box, its frame (§9), so both keep
+## SWEEP_TIME; a side of a wide sky that runs further keeps the same speed.
+func rush_seconds(way: Vector2i) -> float:
+	return SWEEP_TIME * ScreenZones.stretch(float(_sweep_span(way)), float(_span_in(way, _run.frame_rect)))
 
 
 ## The way the cued wave will rush (ZERO: none comes).
@@ -236,7 +266,7 @@ func sweep_delay(way: Vector2i, point: Vector2i) -> float:
 	var vertical: bool = way.x != 0
 	var across: int = point.x if vertical else point.y
 	var d: float = clampf(float(absi(across - line_of(way))) / maxf(1.0, float(_sweep_span(way))), 0.0, 1.0)
-	return WINDUP_TIME + rush_time(d) * SWEEP_TIME
+	return WINDUP_TIME + rush_time(d) * rush_seconds(way)
 
 
 ## Where the wall is `k` (0 to 1) of the way through its rush, as a share of the way to the edge:
@@ -251,10 +281,10 @@ static func rush_time(d: float) -> float:
 	return 1.0 - sqrt(1.0 - clampf(d, 0.0, 1.0))
 
 
-## Where a star the wave rushing `way` catches at `at` is carried to: the sky's edge that way, in
-## line with it.
+## Where a star the wave rushing `way` catches at `at` is carried to: the water's edge that way
+## (water_rect), in line with it.
 func carry_point(way: Vector2i, at: Vector2i) -> Vector2i:
-	var inner: Rect2i = StarScatter.inner_rect(_run.sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(water_rect())
 	if way.x != 0:
 		return Vector2i(inner.position.x if way.x < 0 else inner.end.x - 1, at.y)
 	return Vector2i(at.x, inner.position.y if way.y < 0 else inner.end.y - 1)
@@ -266,7 +296,7 @@ func line_of(way: Vector2i) -> int:
 	return _run.wave.middle.x if way.x != 0 else _run.wave.middle.y
 
 
-## A star the splash pushed out of the sky cuts out at `at`, the edge it left by.
+## A star the splash pushed out of the frame cuts out at `at`, where it left.
 func flash_loss(at: Vector2i) -> void:
 	_losses[at] = 0.0
 	queue_redraw()
@@ -282,9 +312,11 @@ func is_blocking() -> bool:
 	return _blocking_left > 0.0
 
 
-## Where a star pushed toward `to` (past the edge) leaves the sky: the sky's edge, a pixel out.
+## Where a star pushed toward `to` (past the frame's edge) leaves: `to` itself when it's still over
+## the water (water_rect), else the water's edge, a pixel out: the phone box's on a splash stage, as
+## at a phone's screen edge.
 func exit_point(to: Vector2i) -> Vector2i:
-	var inner: Rect2i = StarScatter.inner_rect(_run.sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(water_rect())
 	return Vector2i(clampi(to.x, inner.position.x - 1, inner.end.x), clampi(to.y, inner.position.y - 1, inner.end.y))
 
 
@@ -309,7 +341,7 @@ func advance(delta: float) -> void:
 		queue_redraw()
 	if _sweep_age >= 0.0:
 		_sweep_age += delta
-		if _sweep_age >= WINDUP_TIME + SWEEP_TIME + CRASH_TIME:
+		if _sweep_age >= WINDUP_TIME + _sweep_rush + CRASH_TIME:
 			_sweep_age = -1.0
 			_cue_way = _next_cue if _run.wave != null and _run.wave.strikes_next() and not _run.is_over() else Vector2i.ZERO
 			_cue_great = _cue_way != Vector2i.ZERO and _run.wave.great_next()
@@ -334,8 +366,8 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	if not has_seam():
 		return result
-	var middle: Vector2i = Scorpio.HOME_SKY.get_center() + _run.scorpio.shift
-	var seam: Dictionary[Vector2i, Color] = seam_pixels(_run.seam, middle, _run.sky_rect, _drift())
+	var middle: Vector2i = _run.seam_middle()
+	var seam: Dictionary[Vector2i, Color] = seam_pixels(_run.seam, middle, water_rect(), _drift())
 	if _blocking_left > 0.0:
 		for point: Vector2i in seam:
 			if seam[point] == LINE_COLOUR:
@@ -404,9 +436,9 @@ func _wave_pixels() -> Dictionary[Vector2i, Color]:
 	var result: Dictionary[Vector2i, Color] = {}
 	var wave: StarWave = _run.wave
 	if _sweep_age >= 0.0:
-		result.merge(sweep_pixels(_sweep_way.x + _sweep_way.y, line_of(_sweep_way), _sweep_way.x != 0, _run.sky_rect, _sweep_age), true)
+		result.merge(sweep_pixels(_sweep_way.x + _sweep_way.y, line_of(_sweep_way), _sweep_way.x != 0, water_rect(), _sweep_age, rush_seconds(_sweep_way)), true)
 		if _sweep_great:
-			result.merge(sweep_pixels(-(_sweep_way.x + _sweep_way.y), line_of(_sweep_way), _sweep_way.x != 0, _run.sky_rect, _sweep_age), true)
+			result.merge(sweep_pixels(-(_sweep_way.x + _sweep_way.y), line_of(_sweep_way), _sweep_way.x != 0, water_rect(), _sweep_age, rush_seconds(-_sweep_way)), true)
 		for at: Vector2i in _caught:
 			var reached: float = _sweep_age - sweep_delay(way_for(_sweep_way, at) if _sweep_great else _sweep_way, at)
 			if reached < 0.0:
@@ -417,9 +449,9 @@ func _wave_pixels() -> Dictionary[Vector2i, Color]:
 		return result
 	if _cue_way == Vector2i.ZERO:
 		return result
-	result.merge(wave_cue_pixels(_cue_way.x + _cue_way.y, line_of(_cue_way), _cue_way.x != 0, _run.sky_rect, _time), true)
+	result.merge(wave_cue_pixels(_cue_way.x + _cue_way.y, line_of(_cue_way), _cue_way.x != 0, water_rect(), _time), true)
 	if _cue_great:
-		result.merge(wave_cue_pixels(-(_cue_way.x + _cue_way.y), line_of(_cue_way), _cue_way.x != 0, _run.sky_rect, _time), true)
+		result.merge(wave_cue_pixels(-(_cue_way.x + _cue_way.y), line_of(_cue_way), _cue_way.x != 0, water_rect(), _time), true)
 	if settled and not aiming:
 		for id: int in _run.wave_risk():
 			var star: Star = _run.find_star(id)
@@ -456,13 +488,17 @@ static func wave_cue_pixels(side: int, line: int, vertical: bool, sky: Rect2i, t
 
 
 ## The wave on `side` of the line at `line` across `sky`, `age` seconds after it set off: rearing up
-## (WINDUP_TIME), rushing out to the edge (SWEEP_TIME), then crashing on it (CRASH_TIME).
-static func sweep_pixels(side: int, line: int, vertical: bool, sky: Rect2i, age: float) -> Dictionary[Vector2i, Color]:
+## (WINDUP_TIME), rushing out to the edge (`rush`: rush_seconds), then crashing on it (CRASH_TIME);
+## nothing once that's over (the great wave's shorter side, while the longer one still plays).
+static func sweep_pixels(side: int, line: int, vertical: bool, sky: Rect2i, age: float, rush: float = SWEEP_TIME) -> Dictionary[Vector2i, Color]:
 	if age < WINDUP_TIME:
 		return _windup_pixels(side, line, vertical, sky, age / WINDUP_TIME)
-	if age < WINDUP_TIME + SWEEP_TIME:
-		return _rush_pixels(side, line, vertical, sky, (age - WINDUP_TIME) / SWEEP_TIME, age)
-	return _crash_pixels(side, line, vertical, sky, (age - WINDUP_TIME - SWEEP_TIME) / CRASH_TIME)
+	if age < WINDUP_TIME + rush:
+		return _rush_pixels(side, line, vertical, sky, (age - WINDUP_TIME) / rush, age)
+	if age >= WINDUP_TIME + rush + CRASH_TIME:
+		var none: Dictionary[Vector2i, Color] = {}
+		return none
+	return _crash_pixels(side, line, vertical, sky, (age - WINDUP_TIME - rush) / CRASH_TIME)
 
 
 ## The sky's edge on `side`, across the line.
@@ -664,9 +700,13 @@ func _follow_wave() -> void:
 		queue_redraw()
 
 
-## From the line a wave rushing `way` rises off to the sky's edge that way, px.
+## From the line a wave rushing `way` rises off to the water's edge that way, px.
 func _sweep_span(way: Vector2i) -> int:
-	var sky: Rect2i = _run.sky_rect
+	return _span_in(way, water_rect())
+
+
+## From the line a wave rushing `way` rises off to the edge of `sky` that way, px.
+func _span_in(way: Vector2i, sky: Rect2i) -> int:
 	var line: int = line_of(way)
 	if way.x != 0:
 		return (line - sky.position.x) if way.x < 0 else (sky.end.x - 1 - line)

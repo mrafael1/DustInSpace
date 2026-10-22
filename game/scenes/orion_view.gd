@@ -63,7 +63,7 @@ const VOLLEY_STAGGER: float = 0.05
 const CHARGE_BLINK: float = 0.3
 ## The staged volley (#98): after DRAW_TIME each arrow flies straight up out of the sky (UP_TIME, to
 ## ABOVE px over its top), then drops into its place (SETTLE_TIME, pointing down), its tip OVERHEAD_Y
-## px under the sky's top at OVERHEAD_X (from its left edge), clear of his corner. At zero each falls
+## px under the sky's top at OVERHEAD_X (from the frame's left edge), clear of his corner. At zero each falls
 ## onto its star in RAIN_TIME.
 const OVERHEAD_X: Array[int] = [56, 83, 110, 137, 164]
 const OVERHEAD_Y: int = 12
@@ -81,7 +81,7 @@ const SETTLE_TIME: float = 0.15
 const RAIN_TIME: float = 0.3
 ## The hunting ring's dots: every RING_GAP-th pixel of its outline.
 const RING_GAP: int = 3
-## Where the figure sits: this far into the play sky from its top-left corner.
+## Where the figure sits: this far into the run's frame from its top-left corner.
 const FIGURE_AT := Vector2i(6, 6)
 ## The boss's entrance: a star lights every ENTER_STEP (ENTRANCE order), then he roars for ROAR_TIME
 ## (C0, shaking a pixel every SHAKE_STEP), then his health fills a pip every HEALTH_STEP; the
@@ -155,7 +155,8 @@ var _volley_age: float = -1.0
 var _overhead_age: float = -1.0
 ## Where each arrow hangs along the row (OVERHEAD_X, slid clear of the constellation).
 var _overhead_x: Array[int] = OVERHEAD_X.duplicate()
-var _sky: Rect2i = Rect2i()
+## The run's frame (RunState.frame_rect): his corner is its top-left, his arrows hang from its top.
+var _frame: Rect2i = Rect2i()
 ## The hunting area: its centre and radius (0: none), and how long since it was marked.
 var _area_centre: Vector2i = Vector2i.ZERO
 var _area_radius: int = 0
@@ -182,12 +183,13 @@ func _process(delta: float) -> void:
 	advance(delta)
 
 
-## Shows the figure for a run Orion hunts (in `sky`'s top-left), hides everything otherwise. The
+## Shows the figure for a run Orion hunts (in `frame`'s top-left: the run's frame, the sky itself on
+## a 9:16 sky, so on a wide one he stands by the constellation), hides everything otherwise. The
 ## arrows hang clear of `clear_of`: each constellation star as (x, y, its halo's radius).
-func setup(hunts: bool, sky: Rect2i, clear_of: Array[Vector3i] = []) -> void:
+func setup(hunts: bool, frame: Rect2i, clear_of: Array[Vector3i] = []) -> void:
 	_figure_shown = hunts
-	_figure_at = sky.position + FIGURE_AT
-	_sky = sky
+	_figure_at = frame.position + FIGURE_AT
+	_frame = frame
 	_place_overhead(clear_of)
 	_overhead_age = -1.0
 	_volley_from.clear()
@@ -479,7 +481,7 @@ func clear_overhead() -> void:
 func overhead_spots() -> Array[Vector2i]:
 	var spots: Array[Vector2i] = []
 	for x: int in _overhead_x:
-		spots.append(_sky.position + Vector2i(x, OVERHEAD_Y))
+		spots.append(_frame.position + Vector2i(x, OVERHEAD_Y))
 	return spots
 
 
@@ -502,7 +504,7 @@ func _place_overhead(clear_of: Array[Vector3i]) -> void:
 
 ## Whether an arrow hanging at `x` along the row keeps OVERHEAD_CLEAR off every one of `clear_of`.
 func _hangs_clear(x: int, clear_of: Array[Vector3i]) -> bool:
-	var tip: Vector2i = _sky.position + Vector2i(x, OVERHEAD_Y)
+	var tip: Vector2i = _frame.position + Vector2i(x, OVERHEAD_Y)
 	for c: Vector3i in clear_of:
 		var nearest := Vector2(tip.x, clampi(c.y, tip.y - SHAFT, tip.y))
 		if nearest.distance_to(Vector2(c.x, c.y)) - OVERHEAD_HALF_WIDTH - c.z < OVERHEAD_CLEAR:
@@ -524,11 +526,11 @@ func overhead_arrows() -> Array[Array]:
 		if age < 0.0:
 			continue
 		var bow: Vector2i = bow_hand()
-		var up := Vector2i(bow.x + 2 * i, _sky.position.y - ABOVE)
+		var up := Vector2i(bow.x + 2 * i, _frame.position.y - ABOVE)
 		if age < UP_TIME:
 			arrows.append(_arrow_line(bow, up, age / UP_TIME))
 		elif age < UP_TIME + SETTLE_TIME:
-			var from := Vector2i(spots[i].x, _sky.position.y - ABOVE)
+			var from := Vector2i(spots[i].x, _frame.position.y - ABOVE)
 			arrows.append(_arrow_line(from, spots[i], (age - UP_TIME) / SETTLE_TIME))
 		else:
 			var tip: Vector2i = spots[i] + Vector2i(shiver * (1 if i % 2 == 0 else -1), 0)
@@ -546,11 +548,11 @@ func volley_charge() -> int:
 func fire_volley(targets: Array[Vector2i]) -> Array[float]:
 	_volley_from.clear()
 	_volley_to.clear()
-	var top: int = _sky.position.y + OVERHEAD_Y
+	var top: int = _frame.position.y + OVERHEAD_Y
 	if targets.is_empty():
 		for spot: Vector2i in overhead_spots():
 			_volley_from.append(spot)
-			_volley_to.append(Vector2i(spot.x, _sky.end.y - 1))
+			_volley_to.append(Vector2i(spot.x, _frame.end.y - 1))
 	for target: Vector2i in targets:
 		_volley_from.append(Vector2i(target.x, mini(top, target.y - SHAFT)))
 		_volley_to.append(target)

@@ -33,7 +33,7 @@ Core responsibilities:
 
 ## 4. Presentation in `game/scenes/`, `game/fx/` and `game/ui/`
 - Scenes call core methods and react to its signals. They never decide rules.
-- Positions are integers on the 180×320 grid, and sprites keep their original size.
+- Positions are integers in game px (the 180×320 screen at 0,0; a taller sky reaches above 0 and a wide one left of 0 and past 180, so never assume a 180-wide sky: read the run's `sky_rect` or `frame_rect`), and sprites keep their original size.
 - Add the feedback using the `game-feel` skill, and make the art with the `pixel-art` skill.
 
 ## 5. Finish

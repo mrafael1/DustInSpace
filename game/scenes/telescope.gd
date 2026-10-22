@@ -88,7 +88,7 @@ const REFUSED_SHAKE: Array[int] = [1, -1, 1, -1, 0]
 const REFUSED_SHAKE_STEP: float = 0.04
 
 var _aiming: bool = false
-## The burst point being aimed at (clamped into the sky), on the 180x320 grid.
+## The burst point being aimed at (clamped into the run's sky), in game px.
 var _aim: Vector2i = Vector2i.ZERO
 var _has_aim: bool = false
 ## A touch that started on the telescope (a tap there aims or cancels), or in the sky while aiming.
@@ -166,6 +166,11 @@ func is_loading() -> bool:
 
 func is_aiming() -> bool:
 	return _aiming
+
+
+## A touch on it is in progress: the scope or the sky pressed (or a pull).
+func has_press() -> bool:
+	return super() or _scope_pressed or _sky_pressed
 
 
 ## A finger is out at the telescope: lifting it now lets the launch go.
@@ -274,9 +279,9 @@ func cancel_pull() -> void:
 	_pose()
 
 
-## Points at a spot on the 180x320 grid (clamped into the sky), as the finger or mouse moves.
+## Points at a spot in game px (clamped into the run's sky), as the finger or mouse moves.
 func aim_at(point: Vector2i) -> void:
-	_aim = StarScatter.clamp_to_sky(point, _run.sky_rect)
+	_aim = StarScatter.clamp_to_sky(point, _run.launch_rect())
 	_has_aim = true
 	_pose()
 
@@ -363,7 +368,7 @@ static func is_finger(event: InputEvent) -> bool:
 	return event.device != InputEvent.DEVICE_ID_EMULATION
 
 
-## Where a sky press at `point` (this node's coordinates) aims, on the 180x320 grid: right there for
+## Where a sky press at `point` (this node's coordinates) aims, in game px: right there for
 ## a mouse, TOUCH_LIFT px above it for a finger (then clamped into the sky by aim_at).
 func press_aim(point: Vector2i, finger: bool) -> Vector2i:
 	return origin() + point - Vector2i(0, TOUCH_LIFT if finger else 0)
@@ -372,7 +377,7 @@ func press_aim(point: Vector2i, finger: bool) -> Vector2i:
 ## True if a finger lifted at `point` (this node's coordinates) lets the launch go: on the telescope,
 ## or so far under the sky that even lifted it aims below it (the HUD's row, around the telescope).
 func lets_go(point: Vector2i) -> bool:
-	return on_scope(point) or press_aim(point, true).y >= _run.sky_rect.end.y
+	return on_scope(point) or press_aim(point, true).y >= _run.launch_rect().end.y
 
 
 ## The sky press moved to `point`: aim there, and with a finger, show whether lifting lets it go.
@@ -505,7 +510,7 @@ func _withdraw_message() -> void:
 func _sky_centre() -> Vector2i:
 	if _run == null:
 		return origin() + Vector2i(0, -100)
-	return StarScatter.clamp_to_sky(_run.sky_rect.get_center(), _run.sky_rect)
+	return StarScatter.clamp_to_sky(_run.launch_rect().get_center(), _run.launch_rect())
 
 
 ## The flight starts at the mouth.
@@ -647,14 +652,19 @@ func _draw_burst_preview() -> void:
 ## (S4) where the launch's own stars would be lost as they land (#149): every dot of a burst the
 ## harvest reaps (a red planet's first, on the harvest launch), the dots inside the band its flow
 ## drains this launch, and the dots close enough to a black hole to fall in on landing.
+## On a wide sky's phone box (docs/wide_sky_design.md §9) the dots past the box are left out: no star
+## lands past it. A phone's sky is its box, so its rings stay whole.
 func scatter_ring_pixels(points: Array[Vector2i]) -> Dictionary[Vector2i, Color]:
 	var dots: Dictionary[Vector2i, Color] = {}
 	var reaped: Array[bool] = _run.harvest_reaps_bursts(shown_pack()) if _run != null else [] as Array[bool]
+	var box: Rect2i = _run.launch_rect() if _run != null and _run.launch_rect() != _run.sky_rect else Rect2i()
 	for k: int in points.size():
 		var lost: bool = k < reaped.size() and reaped[k]
 		for i: int in RING_DOTS:
 			var angle: float = i * TAU / RING_DOTS
 			var p: Vector2i = points[k] + Vector2i((Vector2(cos(angle), sin(angle) * StarScatter.RING_SQUASH) * RING_RADIUS).round())
+			if box.has_area() and not box.has_point(p):
+				continue
 			dots[p] = Palette.S4 if lost or (_run != null and (_run.burst_drains_at(p) or _run.burst_swallowed_at(p))) else Palette.M5
 	return dots
 
