@@ -727,10 +727,13 @@ func burst_swallowed_at(point: Vector2i) -> bool:
 
 ## Pure: whether a star the next launch brings, landing at `point`, is carried out of its draining
 ## flow on that same launch (the new stars flow too; #149: the aim only showed the stars already out).
+## A ring dot past launch_rect reads where its star lands: the scatter keeps it inside, as at a
+## phone's sky edge (on a portrait sky, a dot above or below the sky lands in it).
 func burst_drains_at(point: Vector2i) -> bool:
 	if current == null or not current.drains or is_over():
 		return false
-	return current.leaves(point, StarScatter.clamp_to_sky(point + current.displacement, sky_rect))
+	var landing: Vector2i = StarScatter.clamp_to_sky(point, launch_rect())
+	return current.leaves(landing, StarScatter.clamp_to_sky(landing + current.displacement, sky_rect))
 
 
 ## Pure: for each burst of a `kind` pack in order (the red's twin burst: both), whether the next

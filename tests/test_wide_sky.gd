@@ -496,11 +496,27 @@ func test_on_a_drain_stage_a_star_outside_the_frame_drains_at_the_next_step() ->
 	assert_not_null(run.find_star(kept.id))
 
 
-func test_a_burst_outside_the_frame_shows_as_draining() -> void:
+func test_a_ring_dot_in_the_shade_reads_where_its_star_lands() -> void:
 	var run: RunState = _stage(StarMap.aquarius_body())
-	assert_true(run.burst_drains_at(Vector2i(-100, 150)), "the aim's ring marks it red")
-	assert_true(run.burst_drains_at(Vector2i(300, 150)))
-	assert_false(run.burst_drains_at(Vector2i(120, 150)), "inside the frame only the drain itself counts")
+	var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+	for dot: Vector2i in [Vector2i(-100, 150), Vector2i(300, 150), Vector2i(120, 40), Vector2i(120, 245)]:
+		assert_eq(run.burst_drains_at(dot), run.burst_drains_at(StarScatter.clamp_to_sky(dot, run.frame_rect)), "%s: read at the box's edge, where it lands" % dot)
+	assert_false(run.burst_drains_at(Vector2i(-100, 150)), "upstream of the Body's drain: the star lands by the box's side and stays")
+	assert_false(run.burst_drains_at(Vector2i(120, 150)), "inside the box only the drain itself counts")
+	assert_true(run.burst_drains_at(Vector2i(run.current.region.position.x + 2, 150)), "just inside the drain line")
+	var jar: RunState = _stage(StarMap.aquarius_jar())
+	var past := Vector2i(jar.frame_rect.end.x + 4, 150)
+	assert_eq(jar.burst_drains_at(past), jar.burst_drains_at(Vector2i(StarScatter.inner_rect(jar.frame_rect).end.x - 1, 150)), "past the Jar's side: read at the box's edge")
+	assert_true(inner.has_point(StarScatter.clamp_to_sky(Vector2i(-100, 150), run.launch_rect())))
+
+
+func test_on_the_portrait_sky_a_ring_dot_past_its_edge_reads_where_it_lands() -> void:
+	var run: RunState = _stage(StarMap.aquarius_body(), Fixtures.SKY)
+	var y: int = 150
+	var x: int = run.current.region.position.x + 30
+	assert_false(run.burst_drains_at(Vector2i(x, Fixtures.SKY.position.y - 6)), "above the sky the star lands in it, in the flow, and stays")
+	assert_false(run.burst_drains_at(Vector2i(x, Fixtures.SKY.end.y + 6)), "below the sky too")
+	assert_eq(run.burst_drains_at(Vector2i(x, Fixtures.SKY.position.y - 6)), run.burst_drains_at(Vector2i(x, y)))
 
 
 func test_a_stranded_star_leaves_outward() -> void:
