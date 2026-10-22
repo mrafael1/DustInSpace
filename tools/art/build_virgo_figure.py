@@ -1,15 +1,17 @@
-"""Builds the Virgo's final painting (the chapter's reward), in assets/art/:
+"""Builds the Virgo's paintings (chapter 4's rewards), in assets/art/:
 
   virgo_figure.png          the whole maiden, the final stage's reward (StarMap.virgo's painting)
   virgo_piece_<part>.png    the same painting cut into the chapter's five parts (head, wing, robe,
                             feet, wheat: game/core/chapter_def.gd), in the same full-screen home
                             layout: the chapter chart shows the won ones dormant, then the whole
                             figure once the final is won
+  virgo_part_<part>.png     each part stage's own painting, in the same clean-line style, drawn
+                            round each stage's stars (tools/art/virgo_part_paintings.py, run from
+                            here)
 
 The Virgo is drawn in the Scorpio's clean-line semi-hollow (tools/art/clean_line.py and
 stardust.py, see build_scorpio_figure.py): one unbroken line round each shape, Bayer-dithered
-stardust inside, thick along the edge and thin in the middle. The part stages' own paintings
-(virgo_part_<stage>.png) are not built here.
+stardust inside, thick along the edge and thin in the middle.
 
 The pieces partition the whole: each pixel goes with the part of the shape under it, else with the
 nearest tagged pixel; each star's own pixel goes with its part. The torso's hip (x < 127, round
@@ -85,6 +87,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clean_line as cl  # noqa: E402
 import stardust as sd  # noqa: E402
+import virgo_part_paintings  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ART = ROOT / "assets" / "art"
@@ -774,6 +777,7 @@ def main():
     if args.preview:
         sd.preview(img, L, SIZES, SEGMENTS).save(args.preview)
         print(f"wrote {args.preview}")
+    virgo_part_paintings.build_parts()
 
 
 if __name__ == "__main__":
