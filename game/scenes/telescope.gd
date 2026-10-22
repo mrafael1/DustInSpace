@@ -281,7 +281,7 @@ func cancel_pull() -> void:
 
 ## Points at a spot in game px (clamped into the run's sky), as the finger or mouse moves.
 func aim_at(point: Vector2i) -> void:
-	_aim = StarScatter.clamp_to_sky(point, _run.sky_rect)
+	_aim = StarScatter.clamp_to_sky(point, _run.launch_rect())
 	_has_aim = true
 	_pose()
 
@@ -377,7 +377,7 @@ func press_aim(point: Vector2i, finger: bool) -> Vector2i:
 ## True if a finger lifted at `point` (this node's coordinates) lets the launch go: on the telescope,
 ## or so far under the sky that even lifted it aims below it (the HUD's row, around the telescope).
 func lets_go(point: Vector2i) -> bool:
-	return on_scope(point) or press_aim(point, true).y >= _run.sky_rect.end.y
+	return on_scope(point) or press_aim(point, true).y >= _run.launch_rect().end.y
 
 
 ## The sky press moved to `point`: aim there, and with a finger, show whether lifting lets it go.
@@ -510,7 +510,7 @@ func _withdraw_message() -> void:
 func _sky_centre() -> Vector2i:
 	if _run == null:
 		return origin() + Vector2i(0, -100)
-	return StarScatter.clamp_to_sky(_run.sky_rect.get_center(), _run.sky_rect)
+	return StarScatter.clamp_to_sky(_run.launch_rect().get_center(), _run.launch_rect())
 
 
 ## The flight starts at the mouth.

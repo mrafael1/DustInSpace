@@ -152,3 +152,71 @@ func test_a_wide_ram_stage_shades_and_dots_the_frame_edge() -> void:
 	add_child_autofree(home_current)
 	home_current.setup(home, sequencer)
 	assert_true(home_current.pixels().is_empty(), "nothing on the 9:16 sky")
+
+
+# --- The aim keeps to the phone box (§9) --------------------------------------------------------
+
+const TelescopeScene := preload("res://game/scenes/telescope.tscn")
+
+
+func _scope(run: RunState) -> Telescope:
+	var scope: Telescope = TelescopeScene.instantiate()
+	scope.position = Vector2(90, 270)
+	add_child_autofree(scope)
+	scope.set_process(false)
+	scope.setup(run, sequencer)
+	return scope
+
+
+func test_the_aim_stops_at_the_phone_boxs_edge() -> void:
+	for map_id: String in ["heart", "aquarius_final", "pisces_knot", "aries_head"]:
+		var run: RunState = _run(map_id)
+		var scope: Telescope = _scope(run)
+		var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+		assert_true(inner.has_point(scope.burst_preview()), "%s: the aim starts in the box" % map_id)
+		for point: Vector2i in [Vector2i(-200, 150), Vector2i(400, 150), Vector2i(90, 40), Vector2i(90, 240), Vector2i(-230, 38)]:
+			scope.aim_at(point)
+			assert_eq(scope.burst_preview(), StarScatter.clamp_to_sky(point, run.frame_rect), "%s: %s stops at the box" % [map_id, point])
+			assert_true(inner.has_point(scope.burst_preview()))
+	var tail: RunState = _run("tail")
+	var tail_scope: Telescope = _scope(tail)
+	tail_scope.aim_at(Vector2i(-200, 45))
+	assert_eq(tail_scope.burst_preview(), StarScatter.clamp_to_sky(Vector2i(-200, 45), Fixtures.WIDE_SKY), "no edge stake: the whole wide sky")
+
+
+func test_the_red_split_preview_splits_in_the_box() -> void:
+	var run: RunState = _run("aquarius_final")
+	run.owned_packs["red"] = 1
+	assert_true(run.load_pack("red"))
+	var scope: Telescope = _scope(run)
+	var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+	scope.aim_at(Vector2i(-50, 60))
+	var points: Array[Vector2i] = scope.burst_points()
+	assert_eq(points.size(), 2)
+	assert_eq(points, run.splash_points("red", scope.burst_preview()), "the preview is where the core splits")
+	for at: Vector2i in points:
+		assert_true(inner.has_point(at), "twin preview %s in the box" % at)
+
+
+func test_a_finger_lifted_below_the_box_lets_the_launch_go() -> void:
+	var box_run: RunState = _run("heart")
+	var scope: Telescope = _scope(box_run)
+	var strip_aim := Vector2i(165, box_run.frame_rect.end.y + 4)
+	var point: Vector2i = strip_aim - scope.origin() + Vector2i(0, Telescope.TOUCH_LIFT)
+	assert_true(Fixtures.WIDE_SKY.has_point(strip_aim), "still over the sky")
+	assert_false(scope.on_scope(point), "away from the telescope")
+	assert_true(scope.lets_go(point), "below the box, as below a phone's sky")
+	var tail: RunState = _run("tail")
+	assert_false(_scope(tail).lets_go(point), "no edge stake: the sky's own bottom")
+
+
+func test_the_flight_decoys_land_in_the_box() -> void:
+	var run: RunState = _run("aries_head")
+	var view: SkyView = _sky_view(run)
+	view.set("_launched_kind", "red")
+	var box: Rect2i = run.frame_rect
+	for burst: Vector2i in [StarScatter.clamp_to_sky(Vector2i(0, 58), box), StarScatter.clamp_to_sky(Vector2i(179, 229), box)]:
+		var decoys: Array[Star] = view.call("_decoys", burst)
+		assert_false(decoys.is_empty())
+		for decoy: Star in decoys:
+			assert_true(box.has_point(decoy.position), "decoy %s in the box" % decoy.position)

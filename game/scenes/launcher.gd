@@ -141,7 +141,7 @@ func aim_gain() -> int:
 
 ## Where the pack would burst if released now (the same clamp the core applies).
 func burst_preview() -> Vector2i:
-	return StarScatter.clamp_to_sky(aim_target(origin(), _pull, _gain), _run.sky_rect)
+	return StarScatter.clamp_to_sky(aim_target(origin(), _pull, _gain), _run.launch_rect())
 
 
 ## Feeds one touch or drag (in this node's coordinates). Returns true if it was used.
@@ -231,7 +231,7 @@ func burst_points() -> Array[Vector2i]:
 	var pack: Balance.PackDef = _run.balance.packs.get(shown_pack()) if _run != null else null
 	if pack == null or pack.bursts <= 1:
 		return [aim]
-	return StarScatter.split_points(aim, pack.burst_spread, pack.bursts, _run.sky_rect)
+	return StarScatter.split_points(aim, pack.burst_spread, pack.bursts, _run.launch_rect())
 
 
 ## Pull frame 0 (at rest) to PULL_FRAMES - 1 (full pull).

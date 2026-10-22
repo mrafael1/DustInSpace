@@ -834,7 +834,7 @@ func _decoys(burst: Vector2i) -> Array[Star]:
 		return [] as Array[Star]
 	var count: int = pack.stars * pack.bursts
 	var weights: Array[int] = pack.weights
-	var places: Array[Vector2i] = StarScatter.place(count, burst, _run.sky_rect, [] as Array[Vector2i], _decoy_rng)
+	var places: Array[Vector2i] = StarScatter.place(count, burst, _run.launch_rect(), [] as Array[Vector2i], _decoy_rng)
 	var decoys: Array[Star] = []
 	for i: int in count:
 		decoys.append(Star.new(-1 - i, PackOpener.draw_size(weights, _decoy_rng) as Star.Size, places[i]))
