@@ -111,6 +111,148 @@ func test_the_hunt_never_circles_a_star_above_or_below_the_box() -> void:
 		assert_false(run.hunt.contains(below.position), "seed %d: never prey below the box" % seed_value)
 
 
+# --- Launches burst, split and scatter in the phone box -----------------------------------------
+
+## One stage per box mechanic: hunt, drain, splash (with the seam's reflection), ram.
+const BOX_MECHANIC_MAPS: Array[String] = ["heart", "aquarius_final", "pisces_knot", "aries_head"]
+## A trace entry that is a flag, not a position (never shifted).
+const TRACE_FLAG := -99999
+
+
+func _load_any(run: RunState) -> bool:
+	if run.loaded_pack == "":
+		for kind: String in run.owned_packs:
+			if run.load_pack(kind):
+				break
+	return run.loaded_pack != ""
+
+
+func test_box_stages_launch_in_the_box_and_others_in_the_sky() -> void:
+	for map_id: String in BOX_MAPS:
+		var run: RunState = _stage(StarMap.by_id(map_id))
+		assert_eq(run.launch_rect(), run.frame_rect, map_id)
+	for map_id: String in ["tail", "aquarius_hand", "pisces_circlet", "leo_mane"]:
+		assert_eq(_stage(StarMap.by_id(map_id)).launch_rect(), Fixtures.WIDE_SKY, "%s: the whole wide sky, as before" % map_id)
+	for sky: Rect2i in [Fixtures.SKY, ScreenZones.play_sky(102)]:
+		for map_id: String in ["heart", "aquarius_body", "pisces_knot", "aries_horns", "tail"]:
+			assert_eq(_stage(StarMap.by_id(map_id), sky).launch_rect(), sky, "%s on a phone: the sky" % map_id)
+
+
+func test_throws_into_the_shade_burst_and_scatter_in_the_box() -> void:
+	# Into the side sky, the top and bottom strips, the corners, and on the box's own edge.
+	var aims: Array[Vector2i] = [Vector2i(-200, 150), Vector2i(380, 150), Vector2i(90, 40), Vector2i(90, 249),
+		Vector2i(-230, 38), Vector2i(409, 249), Vector2i(0, 58), Vector2i(179, 229)]
+	var box: Rect2i = RunState.phone_box(Fixtures.WIDE_SKY)
+	var inner: Rect2i = StarScatter.inner_rect(box)
+	for map_id: String in BOX_MECHANIC_MAPS:
+		for seed_value: int in range(1, 11):
+			var run: RunState = _stage(StarMap.by_id(map_id), Fixtures.WIDE_SKY, seed_value)
+			var born: Array[Vector2i] = []
+			var twins: Array[Vector2i] = []
+			run.pack_burst.connect(func(_kind: String, _at: Vector2i, placed: Array[Star]) -> void:
+				for star: Star in placed:
+					born.append(star.position))
+			run.pack_split.connect(func(_kind: String, _at: Vector2i, points: Array[Vector2i]) -> void: twins.append_array(points))
+			for i: int in aims.size():
+				if run.is_over():
+					break
+				if i % 3 == 0 and run.loaded_pack == "":
+					run.owned_packs["red"] = run.owned_packs.get("red", 0) + 1
+					run.load_pack("red")
+				if not _load_any(run):
+					break
+				assert_true(inner.has_point(run.burst_centre(aims[i])), "%s: %s bursts in the box" % [map_id, aims[i]])
+				run.launch(aims[i])
+			assert_false(born.is_empty(), map_id)
+			assert_false(twins.is_empty(), "%s: a red was thrown" % map_id)
+			for at: Vector2i in born:
+				assert_true(box.has_point(at), "%s seed %d: star at %s in the box" % [map_id, seed_value, at])
+			for at: Vector2i in twins:
+				assert_true(inner.has_point(at), "%s seed %d: twin at %s in the box" % [map_id, seed_value, at])
+
+
+func test_a_red_by_the_boxs_corner_splits_inside_it_as_by_a_phones() -> void:
+	var run: RunState = _stage(StarMap.aquarius_final())
+	var box: Rect2i = run.frame_rect
+	var shift: Vector2i = Scorpio.shift_in(Fixtures.WIDE_SKY)
+	var phone: RunState = _stage(StarMap.aquarius_final(), Fixtures.SKY)
+	for corner: Vector2i in [box.position, box.end - Vector2i.ONE, Vector2i(box.position.x, box.end.y - 1), Vector2i(box.end.x - 1, box.position.y)]:
+		var points: Array[Vector2i] = run.splash_points("red", corner)
+		var home: Array[Vector2i] = phone.splash_points("red", corner - shift)
+		assert_eq(points.size(), 2)
+		for i: int in points.size():
+			assert_true(StarScatter.inner_rect(box).has_point(points[i]), "%s: twin %s in the box" % [corner, points[i]])
+			assert_eq(points[i] - shift, home[i], "%s: as on the phone, moved by the shift" % corner)
+
+
+func test_the_circlets_red_still_splits_across_the_frames_side() -> void:
+	var red: Balance.PackDef = Balance.load_file().packs["red"]
+	var circlet: RunState = _stage(StarMap.pisces_circlet())
+	var aim := Vector2i(10, 120)
+	var expected: Array[Vector2i] = StarScatter.split_points(circlet.burst_centre(aim), red.burst_spread, red.bursts, Fixtures.WIDE_SKY)
+	assert_eq(circlet.splash_points("red", aim), expected, "no splash: split in the whole sky, as before")
+	assert_true(expected.any(func(p: Vector2i) -> bool: return not circlet.frame_rect.has_point(p)), "a twin across the frame's side")
+
+
+func test_a_wide_box_run_plays_as_the_9x16_run_moved_by_the_shift() -> void:
+	var shift: Vector2i = Scorpio.shift_in(Fixtures.WIDE_SKY)
+	for map_id: String in ["heart", "final", "aquarius_body", "aquarius_final", "pisces_north_fish", "pisces_final", "aries_head"]:
+		for seed_value: int in range(1, 6):
+			var home: Array[Vector2i] = _box_trace(map_id, Fixtures.SKY, seed_value)
+			var wide: Array[Vector2i] = _box_trace(map_id, Fixtures.WIDE_SKY, seed_value)
+			assert_gt(home.size(), 10, "%s seed %d: the trace saw the run" % [map_id, seed_value])
+			assert_eq(wide.size(), home.size(), "%s seed %d" % [map_id, seed_value])
+			for i: int in mini(wide.size(), home.size()):
+				if home[i].y == TRACE_FLAG:
+					assert_eq(wide[i], home[i], "%s seed %d: event %d" % [map_id, seed_value, i])
+				else:
+					assert_eq(wide[i] - shift, home[i], "%s seed %d: event %d" % [map_id, seed_value, i])
+
+
+## Every positional event of a few launches (some aimed out past the 9:16 edge), in order: circles,
+## splits, bursts, flows, splashes and charges; each move's start, whether it is lost (a flag entry),
+## and its end unless it is lost.
+func _box_trace(map_id: String, sky: Rect2i, seed_value: int) -> Array[Vector2i]:
+	var run := _stage(StarMap.by_id(map_id), sky, seed_value)
+	var shift: Vector2i = Scorpio.shift_in(sky)
+	var trace: Array[Vector2i] = []
+	var record_moves: Callable = func(moves: Array[StarCurrent.Move]) -> void:
+		for move: StarCurrent.Move in moves:
+			trace.append(move.from)
+			trace.append(Vector2i(1 if move.drained else 0, TRACE_FLAG))
+			if not move.drained:
+				trace.append(move.to)
+	run.area_marked.connect(func(at: Vector2i, _radius: int) -> void: trace.append(at))
+	run.pack_split.connect(func(_kind: String, _at: Vector2i, points: Array[Vector2i]) -> void: trace.append_array(points))
+	run.pack_burst.connect(func(_kind: String, _at: Vector2i, placed: Array[Star]) -> void:
+		for star: Star in placed:
+			trace.append(star.position))
+	run.stars_shifted.connect(record_moves)
+	run.stars_splashed.connect(func(at: Vector2i, moves: Array[StarCurrent.Move]) -> void:
+		trace.append(at)
+		record_moves.call(moves))
+	run.ram_charged.connect(func(_row: int, moves: Array[StarCurrent.Move], _way: Vector2i) -> void: record_moves.call(moves))
+	# Home-layout aims moved by the sky's shift: some into the figure, some past the 9:16 edge.
+	var aims: Array[Vector2i] = [Vector2i(90, 140), Vector2i(-40, 100), Vector2i(220, 200), Vector2i(60, 60), Vector2i(130, 300)]
+	for i: int in 10:
+		if run.is_over():
+			break
+		var links: Array[Array] = run.valid_links()
+		if not links.is_empty() and i % 2 == 1:
+			var ids: Array[int] = []
+			ids.assign(links[0])
+			run.link(ids)
+			continue
+		if not _load_any(run):
+			break
+		var index: int = run.rekindle_target()
+		var aim: Vector2i = aims[i % aims.size()] + shift
+		if i % 4 == 0 and index >= 0:
+			aim = run.scorpio.landmark_position(index)
+		run.launch(aim)
+	return trace
+
+
 # --- _stage_area: current regions stretch sideways ---------------------------------------------
 
 func test_a_full_width_region_reaches_the_wide_skys_right_edge() -> void:

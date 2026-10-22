@@ -812,7 +812,7 @@ func launch(target: Vector2i) -> bool:
 	if is_over() or loaded_pack == "" or owned_packs.get(loaded_pack, 0) <= 0:
 		return false
 	var kind: String = loaded_pack
-	var thrown: Vector2i = StarScatter.clamp_to_sky(target, sky_rect)
+	var thrown: Vector2i = StarScatter.clamp_to_sky(target, launch_rect())
 	# Pisces's reflection: the planet bursts across the seam from where it's thrown.
 	var burst: Vector2i = burst_centre(target)
 	if tutorial != null and not tutorial.allows_launch(burst, _tutorial_landmark_at()):
@@ -843,7 +843,7 @@ func launch(target: Vector2i) -> bool:
 	var harvests: bool = harvest != null and not result.big_bang
 	var points: Array[Vector2i] = []
 	if pack.bursts > 1:
-		points = StarScatter.split_points(burst, pack.burst_spread, pack.bursts, sky_rect)
+		points = StarScatter.split_points(burst, pack.burst_spread, pack.bursts, launch_rect())
 		# A Big Bang splits too, so it opens like any red pack and keeps its surprise.
 		pack_split.emit(kind, burst, points)
 	# Pisces's splash, before any star lands: a planet splashes where it sinks; a split one, where each
@@ -1000,7 +1000,7 @@ func open_launch_spot(top: int) -> Vector2i:
 			var spot := Vector2i(x, y)
 			var points: Array[Vector2i] = [spot]
 			if pack.bursts > 1:
-				points = StarScatter.split_points(spot, pack.burst_spread, pack.bursts, sky_rect)
+				points = StarScatter.split_points(spot, pack.burst_spread, pack.bursts, launch_rect())
 			if not points.all(func(p: Vector2i) -> bool: return area.has_point(p)):
 				continue
 			var clear: int = _clearance(points, taken)
@@ -1035,9 +1035,9 @@ func is_safe_launch(aim: Vector2i) -> bool:
 		kinds = [loaded_pack]
 	for kind: String in kinds:
 		var pack: Balance.PackDef = balance.packs[kind]
-		var points: Array[Vector2i] = [StarScatter.clamp_to_sky(aim, sky_rect)]
+		var points: Array[Vector2i] = [StarScatter.clamp_to_sky(aim, launch_rect())]
 		if pack.bursts > 1:
-			points = StarScatter.split_points(aim, pack.burst_spread, pack.bursts, sky_rect)
+			points = StarScatter.split_points(aim, pack.burst_spread, pack.bursts, launch_rect())
 		var clear: int = hunt.radius + StarScatter.RING_MAX + ENCOUNTER_CLEARANCE
 		for point: Vector2i in points:
 			if (point - hunt.centre).length_squared() <= clear * clear:
@@ -1304,7 +1304,7 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 	var landmarks: Array[Vector2i] = []
 	if scorpio != null:
 		landmarks = scorpio.landmark_positions()
-	var positions: Array[Vector2i] = StarScatter.place(sizes.size(), burst, sky_rect, occupied, _layout_rng, landmarks)
+	var positions: Array[Vector2i] = StarScatter.place(sizes.size(), burst, launch_rect(), occupied, _layout_rng, landmarks)
 	var born: Array[Star] = []
 	for i: int in sizes.size():
 		var star: Star = add_star(sizes[i] as Star.Size, positions[i])
@@ -1646,13 +1646,13 @@ func _tie_cord(linked: Array[Star]) -> void:
 	cord_tied.emit(points)
 
 
-## Where a planet thrown at `aim` bursts: the aim kept in the sky, or (Pisces's seam) its reflection
-## across the seam, kept in the sky. Pure.
+## Where a planet thrown at `aim` bursts: the aim kept in the sky (launch_rect: the phone box on a
+## stage that plays in it), or (Pisces's seam) its reflection across the seam, kept there too. Pure.
 func burst_centre(aim: Vector2i) -> Vector2i:
-	var thrown: Vector2i = StarScatter.clamp_to_sky(aim, sky_rect)
+	var thrown: Vector2i = StarScatter.clamp_to_sky(aim, launch_rect())
 	if scorpio == null or seam == StarMap.Seam.NONE:
 		return thrown
-	return StarScatter.clamp_to_sky(reflect(thrown), sky_rect)
+	return StarScatter.clamp_to_sky(reflect(thrown), launch_rect())
 
 
 ## Pisces's seam: where `point` falls across it (the sky's middle, where the map is drawn).
@@ -1681,7 +1681,7 @@ func play_reflect_intro() -> void:
 		_wave_intro()
 		return
 	var burst: Vector2i = open_launch_spot(sky_rect.position.y)
-	var thrown: Vector2i = StarScatter.clamp_to_sky(reflect(burst), sky_rect)
+	var thrown: Vector2i = StarScatter.clamp_to_sky(reflect(burst), launch_rect())
 	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
 	var layout := RandomNumberGenerator.new()
 	layout.seed = run_seed ^ REFLECT_INTRO_SEED_SALT ^ LAYOUT_SEED_SALT
@@ -1791,13 +1791,13 @@ func _splash_intro_offsets() -> Array[Vector2i]:
 	return turned
 
 
-## Pure: where a `kind` planet thrown at `aim` splashes: where it sinks (the aim, kept in the sky),
+## Pure: where a `kind` planet thrown at `aim` splashes: where it sinks (the aim, kept in launch_rect),
 ## or for a split planet each point its twins burst at (in order), never where it was thrown.
 func splash_points(kind: String, aim: Vector2i) -> Array[Vector2i]:
 	var pack: Balance.PackDef = balance.packs.get(kind)
 	if pack != null and pack.bursts > 1:
-		return StarScatter.split_points(burst_centre(aim), pack.burst_spread, pack.bursts, sky_rect)
-	return [StarScatter.clamp_to_sky(aim, sky_rect)]
+		return StarScatter.split_points(burst_centre(aim), pack.burst_spread, pack.bursts, launch_rect())
+	return [StarScatter.clamp_to_sky(aim, launch_rect())]
 
 
 ## Pure: where each loose star the splashes of the loaded planet thrown at `aim` move it (stars they
@@ -1905,7 +1905,7 @@ func _wave_intro() -> void:
 		shown.append(Star.new(star.id, star.size, star.position))
 	splash_intro_placed.emit(shown)
 	var thrown: Vector2i = layout[0]
-	var burst: Vector2i = StarScatter.clamp_to_sky(reflect(thrown), sky_rect)
+	var burst: Vector2i = StarScatter.clamp_to_sky(reflect(thrown), launch_rect())
 	var kind: String = loaded_pack if loaded_pack != "" else balance.pack_kinds()[0]
 	hunt_intro_launched.emit(kind, thrown)
 	planet_reflected.emit(thrown, burst)
@@ -1915,7 +1915,7 @@ func _wave_intro() -> void:
 	var occupied: Array[Vector2i] = []
 	for star: Star in stars:
 		occupied.append(star.position)
-	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, sky_rect, occupied, spread, scorpio.landmark_positions())
+	var spots: Array[Vector2i] = StarScatter.place(HEAT_INTRO_SIZES.size(), burst, launch_rect(), occupied, spread, scorpio.landmark_positions())
 	var born: Array[Star] = []
 	for i: int in spots.size():
 		born.append(add_star(HEAT_INTRO_SIZES[i], spots[i]))
@@ -2822,6 +2822,13 @@ static func phone_box(sky: Rect2i) -> Rect2i:
 ## hunt, a draining current, Pisces's splash, Aries's ram). Its frame is then the box.
 func plays_in_box() -> bool:
 	return hunt != null or (current != null and current.drains) or splash != null or ram != null
+
+
+## Where a launch bursts, a red pack's twins split and the stars scatter: the sky, or on a stage that
+## plays in the phone box the box, whose edge keeps them in as a phone's screen edge does (a throw
+## aimed into the shade bursts at its edge). The box is the sky on any 180-wide sky.
+func launch_rect() -> Rect2i:
+	return frame_rect if plays_in_box() else sky_rect
 
 
 ## The star Orion has marked, or null.
