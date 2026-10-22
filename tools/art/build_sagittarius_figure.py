@@ -5,8 +5,9 @@
                                  body, legs, head; game/core/chapter_def.gd), in the same
                                  full-screen home layout: the chapter chart shows the won ones
                                  dormant, then the whole figure once the final is won
-
-The part stages' own paintings (sagittarius_part_<stage>.png) are not built here.
+  sagittarius_part_<stage>.png   each part stage's own painting, in the same clean-line style, the
+                                 final's archer re-posed to each stage's stars
+                                 (tools/art/sagittarius_part_paintings.py, run from here)
 
 Clean-line semi-hollow like Scorpio (tools/art/clean_line.py, tools/art/stardust.py). Pose (Urania's
 Mirror plate 24): the centaur faces right (west), torso three-quarters to the viewer and leaning back
@@ -36,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clean_line  # noqa: E402
 from clean_line import Axis, catmull, path_of, placed  # noqa: E402
 import stardust as sd  # noqa: E402
+import sagittarius_part_paintings  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ART = ROOT / "assets" / "art"
@@ -379,6 +381,7 @@ def main():
     if args.preview:
         sd.preview(img, L, SIZES, SEGMENTS).save(args.preview)
         print(f"wrote {args.preview}")
+    sagittarius_part_paintings.build_parts()
 
 
 if __name__ == "__main__":
