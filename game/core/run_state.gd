@@ -680,7 +680,7 @@ func heat_preview() -> Array[StarHeat.Change]:
 func current_preview() -> Dictionary[int, Vector2i]:
 	if current == null:
 		return {}
-	return current.preview(stars, sky_rect, scorpio.landmark_positions())
+	return current.preview(stars, launch_rect(), scorpio.landmark_positions())
 
 
 ## Pure: the stars in the sky now that the next launch's current drains, wherever it's aimed (their
@@ -733,7 +733,7 @@ func burst_drains_at(point: Vector2i) -> bool:
 	if current == null or not current.drains or is_over():
 		return false
 	var landing: Vector2i = StarScatter.clamp_to_sky(point, launch_rect())
-	return current.leaves(landing, StarScatter.clamp_to_sky(landing + current.displacement, sky_rect))
+	return current.leaves(landing, StarScatter.clamp_to_sky(landing + current.displacement, launch_rect()))
 
 
 ## Pure: for each burst of a `kind` pack in order (the red's twin burst: both), whether the next
@@ -1317,7 +1317,7 @@ func _burst(kind: String, burst: Vector2i, sizes: Array[int]) -> void:
 
 
 func _shift_stars() -> void:
-	var destinations: Dictionary[int, Vector2i] = current.preview(stars, sky_rect, scorpio.landmark_positions(), _current_reserved)
+	var destinations: Dictionary[int, Vector2i] = current.preview(stars, launch_rect(), scorpio.landmark_positions(), _current_reserved)
 	var shifted: Array[StarCurrent.Move] = current.moves(stars, destinations)
 	for star: Star in stars:
 		star.position = destinations[star.id]
@@ -2430,7 +2430,7 @@ func play_current_intro() -> void:
 		if stars.is_empty():
 			break
 		current_intro_flowed.emit(flow.displacement)
-		var destinations: Dictionary[int, Vector2i] = flow.preview(stars, sky_rect, scorpio.landmark_positions())
+		var destinations: Dictionary[int, Vector2i] = flow.preview(stars, launch_rect(), scorpio.landmark_positions())
 		var moves: Array[StarCurrent.Move] = flow.moves(stars, destinations)
 		for star: Star in stars:
 			star.position = destinations[star.id]

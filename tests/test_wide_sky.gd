@@ -790,3 +790,23 @@ func test_on_the_portrait_sky_the_cord_ends_stay() -> void:
 		var segments: Array[Array] = run.cords.fixed_segments()
 		assert_eq(segments[0][0], expected[0])
 		assert_eq(segments[-1][1], expected[-1], "%s" % sky)
+
+
+func test_a_draining_flow_keeps_its_stars_to_the_box_as_to_a_phones_sky() -> void:
+	# Crowded stars by the top and bottom rows: the flow's sidesteps stay in the box, as in the
+	# phone's sky, rather than slipping into the shade and draining there.
+	var shift: Vector2i = Scorpio.shift_in(Fixtures.WIDE_SKY)
+	for map_id: String in ["aquarius_body", "aquarius_legs", "aquarius_jar", "aquarius_final"]:
+		var wide: RunState = _stage(StarMap.by_id(map_id))
+		var phone: RunState = _stage(StarMap.by_id(map_id), Fixtures.SKY)
+		var inner: Rect2i = StarScatter.inner_rect(Fixtures.SKY)
+		for x: int in range(inner.position.x, inner.end.x, 9):
+			for y: int in [inner.position.y, inner.position.y + 3, inner.end.y - 1, inner.end.y - 4]:
+				phone.add_star(Star.Size.SMALL, Vector2i(x, y))
+				wide.add_star(Star.Size.SMALL, Vector2i(x, y) + shift)
+		var home: Dictionary[int, Vector2i] = phone.current_preview()
+		var moved: Dictionary[int, Vector2i] = wide.current_preview()
+		assert_eq(moved.size(), home.size(), map_id)
+		for id: int in home:
+			assert_eq(moved[id] - shift, home[id], "%s: star %d" % [map_id, id])
+		assert_eq(wide.launch_drains(), phone.launch_drains(), map_id)
