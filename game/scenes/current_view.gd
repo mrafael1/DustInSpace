@@ -164,7 +164,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 			for point: Vector2i in frame_side_pixels(_run.frame_rect, _run.sky_rect):
 				result[point] = Palette.S3
 		return result
-	var area: Rect2i = _run.current.region
+	var area: Rect2i = shown_region(_run)
 	result.merge(water_pixels(area, _shown_flow, _time))
 	if _run.current.drains:
 		# Every side the flow can drain to: the next launch's in ember, any other dimmer.
@@ -216,6 +216,16 @@ func pixels() -> Dictionary[Vector2i, Color]:
 				for dy: int in [-1, 0, 1]:
 					result[to + Vector2i(side * radius, dy)] = Palette.M5
 	return result
+
+
+## Where `run`'s flow is drawn (its water, drain edges and chevrons): its region, kept to the phone
+## box on a stage that plays in it (docs/wide_sky_design.md §9), as the phone's screen edge keeps it.
+## The region itself spans the wide sky's rows and columns; beyond the box is shade, where every star
+## is lost. On a 180-wide sky the box is the sky, so this is the region.
+static func shown_region(run: RunState) -> Rect2i:
+	if run.plays_in_box():
+		return run.current.region.intersection(run.frame_rect)
+	return run.current.region
 
 
 ## The sky outside `flow`'s frame, where a draining flow loses every star (the phone box's four sides),

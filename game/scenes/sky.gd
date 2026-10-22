@@ -1051,9 +1051,10 @@ func _resize(changes: Array[StarHeat.Change], origin: Vector2i = NO_ORIGIN) -> f
 	return hold
 
 
-## Where a drained star's path meets the field's edge: the first pixel outside it.
+## Where a drained star's path meets the field's edge: the first pixel outside it (the field as
+## drawn: kept to the phone box on a stage that plays in it).
 func _edge_point(exit: Vector2i) -> Vector2i:
-	var area: Rect2i = _run.current.region
+	var area: Rect2i = CurrentView.shown_region(_run)
 	return Vector2i(clampi(exit.x, area.position.x - 1, area.end.x), clampi(exit.y, area.position.y - 1, area.end.y))
 
 

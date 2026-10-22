@@ -261,3 +261,36 @@ func test_no_box_shade_without_an_edge_stake_or_on_a_phone() -> void:
 			var home: RunState = _run(map_id, sky)
 			assert_true(CurrentView.outside_frame(home.frame_rect, home.sky_rect).is_empty(), "%s on %s" % [map_id, sky])
 			assert_true(CurrentView.frame_side_pixels(home.frame_rect, home.sky_rect).is_empty(), "%s on %s" % [map_id, sky])
+
+
+# --- What a box stage draws keeps to the box (§9) -----------------------------------------------
+
+func _current_view(run: RunState) -> CurrentView:
+	var current := CurrentView.new()
+	add_child_autofree(current)
+	current.setup(run, sequencer)
+	return current
+
+
+func test_the_flow_is_drawn_within_the_box() -> void:
+	# The water, the drain edges and the Jar's chevrons stop at the box: the Body's drain line no
+	# longer runs on into the shade above and below it.
+	var box: Rect2i = RunState.phone_box(Fixtures.WIDE_SKY)
+	for map_id: String in ["aquarius_body", "aquarius_legs", "aquarius_stream", "aquarius_jar", "aquarius_final"]:
+		var run: RunState = _run(map_id)
+		assert_eq(CurrentView.shown_region(run), run.current.region.intersection(box), map_id)
+		var dots: Dictionary[Vector2i, Color] = _current_view(run).pixels()
+		assert_false(dots.is_empty(), map_id)
+		for p: Vector2i in dots:
+			assert_true(box.grow(1).has_point(p), "%s: %s drawn in the box (its dotted edge a pixel out)" % [map_id, p])
+	var body: RunState = _run("aquarius_body")
+	assert_gt(body.current.region.size.y, box.size.y, "the Body's region still spans the wide sky's rows")
+
+
+func test_on_a_phone_the_flow_is_drawn_over_its_whole_region() -> void:
+	for sky: Rect2i in [Fixtures.SKY, ScreenZones.play_sky(102)]:
+		for map_id: String in ["aquarius_hand", "aquarius_body", "aquarius_jar", "aquarius_final"]:
+			var run: RunState = _run(map_id, sky)
+			assert_eq(CurrentView.shown_region(run), run.current.region, "%s on %s" % [map_id, sky])
+	var hand: RunState = _run("aquarius_hand")
+	assert_eq(CurrentView.shown_region(hand), hand.current.region, "no edge stake: the whole wide region")
