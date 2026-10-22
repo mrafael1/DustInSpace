@@ -234,9 +234,12 @@ func sweep_wait() -> float:
 
 ## How long the wall rushing `way` takes from the line to the sky's edge: SWEEP_TIME, stretched by how
 ## much further that edge is than the frame's (docs/wide_sky_design.md §4). A portrait sky is its
-## frame, so it keeps SWEEP_TIME; a side of a wide sky that runs further keeps the same speed.
+## frame, so it keeps SWEEP_TIME; a side of a wide sky that runs further keeps the same speed. The
+## wave has no edge stake, so its frame is the frame's columns over the sky's full height, even where
+## a splash stage plays in the phone box (§9).
 func rush_seconds(way: Vector2i) -> float:
-	return SWEEP_TIME * ScreenZones.stretch(float(_sweep_span(way)), float(_span_in(way, _run.frame_rect)))
+	var frame := Rect2i(_run.frame_rect.position.x, _run.sky_rect.position.y, _run.frame_rect.size.x, _run.sky_rect.size.y)
+	return SWEEP_TIME * ScreenZones.stretch(float(_sweep_span(way)), float(_span_in(way, frame)))
 
 
 ## The way the cued wave will rush (ZERO: none comes).

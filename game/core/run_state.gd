@@ -294,8 +294,10 @@ var balance: Balance
 var run_seed: int = 0
 var sky_rect: Rect2i
 ## The run's frame: the portrait 180 columns that hold the constellation (Scorpio.HOME_SKY moved by
-## the figure's shift), over the sky's full height. On a portrait sky it is the sky itself; on a
-## wide one, rules that take their stakes from an edge or an area use it (docs/wide_sky_design.md).
+## the figure's shift), over the sky's full height; on a stage that plays in the phone box
+## (plays_in_box: one that takes or excludes stars at an edge), the box itself, its rows too. On a
+## portrait sky it is the sky itself; on a wide one, rules that take their stakes from an edge or an
+## area use it (docs/wide_sky_design.md §9).
 var frame_rect: Rect2i
 var dust: int = 0
 var light: int = 0
@@ -411,6 +413,11 @@ func _init(p_balance: Balance, p_rng: RandomNumberGenerator, p_sky_rect: Rect2i,
 		if scorpio.map.cords:
 			cords = StarCords.new()
 			cords.tie_fixed(_fish_cord())
+		# Built once the mechanics are: a stage with an edge stake plays in the phone box.
+		if plays_in_box():
+			frame_rect = phone_box(p_sky_rect)
+			if current != null:
+				current.frame = frame_rect
 	for kind: String in balance.pack_kinds():
 		owned_packs[kind] = balance.start_packs.get(kind, 0)
 	_auto_load()
@@ -2799,6 +2806,22 @@ func _hunt_strike() -> void:
 		stars.erase(star)
 	_orion_forget(hit)
 	area_struck.emit(at, hit)
+
+
+## The phone box in `sky` (docs/wide_sky_design.md §9): on a wide sky, the 9:16 sky round the
+## constellation (Scorpio.HOME_SKY moved by the figure's shift), its rows as well as its columns, so a
+## stage with an edge stake plays exactly as on a 9:16 phone. On a 180-wide sky (every phone, tall
+## ones included) it is the sky.
+static func phone_box(sky: Rect2i) -> Rect2i:
+	if sky.size.x <= Scorpio.HOME_SKY.size.x:
+		return sky
+	return Rect2i(Scorpio.HOME_SKY.position + Scorpio.shift_in(sky), Scorpio.HOME_SKY.size)
+
+
+## Whether this run plays in the phone box: its mechanic takes or excludes stars at an edge (Orion's
+## hunt, a draining current, Pisces's splash, Aries's ram). Its frame is then the box.
+func plays_in_box() -> bool:
+	return hunt != null or (current != null and current.drains) or splash != null or ram != null
 
 
 ## The star Orion has marked, or null.

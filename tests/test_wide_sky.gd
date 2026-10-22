@@ -9,6 +9,108 @@ func _stage(map: StarMap, sky: Rect2i = Fixtures.WIDE_SKY, seed_value: int = 1) 
 	return RunState.new(Balance.load_file(), Fixtures.rng(seed_value), sky, map)
 
 
+# --- The phone box (§9): edge-stake stages play in the 9:16 sky round the figure --------------
+
+## Every stage whose mechanic takes or excludes stars at an edge (hunt, drain, splash, ram).
+const BOX_MAPS: Array[String] = [
+	"heart", "claws", "final",
+	"aquarius_body", "aquarius_legs", "aquarius_stream", "aquarius_jar", "aquarius_final",
+	"pisces_knot", "pisces_east_cord", "pisces_north_fish", "pisces_final",
+	"aries_horns", "aries_head", "aries_fleece", "ram_trial",
+]
+## Stages with no edge stake: they keep the full wide sky.
+const FULL_SKY_MAPS: Array[String] = [
+	"tail", "body", "aquarius_hand",
+	"leo_tail", "leo_haunch", "leo_heart", "leo_mane", "leo_head",
+	"virgo_head", "virgo_wing", "virgo_robe", "virgo_feet", "virgo_wheat",
+	"sagittarius_arrow", "sagittarius_bow", "sagittarius_body", "sagittarius_legs", "sagittarius_head",
+	"pisces_circlet", "pisces_west_cord",
+]
+
+
+func test_the_phone_box_is_the_9x16_sky_round_the_figure() -> void:
+	assert_eq(RunState.phone_box(Fixtures.WIDE_SKY), Rect2i(0, 58, 180, 172), "1080p: 20 rows shaded above and below")
+	assert_eq(RunState.phone_box(ScreenZones.play_sky(80, 230)), Rect2i(0, 38, 180, 172), "Steam Deck: 40 above and below")
+	assert_eq(RunState.phone_box(ScreenZones.play_sky(64, 166)), Rect2i(0, 46, 180, 172), "iPad landscape: 32")
+	for sky: Rect2i in [Fixtures.SKY, ScreenZones.play_sky(102), ScreenZones.play_sky(40)]:
+		assert_eq(RunState.phone_box(sky), sky, "a 180-wide sky is its own box: %s" % sky)
+
+
+func test_edge_stake_stages_take_the_phone_box_as_their_frame() -> void:
+	for map_id: String in BOX_MAPS:
+		var run: RunState = _stage(StarMap.by_id(map_id))
+		assert_true(run.plays_in_box(), map_id)
+		assert_eq(run.frame_rect, RunState.phone_box(Fixtures.WIDE_SKY), map_id)
+		if run.current != null:
+			assert_eq(run.current.frame, run.frame_rect, "%s: the drain keeps to the box" % map_id)
+	for map_id: String in FULL_SKY_MAPS:
+		var run: RunState = _stage(StarMap.by_id(map_id))
+		assert_false(run.plays_in_box(), map_id)
+		assert_eq(run.frame_rect, Rect2i(0, 38, 180, 212), "%s: the full-height frame, as built" % map_id)
+
+
+func test_on_every_180_wide_sky_the_frame_is_the_sky() -> void:
+	for sky: Rect2i in [Fixtures.SKY, ScreenZones.play_sky(102), ScreenZones.play_sky(40)]:
+		for map_id: String in BOX_MAPS + FULL_SKY_MAPS:
+			assert_eq(_stage(StarMap.by_id(map_id), sky).frame_rect, sky, "%s on %s" % [map_id, sky])
+
+
+func test_a_drain_loses_a_star_above_or_below_the_box() -> void:
+	var run: RunState = _stage(StarMap.aquarius_jar())
+	var above: Star = run.add_star(Star.Size.SMALL, Vector2i(90, 45))
+	var below: Star = run.add_star(Star.Size.SMALL, Vector2i(90, 240))
+	var kept: Star = run.add_star(Star.Size.SMALL, Vector2i(90, 150))
+	assert_true(run.current.stranded(above.position), "in the shade above the box")
+	assert_true(run.current.stranded(below.position), "in the shade below the box")
+	assert_false(run.current.stranded(kept.position))
+	var drains: Array[int] = run.launch_drains()
+	assert_true(drains.has(above.id) and drains.has(below.id))
+	assert_false(drains.has(kept.id))
+
+
+func test_a_flow_carrying_a_star_down_past_the_box_drains_it() -> void:
+	var box: Rect2i = RunState.phone_box(Fixtures.WIDE_SKY)
+	var flow := StarCurrent.new(Rect2i(0, 38, 180, 212), Vector2i(0, 24), true)
+	flow.frame = box
+	var star := Star.new(1, Star.Size.SMALL, Vector2i(90, box.end.y - 6))
+	var to: Dictionary[int, Vector2i] = flow.preview([star] as Array[Star], Fixtures.WIDE_SKY, [] as Array[Vector2i])
+	assert_true(Fixtures.WIDE_SKY.has_point(to[1]), "still over the sky")
+	assert_true(flow.leaves(star.position, to[1]), "past the box's bottom row: lost")
+
+
+func test_a_splash_pushing_a_star_past_the_box_rows_loses_it() -> void:
+	var run: RunState = _stage(StarMap.pisces_knot())
+	var star: Star = run.add_star(Star.Size.SMALL, Vector2i(60, 70))
+	var kept: Star = run.add_star(Star.Size.SMALL, Vector2i(60, 120))
+	run._splash(Vector2i(60, 90))
+	assert_null(run.find_star(star.id), "pushed above y 58: over the wide sky, past the box's rows")
+	assert_not_null(run.find_star(kept.id), "pushed down, still in the box")
+
+
+func test_the_down_ram_loses_a_star_past_the_box_bottom_and_leaves_one_above_it() -> void:
+	var run: RunState = _stage(StarMap.aries_fleece())
+	run.ram.turn()
+	assert_true(run.ram.is_down(), "the Fleece's second ram charges down")
+	var column: int = run.ram.column
+	var near: Star = run.add_star(Star.Size.SMALL, Vector2i(column, run.frame_rect.end.y - 10))
+	var above: Star = run.add_star(Star.Size.SMALL, Vector2i(column, run.frame_rect.position.y - 10))
+	var preview: StarCharge.Charge = run.charge_preview()
+	assert_true(preview.lost().has(near.id), "butted past the box's bottom row, though the sky goes on")
+	assert_false(preview.destinations().has(above.id), "above the box: behind the ram, out of its way")
+
+
+func test_the_hunt_never_circles_a_star_above_or_below_the_box() -> void:
+	var box: Rect2i = RunState.phone_box(Fixtures.WIDE_SKY)
+	var above := Star.new(1, Star.Size.SMALL, Vector2i(90, box.position.y - 6))
+	var below := Star.new(2, Star.Size.SMALL, Vector2i(90, box.end.y + 6))
+	for seed_value: int in range(1, 21):
+		var run: RunState = _stage(StarMap.heart(), Fixtures.WIDE_SKY, seed_value)
+		var centre: Vector2i = run.hunt.mark(run.frame_rect, [above, below] as Array[Star])
+		assert_true(box.grow(-run.hunt.radius).has_point(centre), "seed %d: %s wholly inside the box" % [seed_value, centre])
+		assert_false(run.hunt.contains(above.position), "seed %d: never prey above the box" % seed_value)
+		assert_false(run.hunt.contains(below.position), "seed %d: never prey below the box" % seed_value)
+
+
 # --- _stage_area: current regions stretch sideways ---------------------------------------------
 
 func test_a_full_width_region_reaches_the_wide_skys_right_edge() -> void:
@@ -234,7 +336,7 @@ func test_on_a_drain_stage_a_star_outside_the_frame_drains_at_the_next_step() ->
 	var run: RunState = _stage(StarMap.aquarius_body())
 	var flowing: Star = run.add_star(Star.Size.BIG, Vector2i(300, 150))
 	var still: Star = run.add_star(Star.Size.SMALL, Vector2i(-100, 150))
-	var kept: Star = run.add_star(Star.Size.MEDIUM, Vector2i(150, 230))
+	var kept: Star = run.add_star(Star.Size.MEDIUM, Vector2i(150, 220))
 	assert_true(run.current.region.has_point(flowing.position), "in the stretched flow, right of the frame")
 	assert_false(run.current.region.has_point(still.position), "in the still strip left of the frame")
 	var drains: Array[int] = run.launch_drains()
