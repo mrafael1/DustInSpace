@@ -75,17 +75,32 @@ func test_on_the_portrait_sky_the_frame_is_the_sky() -> void:
 
 # --- The frame edge is shaded on drain stages ---------------------------------------------------
 
-func test_a_wide_drain_stage_shades_the_sky_outside_the_frame() -> void:
+## The phone box's four shaded strips on Fixtures.WIDE_SKY (box: x 0-179, y 58-229).
+const BOX_SHADE: Array[Rect2i] = [Rect2i(-230, 38, 230, 212), Rect2i(180, 38, 230, 212), Rect2i(0, 38, 180, 20), Rect2i(0, 230, 180, 20)]
+
+
+## Asserts the dotted line runs round all four sides of the box in `dots`, in `colour`; `skip_x`:
+## columns a seam is drawn over.
+func _assert_box_dotted(dots: Dictionary[Vector2i, Color], colour: Color, label: String, skip_x: Array[int] = []) -> void:
+	for y: int in range(58, 230, 2):
+		assert_eq(dots.get(Vector2i(-1, y)), colour, "%s: the box's left side" % label)
+		assert_eq(dots.get(Vector2i(180, y)), colour, "%s: the box's right side" % label)
+	for x: int in range(0, 180, 2):
+		if skip_x.has(x):
+			continue
+		assert_eq(dots.get(Vector2i(x, 57)), colour, "%s: the box's top" % label)
+		assert_eq(dots.get(Vector2i(x, 230)), colour, "%s: the box's bottom" % label)
+	assert_false(dots.has(Vector2i(-1, 40)), "%s: no side dots past the box's rows" % label)
+
+
+func test_a_wide_drain_stage_shades_the_sky_outside_the_box() -> void:
 	var run: RunState = _run("aquarius_body")
 	var rects: Array[Rect2i] = CurrentView.frame_shade_rects(run.current, run.sky_rect)
-	assert_eq(rects, [Rect2i(-230, 38, 230, 212), Rect2i(180, 38, 230, 212)] as Array[Rect2i])
+	assert_eq(rects, BOX_SHADE, "both sides, and the strips above and below the box")
 	var current := CurrentView.new()
 	add_child_autofree(current)
 	current.setup(run, sequencer)
-	var dots: Dictionary[Vector2i, Color] = current.pixels()
-	for y: int in range(38, 250, 2):
-		assert_eq(dots.get(Vector2i(-1, y)), Palette.S3, "the frame's left side wears the drain line")
-		assert_eq(dots.get(Vector2i(180, y)), Palette.S3)
+	_assert_box_dotted(current.pixels(), Palette.S3, "the drain")
 
 
 func test_no_shade_without_a_drain_or_on_the_portrait_sky() -> void:
@@ -108,9 +123,11 @@ func test_a_wide_splash_stage_dots_the_frames_sides() -> void:
 	var seam: SeamView = _sky_view(run).get_node("SeamLayer")
 	seam.setup(run)
 	var dots: Dictionary[Vector2i, Color] = seam.pixels()
-	for y: int in range(38, 250, 2):
-		assert_eq(dots.get(Vector2i(-1, y)), SeamView.FRAME_EDGE_COLOUR, "the frame's left side")
-		assert_eq(dots.get(Vector2i(180, y)), SeamView.FRAME_EDGE_COLOUR, "the frame's right side")
+	var skip: Array[int] = []
+	for x: int in range(86, 95):
+		skip.append(x)  # the Knot's seam, drawn over the top and bottom lines
+	_assert_box_dotted(dots, SeamView.FRAME_EDGE_COLOUR, "the splash", skip)
+	assert_eq(CurrentView.outside_frame(run.frame_rect, run.sky_rect), BOX_SHADE)
 	assert_eq(SeamView.FRAME_EDGE_COLOUR, Palette.S3)
 
 
@@ -143,10 +160,7 @@ func test_a_wide_ram_stage_shades_and_dots_the_frame_edge() -> void:
 	var current := CurrentView.new()
 	add_child_autofree(current)
 	current.setup(run, sequencer)
-	var dots: Dictionary[Vector2i, Color] = current.pixels()
-	for y: int in range(38, 250, 2):
-		assert_eq(dots.get(Vector2i(-1, y)), Palette.S3)
-		assert_eq(dots.get(Vector2i(180, y)), Palette.S3)
+	_assert_box_dotted(current.pixels(), Palette.S3, "the ram")
 	var home: RunState = _run("aries_horns", Fixtures.SKY)
 	var home_current := CurrentView.new()
 	add_child_autofree(home_current)
@@ -220,3 +234,30 @@ func test_the_flight_decoys_land_in_the_box() -> void:
 		assert_false(decoys.is_empty())
 		for decoy: Star in decoys:
 			assert_true(box.has_point(decoy.position), "decoy %s in the box" % decoy.position)
+
+
+func test_a_wide_hunt_stage_shades_and_dots_the_box() -> void:
+	for map_id: String in ["heart", "claws", "final"]:
+		var run: RunState = _run(map_id)
+		var current := CurrentView.new()
+		add_child_autofree(current)
+		current.setup(run, sequencer)
+		_assert_box_dotted(current.pixels(), Palette.S3, map_id)
+		assert_eq(CurrentView.outside_frame(run.frame_rect, run.sky_rect), BOX_SHADE, map_id)
+
+
+func test_no_box_shade_without_an_edge_stake_or_on_a_phone() -> void:
+	for map_id: String in ["tail", "body", "leo_mane"]:
+		var current := CurrentView.new()
+		add_child_autofree(current)
+		current.setup(_run(map_id), sequencer)
+		assert_true(current.pixels().is_empty(), "%s: no edge stake, no shade" % map_id)
+	var circlet: RunState = _run("pisces_circlet")
+	var seam: SeamView = _sky_view(circlet).get_node("SeamLayer")
+	seam.setup(circlet)
+	assert_false(seam.pixels().has(Vector2i(10, 57)), "the Circlet has no splash")
+	for sky: Rect2i in [Fixtures.SKY, ScreenZones.play_sky(102)]:
+		for map_id: String in ["heart", "aquarius_final", "pisces_knot", "aries_fleece"]:
+			var home: RunState = _run(map_id, sky)
+			assert_true(CurrentView.outside_frame(home.frame_rect, home.sky_rect).is_empty(), "%s on %s" % [map_id, sky])
+			assert_true(CurrentView.frame_side_pixels(home.frame_rect, home.sky_rect).is_empty(), "%s on %s" % [map_id, sky])

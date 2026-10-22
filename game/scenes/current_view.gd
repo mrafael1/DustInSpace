@@ -135,11 +135,17 @@ func _draw() -> void:
 	if _run != null and _run.current != null and not _played_out():
 		for rect: Rect2i in frame_shade_rects(_run.current, _run.sky_rect):
 			draw_texture_rect(shade_tile(), Rect2(rect), true)
-	elif _run != null and _run.ram != null and not _played_out():
+	elif _run != null and _shades_frame() and not _played_out():
 		draw_frame_shade(self, _run.frame_rect, _run.sky_rect)
 	var dots: Dictionary[Vector2i, Color] = pixels()
 	for point: Vector2i in dots:
 		draw_rect(Rect2(Vector2(point), Vector2.ONE), dots[point], true)
+
+
+## A stage with no current that plays in the phone box (the ram's, the hunt's): its frame is shaded
+## here; a drain's comes with its flow, a splash's with the seam (SeamView).
+func _shades_frame() -> bool:
+	return _run.ram != null or _run.hunt != null
 
 
 ## The run is over and everything it queued has been seen: the last launch's burst and drift, and
@@ -154,7 +160,7 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	if _run == null or _played_out():
 		return result
 	if _run.current == null:
-		if _run.ram != null:
+		if _shades_frame():
 			for point: Vector2i in frame_side_pixels(_run.frame_rect, _run.sky_rect):
 				result[point] = Palette.S3
 		return result
@@ -212,15 +218,15 @@ func pixels() -> Dictionary[Vector2i, Color]:
 	return result
 
 
-## The sky outside `flow`'s frame, where a draining flow loses every star (its outer columns, either
-## side), in `sky`; none without a drain or a frame narrower than the sky (a 9:16 sky).
+## The sky outside `flow`'s frame, where a draining flow loses every star (the phone box's four sides),
+## in `sky`; none without a drain or on a 9:16 sky, whose frame is the sky.
 static func frame_shade_rects(flow: StarCurrent, sky: Rect2i) -> Array[Rect2i]:
 	if not flow.drains or not flow.frame.has_area():
 		return [] as Array[Rect2i]
 	return outside_frame(flow.frame, sky)
 
 
-## The frame's sides where the shade meets it: the drain's dotted line, one pixel in two, just
+## The frame's edges where the shade meets it: the drain's dotted line, one pixel in two, just
 ## outside the frame.
 static func frame_edge_pixels(flow: StarCurrent, sky: Rect2i) -> Array[Vector2i]:
 	if not flow.drains or not flow.frame.has_area():
@@ -228,27 +234,38 @@ static func frame_edge_pixels(flow: StarCurrent, sky: Rect2i) -> Array[Vector2i]
 	return frame_side_pixels(flow.frame, sky)
 
 
-## The sky outside `frame` (its outer columns, either side), in `sky`; none when the frame spans the
-## sky (a 9:16 sky). Shared by every view that shades a wide sky's frame edge (the drain, the splash,
-## the ram: docs/wide_sky_design.md Q4).
+## The sky outside `frame` in `sky`: its outer columns either side over the sky's full height, and
+## the rows above and below a frame shorter than the sky (the phone box, docs/wide_sky_design.md §9);
+## none when the frame spans the sky (a 9:16 sky). Shared by every view that shades a wide sky's
+## frame edge (the drain, the splash, the ram, the hunt).
 static func outside_frame(frame: Rect2i, sky: Rect2i) -> Array[Rect2i]:
 	var rects: Array[Rect2i] = []
 	var left := Rect2i(sky.position.x, sky.position.y, frame.position.x - sky.position.x, sky.size.y)
 	var right := Rect2i(frame.end.x, sky.position.y, sky.end.x - frame.end.x, sky.size.y)
-	for rect: Rect2i in [left, right]:
+	var top := Rect2i(frame.position.x, sky.position.y, frame.size.x, frame.position.y - sky.position.y)
+	var bottom := Rect2i(frame.position.x, frame.end.y, frame.size.x, sky.end.y - frame.end.y)
+	for rect: Rect2i in [left, right, top, bottom]:
 		if rect.has_area():
 			rects.append(rect)
 	return rects
 
 
-## `frame`'s sides where the shade outside it meets it: a dotted line, one pixel in two, just
-## outside the frame.
+## `frame`'s edges where the shade outside it meets it: a dotted line, one pixel in two, just
+## outside the frame (its sides over its rows; its top and bottom when it is shorter than the sky).
 static func frame_side_pixels(frame: Rect2i, sky: Rect2i) -> Array[Vector2i]:
 	var points: Array[Vector2i] = []
-	for rect: Rect2i in outside_frame(frame, sky):
-		var x: int = rect.end.x - 1 if rect.end.x <= frame.position.x else rect.position.x
-		for y: int in range(rect.position.y, rect.end.y, 2):
-			points.append(Vector2i(x, y))
+	if frame.position.x > sky.position.x:
+		for y: int in range(frame.position.y, frame.end.y, 2):
+			points.append(Vector2i(frame.position.x - 1, y))
+	if frame.end.x < sky.end.x:
+		for y: int in range(frame.position.y, frame.end.y, 2):
+			points.append(Vector2i(frame.end.x, y))
+	if frame.position.y > sky.position.y:
+		for x: int in range(frame.position.x, frame.end.x, 2):
+			points.append(Vector2i(x, frame.position.y - 1))
+	if frame.end.y < sky.end.y:
+		for x: int in range(frame.position.x, frame.end.x, 2):
+			points.append(Vector2i(x, frame.end.y))
 	return points
 
 
