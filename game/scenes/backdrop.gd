@@ -12,9 +12,9 @@ extends Node2D
 ## lit M4 on their left faces) and hills (M2) that start at the background's edge heights, with
 ## scattered trees (M1). The forest floor under the HUD repeats across (the background draws it
 ## to tile every 180 px). Sparse, dim cool stars sit in the margin sky on a fixed hash of their
-## position, so they never move, and never over a wide play sky (star_free), where they could be
-## taken for stars in play. Drawn under everything; Main tells it where the game sits. Owns
-## no rules.
+## position, so they never move. Over a wide play sky (star_free) only the 1 px ones stand, as
+## faint as the background's own painted stars; a glint there could be taken for a star in play.
+## Drawn under everything; Main tells it where the game sits. Owns no rules.
 
 const BACKGROUND := preload("res://assets/art/background.png")
 ## Above the game: this many rows of the sky's top colour, then a checker seam into N0.
@@ -104,9 +104,9 @@ static func vignette_radii(sky: Rect2i) -> Vector2:
 	return Vector2(maxf(OUTER_RADII.x, ceilf(across)), OUTER_RADII.y)
 
 
-## Where no margin star may stand for a run on `sky`: a wide play sky (its side columns hold stars in
-## play, so no decoration may be taken for one, glint arms included). Empty on a portrait sky, where
-## the stars stay as they were.
+## Where no glint may stand for a run on `sky`: a wide play sky (its side columns hold stars in play,
+## so no glint may be taken for one, arms included; 1 px stars stay, like the background's painted
+## ones). Empty on a portrait sky, where the stars stay as they were.
 static func star_free(sky: Rect2i) -> Rect2i:
 	return sky if sky.size.x > ScreenZones.SCREEN.x else Rect2i()
 
@@ -248,8 +248,8 @@ static func tree_height(x: int) -> int:
 
 
 ## Where the background stars go in the margin sky inside `area` (game coordinates): a fixed
-## hash per pixel, outside the game's screen, above the land at the sides, and with no pixel over a
-## wide play sky `sky` (star_free).
+## hash per pixel, outside the game's screen, above the land at the sides, and with no glint pixel
+## over a wide play sky `sky` (star_free).
 static func margin_stars(area: Rect2i, sky: Rect2i = ScreenZones.SKY) -> Array[Vector2i]:
 	var stars: Array[Vector2i] = []
 	var screen := Rect2i(Vector2i.ZERO, ScreenZones.SCREEN)
@@ -259,7 +259,7 @@ static func margin_stars(area: Rect2i, sky: Rect2i = ScreenZones.SKY) -> Array[V
 			var p := Vector2i(x, y)
 			if screen.has_point(p) or _hash(p) % STAR_ODDS != 0:
 				continue
-			if free.has_area() and free.grow(1).has_point(p) and _touches(star_pixels(p), free):
+			if free.has_area() and free.grow(1).has_point(p) and _is_glint(p) and _touches(star_pixels(p), free):
 				continue
 			stars.append(p)
 	return stars
@@ -283,6 +283,11 @@ func _rebuild() -> void:
 		_margin = null
 		return
 	_margin = ImageTexture.create_from_image(margin_image(_image, Rect2i(-_offset, _visible), _sky))
+
+
+## Whether the margin star at `p` is a glint (star_pixels), not a single pixel.
+static func _is_glint(p: Vector2i) -> bool:
+	return (_hash(p) / STAR_ODDS) % GLINT_ODDS == 0
 
 
 ## Whether any of a star's `pixels` lands in `rect`.

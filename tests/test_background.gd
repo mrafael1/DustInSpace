@@ -403,9 +403,10 @@ func test_the_vignette_frames_a_wide_play_sky() -> void:
 	assert_lte(Backdrop.vignette_radii(ScreenZones.play_sky(80, 230)).x, 400.0, "a taller wide sky (1280x800) still a close frame")
 
 
-## No margin star (glint arms included) stands over a wide play sky, so none can be taken for a star
-## in play; they fill the margin outside it: above it, and out past it on an ultrawide window.
-func test_margin_stars_keep_off_a_wide_play_sky() -> void:
+## No glint (arms included) stands over a wide play sky, so none can be taken for a star in play;
+## the 1 px stars stay there, as faint as the background's painted ones, so the side sky isn't bare.
+## Glints fill the margin outside it: above it, and out past it on an ultrawide window.
+func test_only_single_pixel_stars_stand_over_a_wide_play_sky() -> void:
 	for visible: Vector2 in [Vector2(640, 360), Vector2(853, 360), Vector2(640, 400)]:
 		var offset: Vector2i = ScreenZones.game_offset(visible)
 		var margin: Vector2i = ScreenZones.sky_margin(visible)
@@ -413,10 +414,20 @@ func test_margin_stars_keep_off_a_wide_play_sky() -> void:
 		var area := Rect2i(-offset, Vector2i(visible))
 		var stars: Array[Vector2i] = Backdrop.margin_stars(area, sky)
 		assert_gt(stars.size(), 20, "%s: a starfield in the margin" % visible)
+		var over_sky: int = 0
 		for p: Vector2i in stars:
-			for q: Vector2i in Backdrop.star_pixels(p):
-				assert_false(sky.has_point(q), "%s: star at %s off the play sky" % [visible, p])
-		assert_gt(Backdrop.margin_stars(area).size(), stars.size(), "%s: a portrait sky would have put stars there" % visible)
+			var pixels: Dictionary[Vector2i, Color] = Backdrop.star_pixels(p)
+			if pixels.size() > 1:
+				for q: Vector2i in pixels:
+					assert_false(sky.has_point(q), "%s: glint at %s off the play sky" % [visible, p])
+			elif sky.has_point(p):
+				over_sky += 1
+		assert_gt(over_sky, 20, "%s: single stars over the side sky" % visible)
+		var portrait: Array[Vector2i] = Backdrop.margin_stars(area)
+		assert_gt(portrait.size(), stars.size(), "%s: a portrait sky would have put glints there too" % visible)
+		for p: Vector2i in portrait:
+			if Backdrop.star_pixels(p).size() == 1:
+				assert_true(stars.has(p), "%s: every single star kept (%s)" % [visible, p])
 	var wide := Vector2(853, 360)
 	var sky: Rect2i = ScreenZones.play_sky(40, 230)
 	var stars: Array[Vector2i] = Backdrop.margin_stars(Rect2i(-ScreenZones.game_offset(wide), Vector2i(wide)), sky)
