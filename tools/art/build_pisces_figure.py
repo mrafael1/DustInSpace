@@ -5,13 +5,13 @@
                              west_cord, knot, east_cord, north_fish; game/core/chapter_def.gd), in
                              the same full-screen home layout: the chapter chart shows the won ones
                              dormant, then the whole figure once the final is won
-
-The part stages' own paintings (pisces_part_<map>.png) are not built here.
+  pisces_part_<part>.png     each part stage's own painting, in the same clean-line style, the
+                             final's fish, ribbons and bow re-posed to each stage's stars
+                             (tools/art/pisces_part_paintings.py, run from here)
 
 The whole Pisces is drawn in the clean-line semi-hollow style (tools/art/clean_line.py and
 stardust.py), pose 1, "Urania". The western fish lies flat facing right (west) with gamma as its
 eye, a dorsal sail over theta
-(rooted on the back, one outline with the body), a short gill arc behind the eye (bowing toward the fish lies flat facing right (west) with gamma as its eye, a dorsal sail over theta
 (rooted on the back, one outline with the body), a short gill arc behind the eye (bowing toward the
 tail, clear of the back and the belly), a small teardrop pectoral behind the gill, a closed pelvic
 fin under kappa, a mouth notch at the snout, and its forked tail flicked up and left from a tie
@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clean_line  # noqa: E402
 from clean_line import Axis, path_of  # noqa: E402
 import stardust as sd  # noqa: E402
+import pisces_part_paintings  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ART = ROOT / "assets" / "art"
@@ -440,6 +441,7 @@ def main():
     if args.preview:
         sd.preview(img, L, SIZES, SEGMENTS).save(args.preview)
         print(f"wrote {args.preview}")
+    pisces_part_paintings.build_parts()
 
 
 if __name__ == "__main__":
