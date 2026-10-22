@@ -55,7 +55,8 @@ var _sequencer: EventSequencer
 var _loaded_kind: String = ""
 var _owned: Dictionary[String, int] = {}
 var _pulling: bool = false
-## Px of aim per pixel of pull on this run's sky (gain_for), set in setup.
+## Px of aim per pixel of pull on the sky this run launches in (gain_for its launch_rect: the phone
+## box on a box stage), set in setup.
 var _gain: int = AIM_GAIN
 ## The pull as the finger reports it. The aim uses it unrounded: finger positions are finer than
 ## the game's pixel grid, and rounding first would snap the aim to whole gain steps.
@@ -96,7 +97,7 @@ func _draw() -> void:
 
 func setup(run: RunState, sequencer: EventSequencer) -> void:
 	_run = run
-	_gain = gain_for(origin(), run.sky_rect)
+	_gain = gain_for(origin(), run.launch_rect())
 	if _sequencer != sequencer:
 		if _sequencer != null:
 			_sequencer.event_played.disconnect(_on_event_played)

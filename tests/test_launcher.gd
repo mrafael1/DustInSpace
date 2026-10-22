@@ -88,6 +88,26 @@ func test_a_wide_sky_launch_bursts_where_the_preview_shows() -> void:
 		_play_until_idle()
 
 
+func test_on_a_box_stage_the_pull_reaches_the_phone_boxs_corners_and_stops_at_its_edge() -> void:
+	# docs/wide_sky_design.md §9: a stage with an edge stake launches in the phone box, so the gain
+	# reaches the box's corners, not the wide sky's, and a long pull stops at the box's edge.
+	for map_id: String in ["heart", "aquarius_final", "pisces_knot", "aries_head"]:
+		run = RunState.new(Balance.load_file(), Fixtures.rng(1), Fixtures.WIDE_SKY, StarMap.by_id(map_id))
+		run.owned_packs["blue"] = 3
+		assert_true(run.load_pack("blue"))
+		sequencer.bind(run)
+		launcher.setup(run, sequencer)
+		inner = StarScatter.inner_rect(run.frame_rect)
+		assert_eq(launcher.aim_gain(), Launcher.gain_for(ORIGIN, run.frame_rect), map_id)
+		assert_lt(launcher.aim_gain(), Launcher.gain_for(ORIGIN, Fixtures.WIDE_SKY), "%s: the box is nearer than the wide sky's corners" % map_id)
+		_assert_every_corner_and_edge_aimable()
+		for way: Vector2 in [Vector2(1, 1), Vector2(-1, 1), Vector2(0, 1)]:
+			_press(Vector2i.ZERO)
+			_drag(way.normalized() * Launcher.MAX_PULL)
+			assert_true(inner.has_point(launcher.burst_preview()), "%s: a full pull %s stops in the box at %s" % [map_id, way, launcher.burst_preview()])
+			launcher.cancel_pull()
+
+
 func test_a_new_run_on_another_sky_recomputes_the_gain() -> void:
 	_setup_on(Fixtures.WIDE_SKY)
 	assert_eq(launcher.aim_gain(), Launcher.gain_for(ORIGIN, Fixtures.WIDE_SKY))
