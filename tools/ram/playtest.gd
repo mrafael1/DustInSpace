@@ -133,7 +133,7 @@ func _out_of_lane(run: RunState, aim: Vector2i) -> Vector2i:
 		return aim
 	var before: Vector2i = aim + across * (top - StarScatter.RING_MAX - 2 - at)
 	var after: Vector2i = aim + across * (bottom + StarScatter.RING_MAX + 2 - at)
-	var inner: Rect2i = StarScatter.inner_rect(run.sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(run.launch_rect())
 	if not inner.grow(-4).has_point(after):
 		return before
 	if not inner.grow(-4).has_point(before):

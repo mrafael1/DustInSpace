@@ -121,7 +121,7 @@ func _aim(run: RunState) -> Vector2i:
 	var found: bool = false
 	for y: int in range(-AIM_SEARCH, AIM_SEARCH + 1, AIM_GRID):
 		for x: int in range(-AIM_SEARCH, AIM_SEARCH + 1, AIM_GRID):
-			var spot: Vector2i = StarScatter.clamp_to_sky(target + Vector2i(x, y), run.sky_rect)
+			var spot: Vector2i = StarScatter.clamp_to_sky(target + Vector2i(x, y), run.launch_rect())
 			if run.is_safe_launch(spot) and (not found or (spot - target).length_squared() < (best - target).length_squared()):
 				best = spot
 				found = true

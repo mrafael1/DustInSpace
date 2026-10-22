@@ -94,7 +94,8 @@ func _layout(enabled: bool) -> StarMap:
 
 
 ## Each landmark's target, where an aware bot throws for it, and whether that throw (or the
-## landmark's own reflection) leaves the sky or falls on the land and HUD below it (y >= 230).
+## landmark's own reflection) leaves the launch rect (the sky, or the phone box) or falls on the land
+## and HUD below it (y >= 230 on the 9:16 sky, moved by the figure's shift).
 func _print_geometry() -> void:
 	var run := RunState.new(_balance, RandomNumberGenerator.new(), _sky, _layout(true))
 	for index: int in run.scorpio.map.count():
@@ -104,11 +105,11 @@ func _print_geometry() -> void:
 		var mirrored: Vector2i = run.reflect(landmark)
 		var lands: Vector2i = run.burst_centre(throw)
 		var notes: Array[String] = []
-		if StarScatter.clamp_to_sky(throw, run.sky_rect) != throw:
+		if StarScatter.clamp_to_sky(throw, run.launch_rect()) != throw:
 			notes.append("throw off-sky")
 		if lands != target:
 			notes.append("burst clamped to %s" % lands)
-		if mirrored.y >= 230 or not run.sky_rect.has_point(mirrored):
+		if mirrored.y >= 230 + run.scorpio.shift.y or not run.launch_rect().has_point(mirrored):
 			notes.append("landmark's reflection %s off-sky/under land" % mirrored)
 		print("  landmark %d %s%s target %s throw %s %s" % [index, landmark, " (lit)" if run.scorpio.is_lit(index) else "", target, throw, ", ".join(notes)])
 
