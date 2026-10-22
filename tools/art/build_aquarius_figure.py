@@ -4,8 +4,9 @@
   aquarius_piece_<part>.png   the same painting cut into the chapter's five parts (hand, body, legs,
                               stream, jar), in the same full-screen home layout: the chapter chart
                               shows the won ones dormant, then the whole figure once the final is won
-  aquarius_part_<part>.png    each part stage's own painting, unchanged in the older shaded-solid
-                              style (tools/art/aquarius_part_paintings.py, run from here)
+  aquarius_part_<part>.png    each part stage's own painting, in the same clean-line style, the
+                              final's body parts re-posed to each stage's stars
+                              (tools/art/aquarius_part_paintings.py, run from here)
 
 The whole Aquarius is a clean line, semi-hollow with stardust, in the Scorpio's style
 (tools/art/build_scorpio_figure.py, tools/art/clean_line.py, tools/art/stardust.py), round the 14
