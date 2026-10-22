@@ -238,9 +238,10 @@ func flash_loss(at: Vector2i) -> void:
 
 
 ## Where a star butted toward `to` (past the frame's far edge) leaves: `to` itself while it's over
-## the sky (a wide sky's outer columns), else a pixel past the inner sky.
+## the sky it plays in (launch_rect: the phone box on a wide sky, docs/wide_sky_design.md §9), else a
+## pixel past its inner rect, as at a phone's screen edge.
 func exit_point(to: Vector2i) -> Vector2i:
-	var inner: Rect2i = StarScatter.inner_rect(_run.sky_rect)
+	var inner: Rect2i = StarScatter.inner_rect(_run.launch_rect())
 	return Vector2i(clampi(to.x, inner.position.x - 1, inner.end.x), clampi(to.y, inner.position.y - 1, inner.end.y))
 
 

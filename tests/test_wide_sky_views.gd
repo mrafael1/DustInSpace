@@ -330,3 +330,12 @@ func test_the_wave_rushes_and_carries_within_the_box() -> void:
 			for p: Vector2i in seam.pixels():
 				assert_true(box.grow(1).has_point(p), "%s %.1f s: %s in the box" % [map_id, step * 0.1, p])
 		assert_eq(seam.exit_point(Vector2i(90, 400)).y, inner.end.y, "%s: a star pushed off leaves at the box's bottom" % map_id)
+
+
+func test_the_ram_sends_a_star_off_at_the_boxs_edge() -> void:
+	var run: RunState = _run("aries_fleece")
+	var view: ChargeView = _sky_view(run).get_node("ChargeLayer")
+	view.setup(run)
+	var inner: Rect2i = StarScatter.inner_rect(run.frame_rect)
+	assert_eq(view.exit_point(Vector2i(90, 400)), Vector2i(90, inner.end.y), "a pixel past the box's bottom, as past a phone's")
+	assert_eq(view.exit_point(Vector2i(400, 120)), Vector2i(inner.end.x, 120))
