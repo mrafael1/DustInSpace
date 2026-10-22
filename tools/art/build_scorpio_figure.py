@@ -24,8 +24,9 @@ clear of specks, on a faint pixel of its own part.
 The pieces partition the whole: each pixel goes with the part of the segment under it, else with
 the nearest tagged pixel; each star's own pixel goes with its part.
 
-The part stages keep the shaded-solid style: each part as solids lit from the top left on a stepped
-N ramp, N1 creases, an N9/N10 rose rim, N8/D0 stardust specks and a checkered N3 aura.
+The part stages are painted the same way (tools/art/scorpio_part_paintings.py): each the same body
+part as the whole, re-posed on that stage's landmarks with the whole's shape profiles, light and
+seed, a clean line semi-hollow with stardust.
 
 Every image is the full 180x320 game screen (transparent outside the figure), in home layout: the
 chapter chart draws it as is, and a stage draws it where its sky shifts the map.
@@ -44,6 +45,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clean_line  # noqa: E402
 from clean_line import Axis, cubic, path_of, placed, segment, tube  # noqa: E402
+import scorpio_part_paintings  # noqa: E402
 import stardust as sd  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -275,132 +277,18 @@ def figure_shapes() -> list:
 # The part stages' own paintings: the same body parts, fitted to each stage's landmarks.
 
 def stage_landmarks():
-    """Each part stage's landmarks, read from game/core/star_map.gd (one source of truth)."""
+    """Each part stage's landmarks and their sizes ("S", "M", "B"), read from
+    game/core/star_map.gd (one source of truth)."""
     import re
     src = STAR_MAP.read_text()
     found = {}
     for name in PARTS:
         block = re.search(r"static func %s\(\) -> StarMap:(.*?)\n\n\n" % name, src, re.S).group(1)
         marks = re.search(r"map\.landmarks = \[(.*?)\]\n", block).group(1)
-        found[name] = [(int(x), int(y)) for x, y in re.findall(r"Vector2i\((-?\d+), (-?\d+)\)", marks)]
+        sizes = re.search(r"map\.sizes = \[(.*?)\]\n", block).group(1)
+        found[name] = ([(int(x), int(y)) for x, y in re.findall(r"Vector2i\((-?\d+), (-?\d+)\)", marks)],
+                       [size[0] for size in re.findall(r"Star\.Size\.(SMALL|MEDIUM|BIG)", sizes)])
     return found
-
-
-def tail_joints(S, points, radii, lift=-3.0):
-    """A bulb on each string of a line of points: the tail's joints."""
-    for k in range(len(points) - 1):
-        a, b = v(points[k]), v(points[k + 1])
-        S.ellipsoid((a + b) / 2, b - a, np.linalg.norm(b - a) / 2 + 3.0, radii[k], depth=6.0, lift=lift + k * 0.2, along_flat=0.5)
-
-
-def plates(S, spine, widths):
-    """The plated body along a spine: a plate on each star and between each two."""
-    track = []
-    for k in range(len(spine) - 1):
-        track += [v(spine[k]), lerp(spine[k], spine[k + 1], 0.5)]
-    track.append(v(spine[-1]))
-    w = np.interp(np.linspace(0, len(widths) - 1, len(track)), range(len(widths)), widths)
-    # Each plate reaches well past the next one's centre, so they overlap like a body's plates.
-    step = np.linalg.norm(track[1] - track[0])
-    for k in range(len(track)):
-        prev, nxt = track[max(k - 1, 0)], track[min(k + 1, len(track) - 1)]
-        S.ellipsoid(track[k], nxt - prev, max(9.0, step * 0.8), w[k], depth=7.0, lift=-k * 0.6, along_flat=0.35)
-
-
-def leg(S, root, star, back):
-    """A jointed leg from the body at `root` out through the leg's star, bending back (`back`)."""
-    out = unit(v(star) - v(root))
-    knee = v(star) + out * 4.0
-    foot = knee + out * 4.0 + back * 7.0
-    S.chain([root, star, knee, foot], [2.1, 1.8, 1.4, 0.9], lift=-4.0)
-
-
-def pincer(S, claw, forward):
-    """A heavy pincer at a claw star, opening along `forward`."""
-    f = unit(forward)
-    side = np.array([-f[1], f[0]])
-    manus = v(claw) + f * 5.0
-    S.ellipsoid(manus, f, 8.5, 5.8, depth=5.5, lift=0.5)
-    tip = manus + f * 7.0
-    fixed = bezier(tip - f - side * 2.2, tip + f * 7.0 - side * 6.0, tip + f * 11.0 - side * 1.0, 7)
-    moving = bezier(tip - f + side * 2.2, tip + f * 7.0 + side * 6.0, tip + f * 11.0 + side * 1.0, 7)
-    S.chain(fixed, list(np.linspace(2.8, 0.7, 7)), lift=0.2)
-    S.chain(moving, list(np.linspace(2.5, 0.7, 7)), lift=0.0)
-
-
-def sting(S, base, tip, inward):
-    """The telson's sting from `base` through the tip star, hooking towards `inward` past it."""
-    f = unit(v(tip) - v(base))
-    curl = np.array([-f[1], f[0]])
-    if curl @ (v(inward) - v(tip)) < 0:
-        curl = -curl
-    points = bezier(v(base) + f * 4.0, v(tip) + f * 4.0, v(tip) + f * 6.0 + curl * 9.0, 10)
-    S.chain(points, list(np.linspace(5.0, 0.6, len(points))), lift=-1.0)
-
-
-def build_stinger(S, M):
-    """The Stinger, as the whole's: the tail's last joints come in from the right along the bottom,
-    turn up at the left, then the swollen telson runs right to the big star and the sting curls up
-    from it to the tip star."""
-    tail_joints(S, M[:4], [6.6, 6.3, 6.0])
-    S.ellipsoid(lerp(M[3], M[4], 0.6), v(M[4]) - v(M[3]), 16.0, 8.5, depth=6.0, lift=-1.5)
-    forward = unit(v(M[4]) - v(M[3]))
-    points = bezier(v(M[4]) + forward * 4.0, v(M[4]) + forward * 26.0, v(M[5]), 10)
-    S.chain(points + [v(M[5]) + v((-4.0, -5.0))], list(np.linspace(5.0, 1.8, len(points))) + [0.6], lift=-1.0)
-
-
-def build_tail(S, M):
-    """The Tail: a joint on each string, thinning towards the sting."""
-    tail_joints(S, M, list(np.linspace(7.0, 5.4, len(M) - 1)))
-
-
-def build_trunk(S, M, spine, widths):
-    """The Body or the Heart: plates along the spine, a leg out through every other star."""
-    for k in range(len(M)):
-        if k in spine:
-            continue
-        root = M[[s for s in spine if (min(s, k), max(s, k)) in BRANCHES_OF[id(M)]][0]]
-        back = unit(v(M[spine[-1]]) - v(M[spine[0]]))
-        leg(S, root, M[k], back)
-    plates(S, [M[i] for i in spine], widths)
-
-
-BRANCHES_OF = {}
-
-
-def build_body_stage(S, M):
-    BRANCHES_OF[id(M)] = {(1, 5), (1, 6), (2, 7), (2, 8)}
-    build_trunk(S, M, [0, 1, 2, 3, 4], [10.0, 13.0, 14.0, 12.0, 9.0])
-
-
-def build_heart_stage(S, M):
-    BRANCHES_OF[id(M)] = {(2, 5), (2, 6)}
-    build_trunk(S, M, [0, 1, 2, 3, 4], [8.0, 11.0, 13.5, 11.0, 8.0])
-
-
-def build_claws(S, M):
-    """The Claws, as the whole's: the neck's plates, the carapace reaching back from the head, and an
-    arm up and an arm down, each bending back at its elbow, with a heavy pincer opening forward
-    (right), the way the scorpion faces. The stage spreads its stars wider than the whole's head, so
-    the carapace and pincers grow with it (`k`) to keep the whole's proportions."""
-    k = 1.3
-    plates(S, [M[0], M[1]], [10.0, 12.0])
-    S.ellipsoid(lerp(M[2], M[1], 0.3), v(M[2]) - v(M[1]), 15.0 * k, 11.0 * k, depth=8.0 * k, lift=1.5)
-    for (a, b, c), bend in (((2, 3, 4), -1.0), ((2, 5, 6), 1.0)):
-        S.chain([M[a], M[b], M[c]], [4.6, 3.8, 4.6], lift=-0.5)
-        manus = v(M[c]) + v((5.0, 0.0)) * k
-        S.ellipsoid(manus, (1.0, 0.25 * bend), 8.5 * k, 5.8 * k, depth=5.5 * k, lift=0.5)
-        tip = manus + v((7.0, 0.0)) * k
-        fixed = bezier(tip + v((-1, -2.2)) * k, tip + v((7.0, -6.0)) * k, tip + v((11.0, -1.0)) * k, 7)
-        moving = bezier(tip + v((-1, 2.2)) * k, tip + v((7.0, 6.0)) * k, tip + v((11.0, 1.0)) * k, 7)
-        S.chain(fixed, list(np.linspace(2.8, 0.7, 7) * k), lift=0.2)
-        S.chain(moving, list(np.linspace(2.5, 0.7, 7) * k), lift=0.0)
-
-
-STAGE_BUILDERS = {
-    "stinger": build_stinger, "tail": build_tail, "body": build_body_stage,
-    "heart": build_heart_stage, "claws": build_claws,
-}
 
 
 def shade(S: Solids):
@@ -463,16 +351,6 @@ def shade(S: Solids):
                 img[y, x, 3] = 255
     return img
 
-def add_stardust(img: np.ndarray):
-    dark = {RGB[k] for k in ("N2", "N3", "N4")}
-    for y in range(H):
-        for x in range(W):
-            if img[y, x, 3] and tuple(img[y, x, :3]) in dark:
-                h = (x * 374761393 + y * 668265263) & 0xFFFFFFFF
-                h = ((h ^ (h >> 13)) * 1274126177) & 0xFFFFFFFF
-                if h % 37 == 0:
-                    img[y, x, :3] = RGB["N8"] if h % 3 else RGB["D0"]
-
 
 # Which part owns each of Scorpius's landmarks (game/core/chapter.gd STAGES).
 STAR_PARTS = {13: "stinger", 12: "stinger", 11: "stinger", 10: "tail", 9: "tail", 8: "tail",
@@ -499,11 +377,10 @@ def main():
     if args.preview:
         sd.preview(img, L, SIZES, SEGMENTS).save(args.preview)
         print(f"wrote {args.preview}")
-    for name, landmarks in stage_landmarks().items():
-        stage = Solids()
-        STAGE_BUILDERS[name](stage, landmarks)
-        painting = shade(stage)
-        add_stardust(painting)
+    for name, (landmarks, sizes) in stage_landmarks().items():
+        painting = scorpio_part_paintings.paint(name, landmarks, sizes, SEED, LIGHT)
+        used = sd.check(painting)
+        print(f"{name}: {sum(used.values())} px, {used}")
         save(painting, ART / f"scorpio_part_{name}.png")
 
 
