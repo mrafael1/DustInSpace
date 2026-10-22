@@ -180,6 +180,177 @@ static func play_sky(rows: int, side: int = 0) -> Rect2i:
 - **Q3 hunt circle:** "hunt should keep its circle inside the frame to prevent the stage from being too easy": the hunting circle stays wholly inside the frame (commit 7b). It was a default (measure first, ask past a 10% fall in strike coverage); commit 7's bot numbers went past it.
 - **Q1 window (the user, 2026-10-20, asked me to pick; replaces the 1280x720 minimum below):** a desktop opens **fullscreen** by default (a 1366x768 laptop fullscreen shows 683x384 and gets the capped 640 sky); the **minimum window is 960x540**, so a maximised window on a 1366x768 laptop (about 1366x705) opens; leaving fullscreen (F11 or Alt+Enter) gives a **1280x720** window (my pick: 16:9 at 2x, 640x360, the whole widest sky, and it fits a 1080p screen with its title bar; maximised where it doesn't fit). Switching from fullscreen to a smaller window mid-run may hold until the sky fits or the next stage; accepted.
 - Defaults taken (flagged in the PRs): **Q1** desktop minimum window 1280x720 (superseded above), the run keeps its sky and the game pauses until it fits; **Q6** the chart's neighbours drawn dimmed, not tappable; **Q7** the play sky caps at 640, the chart and title show more on ultrawide; **Q8** no decorative stars over the play sky; **Q9** the iPad's landscape sky follows the same rules.
+- **The phone box (the user, 2026-10-22, on the three wide-sky studies):** "take it" (drains A, hunt A, Pisces C); "one rule for every stage with a frame: yes"; tall phones "keep it for now" (they play exactly as today). Designed as one rule in §9.
+
+## 9. The phone box: one edge rule
+
+**Status (2026-10-22):** designed, not built. It comes from the three wide-sky studies in `Claude outputs/release/wide-sky/studies/` (`drains.md`, `hunt.md` and `pisces.md`, each with a Verification section). The user took the three recommended fixes and asked for one rule in their place. This section is that rule. On the stages below it supersedes §3's Splash, Still strips and Ram rows, and the full-height frame of Q3 and Q4.
+
+### The rule
+
+On a **wide sky** (more than 180 columns), every stage whose mechanic **takes or excludes stars at an edge** plays in the **phone box**. The box is `Scorpio.HOME_SKY` (180x172) moved by `Scorpio.shift_in(sky)`: the 9:16 sky round the constellation, with the phone's rows as well as its columns. It is hunt option A's `hunt_frame`, applied to every stage listed below.
+
+- **Throws stay in the box.** The aim, the burst point, a red pack's twin split points and the scatter all keep to the box, as a phone's screen edge keeps them. A throw aimed into the shade bursts at the box's edge. The aim marker stops there too, so it shows where the burst will land.
+- **Stars past the box.** On drain, splash and ram stages they are lost. On hunt stages they are never prey. No throw lands there, so only a mechanic can move a star there: a flow, a splash push or a ram butt.
+- **The shade.** The sky outside the box is shaded on all four sides with the existing sparse S1 tile, and a dotted S3 line runs just outside each edge.
+- **Stages with no edge stake** keep the full wide sky and the full-height frame of §2, exactly as built.
+- **Phones.** On any 180-wide sky (every phone, tall ones included) the box *is* the sky. Phones play byte-identically, and `test_portrait_identity.gd` passes unchanged.
+
+Where the box sits:
+
+| Window | Sky rows | Box rows | Shaded rows above / below | Shaded columns each side |
+|---|---|---|---|---|
+| 640x360 (1080p) | 38-249 | 58-229 | 20 / 20 | 230 |
+| 640x400 (Steam Deck) | -2-249 | 38-209 | 40 / 40 | 230 |
+| 512x384 (iPad landscape) | 14-249 | 46-217 | 32 / 32 | 166 |
+
+### Which stages (from the code: what loses or excludes stars at `frame_rect`)
+
+| Mechanic | Edge stake | Stages (`StarMap`) | On when |
+|---|---|---|---|
+| Hunt (Orion's circle) | the circle stays in the frame; stars outside it are never prey | `heart`, `claws`, `final` | `map.hunt and balance.hunt_radius > 0` |
+| Drain (draining current) | a star outside the frame, or carried past it, is lost | `aquarius_body`, `aquarius_legs`, `aquarius_stream`, `aquarius_jar`, `aquarius_final`; the debug flow trials while they drain | `current != null and current.drains` |
+| Splash (Pisces seam) | a star pushed past the edge is lost | `pisces_knot`, `pisces_east_cord`, `pisces_north_fish`, `pisces_final` | `splash != null` |
+| Ram (Aries) | a star butted past the far edge is lost; one behind the ram stays | `aries_horns`, `aries_head`, `aries_fleece`; debug `ram_trial` | `ram != null` |
+
+**Not in the box.** None of these loses or excludes a star at the frame:
+- `tail` and `body`: the volley and the marks don't depend on position.
+- `aquarius_hand`: its current doesn't drain.
+- Leo's heat and breath, and Virgo's harvest, scythe and binding: they don't depend on position.
+- Sagittarius's gravity: the `d_eff` cap limits a reach and takes no star at an edge. Its own gaps (Bow +10.5, final archer -10, commit 11) stay a separate question.
+- `pisces_circlet`, `pisces_west_cord` and `cord_trial`: no splash.
+- Pisces's wave: it wipes half the sky, which is not an edge.
+
+One core predicate decides it: `RunState.plays_in_box() -> bool` = `hunt != null or (current != null and current.drains) or splash != null or ram != null`.
+
+### How the three patches map onto it
+
+**`hunt_A-nine-sixteen-hunt-frame`**
+- **Take:**
+  - `hunt_frame(sky)` and `launch_rect()`.
+  - The call sites: `launch`'s clamp and split, `burst_centre`, `open_launch_spot`, `is_safe_launch` and `_burst`'s scatter.
+  - Its 3 tests.
+- **Generalise:**
+  - `hunt_frame` becomes `static func phone_box(sky)`, with the same body.
+  - `launch_rect()` becomes `frame_rect if plays_in_box() else sky_rect`.
+  - `_init` sets `frame_rect = phone_box(sky)` for every box stage, once the mechanics are built, then sets `current.frame = frame_rect` again.
+  - The tests cover every box stage.
+- **Drop:** nothing.
+
+**`drains_optionA-scatter-in-frame`**
+- **Take:**
+  - `burst_drains_at` reads each ring dot where its star lands. This also fixes the portrait red dots above and below the sky (drains Finding 1).
+  - Its tests on bursts by the frame's side and on red twins.
+- **Generalise:** the landing clamp is `launch_rect()`, so the extra `burst` parameter goes.
+- **Drop:**
+  - `scatter_rect(burst)` and its "burst inside the frame" condition: under the box, a burst is always inside it.
+  - `test_a_burst_thrown_past_the_frame_still_scatters_there`: such a throw now bursts at the box's edge, as in the study's option B.
+
+**`pisces_C-splash-edge-and-red-split-in-frame`**
+- **Take:**
+  - `CurrentView.outside_frame` gets the top and bottom strips, and `frame_side_pixels` dots all four edges.
+  - Its view tests.
+  - Its splash tests: a push past the box's rows loses a star; the loss edge is the sky on any 180-column sky; Circlet's red still splits across the frame; portrait splits are unchanged.
+- **Generalise:** the splash already loses at `frame_rect` (commit 10), so it gets the box's rows with no change of its own.
+- **Drop:**
+  - The `splash_edge` var: it is `frame_rect` now.
+  - `split_points_at`: `launch_rect()` covers it.
+  - SeamView's switch to `splash_edge`.
+
+Not merged (measurement only): the `*_study-*`, `drains_bot-study-flags` and `pisces_verify-tools` patches, hunt options B, C and D, and Pisces options A0, A10 and D.
+
+### Core (`game/core/run_state.gd`; `balance.json` untouched)
+
+- **`static func phone_box(sky: Rect2i) -> Rect2i`:** `Rect2i(HOME_SKY.position + shift_in(sky), HOME_SKY.size)` when `sky.size.x > HOME_SKY.size.x`, otherwise today's frame, which is the sky.
+- **`plays_in_box()` and `launch_rect()`**, as above.
+- **`launch_rect()` replaces `sky_rect`** in these places (line numbers at `6a02dab6`):
+  - `launch`: the thrown clamp (808) and `split_points` (839).
+  - `burst_centre` (1645, 1648). The box is symmetric about `seam_middle`, so a reflection stays inside it.
+  - `open_launch_spot`'s split (996) and `is_safe_launch` (1031, 1033).
+  - `_burst`'s `StarScatter.place` (1300).
+  - `splash_points` (1792, 1793).
+  - The reflection and wave intros' burst and scatter (1677, 1901, 1911), so their demos play in the box.
+- **`burst_drains_at(point)`** tests `landing = clamp_to_sky(point, launch_rect())`.
+- **These follow `frame_rect` unchanged:**
+  - the hunt circle and Orion's corner, OrionView's arrow row, and the HUD encounter line;
+  - the splash loss and its intro;
+  - the ram's charge, its intro and ChargeView;
+  - the drain's stranded and leaves tests;
+  - the guide spots, and the intros commit 8 limited to the frame.
+
+### Presentation
+
+1. **Aim.**
+   - `launcher.gd:144` (`burst_preview`) and `telescope.gd:284` (`aim_at`) and `:513` (`_sky_centre`) clamp to `run.launch_rect()`.
+   - `launcher.gd:234`, the red split preview, splits in `launch_rect()`.
+   - `telescope.gd:380` (`lets_go`) tests the box's bottom row, so a finger lifted in the bottom strip cancels the aim, as below a phone's sky.
+   - `sky.gd:837` places the flight decoys in `launch_rect()`.
+2. **Shade.**
+   - `outside_frame` and `frame_side_pixels` cover four sides (from Pisces C).
+   - CurrentView's ram branch becomes ram or hunt, so hunt stages get the shade. The drain branch gets four rects through `frame_shade_rects`.
+   - Splash stages stay with SeamView.
+   - It needs an art check in a capture.
+3. **Scatter ring.** It reads true through `burst_drains_at`. The ring's radius under-reads the scatter (18 against 30, drains Finding 2); that is older than this rule and stays as it is.
+
+### Tests
+
+- **Core (`tests/test_wide_sky.gd`):**
+  - `phone_box` on `WIDE_SKY`, 640x400 and 512x384, and the sky itself on `SKY`, `play_sky(102)` and `play_sky(40)`.
+  - `frame_rect == phone_box` on every box map in the table. Every other map keeps its full-height frame, and on a 180-wide sky `frame == sky` for all.
+  - Throws into the side sky and into the top and bottom strips burst in the box's inner rect, every star born lands in the box, and a red's twins split in it. 10 seeds per box mechanic.
+  - **A wide run is the 9:16 run moved by the shift.** Hunt A's `_hunt_trace`, widened to every positional signal (circles, bursts, moves, losses, charges), on Heart, the final, `aquarius_body`, `aquarius_final`, `pisces_north_fish`, `pisces_final` and `aries_head`, 5 seeds each.
+  - Stars past the box: a drain strands one; a splash push past the box's rows loses one; the ram loses one past its far edge and leaves one behind it; the hunt never circles one.
+  - The ring reads each dot where its star lands, on the wide and the portrait sky (drains A's tests 4 and 5).
+  - Stages outside the box are unchanged: Tail's and Circlet's `launch_rect()` is the sky, and Circlet's red still splits across the frame.
+- **Views (`tests/test_wide_sky_views.gd`):**
+  - Four shade rects and four dotted edges on drain, splash, ram and hunt stages; none on Tail, the Circlet or the 9:16 sky.
+  - `burst_preview`, `burst_points`, `aim_at`, `lets_go` and the decoys keep to the box.
+- **Existing wide tests that assume a full-height frame on these stages** move to the box. Examples: the splash dots at y 38-249, the ram charging down from the sky's top, and `test_a_burst_outside_the_frame_shows_as_draining`.
+- **Guards:** the full GUT suite, and `test_portrait_identity.gd` unchanged.
+- **Bots** (paired seeds, at least the studies' counts):
+  - Bots and skies: hunt, currents (plain and `+aware`), reflect (the harness and the real bot) and ram, each at 180x320, 640x360, 640x400, 512x384 and 195x422.
+  - Expected: every wide sky equals the 9:16 sky within noise (by construction, exactly), and 195x422 equals HEAD.
+  - Spot check: heat, harvest, gravity and cords at 640x360 equal HEAD.
+- **Captures** (Movie Maker, a 1920x1080 window):
+  - Heart, Aquarius final, North Fish and Aries Head: the shade, the dotted edges, an aim stopping at the box, and the red preview by the box's side.
+  - One 540x960 frame, unchanged.
+
+### Commit plan (on `feature/wide-sky`, PR #217; each one keeps the suite and the identity guard green)
+
+1. `docs: the phone box, one edge rule for wide skies` (this section and the §8 line).
+2. `feat: edge-stake stages take the 9:16 phone box as their frame on a wide sky`
+   - `phone_box`, `plays_in_box`, `frame_rect` and `current.frame`.
+   - Tests: the box, the frame per map, stars past the box.
+   - Existing wide tests moved to the box.
+3. `feat: launches burst, split and scatter in the phone box`
+   - `launch_rect` and its call sites, plus the reflection and wave intros.
+   - Tests: throws into the shade, twins, the trace equality, stages outside the box unchanged.
+   - Bot tables for hunt, currents, reflect and ram in the build notes.
+4. `fix: the scatter ring reads each dot where its star lands`
+   - `burst_drains_at`. This also fixes the portrait red dots outside the sky.
+5. `feat: aim marker, split preview, let-go row and decoys keep to the phone box`
+   - Launcher, Telescope and Sky, with view tests.
+6. `feat: the shade and dotted edge go round all four sides of the phone box, hunt stages too`
+   - CurrentView's statics and its gate, with view tests.
+7. `chore: bots search their aims within launch_rect`
+   - The hunt bot's aim search (the source of the +0.4), the reflect bot's hard-coded `y >= 230`, and the ram bot's `inner_rect(sky_rect)`.
+   - No game change.
+8. `docs: phone box build notes, bot tables and captures`
+
+### Doubts
+
+1. **Where the box sits.** It is centred on the figure. That is the only measured placement and the only exact phone equivalence. It floats 20 rows above the horizon on 1080p and 40 on a Steam Deck. Resting it on the horizon would need measuring again (hunt Q4, unanswered).
+2. **Orion moves between stages.** Tail and Body have no edge stake, so they keep the full sky, and Orion stands 20 px higher there than on Heart, Claws and the final (hunt Q2, unanswered). Boxing them would cost no balance, but the rule would become "any Orion stage".
+3. **Drains go past option A to option B.** The aim is clamped, so a human can no longer lose a whole planet in the shade. It makes no bot difference.
+4. **The numbers will differ from the studies.**
+   - The box removes the extra rows on every box stage, so the drains final's +8.6 height effect should vanish (option A kept it).
+   - Pisces should come out exact rather than within C's ±2, since its scatter is in the box too (as in AB0).
+   - The ram, within ±1.5 today, should come out exact.
+   - None of this is measured yet.
+5. **Flows clamp to the sky, not the box** (`current.preview(stars, sky_rect)`). No shipped drain map flows toward a box edge it doesn't drain at, so this changes nothing today. The trace test would catch one that does.
+6. **`lets_go` at the box's bottom.** A finger lifted in the bottom strip cancels instead of firing at the edge. This is a feel question, iPad only.
+7. **Tutorial lines.** `hud.gd:944` and `:1044` anchor them at `sky_rect.position.y + TOP`, which can be in the top shaded strip on box stages. Check in a capture.
+8. **Tall phones.** Their gaps stay (hunt +9 to +22, Pisces +5 to +6, drains final about +8), per the user's decision.
 
 ## Build notes
 
