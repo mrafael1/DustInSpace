@@ -4,8 +4,9 @@
   leo_piece_<part>.png   the same painting cut into the chapter's five parts (tail, haunch, heart,
                          mane, head), in the same full-screen home layout: the chapter chart shows
                          the won ones dormant, then the whole figure once the final is won
-  leo_part_<part>.png    each part stage's own painting, still the old shaded-solid style, built by
-                         tools/art/leo_part_paintings.py (run at the end of this script, unchanged)
+  leo_part_<part>.png    each part stage's own painting, in the same clean-line style, the final's
+                         body parts re-posed to each stage's stars
+                         (tools/art/leo_part_paintings.py, run from here)
 
 The whole Leo is the Scorpio's clean line, semi-hollow with stardust (tools/art/clean_line.py and
 tools/art/stardust.py), round the 13 landmarks of StarMap.leo (game/core/star_map.gd). The pieces
@@ -496,8 +497,8 @@ def main():
     if args.preview:
         sd.preview(img, L, SIZES, SEGMENTS, scale=3).save(args.preview)
         print(f"wrote {args.preview}")
-    import leo_part_paintings  # noqa: E402  (the part stages' own, old-style paintings)
-    leo_part_paintings.main()
+    import leo_part_paintings  # noqa: E402  (the part stages' own paintings)
+    leo_part_paintings.build_parts()
 
 
 if __name__ == "__main__":
