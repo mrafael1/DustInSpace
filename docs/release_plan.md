@@ -1,6 +1,13 @@
 # First release: Android, iOS and Steam
 
-**Status (2026-10-19): plan only, nothing built yet.** The user wants to prepare the first release. Decisions taken (2026-10-19):
+**Build update (2026-10-27):** Android APK/AAB and iOS Xcode-project presets now have a shared
+configuration and build helper; see [mobile_builds.md](mobile_builds.md). The Android debug APK
+and a release-mode Gradle AAB (debug key used only for smoke testing) were built locally. The iOS preset still needs a Mac/Team ID and
+native validation; the Play release needs an upload keystore. Nothing has been submitted.
+The newer release scope keeps Aries's three existing stages as a playable teaser, replacing the
+locked-only Aries decision below. Chapters 1-6 paintings and the wide-sky work have also landed.
+
+**Original plan (2026-10-19).** Decisions taken then:
 
 - **Scope:** chapters 1-6 (Scorpio to Pisces) are playable. **Aries is a locked teaser** on the chart ("coming soon"), and the stages already built for it stay out of the release build.
 - **Desktop:** a **wide sky, same figures**. On a landscape screen the play sky widens up to 16:9, every mechanic runs across the whole width, the HUD moves out to the sides, and each constellation keeps its portrait shape, centred. The paintings are reused as they are.

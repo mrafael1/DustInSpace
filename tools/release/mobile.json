@@ -1,0 +1,7 @@
+{
+  "godot_version": "4.7.stable",
+  "app_id": "com.mrafael1.dustinspace",
+  "version": "0.1.0",
+  "build": 1,
+  "android_target_sdk": 36
+}
