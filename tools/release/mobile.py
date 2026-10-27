@@ -83,7 +83,7 @@ def expected_output(command: str, destination: Path) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["configure", *TARGETS])
-    parser.add_argument("--app-id", help="Override the provisional ID in mobile.json (confirm before store upload)")
+    parser.add_argument("--app-id", help="Override the confirmed ID in mobile.json for a local build")
     parser.add_argument("--ios-team-id", default=os.environ.get("DUST_IOS_TEAM_ID", ""))
     parser.add_argument("--godot", default=os.environ.get("GODOT", "godot"), help="Godot 4.7 editor executable")
     args = parser.parse_args()
