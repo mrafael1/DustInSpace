@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from functools import lru_cache
+import importlib.util
 import math
 from pathlib import Path
 import struct
@@ -21,6 +22,9 @@ FPS, SECONDS = 30, 30
 SIZE = (1080, 1920)
 FONT_DIR = Path('C:/Windows/Fonts')
 WHITE, GOLD, DARK = '#D9E2FF', '#FFE59A', '#07091F'
+_glyph_spec = importlib.util.spec_from_file_location('game_bitmap_font', ROOT / 'tools/art/build_fonts.py')
+_glyphs = importlib.util.module_from_spec(_glyph_spec)
+_glyph_spec.loader.exec_module(_glyphs)
 
 
 @dataclass(frozen=True)
@@ -29,17 +33,12 @@ class Shot:
     start: int
     count: int
     offset: int = 6
-    reverse: bool = False
 
     @property
     def end(self) -> int:
         return self.start + self.count
 
     def source_frame(self, local: int) -> int:
-        if self.reverse:
-            # Return along the same captured star journey, landing on the exact
-            # native frame that opens the entire ad. Retiming is integer frames.
-            return round(107 - min(1, local / (self.count - 1)) * 101)
         return self.offset + local
 
 
@@ -49,8 +48,7 @@ SHOTS = [
     Shot('aquarius', 390, 105),             # 13.0-16.5: current
     Shot('leo', 477, 105),                  # 15.9-19.4: heat
     Shot('gravity', 564, 105),              # 18.8-22.3: black hole
-    Shot('painting', 651, 153),             # 21.7-26.8: Scorpio reveal
-    Shot('voyage', 786, 114, reverse=True),  # 26.2-30.0: chart -> same title
+    Shot('title', 651, 249),                # 21.7-30.0: title and store CTA, no Scorpio art
 ]
 
 
@@ -85,6 +83,21 @@ def text(image: Image.Image, value: str, y: int, size: int = 48,
               stroke_width=3, stroke_fill=DARK)
 
 
+def bitmap_text(image: Image.Image, value: str, y: int, color: str) -> None:
+    """Use the game's exact 5x7 glyphs at the footage's native 6x pixel scale."""
+    scale = 6
+    x = (SIZE[0] - (len(value) * 6 - 1) * scale) // 2
+    draw = ImageDraw.Draw(image)
+    for dx, dy, fill in [(scale, scale, DARK), (0, 0, color)]:
+        for index, letter in enumerate(value):
+            for row, pattern in enumerate(_glyphs.FONT_5X7[letter]):
+                for col, pixel in enumerate(pattern):
+                    if pixel == '#':
+                        left = x + (index * 6 + col) * scale + dx
+                        top = y + row * scale + dy
+                        draw.rectangle((left, top, left + scale - 1, top + scale - 1), fill=fill)
+
+
 def footage(folder: Path, frame: int) -> Image.Image:
     with Image.open(folder / f'gameplay{frame:08d}.png') as image:
         if image.size != (180, 320):
@@ -98,12 +111,17 @@ def native_frame(frame: int, media: Path) -> Image.Image:
         raise ValueError(f'No shot covers frame {frame}')
     images = [footage(media / shot.folder, shot.source_frame(frame - shot.start))
               for shot in active]
-    if len(active) == 1:
-        return images[0]
-    old, new = active
-    overlap = old.end - new.start
-    weight = smooth((frame - new.start) / (overlap - 1))
-    return Image.blend(images[0], images[1], weight)
+    result = images[0]
+    if len(active) == 2:
+        old, new = active
+        overlap = old.end - new.start
+        weight = smooth((frame - new.start) / (overlap - 1))
+        result = Image.blend(images[0], images[1], weight)
+    # Join the closing title's animated sky to the exact opening title state.
+    # The CTA is already gone, so the whole ad still repeats without a jump.
+    if frame >= 882:
+        result = Image.blend(result, footage(media / 'voyage', 6), smooth((frame - 882) / 17))
+    return result
 
 
 def render(frame: int, media: Path, cta: str) -> Image.Image:
@@ -120,18 +138,12 @@ def render(frame: int, media: Path, cta: str) -> Image.Image:
             overlay = im.copy()
             text(overlay, label, 88, 51, bold=True)
             im = Image.blend(im, overlay, strength)
-    strength = envelope(t, 23.0, 27.15, 0.8)
+    strength = envelope(t, 22.5, 29.4, 0.7)
     if strength:
-        # A soft dark wash makes the store line readable over the chart UI.
-        # It fades with the CTA before the title journey returns to the seam.
-        wash = Image.new('RGBA', SIZE)
-        draw = ImageDraw.Draw(wash)
-        for y in range(1450, 1810):
-            alpha = round(246 * min(1, (y - 1450) / 80, (1810 - y) / 75))
-            draw.line((0, y, 1079, y), fill=(7, 9, 31, max(0, alpha)))
-        overlay = Image.alpha_composite(im.convert('RGBA'), wash).convert('RGB')
-        text(overlay, cta.title(), 1555, 58, GOLD, True)
-        text(overlay, 'Google Play  /  App Store', 1640, 36)
+        overlay = im.copy()
+        bitmap_text(overlay, cta, 1122, GOLD)
+        bitmap_text(overlay, 'GOOGLE PLAY', 1260, WHITE)
+        bitmap_text(overlay, 'APP STORE', 1356, WHITE)
         im = Image.blend(im, overlay, strength)
     return im
 
@@ -197,7 +209,7 @@ def main() -> None:
         thumb = render(round(second * FPS), media, args.cta).resize((270, 480), Image.Resampling.LANCZOS)
         sheet.paste(thumb, ((index % 4) * 270, (index // 4) * 480))
     sheet.save(out / 'review-sheet.jpg', quality=96)
-    render(15, media, args.cta).save(out / 'poster.png')
+    render(25 * FPS, media, args.cta).save(out / 'poster.png')
     render(210, media, args.cta).save(out / 'gameplay-preview.png')
     first.save(out / 'loop-start.png')
     last.save(out / 'loop-end.png')
@@ -219,7 +231,7 @@ def main() -> None:
         encoder.kill()
         encoder.wait()
         raise
-    audio_shots = SHOTS[1:6]
+    audio_shots = SHOTS[1:5]
     inputs = ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-y', '-i', str(silent)]
     filters = []
     for index, shot in enumerate(audio_shots, 1):
@@ -230,8 +242,8 @@ def main() -> None:
             f'asetpts=PTS-STARTPTS,afade=t=in:d=0.3,afade=t=out:st={length - .3}:d=0.3,'
             f'adelay={delay}|{delay}[s{index}]')
     inputs += ['-i', str(out / 'original-ambience.wav')]
-    labels = ''.join(f'[s{i}]' for i in range(1, 6))
-    filters.append(labels + '[6:a]amix=inputs=6:normalize=0,alimiter=limit=0.89[a]')
+    labels = ''.join(f'[s{i}]' for i in range(1, 5))
+    filters.append(labels + '[5:a]amix=inputs=5:normalize=0,alimiter=limit=0.89[a]')
     destination = out / 'dust-in-space-looping-ad.mp4'
     subprocess.run(inputs + ['-filter_complex', ';'.join(filters), '-map', '0:v', '-map', '[a]',
         '-t', '30', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
