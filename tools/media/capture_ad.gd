@@ -1,7 +1,8 @@
 extends SceneTree
 ## Records real, seeded gameplay through the existing presentation and pointer handlers.
 ## godot --path . --windowed --resolution 540x960 --fixed-fps 30 \
-##   --write-movie output/media/gameplay.avi --script tools/media/capture_ad.gd
+##   --write-movie output/media/lossless/gameplay.png --script tools/media/capture_ad.gd
+## Use PNG/WAV output: JPEG movie frames introduce artifacts before HD composition.
 
 const MAIN_SCENE: PackedScene = preload("res://game/scenes/main.tscn")
 const FPS: int = 30
