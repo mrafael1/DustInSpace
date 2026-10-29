@@ -37,7 +37,7 @@ func _process(_delta: float) -> bool:
 func _record() -> void:
 	root.mode = Window.MODE_WINDOWED
 	root.size = Vector2i(540, 960)
-	if _mode == "title" or _mode == "painting":
+	if _mode in ["title", "painting", "voyage"]:
 		await _record_chart()
 		return
 	_main = MAIN_SCENE.instantiate() as Main
@@ -45,6 +45,9 @@ func _record() -> void:
 	_main.star_map = _map
 	_main.in_chapter = true
 	root.add_child(_main)
+	# Capture-only editorial cleanup: teasers show the mechanic rather than
+	# holding the game's teaching text beneath the ad's own captions.
+	(_main.get_node("HUD/Message") as Label).modulate.a = 0.0
 	await _wait(0.6)
 	while _frames < _length * FPS and not _main.run.is_over():
 		await _settle()
@@ -59,6 +62,7 @@ func _record() -> void:
 
 func _record_chart() -> void:
 	var chart: ChapterSelect = preload("res://game/scenes/chapter_select.tscn").instantiate() as ChapterSelect
+	chart.set_script(preload("res://tools/media/ad_chart.gd"))
 	root.add_child(chart)
 	var chapter := Chapter.new(ChapterDef.scorpio())
 	if _mode == "painting":
@@ -66,8 +70,21 @@ func _record_chart() -> void:
 		for stage: int in Chapter.stage_count():
 			chapter.complete(stage)
 	chart.setup(chapter)
-	if _mode == "title":
+	# Suppress chart menu labels and stage numbers for the cinematic capture.
+	# TitleView is a separate Node2D, so its animated logo remains untouched.
+	for child: Node in chart.get_children():
+		if child is Label:
+			(child as Label).modulate.a = 0.0
+	if _mode == "title" or _mode == "voyage":
 		chart.show_title()
+		# Marketing capture: the CTA is added in HD; leave the actual logo,
+		# sparkle and travelling star untouched.
+		for child: Node in chart.title_view().get_children():
+			if child is Label and (child as Label).text == "TAP TO START":
+				(child as Label).modulate.a = 0.0
+		if _mode == "voyage":
+			await _wait(1.2)
+			chart.start_descent()
 	else:
 		await _wait(0.35)
 		chart.show_progress(Chapter.FINAL, -1)
