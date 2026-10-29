@@ -61,6 +61,8 @@ All costs, chances, rewards and targets live in [game/config/balance.json](game/
 
 ## Project guide
 
+For native Android APK/AAB builds and the iOS Mac/Xcode handoff, see [Mobile builds](docs/mobile_builds.md).
+
 | Reference | What it covers |
 | --- | --- |
 | [Game design](docs/design.md) | Core loop, combos, Scorpio, win/loss and sound |
