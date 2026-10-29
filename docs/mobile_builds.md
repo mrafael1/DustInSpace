@@ -19,8 +19,8 @@ Changes belong in `tools/release/export_presets.cfg.in`, not the generated file.
 configuration while editing presets in the Godot editor.
 
 `tools/release/mobile.json` is the version/build source for all three targets. Increase `build`
-for every upload, and `version` for a new public version. **`com.mrafael1.dustinspace` is the
-confirmed Android package ID and iOS bundle ID** (approved 2026-10-27). Use it for both store app
+for every upload, and `version` for a new public version. **`com.alonelab.dustinspace` is the
+confirmed Android package ID and iOS bundle ID** (approved 2026-10-29). Use it for both store app
 records. `--app-id com.owner.dustinspace` overrides it for a local build.
 Use `--godot /path/to/Godot` if Godot is not on PATH.
 
