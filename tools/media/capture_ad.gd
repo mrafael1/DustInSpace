@@ -11,15 +11,25 @@ const LENGTH: int = 32
 var _main: Main
 var _frames: int = 0
 var _launches: int = 0
+var _map: String = "scorpio"
+var _length: int = LENGTH
+var _mode: String = "gameplay"
 
 
 func _initialize() -> void:
+	for argument: String in OS.get_cmdline_user_args():
+		if argument.begins_with("--map="):
+			_map = argument.trim_prefix("--map=")
+		elif argument.begins_with("--length="):
+			_length = argument.trim_prefix("--length=").to_int()
+		elif argument.begins_with("--mode="):
+			_mode = argument.trim_prefix("--mode=")
 	_record.call_deferred()
 
 
 func _process(_delta: float) -> bool:
 	_frames += 1
-	if _frames >= LENGTH * FPS:
+	if _frames >= _length * FPS:
 		quit()
 	return false
 
@@ -27,13 +37,16 @@ func _process(_delta: float) -> bool:
 func _record() -> void:
 	root.mode = Window.MODE_WINDOWED
 	root.size = Vector2i(540, 960)
+	if _mode == "title" or _mode == "painting":
+		await _record_chart()
+		return
 	_main = MAIN_SCENE.instantiate() as Main
 	_main.seed_override = 7
-	_main.star_map = "scorpio"
+	_main.star_map = _map
 	_main.in_chapter = true
 	root.add_child(_main)
 	await _wait(0.6)
-	while _frames < LENGTH * FPS and not _main.run.is_over():
+	while _frames < _length * FPS and not _main.run.is_over():
 		await _settle()
 		var links: Array[Array] = _main.run.valid_links()
 		if not links.is_empty():
@@ -42,6 +55,23 @@ func _record() -> void:
 			await _launch()
 	await _wait(4.0)
 	quit()
+
+
+func _record_chart() -> void:
+	var chart: ChapterSelect = preload("res://game/scenes/chapter_select.tscn").instantiate() as ChapterSelect
+	root.add_child(chart)
+	var chapter := Chapter.new(ChapterDef.scorpio())
+	if _mode == "painting":
+		# The existing chart's completion preview, on an unsaved in-memory chapter.
+		for stage: int in Chapter.stage_count():
+			chapter.complete(stage)
+	chart.setup(chapter)
+	if _mode == "title":
+		chart.show_title()
+	else:
+		await _wait(0.35)
+		chart.show_progress(Chapter.FINAL, -1)
+	await _wait(float(_length))
 
 
 func _wait(seconds: float) -> void:

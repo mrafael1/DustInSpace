@@ -1,4 +1,4 @@
-"""Build a 24-second 1080x1920 ad from the real Godot capture (Pillow + FFmpeg).
+"""Build a 30-second 1080x1920 ad from the real Godot capture (Pillow + FFmpeg).
 
 Usage: python tools/media/build_ad.py [--out output/media/ad] [--cta "DOWNLOAD NOW"]
 Gameplay remains authentic pixel art; the ad composition and type are authored
@@ -19,7 +19,7 @@ import wave
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
-FPS, SECONDS = 30, 24
+FPS, SECONDS = 30, 30
 SIZE = (1080, 1920)
 PALETTE = {"sky": "#07091F", "line": "#3E3F8A", "cool": "#9FB0EE",
            "white": "#D9E2FF", "gold": "#FFE59A", "dim": "#151D4A"}
@@ -77,7 +77,8 @@ def background(frame: int) -> Image.Image:
     return im
 
 
-def gameplay_card(game: Image.Image, frame: int) -> Image.Image:
+def gameplay_card(game: Image.Image, frame: int,
+                  copy: tuple[str, str, str] | None = None) -> Image.Image:
     im = background(frame)
     draw = ImageDraw.Draw(im)
     tracked(im, "DUST IN SPACE", 88)
@@ -86,7 +87,7 @@ def gameplay_card(game: Image.Image, frame: int) -> Image.Image:
                 ("A little dust.", "A lot of light.", "Watch the Sun come back to life."),
                 ("Restore", "the Sun.", "One more launch. One brighter sky.")]
     stage = min(frame // (5 * FPS), 3)
-    first, second, footer = captions[stage]
+    first, second, footer = copy or captions[stage]
     text(im, first, 158, 70, bold=True)
     text(im, second, 238, 70, PALETTE["gold"], bold=True)
     for i in range(4):
@@ -104,37 +105,56 @@ def gameplay_card(game: Image.Image, frame: int) -> Image.Image:
     return im
 
 
-def store_card(frame: int, cta: str) -> Image.Image:
-    im = background(frame)
-    draw = ImageDraw.Draw(im)
-    tracked(im, "A SKY WORTH RESTORING", 146)
-    text(im, "DUST IN", 263, 126, bold=True)
-    text(im, "SPACE", 395, 154, PALETTE["gold"], bold=True)
-    text(im, "A little stardust. A brighter sky.", 586, 37, PALETTE["cool"])
-    # Antialiased vector constellation: no enlarged bitmap on the HD end card.
-    layer = Image.new("RGBA", (2160, 3840))
-    lines = ImageDraw.Draw(layer)
-    points = [(round((x - 87) * 3.1 + 540) * 2,
-               round((y - 163) * 3.1 + 942) * 2) for x, y in LANDMARKS]
-    reveal = min(1.0, (frame / FPS - 20) / 0.7)
-    for index, (a, b) in enumerate(SEGMENTS):
-        lines.line((points[a], points[b]), fill=PALETTE["gold"] if index / 13 <= reveal
-                   else PALETTE["line"], width=4)
-    for index, (x, y) in enumerate(points):
-        radius = 15 if index in (4, 10, 13) else 9
-        lines.ellipse((x - radius * 2, y - radius * 2, x + radius * 2, y + radius * 2),
-                      outline=PALETTE["line"], width=2)
-        lines.ellipse((x - radius, y - radius, x + radius, y + radius), fill=PALETTE["gold"])
-    im.paste(layer.resize(SIZE, Image.Resampling.LANCZOS), (0, 0),
-             layer.resize(SIZE, Image.Resampling.LANCZOS))
-    text(im, cta.title(), 1274, 65, PALETTE["gold"], bold=True)
-    for label, small, center in [("Google Play", "GET IT ON", 348),
-                                 ("App Store", "DOWNLOAD ON THE", 732)]:
-        draw.rounded_rectangle((center - 174, 1402, center + 174, 1520), radius=20,
-                               fill="#0E1438", outline=PALETTE["cool"], width=2)
-        text(im, small, 1420, 17, PALETTE["cool"], center)
-        text(im, label, 1450, 36, x=center, bold=True)
-    text(im, "Launch. Link. Restore the Sun.", 1634, 31, PALETTE["cool"])
+def footage(folder: Path, frame: int) -> Image.Image:
+    with Image.open(folder / f"gameplay{frame:08d}.png") as image:
+        if image.size != (180, 320):
+            raise ValueError(f"Expected native 180x320 footage, got {image.size}")
+        return image.convert("RGB")
+
+
+def title_ending(frame: int, media: Path, cta: str) -> Image.Image:
+    """Use the game's animated title and live Scorpio chart, not a recreated logo."""
+    phase = frame % 144
+
+    def card(at: int) -> Image.Image:
+        im = background(at)
+        tracked(im, "A SKY WORTH RESTORING", 138)
+        # Keep the title's letter sparkles and central twinkle. Crop out TAP TO
+        # START and the chart's navigation, then join the two real game captures.
+        title = footage(media / "title", 48 + at).crop((0, 50, 180, 150)).convert("RGBA")
+        warm = {(255, 251, 234), (255, 229, 154), (255, 192, 98), (232, 138, 87)}
+        # Key only the exact lossless title colors, preserving animated letter
+        # sparkles while removing the crop's rectangular background seam.
+        title.putdata([(*pixel[:3], 255 if pixel[:3] in warm or
+                       (i // 180 == 86 and 57 <= i % 180 <= 123) else 0)
+                       for i, pixel in enumerate(struct.iter_unpack("4B", title.tobytes()))])
+        painting = Image.open(ROOT / "assets/art/scorpio_figure.png").convert("RGBA")
+        painting = painting.crop((0, 78, 180, 250))
+        live = footage(media / "painting", 90 + at).crop((0, 78, 180, 250)).convert("RGBA")
+        live.putdata([(*pixel[:3], 255 if pixel[:3] in warm and any(
+            (i % 180 - x) ** 2 + (i // 180 - (y - 78)) ** 2 <= 81
+            for x, y in LANDMARKS) else 0) for i, pixel in enumerate(struct.iter_unpack("4B", live.tobytes()))])
+        painting.alpha_composite(live)
+        native = Image.new("RGBA", (180, 272))
+        native.alpha_composite(title, (0, 0))
+        native.alpha_composite(painting, (0, 100))
+        native = native.resize((720, 1088), Image.Resampling.NEAREST)
+        im.paste(native, (180, 270), native)
+        text(im, cta.title(), 1415, 57, PALETTE["gold"], bold=True)
+        draw = ImageDraw.Draw(im)
+        for label, small, center in [("Google Play", "GET IT ON", 348),
+                                     ("App Store", "DOWNLOAD ON THE", 732)]:
+            draw.rounded_rectangle((center - 174, 1515, center + 174, 1633), radius=20,
+                                   fill="#0E1438", outline=PALETTE["cool"], width=2)
+            text(im, small, 1533, 17, PALETTE["cool"], center)
+            text(im, label, 1563, 36, x=center, bold=True)
+        return im
+
+    im = card(phase)
+    # A short whole-frame dissolve joins the last frame exactly to the first,
+    # preserving the authentic animations within each 4.8-second outro cycle.
+    if phase >= 132:
+        im = Image.blend(im, card(0), (phase - 132) / 11)
     return im
 
 
@@ -193,20 +213,27 @@ def main() -> None:
         raise FileNotFoundError(audio)
 
     def render(frame: int) -> Image.Image:
-        if frame >= 20 * FPS:
-            return store_card(frame, args.cta)
-        with Image.open(capture / f"gameplay{frame:08d}.png") as game:
-            if game.size != (180, 320):
-                raise ValueError(f"Expected native 180x320 gameplay, got {game.size}")
-            return gameplay_card(game.convert("RGB"), frame)
+        media = capture.parent
+        if frame >= 23 * FPS:
+            return title_ending(frame - 23 * FPS, media, args.cta)
+        for start, end, folder, offset, copy in [
+            (10, 13, "aquarius", 9, ("Follow", "the current.", "Aquarius - stars carried by the flow.")),
+            (13, 16, "leo", 9, ("Feel", "the heat.", "Leo - stars grow with every launch.")),
+            (16, 19, "gravity", 6, ("Don't get", "too close.", "Sagittarius - gravity changes everything.")),
+            (19, 23, "painting", 0, ("A sky worth", "restoring.", "Scorpio - bring the constellation to life.")),
+        ]:
+            if start * FPS <= frame < end * FPS:
+                image = footage(media / folder, frame - start * FPS + offset)
+                return gameplay_card(image, frame, copy)
+        return gameplay_card(footage(capture, frame), frame)
 
     # Preview and poster are authored with exactly the same render path as the MP4.
     sheet = Image.new("RGB", (1080, 960), PALETTE["sky"])
-    for index, second in enumerate([1, 4, 6, 9, 12, 16, 21, 23]):
+    for index, second in enumerate([1, 6, 11, 14, 17, 21, 25, 29]):
         thumb = render(second * FPS).resize((270, 480), Image.Resampling.LANCZOS)
         sheet.paste(thumb, ((index % 4) * 270, (index // 4) * 480))
     sheet.save(out / "review-sheet.jpg", quality=96)
-    render(21 * FPS).save(out / "poster.png")
+    render(25 * FPS).save(out / "poster.png")
     render(6 * FPS).save(out / "gameplay-preview.png")
     if args.preview:
         return
@@ -230,12 +257,37 @@ def main() -> None:
         raise
     destination = out / "dust-in-space-vertical-ad.mp4"
     run(["ffmpeg", "-hide_banner", "-loglevel", "warning", "-y",
-         "-i", str(silent), "-i", str(audio), "-i", str(out / "original-ambience.wav"),
-         "-filter_complex", "[1:a]atrim=0:20,afade=t=out:st=19:d=1,apad=whole_dur=24[g];"
-         "[g][2:a]amix=inputs=2:normalize=0,alimiter=limit=0.89[a]",
+         "-i", str(silent), "-i", str(audio),
+         "-i", str(capture.parent / "aquarius/gameplay.wav"),
+         "-i", str(capture.parent / "leo/gameplay.wav"),
+         "-i", str(capture.parent / "gravity/gameplay.wav"),
+         "-i", str(capture.parent / "painting/gameplay.wav"),
+         "-i", str(out / "original-ambience.wav"),
+         "-filter_complex", "[1:a]atrim=0:10,asetpts=PTS-STARTPTS[g];"
+         "[2:a]atrim=start=0.3:end=3.3,asetpts=PTS-STARTPTS,adelay=10000|10000[w];"
+         "[3:a]atrim=start=0.3:end=3.3,asetpts=PTS-STARTPTS,adelay=13000|13000[h];"
+         "[4:a]atrim=start=0.2:end=3.2,asetpts=PTS-STARTPTS,adelay=16000|16000[b];"
+         "[5:a]atrim=0:4,asetpts=PTS-STARTPTS,adelay=19000|19000[s];"
+         "[g][w][h][b][s][6:a]amix=inputs=6:normalize=0,alimiter=limit=0.89[a]",
          "-map", "0:v", "-map", "[a]", "-t", str(SECONDS), "-c:v", "copy", "-c:a", "aac",
          "-b:a", "192k", "-movflags", "+faststart", str(destination)])
     silent.unlink()
+    loop_path = out / "dust-in-space-title-loop.mp4"
+    loop = subprocess.Popen(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-f", "rawvideo", "-pixel_format", "rgb24", "-video_size", "1080x1920",
+        "-framerate", "30", "-i", "pipe:0", "-an", "-c:v", "libx264",
+        "-crf", "14", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(loop_path)],
+        stdin=subprocess.PIPE)
+    try:
+        for frame in range(144):
+            loop.stdin.write(title_ending(frame, capture.parent, args.cta).tobytes())
+        loop.stdin.close()
+        if loop.wait() != 0:
+            raise RuntimeError("Title loop encoding failed")
+    except BaseException:
+        loop.kill()
+        loop.wait()
+        raise
     print(destination)
 
 
