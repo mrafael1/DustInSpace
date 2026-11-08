@@ -401,7 +401,7 @@ func open_current_trial(enabled: bool = true, seed_value: int = 0, layout: Strin
 	_stage.current_enabled = enabled
 	_stage.current_layout = layout
 	_stage.seed_override = seed_value
-	_stage.map_requested.connect(back_to_chart)
+	_stage.map_requested.connect(back_to_chart, CONNECT_DEFERRED)
 	_show_chart(false)
 	add_child(_stage)
 
@@ -427,7 +427,7 @@ func open_stage(point: int, guided: bool = false) -> void:
 	_stage.encounter = threat >= 0 and encounters_met.get(Encounter.threat_name(threat), false) != true
 	_stage.encounter_finished.connect(_on_encounter_finished)
 	_stage.stage_won.connect(_on_stage_won)
-	_stage.map_requested.connect(back_to_chart)
+	_stage.map_requested.connect(back_to_chart, CONNECT_DEFERRED)
 	_show_chart(false)
 	add_child(_stage)
 	# PLAY answers like leaving the title (which, from the title, has just played the same cues).
@@ -437,6 +437,8 @@ func open_stage(point: int, guided: bool = false) -> void:
 
 
 ## Leaves the stage for the chart, which shows what a win just lit and unlocked.
+## MAP signals connect deferred: the touch handler must finish consuming its input while the
+## stage is still in the tree, otherwise its get_viewport() is null after remove_child().
 func back_to_chart() -> void:
 	if _stage == null:
 		return
