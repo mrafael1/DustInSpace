@@ -84,6 +84,10 @@ var _sky_cover := SkyHoldCover.new()
 
 
 func _exit_tree() -> void:
+	# The window outlives the stage. Stop resize callbacks before MAP detaches it.
+	var window: Window = get_window()
+	if window != null and window.size_changed.is_connected(fit_screen):
+		window.size_changed.disconnect(fit_screen)
 	Engine.time_scale = 1.0
 	# A stage left while it held for its sky must not leave the app paused behind it.
 	if _sky_held:
