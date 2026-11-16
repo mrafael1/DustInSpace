@@ -659,6 +659,15 @@ func test_the_hold_hides_the_pause_and_combos_buttons() -> void:
 	assert_true((hud.get_node("TableButton") as Node2D).visible)
 
 
+func test_a_stage_leaving_the_tree_stops_listening_for_window_resizes() -> void:
+	var window: Window = main.get_window()
+	assert_true(window.size_changed.is_connected(main.fit_screen))
+	main.get_parent().remove_child(main)
+	assert_false(window.size_changed.is_connected(main.fit_screen))
+	# Before deletion, a phone turning must not call fit_screen on the detached stage.
+	window.size_changed.emit()
+
+
 func _play_until_idle(sequencer: EventSequencer) -> void:
 	var elapsed: float = 0.0
 	sequencer.advance(0.0)
