@@ -345,6 +345,7 @@ func test_app_opens_on_the_chart_then_stage_1_then_back() -> void:
 	assert_false(app_chart.visible)
 	assert_true((stage.get_node("HUD") as Hud).is_map_offered(), "with a way back")
 	stage.map_requested.emit()
+	await get_tree().process_frame
 	assert_null(app.stage())
 	assert_true(app_chart.visible, "back on the chart")
 
